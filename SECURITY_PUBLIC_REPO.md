@@ -41,8 +41,8 @@ Este documento explica cómo se protegen las credenciales sensibles en este proy
 
 ### Paso 1: Clonar el Repositorio
 ```bash
-git clone https://github.com/tu-usuario/patinetatrack.git
-cd patinetatrack
+git clone https://github.com/Shurdani/ZipStats.git
+cd ZipStats
 ```
 
 ### Paso 2: Configurar Credenciales Locales

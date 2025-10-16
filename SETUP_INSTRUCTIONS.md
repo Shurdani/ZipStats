@@ -79,7 +79,7 @@ git add .
 git commit -m "chore: configuración inicial del proyecto"
 
 # Crear repo en GitHub y luego:
-git remote add origin https://github.com/TU-USUARIO/patinetatrack.git
+git remote add origin https://github.com/Shurdani/ZipStats.git
 git branch -M main
 git push -u origin main
 ```

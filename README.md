@@ -1,4 +1,4 @@
-# PatinetaTrack 🛴
+# ZipStats 🛴
 
 Aplicación Android para el seguimiento y gestión de patinetes y vehículos personales.
 
@@ -34,8 +34,8 @@ Aplicación Android para el seguimiento y gestión de patinetes y vehículos per
 ### 1. Clonar el repositorio
 
 ```bash
-git clone https://github.com/tu-usuario/patinetatrack.git
-cd patinetatrack
+git clone https://github.com/Shurdani/ZipStats.git
+cd ZipStats
 ```
 
 ### 2. Configurar Firebase
@@ -127,7 +127,7 @@ Este proyecto está bajo la Licencia MIT - ver el archivo [LICENSE](LICENSE) par
 
 ## Autor
 
-Tu Nombre - [@tu-usuario](https://github.com/tu-usuario)
+Shurdani - [@Shurdani](https://github.com/Shurdani)
 
 ## Agradecimientos
 

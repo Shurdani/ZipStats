@@ -97,7 +97,7 @@ git status
 # 4. Primer commit
 git commit -m "chore: configuración inicial del proyecto
 
-- Implementación de PatinetaTrack v2.0
+- Implementación de ZipStats v2.0
 - Sistema de logros con múltiples niveles
 - Gestión de vehículos y reparaciones
 - Integración con Firebase y Cloudinary
@@ -108,7 +108,7 @@ git commit -m "chore: configuración inicial del proyecto
 # 5. Crear repo en GitHub (marca como PÚBLICO)
 
 # 6. Conectar con GitHub
-git remote add origin https://github.com/TU-USUARIO/patinetatrack.git
+git remote add origin https://github.com/Shurdani/ZipStats.git
 git branch -M main
 
 # 7. Push inicial

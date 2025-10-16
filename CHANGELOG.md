@@ -40,6 +40,6 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 - Perfil de usuario
 - Tema claro/oscuro básico
 
-[2.0.0]: https://github.com/tu-usuario/patinetatrack/releases/tag/v2.0.0
-[1.0.0]: https://github.com/tu-usuario/patinetatrack/releases/tag/v1.0.0
+[2.0.0]: https://github.com/Shurdani/ZipStats/releases/tag/v2.0.0
+[1.0.0]: https://github.com/Shurdani/ZipStats/releases/tag/v1.0.0
 

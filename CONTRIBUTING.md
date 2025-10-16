@@ -1,6 +1,6 @@
 # Guía de Contribución
 
-¡Gracias por tu interés en contribuir a PatinetaTrack! 🎉
+¡Gracias por tu interés en contribuir a ZipStats! 🎉
 
 ## Cómo Contribuir
 

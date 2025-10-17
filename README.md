@@ -1,6 +1,19 @@
 # ZipStats 🛴
 
+<!-- Banner - Coloca tu banner en .github/assets/banner.png -->
+![ZipStats Banner](.github/assets/banner.png)
+
 Aplicación Android para el seguimiento y gestión de patinetes y vehículos personales.
+
+## 📸 Capturas de Pantalla
+
+<!-- Capturas - Coloca tus capturas en .github/assets/screenshots/ -->
+<p align="center">
+  <img src=".github/assets/screenshots/screenshot1.png" width="200" alt="Captura 1"/>
+  <img src=".github/assets/screenshots/screenshot2.png" width="200" alt="Captura 2"/>
+  <img src=".github/assets/screenshots/screenshot3.png" width="200" alt="Captura 3"/>
+  <img src=".github/assets/screenshots/screenshot4.png" width="200" alt="Captura 4"/>
+</p>
 
 ## Características
 
@@ -123,7 +136,15 @@ El APK se generará en: `app/build/outputs/apk/release/`
 
 ## Licencia
 
-Este proyecto está bajo la Licencia MIT - ver el archivo [LICENSE](LICENSE) para más detalles.
+El código de ZipStats está disponible bajo la [Licencia Pública General de GNU versión 3 (GPL v3)](LICENSE), esto excluye:
+
+- **Iconos, logotipos, mascotas, materiales de marketing y assets de ZipStats.**
+- **Animaciones y videos de ZipStats.**
+- **Documentación de ZipStats.**
+- **Capturas de pantalla de Google Play.**
+- **Textos y descripciones de Google Play.**
+
+Ver el archivo [LICENSE](LICENSE) para más detalles sobre los términos de la licencia.
 
 ## Autor
 

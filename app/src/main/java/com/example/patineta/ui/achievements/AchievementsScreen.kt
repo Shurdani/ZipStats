@@ -48,6 +48,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -160,7 +161,8 @@ fun AchievementsScreen(
                 ) {
                     Text(
                         text = "Todos",
-                        modifier = Modifier.padding(vertical = 12.dp, horizontal = 8.dp)
+                        modifier = Modifier.padding(vertical = 12.dp, horizontal = 8.dp),
+                        fontWeight = if (selectedLevel == null) FontWeight.Bold else FontWeight.Normal
                     )
                 }
                 Tab(
@@ -169,7 +171,8 @@ fun AchievementsScreen(
                 ) {
                     Text(
                         text = "🔰 Novato",
-                        modifier = Modifier.padding(vertical = 12.dp, horizontal = 8.dp)
+                        modifier = Modifier.padding(vertical = 12.dp, horizontal = 8.dp),
+                        fontWeight = if (selectedLevel == AchievementLevel.NOVATO) FontWeight.Bold else FontWeight.Normal
                     )
                 }
                 Tab(
@@ -178,7 +181,8 @@ fun AchievementsScreen(
                 ) {
                     Text(
                         text = "🧭 Explorador",
-                        modifier = Modifier.padding(vertical = 12.dp, horizontal = 8.dp)
+                        modifier = Modifier.padding(vertical = 12.dp, horizontal = 8.dp),
+                        fontWeight = if (selectedLevel == AchievementLevel.EXPLORADOR) FontWeight.Bold else FontWeight.Normal
                     )
                 }
                 Tab(
@@ -187,7 +191,8 @@ fun AchievementsScreen(
                 ) {
                     Text(
                         text = "👑 Maestro",
-                        modifier = Modifier.padding(vertical = 12.dp, horizontal = 8.dp)
+                        modifier = Modifier.padding(vertical = 12.dp, horizontal = 8.dp),
+                        fontWeight = if (selectedLevel == AchievementLevel.MAESTRO) FontWeight.Bold else FontWeight.Normal
                     )
                 }
                 // NO incluir pestaña de SECRETO - solo aparecerán en "Todos" cuando estén desbloqueados

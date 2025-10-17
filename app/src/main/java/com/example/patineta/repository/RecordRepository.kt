@@ -402,21 +402,21 @@ class RecordRepository @Inject constructor(
     suspend fun getMaintenanceCount(): Int {
         val userId = auth.currentUser?.uid ?: return 0
         
-        // Obtener todos los nombres de patinetes del usuario
-        val scooterNames = firestore.collection("patinetes")
+        // Obtener todos los IDs de vehículos del usuario
+        val scooterIds = firestore.collection("patinetes")
             .whereEqualTo("userId", userId)
             .get()
             .await()
             .documents
-            .mapNotNull { it.getString("nombre") } // Obtener el NOMBRE del patinete, no el ID
+            .map { it.id } // Obtener el ID del documento del vehículo
         
-        if (scooterNames.isEmpty()) return 0
+        if (scooterIds.isEmpty()) return 0
         
-        // Contar reparaciones de todos los patinetes del usuario
+        // Contar reparaciones de todos los vehículos del usuario
         var totalRepairs = 0
-        for (scooterName in scooterNames) {
+        for (scooterId in scooterIds) {
             val repairs = firestore.collection("repairs")
-                .whereEqualTo("scooterId", scooterName) // scooterId es el nombre del patinete
+                .whereEqualTo("vehicleId", scooterId) // Buscar por vehicleId (ID del documento)
                 .get()
                 .await()
                 .documents
@@ -587,17 +587,17 @@ class RecordRepository @Inject constructor(
             .size
         
         // Calcular mantenimientos
-        val scooterNames = firestore.collection("patinetes")
+        val scooterIds = firestore.collection("patinetes")
             .whereEqualTo("userId", userId)
             .get()
             .await()
             .documents
-            .mapNotNull { it.getString("nombre") } // Obtener el NOMBRE del patinete
+            .map { it.id } // Obtener el ID del documento del vehículo
         
         var maintenanceCount = 0
-        for (scooterName in scooterNames) {
+        for (scooterId in scooterIds) {
             val repairs = firestore.collection("repairs")
-                .whereEqualTo("scooterId", scooterName) // scooterId es el nombre del patinete
+                .whereEqualTo("vehicleId", scooterId) // Buscar por vehicleId (ID del documento)
                 .get()
                 .await()
                 .documents

@@ -127,14 +127,7 @@ fun NavGraph(
             route = Screen.Repairs.route + "/{scooterId}"
         ) { backStackEntry ->
             val scooterId = backStackEntry.arguments?.getString("scooterId") ?: ""
-            // Aquí necesitarías obtener el objeto Scooter completo
-            // Por ahora pasamos un Scooter temporal
-            val scooter = com.example.patineta.model.Scooter(
-                nombre = scooterId,
-                modelo = scooterId,
-                userId = ""
-            )
-            RepairsScreen(navController = navController, scooter = scooter)
+            RepairsScreen(navController = navController, scooterId = scooterId)
         }
 
         composable(Screen.Achievements.route) {

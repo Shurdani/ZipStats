@@ -3,7 +3,8 @@
 <!-- Banner - Coloca tu banner en .github/assets/banner.png -->
 ![ZipStats Banner](.github/assets/banner.png)
 
-Aplicación Android para el seguimiento y gestión de patinetes y vehículos personales.
+ZipStats es una aplicación diseñada para llevar el control total de tus desplazamientos en patinete eléctrico. Registra tus kilómetros, analiza estadísticas detalladas y descubre tu impacto ecológico de forma sencilla y visual.
+Ideal para quienes usan el patinete a diario y quieren convertir sus trayectos en datos útiles y motivadores.
 
 ## 📸 Capturas de Pantalla
 

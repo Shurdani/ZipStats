@@ -18,12 +18,15 @@ Ideal para quienes usan el patinete a diario y quieren convertir sus trayectos e
 
 ## Características
 
-- 📊 **Registro de viajes**: Guarda y analiza tus trayectos
-- 🏆 **Sistema de logros**: Desbloquea logros según tu actividad
-- 🔧 **Gestión de reparaciones**: Mantén un historial de mantenimiento
-- 📈 **Estadísticas**: Visualiza tus datos de forma clara
-- 🎨 **Tema personalizable**: Modo claro, oscuro y OLED
-- 🎨 **Colores dinámicos**: Adaptación a tu wallpaper (Android 12+)
+- 📝 **Historial de viajes**: Guarda, analiza tus trayectos y consulta los kilómetros recorridos por fecha y vehículo.
+- 🏆 **Sistema de logros**: Desbloquea logros según tu actividad.
+- 🔧 **Gestión de reparaciones**: Mantén un historial de mantenimiento y reparaciones.
+- 📈 **Estadísticas**: Revisa tus promedios, máximos y evolución a lo largo del tiempo.
+- 🌿 **Impacto ecológico**: Calcula CO₂ ahorrado, árboles equivalentes y gasolina no consumida.
+- 🛠️ **Multivehículo**: Lleva el seguimiento de varios patinetes de forma independiente.
+- 🎨 **Tema personalizable**: Modo claro, oscuro y OLED.
+- 🎨 **Colores dinámicos**: Adaptación a tu wallpaper (Android 12+).
+- ☁️ **Sincronización con Firebase**: tus datos en la nube puedes cambiar de dispositivo, sin miedo a perder datos.
 
 ## Tecnologías
 

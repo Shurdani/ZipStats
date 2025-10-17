@@ -199,7 +199,8 @@ fun RecordsHistoryScreen(
                     ) {
                         Text(
                             text = "Todos",
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 12.dp)
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 12.dp),
+                            fontWeight = if (selectedModel == null) FontWeight.Bold else FontWeight.Normal
                         )
                     }
                     userScooters.distinctBy { it.modelo }.forEach { scooter ->
@@ -209,7 +210,8 @@ fun RecordsHistoryScreen(
                         ) {
                             Text(
                                 text = scooter.modelo,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 12.dp)
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 12.dp),
+                                fontWeight = if (selectedModel == scooter.modelo) FontWeight.Bold else FontWeight.Normal
                             )
                         }
                     }

@@ -60,10 +60,11 @@ import java.time.ZoneId
 @Composable
 fun RepairsScreen(
     navController: NavController,
-    scooter: Scooter,
+    scooterId: String,
     viewModel: RepairsViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    var scooter by remember { mutableStateOf<Scooter?>(null) }
     var showAddDialog by remember { mutableStateOf(false) }
     var showDatePicker by remember { mutableStateOf(false) }
     var repairToDelete by remember { mutableStateOf<Repair?>(null) }
@@ -81,9 +82,16 @@ fun RepairsScreen(
     var editMileage by remember { mutableStateOf("") }
     var showEditDatePicker by remember { mutableStateOf(false) }
 
-    // Cargar reparaciones al iniciar
-    LaunchedEffect(scooter.nombre) {
-        viewModel.loadRepairs(scooter.nombre)
+    // Obtener el vehículo completo y cargar reparaciones
+    LaunchedEffect(scooterId) {
+        viewModel.loadScooterAndRepairs(scooterId)
+    }
+    
+    // Observar el scooter cargado
+    LaunchedEffect(viewModel.scooterState.value) {
+        viewModel.scooterState.value?.let { loadedScooter ->
+            scooter = loadedScooter
+        }
     }
 
     // Diálogo de confirmación para eliminar
@@ -152,7 +160,9 @@ fun RepairsScreen(
                     onClick = {
                         if (newRepairDescription.isNotBlank()) {
                             val mileage = newRepairMileage.toDoubleOrNull()
-                            viewModel.addRepair(newRepairDate, newRepairDescription, mileage)
+                            scooter?.let { loadedScooter ->
+                                viewModel.addRepair(newRepairDate, newRepairDescription, mileage, loadedScooter.nombre, loadedScooter.id)
+                            }
                             newRepairDescription = ""
                             newRepairDate = today
                             newRepairMileage = ""
@@ -265,7 +275,7 @@ fun RepairsScreen(
         modifier = Modifier.fillMaxSize(),
         topBar = {
             TopAppBar(
-                title = { Text("Reparaciones - ${scooter.modelo}") },
+                title = { Text("Reparaciones - ${scooter?.modelo ?: "Cargando..."}") },
                 navigationIcon = {
                     IconButton(onClick = { navController.navigateUp() }) {
                         Icon(

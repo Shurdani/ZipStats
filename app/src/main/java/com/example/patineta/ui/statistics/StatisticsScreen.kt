@@ -151,17 +151,32 @@ fun StatisticsScreen(
                 Tab(
                     selected = selectedPeriod == 0,
                     onClick = { selectedPeriod = 0 },
-                    text = { Text("Este Mes") }
+                    text = { 
+                        Text(
+                            "Este Mes",
+                            fontWeight = if (selectedPeriod == 0) FontWeight.Bold else FontWeight.Normal
+                        )
+                    }
                 )
                 Tab(
                     selected = selectedPeriod == 1,
                     onClick = { selectedPeriod = 1 },
-                    text = { Text("Todo") }
+                    text = { 
+                        Text(
+                            "Todo",
+                            fontWeight = if (selectedPeriod == 1) FontWeight.Bold else FontWeight.Normal
+                        )
+                    }
                 )
                 Tab(
                     selected = selectedPeriod == 2,
                     onClick = { selectedPeriod = 2 },
-                    text = { Text("Este Año") }
+                    text = { 
+                        Text(
+                            "Este Año",
+                            fontWeight = if (selectedPeriod == 2) FontWeight.Bold else FontWeight.Normal
+                        )
+                    }
                 )
             }
 

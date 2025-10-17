@@ -3,7 +3,9 @@ package com.example.patineta.ui.repairs
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.patineta.model.Repair
+import com.example.patineta.model.Scooter
 import com.example.patineta.repository.RepairRepository
+import com.example.patineta.repository.ScooterRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -24,13 +26,37 @@ sealed class RepairsUiState {
 class RepairsViewModel @Inject constructor(
     private val repairRepository: RepairRepository,
     private val recordRepository: RecordRepository,
+    private val scooterRepository: ScooterRepository,
     private val achievementsService: com.example.patineta.service.AchievementsService
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<RepairsUiState>(RepairsUiState.Loading)
     val uiState: StateFlow<RepairsUiState> = _uiState.asStateFlow()
+    
+    private val _scooterState = MutableStateFlow<Scooter?>(null)
+    val scooterState: StateFlow<Scooter?> = _scooterState.asStateFlow()
 
     private var currentScooterId: String? = null
+
+    fun loadScooterAndRepairs(scooterId: String) {
+        currentScooterId = scooterId
+        viewModelScope.launch {
+            try {
+                // Cargar el scooter completo
+                val scooters = scooterRepository.getUserScooters()
+                val scooter = scooters.find { it.id == scooterId }
+                if (scooter != null) {
+                    _scooterState.value = scooter
+                    // Cargar reparaciones
+                    loadRepairs(scooterId)
+                } else {
+                    _uiState.value = RepairsUiState.Error("Vehículo no encontrado")
+                }
+            } catch (e: Exception) {
+                _uiState.value = RepairsUiState.Error(e.message ?: "Error al cargar el vehículo")
+            }
+        }
+    }
 
     fun loadRepairs(scooterId: String) {
         currentScooterId = scooterId
@@ -46,28 +72,28 @@ class RepairsViewModel @Inject constructor(
         }
     }
 
-    fun addRepair(date: LocalDate, description: String, mileage: Double?) {
-        currentScooterId?.let { scooterId ->
-            viewModelScope.launch {
-                try {
-                    val resolvedMileage = mileage ?: recordRepository.getPreviousMileageForDate(
-                        patinete = scooterId,
-                        fechaIso = date.toString()
-                    )
-                    val repair = Repair(
-                        vehicleId = scooterId,
-                        scooterId = scooterId,
-                        date = date,
-                        description = description,
-                        mileage = resolvedMileage
-                    )
-                    repairRepository.addRepair(repair)
-                    
-                    // Verificar logros después de añadir reparación
-                    achievementsService.checkAndNotifyNewAchievements()
-                } catch (e: Exception) {
-                    _uiState.value = RepairsUiState.Error(e.message ?: "Error al agregar la reparación")
-                }
+    fun addRepair(date: LocalDate, description: String, mileage: Double?, scooterName: String, scooterId: String) {
+        viewModelScope.launch {
+            try {
+                val resolvedMileage = mileage ?: recordRepository.getPreviousMileageForDate(
+                    patinete = scooterName,
+                    fechaIso = date.toString()
+                )
+                val repair = Repair(
+                    vehicleId = scooterId,
+                    scooterId = scooterId,
+                    patinete = scooterName,
+                    date = date,
+                    description = description,
+                    mileage = resolvedMileage
+                )
+                
+                repairRepository.addRepair(repair)
+                
+                // Verificar logros después de añadir reparación
+                achievementsService.checkAndNotifyNewAchievements()
+            } catch (e: Exception) {
+                _uiState.value = RepairsUiState.Error(e.message ?: "Error al agregar la reparación")
             }
         }
     }

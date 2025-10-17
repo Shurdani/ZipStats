@@ -81,6 +81,7 @@ class RepairRepository @Inject constructor(
             repair.mileage?.let { km ->
                 repairData["mileage"] = km
             }
+            
             val docRef = firestore.collection("repairs").add(repairData).await()
             Result.success(docRef.id)
         } catch (e: Exception) {

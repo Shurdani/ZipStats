@@ -2,38 +2,34 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Regla para la colección active_routes
+    // Reglas para todos los documentos - acceso general para usuarios autenticados
+    match /{document=**} {
+      // Solo permitir acceso a usuarios autenticados
+      allow read, write: if request.auth != null;
+    }
+    
+    // Reglas específicas para active_routes
     match /active_routes/{routeId} {
-      allow read, write: if request.auth != null && 
-        (request.auth.uid == resource.data.userId || 
-         request.resource.data.userId == request.auth.uid);
+      // Permitir lectura si el usuario está autenticado y es propietario de la ruta
+      allow read: if request.auth != null && resource.data.userId == request.auth.uid;
+      
+      // Permitir escritura si el usuario está autenticado y el documento que quiere crear tiene su ID como userId
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      
+      // Permitir actualización si el usuario está autenticado, es propietario de la ruta, 
+      // y no está cambiando el userId
+      allow update: if request.auth != null && 
+                     resource.data.userId == request.auth.uid && 
+                     request.resource.data.userId == resource.data.userId;
+      
+      // Permitir eliminación si el usuario está autenticado y es propietario de la ruta
+      allow delete: if request.auth != null && resource.data.userId == request.auth.uid;
     }
     
-    // Regla para la colección rutas
-    match /rutas/{routeId} {
-      allow read, write: if request.auth != null && 
-        (request.auth.uid == resource.data.userId || 
-         request.resource.data.userId == request.auth.uid);
-    }
-    
-    // Regla para la colección patinetes
-    match /patinetes/{scooterId} {
-      allow read, write: if request.auth != null && 
-        (request.auth.uid == resource.data.userId || 
-         request.resource.data.userId == request.auth.uid);
-    }
-    
-    // Regla para la colección registros
-    match /registros/{recordId} {
-      allow read, write: if request.auth != null && 
-        (request.auth.uid == resource.data.userId || 
-         request.resource.data.userId == request.auth.uid);
-    }
-    
-    // Regla para la colección users
+    // Reglas específicas para users
     match /users/{userId} {
-      allow read, write: if request.auth != null && 
-        request.auth.uid == userId;
+      // Solo permitir acceso al propio perfil del usuario
+      allow read, write: if request.auth != null && userId == request.auth.uid;
     }
   }
 } 

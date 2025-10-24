@@ -1,0 +1,25 @@
+[
+  // Ocultar solo los POIs (puntos de interés) para mantener el mapa natural
+  { "featureType": "poi", "stylers": [{ "visibility": "off" }] },
+  { "featureType": "poi.business", "stylers": [{ "visibility": "off" }] },
+  { "featureType": "poi.attraction", "stylers": [{ "visibility": "off" }] },
+  { "featureType": "poi.government", "stylers": [{ "visibility": "off" }] },
+  { "featureType": "poi.medical", "stylers": [{ "visibility": "off" }] },
+  { "featureType": "poi.place_of_worship", "stylers": [{ "visibility": "off" }] },
+  { "featureType": "poi.school", "stylers": [{ "visibility": "off" }] },
+  { "featureType": "poi.sports_complex", "stylers": [{ "visibility": "off" }] },
+  
+  // Mantener parques pero con estilo sutil
+  {
+    "featureType": "poi.park",
+    "elementType": "labels",
+    "stylers": [{ "visibility": "off" }]
+  },
+  
+  // Ocultar iconos de tránsito para limpieza
+  { "featureType": "transit", "elementType": "labels.icon", "stylers": [{ "visibility": "off" }] },
+  { "featureType": "transit.station", "stylers": [{ "visibility": "off" }] },
+  
+  // Mantener el resto del mapa con apariencia natural
+  // (No se especifican más estilos para mantener colores originales)
+]

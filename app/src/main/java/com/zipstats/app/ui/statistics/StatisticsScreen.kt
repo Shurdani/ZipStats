@@ -42,7 +42,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
+import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -147,7 +147,7 @@ fun StatisticsScreen(
                 .padding(padding)
         ) {
             // Pestañas
-            TabRow(selectedTabIndex = selectedPeriod) {
+            PrimaryTabRow(selectedTabIndex = selectedPeriod) {
                 Tab(
                     selected = selectedPeriod == 0,
                     onClick = { selectedPeriod = 0 },

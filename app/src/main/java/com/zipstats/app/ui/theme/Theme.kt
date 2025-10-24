@@ -147,6 +147,12 @@ fun PatinetatrackTheme(
             // Hacer que la barra de estado tenga el color primario
             window.statusBarColor = colorScheme.primary.toArgb()
             window.navigationBarColor = Color.Transparent.toArgb()
+            
+            // Configurar el sistema de barras para Android 10+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                window.isStatusBarContrastEnforced = false
+                window.isNavigationBarContrastEnforced = false
+            }
 
             // Configurar el sistema para pantalla completa y edge-to-edge
             WindowCompat.setDecorFitsSystemWindows(window, true)

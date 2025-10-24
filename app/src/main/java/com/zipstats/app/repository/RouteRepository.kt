@@ -65,7 +65,8 @@ class RouteRepository @Inject constructor(
         scooterName: String,
         startTime: Long,
         endTime: Long,
-        notes: String = ""
+        notes: String = "",
+        timeInMotion: Long? = null
     ): Route {
         // Filtrar puntos para eliminar ruido GPS
         val filteredPoints = LocationUtils.filterPoints(points)
@@ -73,7 +74,17 @@ class RouteRepository @Inject constructor(
         // Calcular estadísticas
         val totalDistance = LocationUtils.calculateTotalDistance(filteredPoints)
         val totalDuration = endTime - startTime
-        val averageSpeed = LocationUtils.calculateAverageSpeed(totalDistance, totalDuration)
+        
+        // Usar el nuevo cálculo de velocidad en movimiento si está disponible
+        val averageSpeed = if (timeInMotion != null && timeInMotion > 0) {
+            // Velocidad media en movimiento (excluye tiempo parado)
+            val timeInMotionHours = timeInMotion / (1000.0 * 60.0 * 60.0)
+            if (timeInMotionHours > 0) totalDistance / timeInMotionHours else 0.0
+        } else {
+            // Fallback al cálculo tradicional si no hay tiempo en movimiento
+            LocationUtils.calculateAverageSpeed(totalDistance, totalDuration)
+        }
+        
         val maxSpeed = LocationUtils.calculateMaxSpeed(filteredPoints)
         
         return Route(
@@ -232,6 +243,57 @@ class RouteRepository @Inject constructor(
             Result.success(Unit)
         } catch (e: Exception) {
             Log.e(TAG, "Error al eliminar ruta", e)
+            Result.failure(e)
+        }
+    }
+    
+    /**
+     * Elimina todas las rutas de un vehículo específico
+     */
+    suspend fun deleteScooterRoutes(scooterId: String): Result<Unit> {
+        return try {
+            val userId = auth.currentUser?.uid ?: throw Exception("Usuario no autenticado")
+            val routes = firestore.collection(ROUTES_COLLECTION)
+                .whereEqualTo("userId", userId)
+                .whereEqualTo("scooterId", scooterId)
+                .get()
+                .await()
+                .documents
+
+            // Eliminar todas las rutas del vehículo
+            routes.forEach { doc ->
+                doc.reference.delete().await()
+            }
+            
+            Log.d(TAG, "Rutas eliminadas para vehículo: $scooterId (${routes.size} rutas)")
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error al eliminar rutas del vehículo", e)
+            Result.failure(e)
+        }
+    }
+    
+    /**
+     * Elimina todas las rutas del usuario actual
+     */
+    suspend fun deleteAllUserRoutes(): Result<Unit> {
+        return try {
+            val userId = auth.currentUser?.uid ?: throw Exception("Usuario no autenticado")
+            val routes = firestore.collection(ROUTES_COLLECTION)
+                .whereEqualTo("userId", userId)
+                .get()
+                .await()
+                .documents
+
+            // Eliminar todas las rutas del usuario
+            routes.forEach { doc ->
+                doc.reference.delete().await()
+            }
+            
+            Log.d(TAG, "Todas las rutas eliminadas para usuario: $userId (${routes.size} rutas)")
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error al eliminar todas las rutas del usuario", e)
             Result.failure(e)
         }
     }

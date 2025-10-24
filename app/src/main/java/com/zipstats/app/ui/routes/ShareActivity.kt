@@ -9,14 +9,14 @@ class ShareActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        val shareIntent = intent?.getParcelableExtra<Intent>(EXTRA_SHARE_INTENT)
+        val shareIntent = intent?.getParcelableExtra(EXTRA_SHARE_INTENT, Intent::class.java)
         if (shareIntent == null) {
             finish()
             return
         }
 
         // Asegurar permisos de lectura en la Uri si existe
-        val stream: Uri? = shareIntent.getParcelableExtra(Intent.EXTRA_STREAM)
+        val stream: Uri? = shareIntent.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java)
         if (stream != null) {
             shareIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             grantUriPermission(shareIntent.`package`, stream, Intent.FLAG_GRANT_READ_URI_PERMISSION)

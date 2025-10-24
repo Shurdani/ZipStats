@@ -8,7 +8,7 @@ import com.zipstats.app.repository.AuthRepository
 import com.zipstats.app.repository.RecordRepository
 import com.zipstats.app.repository.RepairRepository
 import com.zipstats.app.repository.RouteRepository
-import com.zipstats.app.repository.ScooterRepository
+import com.zipstats.app.repository.VehicleRepository
 import com.zipstats.app.utils.PreferencesManager
 import com.google.firebase.FirebaseApp
 import com.google.firebase.auth.FirebaseAuth
@@ -81,11 +81,11 @@ object AppModule {
     
     @Provides
     @Singleton
-    fun provideScooterRepository(
+    fun provideVehicleRepository(
         firestore: FirebaseFirestore,
         auth: FirebaseAuth
-    ): ScooterRepository {
-        return ScooterRepository(firestore, auth)
+    ): VehicleRepository {
+        return VehicleRepository(firestore, auth)
     }
 
     @Provides

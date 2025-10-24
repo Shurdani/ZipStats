@@ -45,6 +45,7 @@ import androidx.navigation.compose.rememberNavController
 import com.zipstats.app.navigation.NavGraph
 import com.zipstats.app.navigation.Screen
 import com.zipstats.app.repository.SettingsRepository
+import com.zipstats.app.service.LocationTrackingService
 import com.zipstats.app.ui.achievements.AchievementsViewModel
 import com.zipstats.app.ui.components.BottomNavigation
 import com.zipstats.app.ui.theme.PatinetatrackTheme
@@ -122,7 +123,7 @@ class MainActivity : ComponentActivity() {
 
         val showErrorDialog = intent.getBooleanExtra("SHOW_ERROR_DIALOG", false)
         val errorMessage = intent.getStringExtra("ERROR_MESSAGE")
-        val shouldOpenTracking = intent.action == "com.zipstats.app.action.OPEN_TRACKING"
+        val shouldOpenTracking = intent.action == LocationTrackingService.ACTION_OPEN_TRACKING
 
         setContent {
             MainContent(
@@ -133,11 +134,11 @@ class MainActivity : ComponentActivity() {
         }
     }
     
-    override fun onNewIntent(intent: Intent?) {
+    override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
         // Si llega un nuevo intent mientras la app está abierta
-        if (intent?.action == "com.zipstats.app.action.OPEN_TRACKING") {
+        if (intent.action == LocationTrackingService.ACTION_OPEN_TRACKING) {
             // Re-crear el contenido para manejar la navegación
             setContent {
                 MainContent(
@@ -378,7 +379,7 @@ class MainActivity : ComponentActivity() {
 
         try {
             val timestamp = System.currentTimeMillis()
-            val fileName = "registros_vehiculos_$timestamp.xls"
+            val fileName = "registros_vehiculos_$timestamp.xlsx"
 
             // Mostrar notificación de progreso solo si tenemos permiso
             if (hasNotificationPermission) {

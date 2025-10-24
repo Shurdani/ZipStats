@@ -41,6 +41,14 @@ import com.google.android.gms.maps.model.LatLngBounds
 import com.google.android.gms.maps.model.MarkerOptions
 import com.google.android.gms.maps.model.PolylineOptions
 import com.google.android.gms.maps.model.BitmapDescriptorFactory
+import com.google.android.gms.maps.model.MapStyleOptions
+import com.google.android.gms.maps.model.JointType
+import com.google.android.gms.maps.model.RoundCap
+import com.google.android.gms.maps.model.BitmapDescriptor
+import android.content.res.Resources
+import androidx.core.content.ContextCompat
+import com.zipstats.app.R
+import com.google.maps.android.SphericalUtil
 import kotlinx.coroutines.delay
 
 @Composable
@@ -121,6 +129,25 @@ fun CapturableMapView(
                             mapInstance = googleMap
                             Log.d("CapturableMapView", "✅ Mapa cargado correctamente")
                             
+                            // NUEVO: Aplicar estilo personalizado al mapa
+                            try {
+                                val success = googleMap.setMapStyle(
+                                    MapStyleOptions.loadRawResourceStyle(
+                                        context,
+                                        R.raw.map_style_light
+                                    )
+                                )
+                                if (!success) {
+                                    Log.e("CapturableMapView", "⚠️ El parseo del estilo falló")
+                                } else {
+                                    Log.d("CapturableMapView", "✅ Estilo de mapa aplicado correctamente")
+                                }
+                            } catch (e: Resources.NotFoundException) {
+                                Log.e("CapturableMapView", "❌ No se encontró el archivo de estilo", e)
+                            } catch (e: Exception) {
+                                Log.e("CapturableMapView", "❌ Error al aplicar estilo del mapa", e)
+                            }
+                            
                             // Configurar el mapa
                             googleMap.uiSettings.apply {
                                 isZoomControlsEnabled = true
@@ -136,30 +163,39 @@ fun CapturableMapView(
                             if (routePoints.isNotEmpty()) {
                                 Log.d("CapturableMapView", "🎨 Dibujando polyline con ${routePoints.size} puntos")
                                 
-                                // Dibujar polyline
-                                val polylineOptions = PolylineOptions()
-                                    .addAll(routePoints)
-                                    .color(0xFF2196F3.toInt())
-                                    .width(10f)
-                                googleMap.addPolyline(polylineOptions)
+                                // Crear polyline con degradado azul → violeta
+                                createGradientPolyline(googleMap, routePoints, context)
                                 
-                                // Marcador de inicio (punto verde)
+                                // Marcadores personalizados
+                                val startMarker = createStartMarker(context)
+                                val endMarker = createEndMarker(context)
+                                
+                                // Marcador de inicio (boton play personalizado) con rotación
+                                val start = routePoints.first()
+                                val next = routePoints[1]
+                                val bearing = SphericalUtil.computeHeading(start, next).toFloat()
+                                val adjustedBearing = (bearing - 90f) % 360 // compensamos que el icono apunta a la derecha
+                                
                                 googleMap.addMarker(
                                     MarkerOptions()
-                                        .position(routePoints.first())
+                                        .position(start)
                                         .title("Inicio de la ruta")
                                         .snippet("Punto de partida")
-                                        .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_GREEN))
+                                        .icon(startMarker)
+                                        .anchor(0.5f, 0.5f) // Centrar el icono en la coordenada
+                                        .rotation(adjustedBearing)
+                                        .flat(true) // Hacer el marcador plano para que rote correctamente
                                 )
                                 
-                                // Marcador de final (bandera a cuadros - rojo)
+                                // Marcador de final (boton stop personalizado)
                                 if (routePoints.size > 1) {
                                     googleMap.addMarker(
                                         MarkerOptions()
                                             .position(routePoints.last())
                                             .title("Final de la ruta")
                                             .snippet("Meta")
-                                            .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED))
+                                            .icon(endMarker)
+                                            .anchor(0.5f, 0.5f) // Centrar el icono en la coordenada
                                     )
                                 }
                                 
@@ -296,4 +332,105 @@ fun CapturableMapView(
             }
         }
     }
+}
+
+/**
+ * Crea un BitmapDescriptor personalizado para el marcador de inicio
+ */
+private fun createStartMarker(context: android.content.Context): BitmapDescriptor {
+    // Cargar el drawable vectorial
+    val drawable = ContextCompat.getDrawable(
+        context,
+        R.drawable.ic_marker_start
+    ) ?: return BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_GREEN)
+    
+    // Convertir a Bitmap
+    val bitmap = android.graphics.Bitmap.createBitmap(
+        drawable.intrinsicWidth,
+        drawable.intrinsicHeight,
+        android.graphics.Bitmap.Config.ARGB_8888
+    )
+    val canvas = android.graphics.Canvas(bitmap)
+    drawable.setBounds(0, 0, canvas.width, canvas.height)
+    drawable.draw(canvas)
+    
+    return BitmapDescriptorFactory.fromBitmap(bitmap)
+}
+
+/**
+ * Crea una polyline con degradado azul → violeta y resplandor blanco
+ */
+private fun createGradientPolyline(
+    googleMap: GoogleMap,
+    routePoints: List<LatLng>,
+    context: android.content.Context
+) {
+    if (routePoints.size < 2) return
+
+    // Colores del degradado
+    val startColor = 0xFF2979FF.toInt() // Azul (#2979FF)
+    val endColor = 0xFF7E57C2.toInt()   // Violeta (#7E57C2)
+
+    // Color del resplandor (blanco 25% opacidad)
+    val glowColor = 0x40FFFFFF.toInt()
+
+    // 1️⃣ Resplandor (debajo de todo)
+    val glowPolyline = PolylineOptions()
+        .addAll(routePoints)
+        .color(glowColor)
+        .width(25f)
+        .jointType(JointType.ROUND)
+        .startCap(RoundCap())
+        .endCap(RoundCap())
+
+    googleMap.addPolyline(glowPolyline)
+
+    // 2️⃣ Polyline principal con degradado
+    val totalSegments = routePoints.size - 1
+    val colorSteps = 50 // número de tonos en el degradado
+
+    for (i in 0 until totalSegments) {
+        // Calculamos progreso proporcional al índice global (no solo 0..50)
+        val progress = (i.toFloat() / totalSegments) * (colorSteps - 1) / (colorSteps - 1)
+
+        val r = ((1 - progress) * ((startColor shr 16) and 0xFF) + progress * ((endColor shr 16) and 0xFF)).toInt()
+        val g = ((1 - progress) * ((startColor shr 8) and 0xFF) + progress * ((endColor shr 8) and 0xFF)).toInt()
+        val b = ((1 - progress) * (startColor and 0xFF) + progress * (endColor and 0xFF)).toInt()
+        val segmentColor = (0xFF shl 24) or (r shl 16) or (g shl 8) or b
+
+        val segmentPoints = listOf(routePoints[i], routePoints[i + 1])
+
+        val mainPolyline = PolylineOptions()
+            .addAll(segmentPoints)
+            .color(segmentColor)
+            .width(15f)
+            .jointType(JointType.ROUND)
+            .startCap(RoundCap())
+            .endCap(RoundCap())
+
+        googleMap.addPolyline(mainPolyline)
+    }
+}
+
+/**
+ * Crea un BitmapDescriptor personalizado para el marcador de fin
+ */
+private fun createEndMarker(context: android.content.Context): BitmapDescriptor {
+    // Cargar el drawable vectorial
+    val drawable = ContextCompat.getDrawable(
+        context,
+        R.drawable.ic_marker_end
+    ) ?: return BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED)
+    
+    // Convertir a Bitmap
+    val bitmap = android.graphics.Bitmap.createBitmap(
+        drawable.intrinsicWidth,
+        drawable.intrinsicHeight,
+        android.graphics.Bitmap.Config.ARGB_8888
+    )
+    val canvas = android.graphics.Canvas(bitmap)
+    drawable.setBounds(0, 0, canvas.width, canvas.height)
+    drawable.draw(canvas)
+    
+    return BitmapDescriptorFactory.fromBitmap(bitmap)
 }

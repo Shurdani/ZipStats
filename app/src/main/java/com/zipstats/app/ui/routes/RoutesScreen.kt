@@ -23,7 +23,7 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.ScrollableTabRow
+import androidx.compose.material3.PrimaryScrollableTabRow
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -213,7 +213,7 @@ fun RoutesScreen(
                 modifier = Modifier.fillMaxWidth(),
                 contentAlignment = Alignment.Center
             ) {
-                ScrollableTabRow(
+                PrimaryScrollableTabRow(
                     selectedTabIndex = when(selectedScooter) {
                         null -> 0
                         else -> userScooters.indexOfFirst { it.id == selectedScooter } + 1

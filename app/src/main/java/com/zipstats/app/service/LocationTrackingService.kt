@@ -44,6 +44,10 @@ class LocationTrackingService : Service() {
     // Manager de estado global (singleton)
     private val trackingStateManager = TrackingStateManager
     
+    // Suavizador de velocidad con Media Móvil Exponencial (EMA) para respuesta rápida
+    // Alpha = 0.2 significa que equivale aproximadamente a una media de los últimos 5 segundos
+    private val speedSmoother = LocationUtils.SpeedSmoother(alpha = 0.2)
+    
     // Estado del servicio
     private val _isTracking = MutableStateFlow(false)
     val isTracking: StateFlow<Boolean> = _isTracking.asStateFlow()
@@ -64,6 +68,18 @@ class LocationTrackingService : Service() {
     
     private val _startTime = MutableStateFlow(0L)
     val startTime: StateFlow<Long> = _startTime.asStateFlow()
+    
+    // Contadores para velocidad media en movimiento
+    private var _timeInMotion = MutableStateFlow(0L) // Tiempo en movimiento (excluye paradas)
+    val timeInMotion: StateFlow<Long> = _timeInMotion.asStateFlow()
+    
+    private var _averageMovingSpeed = MutableStateFlow(0.0) // Velocidad media en movimiento
+    val averageMovingSpeed: StateFlow<Double> = _averageMovingSpeed.asStateFlow()
+    
+    // Variables para control de tiempo en movimiento
+    private var lastSpeedUpdateTime = 0L
+    private var isCurrentlyMoving = false
+    private var lastStoppedTime = 0L
     
     inner class LocalBinder : Binder() {
         fun getService(): LocationTrackingService = this@LocationTrackingService
@@ -120,6 +136,16 @@ class LocationTrackingService : Service() {
         _startTime.value = System.currentTimeMillis()
         _routePoints.value = emptyList()
         _currentDistance.value = 0.0
+        
+        // Resetear el suavizador de velocidad para nuevo seguimiento
+        speedSmoother.reset()
+        
+        // Inicializar contadores de tiempo en movimiento
+        _timeInMotion.value = 0L
+        _averageMovingSpeed.value = 0.0
+        lastSpeedUpdateTime = System.currentTimeMillis()
+        isCurrentlyMoving = false
+        lastStoppedTime = 0L
         
         // Configurar solicitud de ubicación de alta precisión
         val locationRequest = LocationRequest.Builder(
@@ -219,13 +245,35 @@ class LocationTrackingService : Service() {
         currentPoints.add(routePoint)
         _routePoints.value = currentPoints
         
-        // Actualizar velocidad actual con filtro para velocidades muy bajas
-        if (location.hasSpeed()) {
-            val speedKmh = LocationUtils.metersPerSecondToKmPerHour(location.speed)
-            _currentSpeed.value = LocationUtils.filterSpeed(speedKmh)
+        // Actualizar velocidad actual con suavizado y filtro
+        val speedKmh = if (location.hasSpeed()) {
+            // Priorizar location.getSpeed() que viene pre-filtrada por el hardware
+            LocationUtils.metersPerSecondToKmPerHour(location.speed)
         } else {
-            _currentSpeed.value = 0.0
+            // Si no hay velocidad del GPS, calcular basado en distancia y tiempo
+            if (currentPoints.size >= 2) {
+                val lastPoint = currentPoints.last()
+                val timeDiff = (routePoint.timestamp - lastPoint.timestamp) / 1000.0 // segundos
+                if (timeDiff > 0) {
+                    val distanceKm = LocationUtils.calculateDistance(lastPoint, routePoint)
+                    (distanceKm / timeDiff) * 3.6 // Convertir a km/h
+                } else {
+                    0.0
+                }
+            } else {
+                0.0
+            }
         }
+        
+        // Aplicar suavizado con media móvil para evitar saltos bruscos
+        val smoothedSpeed = speedSmoother.addSpeed(speedKmh)
+        
+        // Aplicar filtro para velocidades muy bajas (GPS drift)
+        val filteredSpeed = LocationUtils.filterSpeed(smoothedSpeed)
+        _currentSpeed.value = filteredSpeed
+        
+        // Actualizar tiempo en movimiento y velocidad media
+        updateTimeInMotion(filteredSpeed)
         
         // Actualizar duración
         val currentTime = System.currentTimeMillis()
@@ -302,12 +350,68 @@ class LocationTrackingService : Service() {
     }
 
     /**
+     * Actualiza el tiempo en movimiento basado en la velocidad actual
+     * @param currentSpeedKmh Velocidad actual en km/h
+     */
+    private fun updateTimeInMotion(currentSpeedKmh: Double) {
+        val currentTime = System.currentTimeMillis()
+        val timeDiff = currentTime - lastSpeedUpdateTime
+        
+        // Umbral de velocidad para considerar "parado" (3 km/h)
+        val isMoving = currentSpeedKmh >= 3.0
+        
+        if (isMoving && !isCurrentlyMoving) {
+            // Empezó a moverse
+            isCurrentlyMoving = true
+            if (lastStoppedTime > 0) {
+                // Si había estado parado, no contar el tiempo de parada
+                lastSpeedUpdateTime = currentTime
+            }
+        } else if (!isMoving && isCurrentlyMoving) {
+            // Se detuvo
+            isCurrentlyMoving = false
+            lastStoppedTime = currentTime
+            // Sumar el tiempo que estuvo en movimiento
+            _timeInMotion.value += timeDiff
+        } else if (isMoving && isCurrentlyMoving) {
+            // Sigue en movimiento, sumar tiempo
+            _timeInMotion.value += timeDiff
+        }
+        // Si está parado y sigue parado, no hacer nada
+        
+        lastSpeedUpdateTime = currentTime
+        
+        // Calcular velocidad media en movimiento
+        updateAverageMovingSpeed()
+    }
+    
+    /**
+     * Calcula la velocidad media en movimiento
+     */
+    private fun updateAverageMovingSpeed() {
+        val timeInMotionMs = _timeInMotion.value
+        val distanceKm = _currentDistance.value
+        
+        if (timeInMotionMs > 0 && distanceKm > 0) {
+            val timeInMotionHours = timeInMotionMs / (1000.0 * 60.0 * 60.0)
+            _averageMovingSpeed.value = distanceKm / timeInMotionHours
+        } else {
+            _averageMovingSpeed.value = 0.0
+        }
+    }
+    
+    /**
      * Limpia los datos de la ruta actual
      */
     fun clearRoute() {
         _routePoints.value = emptyList()
         _currentDistance.value = 0.0
         _currentSpeed.value = 0.0
+        _timeInMotion.value = 0L
+        _averageMovingSpeed.value = 0.0
+        speedSmoother.reset()
+        isCurrentlyMoving = false
+        lastStoppedTime = 0L
     }
 
     override fun onDestroy() {

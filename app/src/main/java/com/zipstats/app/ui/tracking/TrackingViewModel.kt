@@ -14,13 +14,14 @@ import com.zipstats.app.model.RoutePoint
 import com.zipstats.app.model.Scooter
 import com.zipstats.app.repository.RecordRepository
 import com.zipstats.app.repository.RouteRepository
-import com.zipstats.app.repository.ScooterRepository
+import com.zipstats.app.repository.VehicleRepository
 import com.zipstats.app.service.LocationTrackingService
 import com.zipstats.app.service.TrackingStateManager
 import com.zipstats.app.utils.PreferencesManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 import javax.inject.Inject
 
 /**
@@ -41,7 +42,7 @@ sealed class TrackingState {
 class TrackingViewModel @Inject constructor(
     application: Application,
     private val routeRepository: RouteRepository,
-    private val scooterRepository: ScooterRepository,
+    private val scooterRepository: VehicleRepository,
     private val recordRepository: RecordRepository,
     private val preferencesManager: PreferencesManager
 ) : AndroidViewModel(application) {
@@ -72,6 +73,12 @@ class TrackingViewModel @Inject constructor(
     
     private val _currentSpeed = MutableStateFlow(0.0)
     val currentSpeed: StateFlow<Double> = _currentSpeed.asStateFlow()
+    
+    private val _averageMovingSpeed = MutableStateFlow(0.0)
+    val averageMovingSpeed: StateFlow<Double> = _averageMovingSpeed.asStateFlow()
+    
+    private val _timeInMotion = MutableStateFlow(0L)
+    val timeInMotion: StateFlow<Long> = _timeInMotion.asStateFlow()
     
     private val _startTime = MutableStateFlow(0L)
     val startTime: StateFlow<Long> = _startTime.asStateFlow()
@@ -143,6 +150,8 @@ class TrackingViewModel @Inject constructor(
                     _routePoints.value = emptyList()
                     _currentDistance.value = 0.0
                     _currentSpeed.value = 0.0
+                    _averageMovingSpeed.value = 0.0
+                    _timeInMotion.value = 0L
                     _duration.value = 0L
                     _gpsSignalStrength.value = 0f
                 }
@@ -325,14 +334,15 @@ class TrackingViewModel @Inject constructor(
                     scooterName = scooter.nombre,
                     startTime = startTime,
                     endTime = endTime,
-                    notes = notes
+                    notes = notes,
+                    timeInMotion = _timeInMotion.value
                 )
                 
                 // Guardar en Firebase
                 val result = routeRepository.saveRoute(route)
                 
                 if (result.isSuccess) {
-                    var message = "Ruta guardada exitosamente: ${String.format("%.2f", route.totalDistance)} km"
+                    var message = "Ruta guardada exitosamente: ${String.format("%.1f", route.totalDistance.roundToOneDecimal())} km"
                     
                     // Si se solicita añadir a registros
                     if (addToRecords) {
@@ -369,7 +379,7 @@ class TrackingViewModel @Inject constructor(
                             
                             if (addResult.isSuccess) {
                                 Log.d(TAG, "Registro añadido exitosamente")
-                                message += "\nDistancia añadida a registros: ${String.format("%.2f", route.totalDistance)} km"
+                                message += "\nDistancia añadida a registros: ${String.format("%.1f", route.totalDistance.roundToOneDecimal())} km"
                             } else {
                                 Log.w(TAG, "Error al añadir a registros: ${addResult.exceptionOrNull()?.message}")
                                 message += "\nRuta guardada, pero error al añadir a registros"
@@ -451,6 +461,18 @@ class TrackingViewModel @Inject constructor(
         }
         
         viewModelScope.launch {
+            trackingService?.averageMovingSpeed?.collect { speed ->
+                _averageMovingSpeed.value = speed
+            }
+        }
+        
+        viewModelScope.launch {
+            trackingService?.timeInMotion?.collect { time ->
+                _timeInMotion.value = time
+            }
+        }
+        
+        viewModelScope.launch {
             trackingService?.startTime?.collect { time ->
                 _startTime.value = time
                 if (time > 0) {
@@ -528,6 +550,10 @@ class TrackingViewModel @Inject constructor(
 
     companion object {
         private const val TAG = "TrackingViewModel"
+    }
+    
+    private fun Double.roundToOneDecimal(): Double {
+        return (this * 10.0).roundToInt() / 10.0
     }
 }
 

@@ -16,7 +16,7 @@ import com.zipstats.app.model.Route
 import com.zipstats.app.model.Scooter
 import com.zipstats.app.repository.RecordRepository
 import com.zipstats.app.repository.RouteRepository
-import com.zipstats.app.repository.ScooterRepository
+import com.zipstats.app.repository.VehicleRepository
 // Eliminado snapshot en tiempo real; usaremos Static Maps HTTP para evitar cierres
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.LatLngBounds
@@ -48,7 +48,7 @@ import javax.inject.Inject
 @HiltViewModel
 class RoutesViewModel @Inject constructor(
     private val routeRepository: RouteRepository,
-    private val scooterRepository: ScooterRepository,
+    private val scooterRepository: VehicleRepository,
     private val recordRepository: RecordRepository,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
@@ -210,7 +210,7 @@ class RoutesViewModel @Inject constructor(
                     kilometraje = newKilometraje,
                     fecha = formattedDate
                 ).onSuccess {
-                    _message.value = "Ruta añadida a registros: ${String.format("%.2f", route.totalDistance)} km"
+                    _message.value = "Ruta añadida a registros: ${String.format("%.1f", route.totalDistance)} km"
                 }.onFailure { e ->
                     _errorMessage.value = "Error al añadir a registros: ${e.message}"
                 }
@@ -294,7 +294,7 @@ class RoutesViewModel @Inject constructor(
                             🛴 Mi ruta en ${route.scooterName}
                             
                             📅 Fecha: $date
-                            📍 Distancia: ${String.format("%.2f", route.totalDistance)} km
+                            📍 Distancia: ${String.format("%.1f", route.totalDistance)} km
                             ⏱️ Duración: ${route.durationFormatted}
                             ⚡ Velocidad media: ${String.format("%.1f", route.averageSpeed)} km/h
                             🚀 Velocidad máxima: ${String.format("%.1f", route.maxSpeed)} km/h
@@ -423,7 +423,7 @@ class RoutesViewModel @Inject constructor(
                         🛴 Mi ruta en ${route.scooterName}
                         
                         📅 Fecha: $date
-                        📍 Distancia: ${String.format("%.2f", route.totalDistance)} km
+                        📍 Distancia: ${String.format("%.1f", route.totalDistance)} km
                         ⏱️ Duración: ${route.durationFormatted}
                         ⚡ Velocidad media: ${String.format("%.1f", route.averageSpeed)} km/h
                         🚀 Velocidad máxima: ${String.format("%.1f", route.maxSpeed)} km/h

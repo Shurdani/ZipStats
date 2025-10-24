@@ -29,7 +29,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.ScrollableTabRow
+import androidx.compose.material3.PrimaryScrollableTabRow
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -144,7 +144,7 @@ fun AchievementsScreen(
                 .padding(padding)
         ) {
             // Pestañas de niveles (sin incluir SECRETO)
-            ScrollableTabRow(
+            PrimaryScrollableTabRow(
                 selectedTabIndex = when(selectedLevel) {
                     null -> 0
                     AchievementLevel.NOVATO -> 1

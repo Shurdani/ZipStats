@@ -177,13 +177,13 @@ fun RouteMapView(
                 mapError = null
             }
         ) {
-        // Dibujar la línea de la ruta
+        // Dibujar la línea de la ruta con estilo mejorado
         if (routePoints.size > 1) {
             Log.d("RouteMapView", "Dibujando polyline con ${routePoints.size} puntos")
             Polyline(
                 points = routePoints,
-                color = androidx.compose.ui.graphics.Color.Blue,
-                width = 8f
+                color = androidx.compose.ui.graphics.Color(0xFF39FF14), // Verde lima brillante
+                width = 15f // Grosor aumentado
             )
             
             // Marcador de inicio (verde)

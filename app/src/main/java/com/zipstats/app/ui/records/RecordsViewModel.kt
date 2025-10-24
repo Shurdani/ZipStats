@@ -12,11 +12,13 @@ import androidx.lifecycle.viewModelScope
 import com.zipstats.app.model.Record
 import com.zipstats.app.model.Scooter
 import com.zipstats.app.repository.RecordRepository
-import com.zipstats.app.repository.ScooterRepository
+import com.zipstats.app.repository.VehicleRepository
 import com.google.firebase.auth.FirebaseAuth
 import dagger.hilt.android.lifecycle.HiltViewModel
-import jxl.write.WritableCellFormat
-import jxl.write.WritableFont
+import org.apache.poi.ss.usermodel.*
+import org.apache.poi.xssf.usermodel.XSSFWorkbook
+import org.apache.poi.hssf.usermodel.HSSFWorkbook
+import java.io.FileOutputStream
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -34,7 +36,7 @@ import javax.inject.Inject
 @HiltViewModel
 class RecordsViewModel @Inject constructor(
     private val recordRepository: RecordRepository,
-    private val scooterRepository: ScooterRepository,
+    private val scooterRepository: VehicleRepository,
     private val achievementsService: com.zipstats.app.service.AchievementsService,
     private val auth: FirebaseAuth,
     private val context: Context
@@ -345,21 +347,32 @@ class RecordsViewModel @Inject constructor(
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 val timestamp = System.currentTimeMillis()
-                val tempFile = File(context.cacheDir, "registros_vehiculos_$timestamp.xls")
+                val tempFile = File(context.cacheDir, "registros_vehiculos_$timestamp.xlsx")
                 
-                val workbook = jxl.Workbook.createWorkbook(tempFile)
-                val sheet = workbook.createSheet("Registros", 0)
+                val workbook = XSSFWorkbook()
+                val sheet = workbook.createSheet("Registros")
                 
-                val headerFont = WritableFont(WritableFont.ARIAL, 10, WritableFont.BOLD)
-                val headerFormat = WritableCellFormat(headerFont)
-                headerFormat.setAlignment(jxl.format.Alignment.CENTRE)
+                // Crear estilos
+                val headerFont = workbook.createFont()
+                headerFont.bold = true
+                headerFont.fontHeightInPoints = 10
                 
-                val numberFormat = WritableCellFormat(jxl.write.NumberFormat("#,##0.00"))
+                val headerStyle = workbook.createCellStyle()
+                headerStyle.setFont(headerFont)
+                headerStyle.alignment = HorizontalAlignment.CENTER
                 
-                sheet.addCell(jxl.write.Label(0, 0, "Vehículo", headerFormat))
-                sheet.addCell(jxl.write.Label(1, 0, "Fecha", headerFormat))
-                sheet.addCell(jxl.write.Label(2, 0, "Kilometraje", headerFormat))
-                sheet.addCell(jxl.write.Label(3, 0, "Diferencia", headerFormat))
+                val numberStyle = workbook.createCellStyle()
+                val numberFormat = workbook.createDataFormat()
+                numberStyle.dataFormat = numberFormat.getFormat("#,##0.00")
+                
+                // Crear encabezados
+                val headerRow = sheet.createRow(0)
+                val headers = arrayOf("Vehículo", "Fecha", "Kilometraje", "Diferencia")
+                headers.forEachIndexed { index, header ->
+                    val cell = headerRow.createCell(index)
+                    cell.setCellValue(header)
+                    cell.cellStyle = headerStyle
+                }
                 
                 // Filtrar registros por patinete y fechas
                 val recordsToExport = _records.value.filter { record ->
@@ -382,21 +395,36 @@ class RecordsViewModel @Inject constructor(
                     matchesScooter && matchesDate
                 }.sortedByDescending { it.fecha }
                 
+                // Agregar datos
                 recordsToExport.forEachIndexed { index, record ->
-                    val rowNum = index + 1
-                    sheet.addCell(jxl.write.Label(0, rowNum, record.patinete))
-                    sheet.addCell(jxl.write.Label(1, rowNum, record.fecha))
-                    sheet.addCell(jxl.write.Number(2, rowNum, record.kilometraje, numberFormat))
-                    sheet.addCell(jxl.write.Number(3, rowNum, record.diferencia, numberFormat))
+                    val row = sheet.createRow(index + 1)
+                    
+                    val vehicleCell = row.createCell(0)
+                    vehicleCell.setCellValue(record.patinete)
+                    
+                    val dateCell = row.createCell(1)
+                    dateCell.setCellValue(record.fecha)
+                    
+                    val kmCell = row.createCell(2)
+                    kmCell.setCellValue(record.kilometraje)
+                    kmCell.cellStyle = numberStyle
+                    
+                    val diffCell = row.createCell(3)
+                    diffCell.setCellValue(record.diferencia)
+                    diffCell.cellStyle = numberStyle
                 }
                 
-                sheet.setColumnView(0, 20)
-                sheet.setColumnView(1, 15)
-                sheet.setColumnView(2, 12)
-                sheet.setColumnView(3, 12)
+                // Ajustar ancho de columnas
+                sheet.setColumnWidth(0, 20 * 256) // Vehículo
+                sheet.setColumnWidth(1, 15 * 256) // Fecha
+                sheet.setColumnWidth(2, 12 * 256) // Kilometraje
+                sheet.setColumnWidth(3, 12 * 256) // Diferencia
                 
-                workbook.write()
+                // Escribir archivo
+                val fileOut = FileOutputStream(tempFile)
+                workbook.write(fileOut)
                 workbook.close()
+                fileOut.close()
 
                 if (tempFile.exists() && tempFile.length() > 0) {
                     withContext(Dispatchers.Main) {

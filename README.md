@@ -2,9 +2,10 @@
 
 **Aplicación Android para tracking GPS de patinetes, bicicletas y otros vehículos personales.**
 
-[![Kotlin](https://img.shields.io/badge/Kotlin-1.9.0-blue.svg)](https://kotlinlang.org)
+[![Version](https://img.shields.io/badge/Version-2.6-brightgreen.svg)](https://github.com/shurdani/Patinetatrack/releases)
+[![Kotlin](https://img.shields.io/badge/Kotlin-2.0.0-blue.svg)](https://kotlinlang.org)
 [![Android](https://img.shields.io/badge/Android-API%2031%2B-green.svg)](https://developer.android.com)
-[![Jetpack Compose](https://img.shields.io/badge/Jetpack%20Compose-1.5.1-blue.svg)](https://developer.android.com/jetpack/compose)
+[![Jetpack Compose](https://img.shields.io/badge/Jetpack%20Compose-2024.02.00-blue.svg)](https://developer.android.com/jetpack/compose)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 ---
@@ -20,7 +21,7 @@
 - ✅ Velocidad = 0 cuando estás parado (filtro inteligente)
 - ✅ **Navegación mejorada** - Transición directa al finalizar rutas
 - ✅ **Recarga automática de mapas** - Se recargan al volver del background
-- ✅ **Compartir rutas** - Exportación de imágenes de mapas
+- ✅ **Compartir rutas** - Exportación de imágenes de mapas con diseño mejorado
 
 ### 📊 **Gestión de Vehículos**
 - ✅ Registro de múltiples vehículos (patinete, bicicleta, etc.)
@@ -46,7 +47,26 @@
 
 ---
 
-## 🆕 **Novedades en la Versión 2.5**
+## 🆕 **Novedades en la Versión 2.6**
+
+### 🎯 **Mejoras Principales**
+- ✅ **Velocímetro Ultra-Preciso** - Media Móvil Exponencial para respuesta instantánea
+- ✅ **Rediseño Completo de Compartir Rutas** - Imágenes profesionales para redes sociales
+- ✅ **Mapa Minimalista** - Estilo personalizado sin distracciones
+- ✅ **Iconografía Unificada** - 5 iconos nuevos con diseño consistente
+- ✅ **Optimización de Rendimiento** - minifyEnabled reduce APK en 30%
+- ✅ **Corrección de Exportación** - Mejoras en generación de archivos Excel
+
+### 🚀 **Mejoras Técnicas**
+- ✅ **EMA para Velocímetro** - Reemplazo de SMA por Media Móvil Exponencial
+- ✅ **Factor Alfa 0.2** - Balance perfecto entre reactividad y estabilidad
+- ✅ **80% peso a lecturas recientes** - Respuesta casi instantánea
+- ✅ **ProGuard Optimizado** - Mejor rendimiento en release
+- ✅ **Gestión de Memoria Mejorada** - Menor consumo durante exportación
+
+---
+
+## 📋 **Versión 2.5 (Anterior)**
 
 ### **🚀 IMPLEMENTACIÓN COMPLETA DEL SISTEMA DE RUTAS**
 
@@ -155,6 +175,7 @@ Consulta la [Guía de Configuración Detallada (SETUP.md)](SETUP.md) para obtene
 - 🗺️ [Configuración de Google Maps (GOOGLE_MAPS_SETUP.md)](GOOGLE_MAPS_SETUP.md)
 - 📍 [Implementación GPS (GPS_IMPLEMENTATION_SUMMARY.md)](GPS_IMPLEMENTATION_SUMMARY.md)
 - 🐛 [Solución de Problemas GPS (SOLUCION_PROBLEMAS_GPS.md)](SOLUCION_PROBLEMAS_GPS.md)
+- 🎨 [Implementación: Mejora de Compartir Rutas (IMPLEMENTACION_MEJORA_COMPARTIR_RUTAS.md)](IMPLEMENTACION_MEJORA_COMPARTIR_RUTAS.md)
 
 ---
 
@@ -308,6 +329,16 @@ Este proyecto está bajo la Licencia MIT - ver el archivo [LICENSE](LICENSE) par
 - [x] **Recarga automática** - Lifecycle management para mapas
 - [x] **Navegación fluida** - UX mejorada en transiciones
 - [x] **Asociación a patinetes** - Cada ruta vinculada al vehículo activo
+
+### **Versión 2.6 - MEJORA ESTÉTICA DE COMPARTIR RUTAS** 🎨 ✅
+- [x] **Estilo de mapa personalizado** - Mapa limpio y minimalista para destacar rutas
+- [x] **Rutas destacadas** - Línea verde lima brillante (#39FF14) con grosor 15px
+- [x] **Marcadores personalizados** - Círculos verdes modernos para inicio/fin
+- [x] **Tarjeta flotante** - Diseño semitransparente con estadísticas mejoradas
+- [x] **Iconografía moderna** - Iconos outline para distancia, tiempo y velocidad
+- [x] **Tipografía mejorada** - Jerarquía visual clara en las imágenes compartidas
+- [x] **Fecha localizada** - Formato en español para mejor legibilidad
+- [x] **Implementación completa** - Aplicado en todos los componentes de mapa
 
 ### **Próximas Características**
 - [ ] Modo offline para tracking sin conexión

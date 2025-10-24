@@ -5,6 +5,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -12,6 +13,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -25,8 +27,13 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.zipstats.app.model.Scooter
+import com.zipstats.app.model.VehicleType
 import com.zipstats.app.permission.PermissionManager
 import com.zipstats.app.service.TrackingStateManager
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.res.painterResource
+import com.zipstats.app.R
 import com.zipstats.app.util.LocationUtils
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
@@ -107,7 +114,7 @@ fun TrackingScreen(
                             onNavigateBack()
                         }
                     }) {
-                        Icon(Icons.Default.ArrowBack, "Volver")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Volver")
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -211,6 +218,19 @@ fun TrackingScreen(
     }
 }
 
+/**
+ * Obtiene el icono del vehículo según su tipo
+ */
+@Composable
+fun getVehicleIcon(vehicleType: VehicleType): Painter {
+    return when (vehicleType) {
+        VehicleType.PATINETE -> painterResource(id = R.drawable.ic_electric_scooter_adaptive)
+        VehicleType.BICICLETA -> painterResource(id = R.drawable.ic_ciclismo_adaptive)
+        VehicleType.E_BIKE -> painterResource(id = R.drawable.ic_bicicleta_electrica_adaptive)
+        VehicleType.MONOCICLO -> painterResource(id = R.drawable.ic_unicycle_adaptive)
+    }
+}
+
 @Composable
 fun PermissionRequestCard(onRequestPermissions: () -> Unit) {
     Card(
@@ -305,11 +325,20 @@ fun IdleStateContent(
                     .padding(16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(
-                    imageVector = Icons.Default.TwoWheeler,
-                    contentDescription = null,
-                    modifier = Modifier.size(40.dp)
-                )
+                if (selectedScooter != null) {
+                    Image(
+                        painter = getVehicleIcon(selectedScooter.vehicleType),
+                        contentDescription = "Icono del vehículo",
+                        modifier = Modifier.size(40.dp),
+                        colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(MaterialTheme.colorScheme.onSurface)
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.Default.TwoWheeler,
+                        contentDescription = null,
+                        modifier = Modifier.size(40.dp)
+                    )
+                }
                 Spacer(modifier = Modifier.width(16.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
@@ -596,9 +625,11 @@ fun ScooterPickerDialog(
                                 .padding(16.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.TwoWheeler,
-                                contentDescription = null
+                            Image(
+                                painter = getVehicleIcon(scooter.vehicleType),
+                                contentDescription = "Icono del vehículo",
+                                modifier = Modifier.size(24.dp),
+                                colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(MaterialTheme.colorScheme.onSurface)
                             )
                             Spacer(modifier = Modifier.width(16.dp))
                             Column {
@@ -662,7 +693,7 @@ fun FinishRouteDialog(
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "Añadir ${String.format("%.2f", distance)} km a registros",
+                        text = "Añadir ${String.format("%.1f", distance)} km a registros",
                         style = MaterialTheme.typography.bodyMedium
                     )
                 }

@@ -7,6 +7,7 @@ import android.content.Intent
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import android.util.Log
 import android.widget.Toast
 import androidx.core.content.ContextCompat
@@ -20,10 +21,13 @@ import com.zipstats.app.model.Avatar
 import com.zipstats.app.model.Scooter
 import com.zipstats.app.model.User
 import com.zipstats.app.repository.RecordRepository
-import com.zipstats.app.repository.ScooterRepository
+import com.zipstats.app.repository.VehicleRepository
 import com.zipstats.app.repository.UserRepository
 import com.zipstats.app.utils.DateUtils
 import com.google.firebase.auth.EmailAuthProvider
+import org.apache.poi.ss.usermodel.*
+import org.apache.poi.xssf.usermodel.XSSFWorkbook
+import java.io.FileOutputStream
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
 import com.google.firebase.auth.UserProfileChangeRequest
@@ -86,8 +90,9 @@ sealed class ProfileEvent {
 @HiltViewModel
 class ProfileViewModel @Inject constructor(
     private val userRepository: UserRepository,
-    private val scooterRepository: ScooterRepository,
+    private val vehicleRepository: VehicleRepository,
     private val recordRepository: RecordRepository,
+    private val routeRepository: com.zipstats.app.repository.RouteRepository,
     private val achievementsService: com.zipstats.app.service.AchievementsService,
     private val cloudinaryService: CloudinaryService,
     private val auth: FirebaseAuth,
@@ -183,7 +188,7 @@ class ProfileViewModel @Inject constructor(
                 val user = userRepository.getUser(userId) ?: throw Exception("Usuario no encontrado")
                 
                 // Cargar scooters con sus kilometrajes totales
-                val scooters = scooterRepository.getScooters().first()
+                val scooters = vehicleRepository.getScooters().first()
                 val records = recordRepository.getRecords().first()
                 
                 // Calcular kilometraje total para cada patinete
@@ -420,8 +425,11 @@ class ProfileViewModel @Inject constructor(
                 // Eliminar registros del usuario
                 recordRepository.deleteAllUserRecords()
                 
+                // Eliminar rutas del usuario
+                routeRepository.deleteAllUserRoutes()
+                
                 // Eliminar patinetes del usuario
-                scooterRepository.deleteAllUserScooters()
+                vehicleRepository.deleteAllUserScooters()
                 
                 // Eliminar foto de perfil
                 try {
@@ -446,12 +454,21 @@ class ProfileViewModel @Inject constructor(
     private fun loadUserScooters() {
         viewModelScope.launch {
             try {
-                val scooters = scooterRepository.getUserScooters()
+                val scooters = vehicleRepository.getUserScooters()
+                val records = recordRepository.getRecords().first()
+                
+                // Calcular kilometraje total para cada patinete
+                val scootersWithKm = scooters.map { scooter ->
+                    val scooterRecords = records.filter { it.patinete == scooter.nombre }
+                    val totalKm = scooterRecords.sumOf { it.diferencia }
+                    scooter.copy(kilometrajeActual = totalKm)
+                }
+                
                 _uiState.update { currentState ->
                     when (currentState) {
                         is ProfileUiState.Success -> {
                             val currentUser = _user.value ?: return@update currentState
-                            currentState.copy(user = currentUser, scooters = scooters)
+                            currentState.copy(user = currentUser, scooters = scootersWithKm)
                         }
                         else -> currentState
                     }
@@ -468,14 +485,14 @@ class ProfileViewModel @Inject constructor(
                 // Convertir la fecha del formato de visualización (DD/MM/YYYY) al formato de API (YYYY-MM-DD)
                 val fechaFormateada = fechaCompra?.let { DateUtils.formatForApi(DateUtils.parseDisplayDate(it)) }
                 
-                scooterRepository.addVehicle(
+                vehicleRepository.addVehicle(
                     nombre = nombre,
                     marca = marca,
                     modelo = modelo,
                     fechaCompra = fechaFormateada,
                     vehicleType = vehicleType
                 )
-                loadUserProfile()
+                loadUserScooters()
             } catch (e: Exception) {
                 Log.e("ProfileViewModel", "Error adding scooter", e)
                 _uiState.update { currentState ->
@@ -493,8 +510,23 @@ class ProfileViewModel @Inject constructor(
     fun deleteScooter(scooterId: String) {
         viewModelScope.launch {
             try {
-                scooterRepository.deleteScooter(scooterId)
-                loadUserProfile()
+                // Obtener el nombre del vehículo antes de eliminarlo para los registros
+                val scooter = vehicleRepository.getScooters().first().find { it.id == scooterId }
+                val scooterName = scooter?.nombre
+                
+                // Eliminar registros del vehículo
+                if (scooterName != null) {
+                    recordRepository.deleteScooterRecords(scooterName)
+                }
+                
+                // Eliminar rutas del vehículo
+                routeRepository.deleteScooterRoutes(scooterId)
+                
+                // Eliminar el vehículo
+                vehicleRepository.deleteScooter(scooterId)
+                
+                // Recargar la lista de vehículos
+                loadUserScooters()
             } catch (e: Exception) {
                 Log.e("ProfileViewModel", "Error deleting scooter", e)
                 _uiState.update { currentState ->
@@ -850,7 +882,8 @@ class ProfileViewModel @Inject constructor(
                 
                 // Eliminar todos los datos del usuario
                 recordRepository.deleteAllUserRecords()
-                scooterRepository.deleteAllUserScooters()
+                routeRepository.deleteAllUserRoutes()
+                vehicleRepository.deleteAllUserScooters()
                 
                 // Eliminar el documento del usuario en Firestore
                 val userId = user.uid
@@ -886,8 +919,25 @@ class ProfileViewModel @Inject constructor(
     }
 
     fun exportAllRecords(context: Context) {
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.IO) {
             try {
+                // Verificar permisos de almacenamiento
+                val hasStoragePermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    true // En Android 10+ no se necesita permiso explícito para MediaStore
+                } else {
+                    ContextCompat.checkSelfPermission(
+                        context,
+                        Manifest.permission.WRITE_EXTERNAL_STORAGE
+                    ) == PackageManager.PERMISSION_GRANTED
+                }
+                
+                if (!hasStoragePermission) {
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(context, "Se necesita permiso de almacenamiento para exportar", Toast.LENGTH_LONG).show()
+                    }
+                    return@launch
+                }
+                
                 val records = recordRepository.getAllRecords()
                 
                 if (records.isEmpty()) {
@@ -907,72 +957,102 @@ class ProfileViewModel @Inject constructor(
                 
                 // Crear archivo Excel
                 val timestamp = System.currentTimeMillis()
-                val tempFile = File(context.cacheDir, "todos_los_registros_$timestamp.xls")
+                val tempFile = File(context.cacheDir, "todos_los_registros_$timestamp.xlsx")
                 
-                val workbook = jxl.Workbook.createWorkbook(tempFile)
-                val sheet = workbook.createSheet("Todos los Registros", 0)
+                val workbook = XSSFWorkbook()
+                val sheet = workbook.createSheet("Todos los Registros")
                 
-                // Formato para encabezados
-                val headerFont = jxl.write.WritableFont(jxl.write.WritableFont.ARIAL, 10, jxl.write.WritableFont.BOLD)
-                val headerFormat = jxl.write.WritableCellFormat(headerFont)
-                headerFormat.setAlignment(jxl.format.Alignment.CENTRE)
+                // Crear estilos
+                val headerFont = workbook.createFont()
+                headerFont.bold = true
+                headerFont.fontHeightInPoints = 10
                 
-                // Formato para números
-                val numberFormat = jxl.write.WritableCellFormat(jxl.write.NumberFormat("#,##0.00"))
+                val headerStyle = workbook.createCellStyle()
+                headerStyle.setFont(headerFont)
+                headerStyle.alignment = HorizontalAlignment.CENTER
                 
-                // Encabezados
-                sheet.addCell(jxl.write.Label(0, 0, "Vehículo", headerFormat))
-                sheet.addCell(jxl.write.Label(1, 0, "Fecha", headerFormat))
-                sheet.addCell(jxl.write.Label(2, 0, "Kilometraje", headerFormat))
-                sheet.addCell(jxl.write.Label(3, 0, "Diferencia", headerFormat))
+                val numberStyle = workbook.createCellStyle()
+                val numberFormat = workbook.createDataFormat()
+                numberStyle.dataFormat = numberFormat.getFormat("#,##0.00")
+                
+                // Crear encabezados
+                val headerRow = sheet.createRow(0)
+                val headers = arrayOf("Vehículo", "Fecha", "Kilometraje", "Diferencia")
+                headers.forEachIndexed { index, header ->
+                    val cell = headerRow.createCell(index)
+                    cell.setCellValue(header)
+                    cell.cellStyle = headerStyle
+                }
                 
                 // Añadir registros
                 records.sortedByDescending { it.fecha }.forEachIndexed { index, record ->
-                    val rowNum = index + 1
-                    sheet.addCell(jxl.write.Label(0, rowNum, record.patinete))
-                    sheet.addCell(jxl.write.Label(1, rowNum, record.fecha))
-                    sheet.addCell(jxl.write.Number(2, rowNum, record.kilometraje, numberFormat))
-                    sheet.addCell(jxl.write.Number(3, rowNum, record.diferencia, numberFormat))
+                    val row = sheet.createRow(index + 1)
+                    
+                    val vehicleCell = row.createCell(0)
+                    vehicleCell.setCellValue(record.patinete)
+                    
+                    val dateCell = row.createCell(1)
+                    dateCell.setCellValue(record.fecha)
+                    
+                    val kmCell = row.createCell(2)
+                    kmCell.setCellValue(record.kilometraje)
+                    kmCell.cellStyle = numberStyle
+                    
+                    val diffCell = row.createCell(3)
+                    diffCell.setCellValue(record.diferencia)
+                    diffCell.cellStyle = numberStyle
                 }
                 
                 // Ajustar anchos de columna
-                sheet.setColumnView(0, 20)
-                sheet.setColumnView(1, 15)
-                sheet.setColumnView(2, 12)
-                sheet.setColumnView(3, 12)
+                sheet.setColumnWidth(0, 20 * 256) // Vehículo
+                sheet.setColumnWidth(1, 15 * 256) // Fecha
+                sheet.setColumnWidth(2, 12 * 256) // Kilometraje
+                sheet.setColumnWidth(3, 12 * 256) // Diferencia
                 
-                workbook.write()
+                // Escribir archivo
+                val fileOut = FileOutputStream(tempFile)
+                workbook.write(fileOut)
                 workbook.close()
+                fileOut.close()
                 
                 // Guardar en la carpeta de Descargas usando MainActivity
-                val activity = if (context is Activity) context else (context as? android.content.ContextWrapper)?.baseContext as? Activity
-                val mainActivity = activity as? com.zipstats.app.MainActivity
-                
-                if (mainActivity != null) {
-                    mainActivity.exportToDownloads(tempFile)
-                    // MainActivity mostrará las notificaciones de progreso y resultado
-                } else {
-                    // Si no podemos acceder a MainActivity, intentar compartir como fallback
+                try {
+                    val activity = if (context is Activity) context else (context as? android.content.ContextWrapper)?.baseContext as? Activity
+                    val mainActivity = activity as? com.zipstats.app.MainActivity
+                    
+                    if (mainActivity != null) {
+                        withContext(Dispatchers.Main) {
+                            mainActivity.exportToDownloads(tempFile)
+                        }
+                        // MainActivity mostrará las notificaciones de progreso y resultado
+                    } else {
+                        // Si no podemos acceder a MainActivity, intentar compartir como fallback
+                        withContext(Dispatchers.Main) {
+                            Toast.makeText(context, "Preparando archivo para compartir...", Toast.LENGTH_SHORT).show()
+                            
+                            val fileUri = FileProvider.getUriForFile(
+                                context,
+                                "${context.packageName}.provider",
+                                tempFile
+                            )
+                            
+                            val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                                type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                                putExtra(Intent.EXTRA_STREAM, fileUri)
+                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            }
+                            
+                            context.startActivity(Intent.createChooser(shareIntent, "Exportar registros").apply {
+                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            })
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.e("ProfileViewModel", "Error al acceder a MainActivity o compartir archivo", e)
                     withContext(Dispatchers.Main) {
-                        Toast.makeText(context, "Preparando archivo para compartir...", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, "Error al exportar: ${e.message}", Toast.LENGTH_LONG).show()
                     }
-                    
-                    val fileUri = FileProvider.getUriForFile(
-                        context,
-                        "${context.packageName}.provider",
-                        tempFile
-                    )
-                    
-                    val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                        type = "application/vnd.ms-excel"
-                        putExtra(Intent.EXTRA_STREAM, fileUri)
-                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    }
-                    
-                    context.startActivity(Intent.createChooser(shareIntent, "Exportar registros").apply {
-                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    })
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {

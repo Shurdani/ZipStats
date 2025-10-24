@@ -40,8 +40,12 @@ import com.zipstats.app.model.Route
 import com.zipstats.app.ui.components.BasicMapView
 import com.zipstats.app.ui.components.CapturableMapView
 import com.zipstats.app.utils.DateUtils
+import com.zipstats.app.R
 import java.time.Instant
 import java.time.ZoneId
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 @Composable
 fun RouteDetailDialog(
@@ -374,19 +378,22 @@ private fun shareRouteWithRealMap(
                 return@SnapshotReadyCallback
             }
 
-            try {
-                // Redimensionar el bitmap para evitar problemas de memoria
-                val resizedBitmap = redimensionarBitmap(snapshotBitmap, 1080)
-                
-                // Crear imagen final con estadísticas
-                val finalBitmap = createFinalRouteImage(route, resizedBitmap)
-                
-                // Compartir la imagen
-                shareBitmap(context, finalBitmap, route)
-                
-            } catch (e: Exception) {
-                android.widget.Toast.makeText(context, "Error al procesar imagen: ${e.message}", android.widget.Toast.LENGTH_SHORT).show()
-                e.printStackTrace()
+            // Usar corrutina para manejar la función asíncrona
+            CoroutineScope(Dispatchers.Main).launch {
+                try {
+                    // Redimensionar el bitmap para evitar problemas de memoria
+                    val resizedBitmap = redimensionarBitmap(snapshotBitmap, 1080)
+                    
+                    // Crear imagen final con estadísticas
+                    val finalBitmap = createFinalRouteImage(route, resizedBitmap, context)
+                    
+                    // Compartir la imagen
+                    shareBitmap(context, finalBitmap, route)
+                    
+                } catch (e: Exception) {
+                    android.widget.Toast.makeText(context, "Error al procesar imagen: ${e.message}", android.widget.Toast.LENGTH_SHORT).show()
+                    e.printStackTrace()
+                }
             }
         })
         
@@ -421,32 +428,23 @@ private fun redimensionarBitmap(bitmapOriginal: android.graphics.Bitmap, tamanoM
 /**
  * Crea la imagen final combinando el mapa con las estadísticas
  */
-private fun createFinalRouteImage(route: Route, mapBitmap: android.graphics.Bitmap): android.graphics.Bitmap {
+private suspend fun createFinalRouteImage(route: Route, mapBitmap: android.graphics.Bitmap, context: android.content.Context): android.graphics.Bitmap {
     val width = 1080
     val height = 1920
-    val mapHeight = (height * 0.80f).toInt() // Aumentar área del mapa para orientación vertical
-    val infoHeight = height - mapHeight
+    val mapHeight = (height * 0.85f).toInt() // 85% para el mapa
 
     val finalBitmap = android.graphics.Bitmap.createBitmap(width, height, android.graphics.Bitmap.Config.ARGB_8888)
     val canvas = android.graphics.Canvas(finalBitmap)
     
-    // Fondo con gradiente sutil
-    val gradientPaint = android.graphics.Paint().apply {
-        shader = android.graphics.LinearGradient(
-            0f, 0f, 0f, height.toFloat(),
-            android.graphics.Color.rgb(248, 249, 250),
-            android.graphics.Color.rgb(255, 255, 255),
-            android.graphics.Shader.TileMode.CLAMP
-        )
-    }
-    canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), gradientPaint)
+    // Fondo limpio
+    canvas.drawColor(android.graphics.Color.rgb(245, 245, 245))
     
-    // Centrar el mapa en el área asignada con orientación vertical optimizada
+    // Dibujar el mapa escalado
     val mapWidth = mapBitmap.width
     val mapHeightActual = mapBitmap.height
-    val scaleX = (width * 0.98f) / mapWidth // Usar 98% del ancho para mejor aprovechamiento
-    val scaleY = (mapHeight * 0.98f) / mapHeightActual // Usar 98% de la altura para orientación vertical
-    val scale = minOf(scaleX, scaleY)
+    val scaleX = width.toFloat() / mapWidth
+    val scaleY = mapHeight.toFloat() / mapHeightActual
+    val scale = kotlin.math.min(scaleX, scaleY)
     
     val scaledWidth = (mapWidth * scale).toInt()
     val scaledHeight = (mapHeightActual * scale).toInt()
@@ -456,18 +454,173 @@ private fun createFinalRouteImage(route: Route, mapBitmap: android.graphics.Bitm
     val scaledBitmap = android.graphics.Bitmap.createScaledBitmap(mapBitmap, scaledWidth, scaledHeight, true)
     canvas.drawBitmap(scaledBitmap, offsetX.toFloat(), offsetY.toFloat(), null)
     
-    // Dibujar marco negro con esquinas redondeadas alrededor del mapa
-    drawMapFrame(canvas, width, mapHeight, offsetX, offsetY, scaledWidth, scaledHeight)
+    // Inflar el layout de la tarjeta flotante
+    val inflater = android.view.LayoutInflater.from(context)
+    val cardView = inflater.inflate(R.layout.share_route_stats_card, null) as androidx.cardview.widget.CardView
     
-    // Dibujar información de la ruta con mejor espaciado
-    drawRouteInfo(canvas, route, width, mapHeight, infoHeight)
+    // Configurar título de la ruta
+    val routeTitle = if (route.notes.isNotBlank()) {
+        route.notes
+    } else {
+        // Generar título automático basado en las ciudades de inicio y fin
+        val startCity = getCityName(route.points.firstOrNull()?.latitude, route.points.firstOrNull()?.longitude)
+        val endCity = getCityName(route.points.lastOrNull()?.latitude, route.points.lastOrNull()?.longitude)
+        val vehicleType = getVehicleTypeName(route.scooterId)
+        
+        when {
+            startCity != null && endCity != null && startCity != endCity -> 
+                "Mi $vehicleType por $startCity - $endCity"
+            startCity != null -> 
+                "Mi $vehicleType por $startCity"
+            else -> 
+                "Mi $vehicleType"
+        }
+    }
+    cardView.findViewById<android.widget.TextView>(R.id.routeTitle).text = routeTitle
+    
+    
+    // Configurar métricas con formato mejorado
+    cardView.findViewById<android.widget.TextView>(R.id.distanceValue).text = 
+        String.format("%.1f km", route.totalDistance)
+    
+    val durationMinutes = route.totalDuration / 60000
+    cardView.findViewById<android.widget.TextView>(R.id.timeValue).text = 
+        String.format("%d min", durationMinutes)
+    
+    // Configurar velocidad media con dato numérico
+    cardView.findViewById<android.widget.TextView>(R.id.speedValue).text = 
+        String.format("%.1f km/h media", route.averageSpeed)
+    
+    // Configurar icono del vehículo según el tipo
+    val vehicleIconRes = getVehicleIconResource(route.scooterId)
+    cardView.findViewById<android.widget.ImageView>(R.id.vehicleIcon).setImageResource(vehicleIconRes)
+    
+    // Configurar información del vehículo y fecha
+    val vehicleInfoText = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+        val instant = java.time.Instant.ofEpochMilli(route.startTime)
+        val date = java.time.LocalDate.ofInstant(instant, java.time.ZoneId.systemDefault())
+        val dateFormatter = java.time.format.DateTimeFormatter.ofPattern("d 'de' MMMM 'de' yyyy", java.util.Locale.forLanguageTag("es-ES"))
+        "${route.scooterName} | ${date.format(dateFormatter)}"
+    } else {
+        val simpleDateFormat = java.text.SimpleDateFormat("d 'de' MMMM 'de' yyyy", java.util.Locale.forLanguageTag("es-ES"))
+        "${route.scooterName} | ${simpleDateFormat.format(java.util.Date(route.startTime))}"
+    }
+    cardView.findViewById<android.widget.TextView>(R.id.vehicleInfo).text = vehicleInfoText
+    
+    
+    // Medir y renderizar la tarjeta
+    val cardWidth = width - 64 // Márgenes de 32dp a cada lado
+    val measureSpec = android.view.View.MeasureSpec.makeMeasureSpec(cardWidth, android.view.View.MeasureSpec.EXACTLY)
+    cardView.measure(measureSpec, android.view.View.MeasureSpec.UNSPECIFIED)
+    
+    val cardHeight = cardView.measuredHeight
+    val cardX = 32
+    val cardY = height - cardHeight - 32 // Anclar al borde inferior con margen de 32dp
+    
+    cardView.layout(0, 0, cardView.measuredWidth, cardHeight)
+    
+    // Dibujar la tarjeta en el canvas
+    canvas.save()
+    canvas.translate(cardX.toFloat(), cardY.toFloat())
+    cardView.draw(canvas)
+    canvas.restore()
+    
+    // Watermark eliminado - el branding ya está integrado en la tarjeta
     
     return finalBitmap
 }
 
 /**
+ * Obtiene el nombre de la ciudad basado en coordenadas GPS
+ * Por simplicidad, devuelve nombres de ciudades españolas conocidas
+ */
+private fun getCityName(latitude: Double?, longitude: Double?): String? {
+    if (latitude == null || longitude == null) return null
+    
+    // Mapeo básico de coordenadas a ciudades españolas
+    // Barcelona
+    if (latitude in 41.35..41.45 && longitude in 2.10..2.25) return "Barcelona"
+    // Madrid
+    if (latitude in 40.35..40.50 && longitude in -3.80..-3.60) return "Madrid"
+    // Valencia
+    if (latitude in 39.40..39.50 && longitude in -0.40..-0.30) return "Valencia"
+    // Sevilla
+    if (latitude in 37.30..37.45 && longitude in -6.05..-5.85) return "Sevilla"
+    // Bilbao
+    if (latitude in 43.20..43.30 && longitude in -3.00..-2.90) return "Bilbao"
+    // Zaragoza
+    if (latitude in 41.60..41.70 && longitude in -0.95..-0.85) return "Zaragoza"
+    // Málaga
+    if (latitude in 36.60..36.80 && longitude in -4.50..-4.30) return "Málaga"
+    // Murcia
+    if (latitude in 37.90..38.00 && longitude in -1.20..-1.10) return "Murcia"
+    // Palma
+    if (latitude in 39.50..39.60 && longitude in 2.60..2.70) return "Palma"
+    // Las Palmas
+    if (latitude in 28.10..28.20 && longitude in -15.50..-15.40) return "Las Palmas"
+    
+    return null
+}
+
+/**
+ * Obtiene el nombre del tipo de vehículo basado en el ID del vehículo
+ */
+private suspend fun getVehicleTypeName(scooterId: String): String {
+    return try {
+        val vehicle = getVehicleById(scooterId)
+        when (vehicle?.vehicleType) {
+            com.zipstats.app.model.VehicleType.PATINETE -> "paseo en patinete"
+            com.zipstats.app.model.VehicleType.BICICLETA -> "paseo en bicicleta"
+            com.zipstats.app.model.VehicleType.E_BIKE -> "paseo en e-bike"
+            com.zipstats.app.model.VehicleType.MONOCICLO -> "paseo en monociclo"
+            else -> "paseo"
+        }
+    } catch (e: Exception) {
+        "paseo"
+    }
+}
+
+/**
+ * Obtiene el recurso del icono del vehículo basado en el ID del vehículo
+ */
+private suspend fun getVehicleIconResource(scooterId: String): Int {
+    return try {
+        val vehicle = getVehicleById(scooterId)
+        when (vehicle?.vehicleType) {
+            com.zipstats.app.model.VehicleType.PATINETE -> com.zipstats.app.R.drawable.electric_scooter
+            com.zipstats.app.model.VehicleType.BICICLETA -> com.zipstats.app.R.drawable.ciclismo
+            com.zipstats.app.model.VehicleType.E_BIKE -> com.zipstats.app.R.drawable.bicicleta_electrica
+            com.zipstats.app.model.VehicleType.MONOCICLO -> com.zipstats.app.R.drawable.unicycle
+            else -> com.zipstats.app.R.drawable.electric_scooter
+        }
+    } catch (e: Exception) {
+        com.zipstats.app.R.drawable.electric_scooter
+    }
+}
+
+/**
+ * Obtiene un vehículo por su ID
+ */
+private suspend fun getVehicleById(vehicleId: String): com.zipstats.app.model.Vehicle? {
+    return try {
+        // Obtener el repositorio de vehículos
+        val vehicleRepository = com.zipstats.app.repository.VehicleRepository(
+            com.google.firebase.firestore.FirebaseFirestore.getInstance(),
+            com.google.firebase.auth.FirebaseAuth.getInstance()
+        )
+        
+        // Buscar el vehículo en la lista de vehículos del usuario
+        val vehicles = vehicleRepository.getUserVehicles()
+        vehicles.find { it.id == vehicleId }
+    } catch (e: Exception) {
+        null
+    }
+}
+
+/**
  * Dibuja la información de la ruta en la parte inferior
  */
+@Suppress("UNUSED_PARAMETER")
 private fun drawRouteInfo(canvas: android.graphics.Canvas, route: Route, width: Int, mapHeight: Int, infoHeight: Int) {
     val titlePaint = android.graphics.Paint().apply {
         color = android.graphics.Color.rgb(33, 33, 33)
@@ -583,7 +736,7 @@ private fun shareBitmap(
             🛴 Mi ruta en ${route.scooterName}
             
             📅 Fecha: $date
-            📍 Distancia: ${String.format("%.2f", route.totalDistance)} km
+            📍 Distancia: ${String.format("%.1f", route.totalDistance)} km
             ⏱️ Duración: ${route.durationFormatted}
             ⚡ Velocidad media: ${String.format("%.1f", route.averageSpeed)} km/h
             🚀 Velocidad máxima: ${String.format("%.1f", route.maxSpeed)} km/h

@@ -7,7 +7,7 @@ import com.zipstats.app.model.AchievementLevel
 import com.zipstats.app.model.AchievementRequirementType
 import com.zipstats.app.model.Scooter
 import com.zipstats.app.repository.RecordRepository
-import com.zipstats.app.repository.ScooterRepository
+import com.zipstats.app.repository.VehicleRepository
 import com.zipstats.app.repository.UserRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -102,7 +102,7 @@ sealed class StatisticsUiState {
 @HiltViewModel
 class StatisticsViewModel @Inject constructor(
     private val recordRepository: RecordRepository,
-    private val scooterRepository: ScooterRepository,
+    private val scooterRepository: VehicleRepository,
     private val userRepository: UserRepository,
     private val achievementsService: com.zipstats.app.service.AchievementsService
 ) : ViewModel() {
@@ -159,9 +159,13 @@ class StatisticsViewModel @Inject constructor(
                 scooterRepository.getScooters().collect { scooters ->
                     recordRepository.getRecords().collect { records ->
                         // Calcular los meses/años disponibles
-                        val monthYears = records.map { record ->
-                            val date = LocalDate.parse(record.fecha)
-                            Pair(date.monthValue, date.year)
+                        val monthYears = records.mapNotNull { record ->
+                            try {
+                                val date = LocalDate.parse(record.fecha)
+                                Pair(date.monthValue, date.year)
+                            } catch (e: Exception) {
+                                null
+                            }
                         }.distinct().sortedWith(compareByDescending<Pair<Int, Int>> { it.second }.thenByDescending { it.first })
                         
                         _availableMonthYears.value = monthYears
@@ -181,8 +185,12 @@ class StatisticsViewModel @Inject constructor(
                         
                         // Estadísticas mensuales (o del período seleccionado)
                         val monthlyRecords = records.filter {
-                            val recordDate = LocalDate.parse(it.fecha)
-                            recordDate.monthValue == currentMonth && recordDate.year == currentYear
+                            try {
+                                val recordDate = LocalDate.parse(it.fecha)
+                                recordDate.monthValue == currentMonth && recordDate.year == currentYear
+                            } catch (e: Exception) {
+                                false
+                            }
                         }
 
                         val monthlyDistance = monthlyRecords.sumOf { it.diferencia }.roundToOneDecimal()
@@ -196,8 +204,12 @@ class StatisticsViewModel @Inject constructor(
 
                         // Estadísticas anuales
                         val yearlyRecords = records.filter {
-                            val recordDate = LocalDate.parse(it.fecha)
-                            recordDate.year == currentYear
+                            try {
+                                val recordDate = LocalDate.parse(it.fecha)
+                                recordDate.year == currentYear
+                            } catch (e: Exception) {
+                                false
+                            }
                         }
 
                         val yearlyDistance = yearlyRecords.sumOf { it.diferencia }.roundToOneDecimal()
@@ -233,7 +245,11 @@ class StatisticsViewModel @Inject constructor(
                         val yearlyComparison = calculateYearlyComparison(records, currentYear)
                         
                         // Calcular el siguiente logro (ahora basado en múltiples métricas)
-                        val nextAchievement = calculateNextAchievement()
+                        val nextAchievement = try {
+                            calculateNextAchievement()
+                        } catch (e: Exception) {
+                            null
+                        }
 
                         _statistics.value = StatisticsUiState.Success(
                             totalDistance = totalDistance,
@@ -356,7 +372,13 @@ ${scooterTexts.joinToString("\n")}""".trimIndent()
         
         return last30Days.map { date ->
             val dailyDistance = records
-                .filter { LocalDate.parse(it.fecha) == date }
+                .filter { 
+                    try {
+                        LocalDate.parse(it.fecha) == date
+                    } catch (e: Exception) {
+                        false
+                    }
+                }
                 .sumOf { it.diferencia }
             ChartDataPoint(
                 date = "${date.dayOfMonth}/${date.monthValue}",
@@ -371,8 +393,12 @@ ${scooterTexts.joinToString("\n")}""".trimIndent()
         return (1..12).map { month ->
             val monthlyDistance = records
                 .filter {
-                    val recordDate = LocalDate.parse(it.fecha)
-                    recordDate.year == year && recordDate.monthValue == month
+                    try {
+                        val recordDate = LocalDate.parse(it.fecha)
+                        recordDate.year == year && recordDate.monthValue == month
+                    } catch (e: Exception) {
+                        false
+                    }
                 }
                 .sumOf { it.diferencia }
             ChartDataPoint(
@@ -389,9 +415,13 @@ ${scooterTexts.joinToString("\n")}""".trimIndent()
         
         // Agrupar por año-mes
         val groupedByMonth = records.groupBy {
-            val date = LocalDate.parse(it.fecha)
-            "${date.year}-${String.format("%02d", date.monthValue)}"
-        }
+            try {
+                val date = LocalDate.parse(it.fecha)
+                "${date.year}-${String.format("%02d", date.monthValue)}"
+            } catch (e: Exception) {
+                "error-00"
+            }
+        }.filterKeys { it != "error-00" }
         
         // Ordenar y tomar los últimos 12 meses
         val sortedMonths = groupedByMonth.keys.sorted().takeLast(12)
@@ -413,10 +443,14 @@ ${scooterTexts.joinToString("\n")}""".trimIndent()
         
         // Obtener registros del mes/año actual (hasta hoy si es el mes en curso, todo el mes si es histórico)
         val currentMonthRecords = records.filter {
-            val recordDate = LocalDate.parse(it.fecha)
-            recordDate.monthValue == currentMonth && 
-            recordDate.year == currentYear &&
-            recordDate.dayOfMonth <= currentDayOfMonth
+            try {
+                val recordDate = LocalDate.parse(it.fecha)
+                recordDate.monthValue == currentMonth && 
+                recordDate.year == currentYear &&
+                recordDate.dayOfMonth <= currentDayOfMonth
+            } catch (e: Exception) {
+                false
+            }
         }
         
         val currentValue = currentMonthRecords.sumOf { it.diferencia }
@@ -428,10 +462,14 @@ ${scooterTexts.joinToString("\n")}""".trimIndent()
         for (yearOffset in 1..10) {
             val yearToCheck = currentYear - yearOffset
             val previousYearRecords = records.filter {
-                val recordDate = LocalDate.parse(it.fecha)
-                recordDate.monthValue == currentMonth && 
-                recordDate.year == yearToCheck &&
-                recordDate.dayOfMonth <= currentDayOfMonth
+                try {
+                    val recordDate = LocalDate.parse(it.fecha)
+                    recordDate.monthValue == currentMonth && 
+                    recordDate.year == yearToCheck &&
+                    recordDate.dayOfMonth <= currentDayOfMonth
+                } catch (e: Exception) {
+                    false
+                }
             }
             
             if (previousYearRecords.isNotEmpty()) {
@@ -463,9 +501,13 @@ ${scooterTexts.joinToString("\n")}""".trimIndent()
         
         // Obtener registros del año actual (hasta hoy si es el año en curso, todo el año si es histórico)
         val currentYearRecords = records.filter {
-            val recordDate = LocalDate.parse(it.fecha)
-            recordDate.year == currentYear &&
-            recordDate.dayOfYear <= currentDayOfYear
+            try {
+                val recordDate = LocalDate.parse(it.fecha)
+                recordDate.year == currentYear &&
+                recordDate.dayOfYear <= currentDayOfYear
+            } catch (e: Exception) {
+                false
+            }
         }
         
         val currentValue = currentYearRecords.sumOf { it.diferencia }
@@ -477,9 +519,13 @@ ${scooterTexts.joinToString("\n")}""".trimIndent()
         for (yearOffset in 1..10) {
             val yearToCheck = currentYear - yearOffset
             val previousYearRecords = records.filter {
-                val recordDate = LocalDate.parse(it.fecha)
-                recordDate.year == yearToCheck &&
-                recordDate.dayOfYear <= currentDayOfYear
+                try {
+                    val recordDate = LocalDate.parse(it.fecha)
+                    recordDate.year == yearToCheck &&
+                    recordDate.dayOfYear <= currentDayOfYear
+                } catch (e: Exception) {
+                    false
+                }
             }
             
             if (previousYearRecords.isNotEmpty()) {

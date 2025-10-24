@@ -33,7 +33,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.ScrollableTabRow
+import androidx.compose.material3.PrimaryScrollableTabRow
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -188,7 +188,7 @@ fun RecordsHistoryScreen(
                 modifier = Modifier.fillMaxWidth(),
                 contentAlignment = Alignment.Center
             ) {
-                ScrollableTabRow(
+                PrimaryScrollableTabRow(
                     selectedTabIndex = when(selectedModel) {
                         null -> 0
                         else -> userScooters.indexOfFirst { it.modelo == selectedModel } + 1

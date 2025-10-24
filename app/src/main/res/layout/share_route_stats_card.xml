@@ -1,0 +1,182 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.cardview.widget.CardView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_margin="16dp"
+    app:cardBackgroundColor="#D92C2C2C"
+    app:cardCornerRadius="16dp"
+    app:cardElevation="0dp">
+
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:padding="20dp">
+
+        <!-- Título de la ruta y branding -->
+        <LinearLayout
+            android:id="@+id/headerContainer"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintTop_toTopOf="parent">
+
+            <TextView
+                android:id="@+id/routeTitle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:textSize="22sp"
+                android:textStyle="bold"
+                android:textColor="#FFFFFF"
+                tools:text="Paseo por Sant Adriá" />
+
+            <TextView
+                android:id="@+id/zipstatsBranding"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="ZipStats"
+                android:textSize="16sp"
+                android:textStyle="bold"
+                android:textColor="#FFFFFF"
+                android:drawableStart="@drawable/ic_zipstats_logo"
+                android:drawablePadding="8dp" />
+
+        </LinearLayout>
+
+        <!-- Contenido principal: Icono del vehículo y métricas -->
+        <LinearLayout
+            android:id="@+id/mainContentContainer"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/headerContainer">
+
+            <!-- Icono del vehículo -->
+            <ImageView
+                android:id="@+id/vehicleIcon"
+                android:layout_width="60dp"
+                android:layout_height="60dp"
+                android:src="@drawable/electric_scooter"
+                android:contentDescription="Icono del vehículo"
+                app:tint="#FFFFFF"
+                android:layout_marginEnd="20dp" />
+
+            <!-- Métricas -->
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <!-- Distancia -->
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginBottom="12dp">
+
+                    <ImageView
+                        android:layout_width="20dp"
+                        android:layout_height="20dp"
+                        android:src="@drawable/ic_distance"
+                        app:tint="#FFFFFF"
+                        android:contentDescription="Icono de distancia"
+                        android:layout_marginEnd="8dp" />
+
+                    <TextView
+                        android:id="@+id/distanceValue"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:textSize="18sp"
+                        android:textStyle="bold"
+                        android:textColor="#FFFFFF"
+                        tools:text="1,61 km" />
+
+                </LinearLayout>
+
+                <!-- Tiempo -->
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginBottom="12dp">
+
+                    <ImageView
+                        android:layout_width="20dp"
+                        android:layout_height="20dp"
+                        android:src="@drawable/ic_timer"
+                        app:tint="#FFFFFF"
+                        android:contentDescription="Icono de tiempo"
+                        android:layout_marginEnd="8dp" />
+
+                    <TextView
+                        android:id="@+id/timeValue"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:textSize="18sp"
+                        android:textStyle="bold"
+                        android:textColor="#FFFFFF"
+                        tools:text="23 min" />
+
+                </LinearLayout>
+
+                <!-- Velocidad -->
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginBottom="8dp">
+
+                    <ImageView
+                        android:layout_width="20dp"
+                        android:layout_height="20dp"
+                        android:src="@drawable/ic_speed"
+                        app:tint="#FFFFFF"
+                        android:contentDescription="Icono de velocidad"
+                        android:layout_marginEnd="8dp" />
+
+                    <TextView
+                        android:id="@+id/speedValue"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:textSize="18sp"
+                        android:textStyle="bold"
+                        android:textColor="#FFFFFF"
+                        tools:text="14,7 km/h media" />
+
+                </LinearLayout>
+
+            </LinearLayout>
+
+        </LinearLayout>
+
+        <!-- Información del vehículo y fecha -->
+        <TextView
+            android:id="@+id/vehicleInfo"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textSize="14sp"
+            android:textColor="#CCCCCC"
+            android:layout_marginTop="16dp"
+            android:gravity="center"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/mainContentContainer"
+            tools:text="Xiaomi 4 Ultra | 18 de octubre de 2025" />
+
+    </androidx.constraintlayout.widget.ConstraintLayout>
+
+</androidx.cardview.widget.CardView>
+

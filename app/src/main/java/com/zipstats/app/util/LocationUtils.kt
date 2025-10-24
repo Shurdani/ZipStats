@@ -132,11 +132,57 @@ object LocationUtils {
     /**
      * Filtra la velocidad para considerar velocidades muy bajas como "parado"
      * @param speedKmh Velocidad en km/h
-     * @param minSpeedThreshold Umbral mínimo de velocidad en km/h (por defecto 1.5 km/h)
+     * @param minSpeedThreshold Umbral mínimo de velocidad en km/h (por defecto 3.0 km/h)
      * @return Velocidad filtrada (0.0 si está por debajo del umbral)
      */
-    fun filterSpeed(speedKmh: Double, minSpeedThreshold: Double = 1.5): Double {
+    fun filterSpeed(speedKmh: Double, minSpeedThreshold: Double = 3.0): Double {
         return if (speedKmh < minSpeedThreshold) 0.0 else speedKmh
+    }
+    
+    /**
+     * Clase para suavizado de velocidad con Media Móvil Exponencial (EMA)
+     * Proporciona una respuesta más rápida y reactiva que la media móvil simple
+     * La EMA da más peso a las lecturas recientes y menos a las antiguas
+     */
+    class SpeedSmoother(private val alpha: Double = 0.2) {
+        private var emaValue: Double? = null
+        private var isInitialized = false
+        
+        /**
+         * Añade una nueva lectura de velocidad y devuelve la EMA suavizada
+         * @param speedKmh Velocidad en km/h
+         * @return Velocidad suavizada en km/h usando EMA
+         */
+        fun addSpeed(speedKmh: Double): Double {
+            if (!isInitialized) {
+                // Para la primera lectura, inicializar con el valor actual
+                emaValue = speedKmh
+                isInitialized = true
+                return speedKmh
+            }
+            
+            // Fórmula EMA: EMA = alpha * nuevo_valor + (1 - alpha) * EMA_anterior
+            emaValue = alpha * speedKmh + (1.0 - alpha) * emaValue!!
+            return emaValue!!
+        }
+        
+        /**
+         * Resetea el estado de la EMA
+         */
+        fun reset() {
+            emaValue = null
+            isInitialized = false
+        }
+        
+        /**
+         * Obtiene el valor actual de la EMA
+         */
+        fun getCurrentEma(): Double? = emaValue
+        
+        /**
+         * Verifica si la EMA está inicializada
+         */
+        fun isInitialized(): Boolean = isInitialized
     }
     
     /**
@@ -148,7 +194,7 @@ object LocationUtils {
         return if (distanceKm < 1.0) {
             "${(distanceKm * 1000).roundToInt()} m"
         } else {
-            "%.2f km".format(distanceKm)
+            "%.1f km".format(distanceKm)
         }
     }
     

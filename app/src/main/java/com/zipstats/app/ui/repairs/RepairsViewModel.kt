@@ -5,7 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.zipstats.app.model.Repair
 import com.zipstats.app.model.Scooter
 import com.zipstats.app.repository.RepairRepository
-import com.zipstats.app.repository.ScooterRepository
+import com.zipstats.app.repository.VehicleRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -26,7 +26,7 @@ sealed class RepairsUiState {
 class RepairsViewModel @Inject constructor(
     private val repairRepository: RepairRepository,
     private val recordRepository: RecordRepository,
-    private val scooterRepository: ScooterRepository,
+    private val scooterRepository: VehicleRepository,
     private val achievementsService: com.zipstats.app.service.AchievementsService
 ) : ViewModel() {
 

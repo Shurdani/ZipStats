@@ -25,9 +25,15 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.Image
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Build
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.res.painterResource
+import com.zipstats.app.R
+import com.zipstats.app.model.VehicleType
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.ChevronRight
@@ -61,7 +67,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -82,7 +87,6 @@ import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import com.zipstats.app.model.Avatar
 import com.zipstats.app.model.Avatars
-import com.zipstats.app.model.VehicleType
 import com.zipstats.app.ui.profile.components.AvatarSelectionDialog
 import com.zipstats.app.navigation.Screen
 import com.zipstats.app.ui.components.StandardDatePickerDialogWithValidation
@@ -722,6 +726,19 @@ fun SummaryMetric(
     }
 }
 
+/**
+ * Obtiene el icono del vehículo según su tipo
+ */
+@Composable
+fun getVehicleIcon(vehicleType: VehicleType): Painter {
+    return when (vehicleType) {
+        VehicleType.PATINETE -> painterResource(id = R.drawable.ic_electric_scooter_adaptive)
+        VehicleType.BICICLETA -> painterResource(id = R.drawable.ic_ciclismo_adaptive)
+        VehicleType.E_BIKE -> painterResource(id = R.drawable.ic_bicicleta_electrica_adaptive)
+        VehicleType.MONOCICLO -> painterResource(id = R.drawable.ic_unicycle_adaptive)
+    }
+}
+
 @Composable
 fun ScooterCardItem(
     scooter: com.zipstats.app.model.Scooter,
@@ -755,9 +772,11 @@ fun ScooterCardItem(
                         .background(MaterialTheme.colorScheme.primaryContainer),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        text = scooter.vehicleType.emoji,
-                        style = MaterialTheme.typography.headlineMedium
+                    Image(
+                        painter = getVehicleIcon(scooter.vehicleType),
+                        contentDescription = "Icono del vehículo",
+                        modifier = Modifier.size(24.dp),
+                        colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(MaterialTheme.colorScheme.onPrimaryContainer)
                     )
                 }
                 

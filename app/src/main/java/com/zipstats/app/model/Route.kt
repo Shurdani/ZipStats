@@ -67,8 +67,13 @@ data class Route(
          */
         fun fromMap(id: String, map: Map<String, Any?>): Route {
             val pointsList = (map["points"] as? List<*>)?.mapNotNull { point ->
-                (point as? Map<*, *>)?.let { 
-                    RoutePoint.fromMap(it as Map<String, Any?>) 
+                (point as? Map<*, *>)?.let { pointMap ->
+                    try {
+                        @Suppress("UNCHECKED_CAST")
+                        RoutePoint.fromMap(pointMap as Map<String, Any?>)
+                    } catch (e: ClassCastException) {
+                        null
+                    }
                 }
             } ?: emptyList()
             

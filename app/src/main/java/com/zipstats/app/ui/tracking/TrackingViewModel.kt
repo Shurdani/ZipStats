@@ -261,6 +261,9 @@ class TrackingViewModel @Inject constructor(
                     Context.BIND_AUTO_CREATE
                 )
                 
+                // Actualizar tipo de vehículo en el servicio
+                trackingService?.updateVehicleType(scooter.vehicleType)
+                
                 _trackingState.value = TrackingState.Tracking
                 trackingStateManager.updateTrackingState(true)
                 trackingStateManager.updatePausedState(false)
@@ -327,15 +330,16 @@ class TrackingViewModel @Inject constructor(
                     throw Exception("No se registraron puntos GPS")
                 }
                 
-                // Crear la ruta
-                val route = routeRepository.createRouteFromPoints(
+                // Crear la ruta con análisis post-ruta y clima
+                val route = routeRepository.createRouteWithWeather(
                     points = points,
                     scooterId = scooter.id,
                     scooterName = scooter.nombre,
                     startTime = startTime,
                     endTime = endTime,
                     notes = notes,
-                    timeInMotion = _timeInMotion.value
+                    timeInMotion = _timeInMotion.value,
+                    vehicleType = scooter.vehicleType
                 )
                 
                 // Guardar en Firebase

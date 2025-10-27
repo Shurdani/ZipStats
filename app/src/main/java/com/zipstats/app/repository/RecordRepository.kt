@@ -276,7 +276,10 @@ class RecordRepository @Inject constructor(
                 .mapNotNull { it.toObject(Record::class.java) }
                 .filter { it.fecha <= fechaIso }
                 .maxByOrNull { it.fecha }
-            records?.kilometraje
+            // Redondear a 1 decimal
+            records?.kilometraje?.let { km ->
+                (kotlin.math.round(km * 10.0) / 10.0)
+            }
         } catch (e: Exception) {
             null
         }

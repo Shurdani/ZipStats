@@ -22,8 +22,8 @@ android {
         applicationId "com.zipstats.app"
         minSdk 31
         targetSdk 34
-        versionCode 5
-        versionName "2.6"
+        versionCode 6
+        versionName "2.7"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -34,6 +34,7 @@ android {
         buildConfigField "String", "CLOUDINARY_CLOUD_NAME", "\"${localProperties.getProperty('cloudinary.cloud_name', 'YOUR_CLOUD_NAME')}\""
         buildConfigField "String", "CLOUDINARY_API_KEY", "\"${localProperties.getProperty('cloudinary.api_key', 'YOUR_API_KEY')}\""
         buildConfigField "String", "CLOUDINARY_API_SECRET", "\"${localProperties.getProperty('cloudinary.api_secret', 'YOUR_API_SECRET')}\""
+        buildConfigField "String", "OPENWEATHER_API_KEY", "\"${localProperties.getProperty('openweather.api.key', 'YOUR_OPENWEATHER_API_KEY')}\""
         
         // Google Maps API Key
         manifestPlaceholders = [
@@ -55,7 +56,8 @@ android {
     kotlinOptions {
         jvmTarget = '17'
         freeCompilerArgs += [
-            "-opt-in=kotlin.RequiresOptIn"
+            "-opt-in=kotlin.RequiresOptIn",
+            "-Xsuppress-version-warnings"
         ]
     }
     buildFeatures {
@@ -140,10 +142,15 @@ dependencies {
     implementation 'com.squareup.retrofit2:converter-gson:2.11.0'
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0'
 
-    // --- Excel (Apache POI - solo dependencias necesarias) ---
-    implementation 'org.apache.poi:poi:5.2.5'
-    implementation 'org.apache.poi:poi-ooxml:5.2.5'
-    // Removido poi-scratchpad para reducir tamaño y warnings
+    // --- Excel (Apache POI - versión actualizada y optimizada) ---
+    implementation 'org.apache.poi:poi:5.2.3'
+    // Excluir módulos innecesarios para reducir tamaño del APK
+    implementation('org.apache.poi:poi-ooxml:5.2.3') {
+        exclude group: 'org.apache.poi', module: 'poi-scratchpad'
+        exclude group: 'org.apache.xmlgraphics', module: 'batik-svg'
+        exclude group: 'org.apache.xmlgraphics', module: 'batik-util'
+        exclude group: 'org.apache.xmlgraphics', module: 'batik-awt-util'
+    }
 
     // --- DataStore Preferences ---
     implementation 'androidx.datastore:datastore-preferences:1.1.1'

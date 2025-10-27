@@ -30,6 +30,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -88,9 +89,10 @@ fun RepairsScreen(
     }
     
     // Observar el scooter cargado
-    LaunchedEffect(viewModel.scooterState.value) {
-        viewModel.scooterState.value?.let { loadedScooter ->
-            scooter = loadedScooter
+    val loadedScooter by viewModel.scooterState.collectAsState()
+    LaunchedEffect(loadedScooter) {
+        loadedScooter?.let {
+            scooter = it
         }
     }
 
@@ -284,20 +286,21 @@ fun RepairsScreen(
                         )
                     }
                 },
-                actions = {
-                    IconButton(onClick = { showAddDialog = true }) {
-                        Icon(
-                            imageVector = Icons.Default.Add,
-                            contentDescription = "Agregar reparación"
-                        )
-                    }
-                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.primary,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimary,
-                    actionIconContentColor = MaterialTheme.colorScheme.onPrimary
+                    titleContentColor = MaterialTheme.colorScheme.onPrimary
                 )
             )
+        },
+        floatingActionButton = {
+            FloatingActionButton(
+                onClick = { showAddDialog = true }
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Add,
+                    contentDescription = "Agregar reparación"
+                )
+            }
         }
     ) { padding ->
         Column(

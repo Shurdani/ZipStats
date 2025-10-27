@@ -18,7 +18,11 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.navigation.NavController
+import android.Manifest
 import com.zipstats.app.ui.profile.ProfileViewModel
 import com.zipstats.app.ui.theme.ThemeMode
 import android.os.Build
@@ -38,6 +42,22 @@ fun SettingsScreen(
     var showExportDialog by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val scrollState = rememberScrollState()
+    
+    val storagePermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        android.util.Log.d("SettingsScreen", "Resultado del permiso: $isGranted")
+        if (isGranted) {
+            // Si se concede el permiso, proceder con la exportación
+            android.util.Log.d("SettingsScreen", "Permiso concedido, exportando...")
+            profileViewModel.exportAllRecords(context)
+            showExportDialog = false
+        } else {
+            // Si se deniega, mostrar mensaje
+            android.util.Log.d("SettingsScreen", "Permiso denegado")
+            Toast.makeText(context, "Permiso denegado. No se puede exportar sin acceso al almacenamiento.", Toast.LENGTH_LONG).show()
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -222,8 +242,41 @@ fun SettingsScreen(
             confirmButton = {
                 TextButton(
                     onClick = {
-                        profileViewModel.exportAllRecords(context)
-                        showExportDialog = false
+                        android.util.Log.d("SettingsScreen", "=== INICIO BOTÓN EXPORTAR ===")
+                        android.util.Log.d("SettingsScreen", "Botón Exportar presionado")
+                        android.util.Log.d("SettingsScreen", "Android SDK: ${Build.VERSION.SDK_INT}")
+                        
+                        try {
+                            // Verificar permisos antes de exportar
+                            android.util.Log.d("SettingsScreen", "Llamando a checkStoragePermission...")
+                            val hasPermission = profileViewModel.checkStoragePermission(context)
+                            android.util.Log.d("SettingsScreen", "Tiene permiso: $hasPermission")
+                            
+                            if (hasPermission) {
+                                android.util.Log.d("SettingsScreen", "Exportando directamente...")
+                                profileViewModel.exportAllRecords(context)
+                                showExportDialog = false
+                            } else {
+                                android.util.Log.d("SettingsScreen", "Solicitando permiso...")
+                                // Solicitar permiso automáticamente
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                                    // Android 14+ - pedir permiso para documentos
+                                    android.util.Log.d("SettingsScreen", "Solicitando READ_MEDIA_DOCUMENTS")
+                                    storagePermissionLauncher.launch("android.permission.READ_MEDIA_DOCUMENTS")
+                                } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                    // Android 13 - pedir permiso para imágenes (fallback)
+                                    android.util.Log.d("SettingsScreen", "Solicitando READ_MEDIA_IMAGES")
+                                    storagePermissionLauncher.launch(android.Manifest.permission.READ_MEDIA_IMAGES)
+                                } else {
+                                    android.util.Log.d("SettingsScreen", "Mostrando toast para Android 12-")
+                                    Toast.makeText(context, "Se necesita permiso de almacenamiento. Ve a Configuración > Permisos de la app.", Toast.LENGTH_LONG).show()
+                                }
+                                // NO cerrar el diálogo hasta que se conceda el permiso
+                            }
+                        } catch (e: Exception) {
+                            android.util.Log.e("SettingsScreen", "Error en botón exportar: ${e.message}")
+                        }
+                        android.util.Log.d("SettingsScreen", "=== FIN BOTÓN EXPORTAR ===")
                     }
                 ) {
                     Text("Exportar")

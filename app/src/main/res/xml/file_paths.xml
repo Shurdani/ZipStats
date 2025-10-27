@@ -6,13 +6,11 @@
     <cache-path
         name="cache"
         path="." />
-    <external-path
-        name="external"
-        path="." />
     <external-cache-path
         name="external_cache"
         path="." />
     <files-path
         name="files"
         path="." />
+    <!-- Removido external-path por seguridad -->
 </paths> 

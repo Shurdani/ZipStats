@@ -15,11 +15,21 @@ data class Route(
     val endTime: Long? = null,
     val totalDistance: Double = 0.0, // en kilómetros
     val totalDuration: Long = 0L, // en milisegundos
-    val averageSpeed: Double = 0.0, // en km/h
+    val averageSpeed: Double = 0.0, // en km/h (velocidad media general)
     val maxSpeed: Double = 0.0, // en km/h
     val points: List<RoutePoint> = emptyList(),
     val isCompleted: Boolean = false,
-    val notes: String = ""
+    val notes: String = "",
+    // Nuevas métricas de análisis post-ruta
+    val movingTime: Long = 0L, // tiempo en movimiento (ms)
+    val pauseTime: Long = 0L, // tiempo en pausas (ms)
+    val averageMovingSpeed: Double = 0.0, // velocidad media solo en movimiento (km/h)
+    val pauseCount: Int = 0, // número de pausas detectadas
+    val movingPercentage: Float = 0f, // porcentaje de tiempo en movimiento
+    // Datos del clima al momento de la ruta
+    val weatherTemperature: Double? = null, // temperatura en °C
+    val weatherEmoji: String? = null, // emoji del clima (☀️, ☁️, etc.)
+    val weatherDescription: String? = null // descripción del clima
 ) {
     /**
      * Calcula la duración en minutos
@@ -58,7 +68,15 @@ data class Route(
         "maxSpeed" to maxSpeed,
         "points" to points.map { it.toMap() },
         "isCompleted" to isCompleted,
-        "notes" to notes
+        "notes" to notes,
+        "movingTime" to movingTime,
+        "pauseTime" to pauseTime,
+        "averageMovingSpeed" to averageMovingSpeed,
+        "pauseCount" to pauseCount,
+        "movingPercentage" to movingPercentage,
+        "weatherTemperature" to weatherTemperature,
+        "weatherEmoji" to weatherEmoji,
+        "weatherDescription" to weatherDescription
     )
     
     companion object {
@@ -90,7 +108,15 @@ data class Route(
                 maxSpeed = map["maxSpeed"] as? Double ?: 0.0,
                 points = pointsList,
                 isCompleted = map["isCompleted"] as? Boolean ?: false,
-                notes = map["notes"] as? String ?: ""
+                notes = map["notes"] as? String ?: "",
+                movingTime = map["movingTime"] as? Long ?: 0L,
+                pauseTime = map["pauseTime"] as? Long ?: 0L,
+                averageMovingSpeed = map["averageMovingSpeed"] as? Double ?: 0.0,
+                pauseCount = map["pauseCount"] as? Int ?: 0,
+                movingPercentage = (map["movingPercentage"] as? Number)?.toFloat() ?: 0f,
+                weatherTemperature = map["weatherTemperature"] as? Double,
+                weatherEmoji = map["weatherEmoji"] as? String,
+                weatherDescription = map["weatherDescription"] as? String
             )
         }
     }

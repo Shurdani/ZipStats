@@ -193,6 +193,11 @@
 -keep class java.awt.** { *; }
 -dontwarn java.awt.**
 
+# Reglas específicas para SVGUserAgent y Batik (usado por POI)
+-keep class org.apache.xmlgraphics.batik.** { *; }
+-dontwarn org.apache.xmlgraphics.batik.**
+-dontwarn org.apache.xmlgraphics.batik.dom.svg.SVGUserAgent
+
 # Reglas para GraphBuilder (usado por POI)
 -keep class com.graphbuilder.** { *; }
 -dontwarn com.graphbuilder.**

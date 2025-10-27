@@ -172,8 +172,12 @@ fun CapturableMapView(
                                 
                                 // Marcador de inicio (boton play personalizado) con rotación
                                 val start = routePoints.first()
-                                val next = routePoints[1]
-                                val bearing = SphericalUtil.computeHeading(start, next).toFloat()
+                                val bearing = if (routePoints.size > 1) {
+                                    val next = routePoints[1]
+                                    SphericalUtil.computeHeading(start, next).toFloat()
+                                } else {
+                                    0f // Sin rotación si solo hay un punto
+                                }
                                 val adjustedBearing = (bearing - 90f) % 360 // compensamos que el icono apunta a la derecha
                                 
                                 googleMap.addMarker(

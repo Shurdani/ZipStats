@@ -307,7 +307,7 @@ fun AddScooterBottomSheet(
     ) {
         Text(
             text = "Añadir Patinete",
-            style = MaterialTheme.typography.titleLarge,
+            style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold
         )
 

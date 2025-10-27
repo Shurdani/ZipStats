@@ -63,7 +63,7 @@ object LocationUtils {
     
     /**
      * Filtra puntos GPS que estén muy cercanos o tengan mala precisión
-     * Esto ayuda a reducir el "ruido" del GPS
+     * Esto ayuda a reducir el "ruido" del GPS y puntos parados
      * @param points Lista de puntos originales
      * @param minDistance Distancia mínima entre puntos en metros (por defecto 5m)
      * @param maxAccuracy Precisión máxima aceptable en metros (por defecto 50m)
@@ -88,9 +88,20 @@ object LocationUtils {
                 continue
             }
             
-            // Filtrar por distancia mínima
+            // Calcular distancia y velocidad
             val distance = calculateDistance(previous, current)
-            if (distance >= minDistance) {
+            val timeDiff = (current.timestamp - previous.timestamp) / 1000.0 // segundos
+            val speed = if (timeDiff > 0) (distance / timeDiff) * 3.6 else 0.0 // km/h
+            
+            // FILTROS MEJORADOS:
+            // 1. Distancia mínima
+            // 2. Tiempo máximo entre puntos (evitar gaps largos)
+            // 3. Velocidad mínima solo para puntos muy lentos (más permisivo)
+            val isValidPoint = distance >= minDistance && 
+                              timeDiff <= 30.0 && // Máximo 30 segundos entre puntos
+                              (speed >= 0.5 || timeDiff <= 5.0) // Mínimo 0.5 km/h o puntos muy cercanos en tiempo
+            
+            if (isValidPoint) {
                 filtered.add(current)
             }
         }
@@ -140,48 +151,89 @@ object LocationUtils {
     }
     
     /**
-     * Clase para suavizado de velocidad con Media Móvil Exponencial (EMA)
-     * Proporciona una respuesta más rápida y reactiva que la media móvil simple
-     * La EMA da más peso a las lecturas recientes y menos a las antiguas
+     * Clase para suavizado adaptativo de velocidad con EMA dinámico
+     * Usa un α dinámico: agresivo cuando hay cambios bruscos, suave cuando es estable
      */
+    class AdaptiveVelocitySmoothing {
+        private var smoothedSpeed = 0.0
+        private var previousSpeed = 0.0
+        private var isInitialized = false
+        
+        /**
+         * Actualiza la velocidad con suavizado adaptativo
+         * @param newSpeed Velocidad nueva en km/h
+         * @return Velocidad suavizada en km/h
+         */
+        fun updateSpeed(newSpeed: Double): Double {
+            if (!isInitialized) {
+                smoothedSpeed = newSpeed
+                previousSpeed = newSpeed
+                isInitialized = true
+                return newSpeed
+            }
+            
+            val speedChange = kotlin.math.abs(newSpeed - previousSpeed)
+            
+            // α agresivo (0.7-0.9) para cambios bruscos
+            // α suave (0.3-0.4) para velocidad estable
+            val alpha = when {
+                speedChange > 5.0 -> 0.85  // Cambio muy brusco (>5 km/h)
+                speedChange > 2.0 -> 0.65  // Cambio moderado
+                else -> 0.35               // Velocidad estable
+            }
+            
+            smoothedSpeed = alpha * newSpeed + (1.0 - alpha) * smoothedSpeed
+            previousSpeed = newSpeed
+            
+            return smoothedSpeed
+        }
+        
+        /**
+         * Resetea el estado del suavizador
+         */
+        fun reset() {
+            smoothedSpeed = 0.0
+            previousSpeed = 0.0
+            isInitialized = false
+        }
+        
+        /**
+         * Obtiene la velocidad suavizada actual
+         */
+        fun getCurrentSmoothedSpeed(): Double = smoothedSpeed
+        
+        /**
+         * Verifica si está inicializado
+         */
+        fun isInitialized(): Boolean = isInitialized
+    }
+    
+    /**
+     * Clase para suavizado de velocidad con Media Móvil Exponencial (EMA) - DEPRECATED
+     * Mantenida para compatibilidad, usar AdaptiveVelocitySmoothing en su lugar
+     */
+    @Deprecated("Usar AdaptiveVelocitySmoothing en su lugar")
     class SpeedSmoother(private val alpha: Double = 0.2) {
         private var emaValue: Double? = null
         private var isInitialized = false
         
-        /**
-         * Añade una nueva lectura de velocidad y devuelve la EMA suavizada
-         * @param speedKmh Velocidad en km/h
-         * @return Velocidad suavizada en km/h usando EMA
-         */
         fun addSpeed(speedKmh: Double): Double {
             if (!isInitialized) {
-                // Para la primera lectura, inicializar con el valor actual
                 emaValue = speedKmh
                 isInitialized = true
                 return speedKmh
             }
             
-            // Fórmula EMA: EMA = alpha * nuevo_valor + (1 - alpha) * EMA_anterior
             emaValue = alpha * speedKmh + (1.0 - alpha) * emaValue!!
             return emaValue!!
         }
         
-        /**
-         * Resetea el estado de la EMA
-         */
         fun reset() {
             emaValue = null
             isInitialized = false
         }
         
-        /**
-         * Obtiene el valor actual de la EMA
-         */
         fun getCurrentEma(): Double? = emaValue
-        
-        /**
-         * Verifica si la EMA está inicializada
-         */
         fun isInitialized(): Boolean = isInitialized
     }
     

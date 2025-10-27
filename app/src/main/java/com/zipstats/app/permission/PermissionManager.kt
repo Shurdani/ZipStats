@@ -11,24 +11,25 @@ class PermissionManager @Inject constructor(
     private val context: Context
 ) {
     fun hasStoragePermission(): Boolean {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            // Android 14+ - verificar permisos de medios para documentos
             ContextCompat.checkSelfPermission(
                 context,
-                Manifest.permission.READ_MEDIA_IMAGES
+                "android.permission.READ_MEDIA_DOCUMENTS"
             ) == PackageManager.PERMISSION_GRANTED
         } else {
-            ContextCompat.checkSelfPermission(
-                context,
-                Manifest.permission.READ_EXTERNAL_STORAGE
-            ) == PackageManager.PERMISSION_GRANTED
+            // Android 12-13 - no se necesita permiso explícito para MediaStore
+            true
         }
     }
 
     fun getRequiredPermissions(): Array<String> {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            arrayOf(Manifest.permission.READ_MEDIA_IMAGES)
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            // Android 14+ - permisos de medios para documentos
+            arrayOf("android.permission.READ_MEDIA_DOCUMENTS")
         } else {
-            arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE)
+            // Android 12-13 - no se necesita permiso explícito
+            emptyArray()
         }
     }
     

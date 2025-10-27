@@ -20,9 +20,13 @@ import com.zipstats.app.model.AchievementRequirementType
 import com.zipstats.app.model.Avatar
 import com.zipstats.app.model.Scooter
 import com.zipstats.app.model.User
+import com.zipstats.app.model.Record
+import com.zipstats.app.model.Repair
 import com.zipstats.app.repository.RecordRepository
 import com.zipstats.app.repository.VehicleRepository
 import com.zipstats.app.repository.UserRepository
+import com.zipstats.app.repository.RepairRepository
+import com.zipstats.app.util.ExcelExporter
 import com.zipstats.app.utils.DateUtils
 import com.google.firebase.auth.EmailAuthProvider
 import org.apache.poi.ss.usermodel.*
@@ -92,6 +96,7 @@ class ProfileViewModel @Inject constructor(
     private val userRepository: UserRepository,
     private val vehicleRepository: VehicleRepository,
     private val recordRepository: RecordRepository,
+    private val repairRepository: RepairRepository,
     private val routeRepository: com.zipstats.app.repository.RouteRepository,
     private val achievementsService: com.zipstats.app.service.AchievementsService,
     private val cloudinaryService: CloudinaryService,
@@ -507,6 +512,41 @@ class ProfileViewModel @Inject constructor(
         }
     }
 
+    fun updateScooter(scooterId: String, nombre: String, marca: String, modelo: String, fechaCompra: String?) {
+        viewModelScope.launch {
+            try {
+                // Obtener el scooter actual
+                val currentScooter = vehicleRepository.getScooters().first().find { it.id == scooterId }
+                    ?: throw Exception("Vehículo no encontrado")
+                
+                // Convertir la fecha del formato de visualización (DD/MM/YYYY) al formato de API (YYYY-MM-DD)
+                val fechaFormateada = fechaCompra?.let { DateUtils.formatForApi(DateUtils.parseDisplayDate(it)) }
+                
+                // Crear el scooter actualizado manteniendo los campos que no se editan
+                val updatedScooter = currentScooter.copy(
+                    nombre = nombre,
+                    marca = marca,
+                    modelo = modelo,
+                    fechaCompra = fechaFormateada ?: currentScooter.fechaCompra
+                )
+                
+                vehicleRepository.updateScooter(updatedScooter)
+                loadUserScooters()
+                loadUserProfile() // Recargar el perfil completo para actualizar la UI
+            } catch (e: Exception) {
+                Log.e("ProfileViewModel", "Error updating scooter", e)
+                _uiState.update { currentState ->
+                    when (currentState) {
+                        is ProfileUiState.Success -> {
+                            currentState.copy(message = "Error al actualizar el vehículo: ${e.message}")
+                        }
+                        else -> currentState
+                    }
+                }
+            }
+        }
+    }
+
     fun deleteScooter(scooterId: String) {
         viewModelScope.launch {
             try {
@@ -582,6 +622,25 @@ class ProfileViewModel @Inject constructor(
             }
             else -> false
         }
+    }
+
+    fun checkStoragePermission(context: Context): Boolean {
+        // Para Android 10+ (API 29+), no necesitamos permisos explícitos para escribir en MediaStore
+        // El MediaStore API permite escribir archivos sin permisos especiales
+        val result = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            Log.d("ProfileVM", "Android 10+: Usando MediaStore sin permisos explícitos")
+            true
+        } else {
+            // Android 9 y anteriores - verificar permiso de almacenamiento
+            val hasPermission = ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.WRITE_EXTERNAL_STORAGE
+            ) == PackageManager.PERMISSION_GRANTED
+            Log.d("ProfileVM", "Android 9-: WRITE_EXTERNAL_STORAGE = $hasPermission")
+            hasPermission
+        }
+        Log.d("ProfileVM", "checkStoragePermission result: $result")
+        return result
     }
 
     fun prepareCamera(context: Context) {
@@ -921,20 +980,12 @@ class ProfileViewModel @Inject constructor(
     fun exportAllRecords(context: Context) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                // Verificar permisos de almacenamiento
-                val hasStoragePermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    true // En Android 10+ no se necesita permiso explícito para MediaStore
-                } else {
-                    ContextCompat.checkSelfPermission(
-                        context,
-                        Manifest.permission.WRITE_EXTERNAL_STORAGE
-                    ) == PackageManager.PERMISSION_GRANTED
-                }
+                // Verificar permisos de almacenamiento usando la misma lógica
+                val hasStoragePermission = checkStoragePermission(context)
+                Log.d("ProfileVM", "exportAllRecords - hasStoragePermission: $hasStoragePermission")
                 
                 if (!hasStoragePermission) {
-                    withContext(Dispatchers.Main) {
-                        Toast.makeText(context, "Se necesita permiso de almacenamiento para exportar", Toast.LENGTH_LONG).show()
-                    }
+                    Log.d("ProfileVM", "Sin permisos - NO mostrando toast (debe manejarse desde UI)")
                     return@launch
                 }
                 
@@ -955,65 +1006,16 @@ class ProfileViewModel @Inject constructor(
                     return@launch
                 }
                 
-                // Crear archivo Excel
+                // Usar el nuevo ExcelExporter para crear archivo completo con estadísticas
                 val timestamp = System.currentTimeMillis()
-                val tempFile = File(context.cacheDir, "todos_los_registros_$timestamp.xlsx")
+                val fileName = "todos_los_registros_$timestamp.xlsx"
+                val result = ExcelExporter.exportAllRecordsWithStats(context, records, fileName)
                 
-                val workbook = XSSFWorkbook()
-                val sheet = workbook.createSheet("Todos los Registros")
-                
-                // Crear estilos
-                val headerFont = workbook.createFont()
-                headerFont.bold = true
-                headerFont.fontHeightInPoints = 10
-                
-                val headerStyle = workbook.createCellStyle()
-                headerStyle.setFont(headerFont)
-                headerStyle.alignment = HorizontalAlignment.CENTER
-                
-                val numberStyle = workbook.createCellStyle()
-                val numberFormat = workbook.createDataFormat()
-                numberStyle.dataFormat = numberFormat.getFormat("#,##0.00")
-                
-                // Crear encabezados
-                val headerRow = sheet.createRow(0)
-                val headers = arrayOf("Vehículo", "Fecha", "Kilometraje", "Diferencia")
-                headers.forEachIndexed { index, header ->
-                    val cell = headerRow.createCell(index)
-                    cell.setCellValue(header)
-                    cell.cellStyle = headerStyle
+                if (result.isFailure) {
+                    throw result.exceptionOrNull() ?: Exception("Error al crear archivo Excel")
                 }
                 
-                // Añadir registros
-                records.sortedByDescending { it.fecha }.forEachIndexed { index, record ->
-                    val row = sheet.createRow(index + 1)
-                    
-                    val vehicleCell = row.createCell(0)
-                    vehicleCell.setCellValue(record.patinete)
-                    
-                    val dateCell = row.createCell(1)
-                    dateCell.setCellValue(record.fecha)
-                    
-                    val kmCell = row.createCell(2)
-                    kmCell.setCellValue(record.kilometraje)
-                    kmCell.cellStyle = numberStyle
-                    
-                    val diffCell = row.createCell(3)
-                    diffCell.setCellValue(record.diferencia)
-                    diffCell.cellStyle = numberStyle
-                }
-                
-                // Ajustar anchos de columna
-                sheet.setColumnWidth(0, 20 * 256) // Vehículo
-                sheet.setColumnWidth(1, 15 * 256) // Fecha
-                sheet.setColumnWidth(2, 12 * 256) // Kilometraje
-                sheet.setColumnWidth(3, 12 * 256) // Diferencia
-                
-                // Escribir archivo
-                val fileOut = FileOutputStream(tempFile)
-                workbook.write(fileOut)
-                workbook.close()
-                fileOut.close()
+                val tempFile = result.getOrThrow()
                 
                 // Guardar en la carpeta de Descargas usando MainActivity
                 try {
@@ -1071,7 +1073,88 @@ class ProfileViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Obtiene la última reparación realizada para un vehículo específico
+     */
+    suspend fun getLastRepair(vehicleId: String): Repair? {
+        return try {
+            val repairs = repairRepository.getRepairsForVehicle(vehicleId).first()
+            repairs.maxByOrNull { it.date }
+        } catch (e: Exception) {
+            Log.e("ProfileViewModel", "Error al obtener última reparación", e)
+            null
+        }
+    }
+
+    /**
+     * Obtiene el último registro para un vehículo específico
+     */
+    suspend fun getLastRecord(vehicleName: String): Record? {
+        return try {
+            val records = recordRepository.getRecords().first()
+            records
+                .filter { it.vehicleName == vehicleName }
+                .maxByOrNull { it.fecha }
+        } catch (e: Exception) {
+            Log.e("ProfileViewModel", "Error al obtener último registro", e)
+            null
+        }
+    }
+
+    /**
+     * Calcula el porcentaje de uso de un vehículo respecto al total de la flota
+     */
+    suspend fun getVehicleUsagePercentage(vehicleName: String): Double {
+        return try {
+            val records = recordRepository.getRecords().first()
+            val allVehicles = records.map { it.vehicleName }.distinct()
+            
+            if (allVehicles.isEmpty()) return 0.0
+            
+            val totalKmAllVehicles = records.sumOf { it.diferencia }
+            val vehicleKm = records
+                .filter { it.vehicleName == vehicleName }
+                .sumOf { it.diferencia }
+            
+            if (totalKmAllVehicles == 0.0) return 0.0
+            
+            (vehicleKm / totalKmAllVehicles) * 100.0
+        } catch (e: Exception) {
+            Log.e("ProfileViewModel", "Error al calcular porcentaje de uso", e)
+            0.0
+        }
+    }
+
+    /**
+     * Obtiene estadísticas detalladas de un vehículo específico
+     */
+    suspend fun getVehicleDetailedStats(vehicleId: String, vehicleName: String): VehicleDetailedStats {
+        return try {
+            val lastRepair = getLastRepair(vehicleId)
+            val lastRecord = getLastRecord(vehicleName)
+            val usagePercentage = getVehicleUsagePercentage(vehicleName)
+            
+            VehicleDetailedStats(
+                lastRepair = lastRepair,
+                lastRecord = lastRecord,
+                usagePercentage = usagePercentage
+            )
+        } catch (e: Exception) {
+            Log.e("ProfileViewModel", "Error al obtener estadísticas detalladas", e)
+            VehicleDetailedStats()
+        }
+    }
+
     companion object {
         private const val PROFILE_PHOTOS_PATH = "profile_photos"
     }
 }
+
+/**
+ * Datos detallados de un vehículo para mostrar en la pantalla de detalles
+ */
+data class VehicleDetailedStats(
+    val lastRepair: Repair? = null,
+    val lastRecord: Record? = null,
+    val usagePercentage: Double = 0.0
+)

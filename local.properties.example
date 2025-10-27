@@ -15,3 +15,7 @@ cloudinary.api_secret=YOUR_CLOUDINARY_API_SECRET
 # Google Maps API Key
 # Get this from: https://console.cloud.google.com/google/maps-apis/credentials
 google.maps.api.key=YOUR_GOOGLE_MAPS_API_KEY
+
+# OpenWeather API Key
+# Get this from: https://openweathermap.org/api (Free tier available)
+openweather.api.key=YOUR_OPENWEATHER_API_KEY

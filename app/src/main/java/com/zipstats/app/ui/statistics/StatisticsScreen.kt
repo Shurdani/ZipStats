@@ -343,7 +343,7 @@ fun EcologicalImpactCardEnhanced(
             ) {
                 Text(
                     text = "Impacto Ecológico",
-                    style = MaterialTheme.typography.titleLarge,
+                    style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onPrimaryContainer
                 )
@@ -450,7 +450,7 @@ fun SummaryStatsCard(
             ) {
                 Text(
                     text = periodData.title,
-                    style = MaterialTheme.typography.titleLarge,
+                    style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
                 )
                 IconButton(onClick = onShare) {
@@ -648,7 +648,7 @@ fun NextAchievementCard(
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         text = nextAchievement.title,
-                        style = MaterialTheme.typography.titleLarge,
+                        style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.secondary
                     )

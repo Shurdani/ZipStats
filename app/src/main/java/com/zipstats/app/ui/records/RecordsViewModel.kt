@@ -13,6 +13,7 @@ import com.zipstats.app.model.Record
 import com.zipstats.app.model.Scooter
 import com.zipstats.app.repository.RecordRepository
 import com.zipstats.app.repository.VehicleRepository
+import com.zipstats.app.util.ExcelExporter
 import com.google.firebase.auth.FirebaseAuth
 import dagger.hilt.android.lifecycle.HiltViewModel
 import org.apache.poi.ss.usermodel.*
@@ -208,13 +209,13 @@ class RecordsViewModel @Inject constructor(
 
     private fun calculateDifference(patinete: String, newKilometraje: Double, fecha: String): Double {
         val registrosAnteriores = records.value
-            .filter { it.patinete == patinete && it.fecha < fecha }
+            .filter { it.vehicleName == patinete && it.fecha < fecha }
             .maxByOrNull { it.fecha }
 
         return if (registrosAnteriores != null) {
             newKilometraje - registrosAnteriores.kilometraje
         } else {
-            newKilometraje
+            0.0
         }
     }
 
@@ -249,13 +250,22 @@ class RecordsViewModel @Inject constructor(
                 val kmString = kilometraje.replace(",", ".").trim()
                 val kmDouble = kmString.toDoubleOrNull() ?: throw Exception("El kilometraje debe ser un número válido")
                 
-                // Crear el registro actualizado
+                // Calcular la diferencia para el registro actualizado
+                val diferencia = calculateDifference(patinete, kmDouble, fecha)
+                
+                // Obtener el registro original para verificar si es un registro inicial
+                val originalRecord = records.value.find { it.id == recordId }
+                val isInitial = originalRecord?.isInitialRecord ?: false
+                
+                // Crear el registro actualizado con la diferencia calculada
                 val updatedRecord = Record(
                     id = recordId,
                     vehiculo = patinete,
                     patinete = patinete,
                     kilometraje = kmDouble,
-                    fecha = fecha
+                    fecha = fecha,
+                    diferencia = diferencia,
+                    isInitialRecord = isInitial
                 )
                 
                 // Actualizar en el repositorio
@@ -346,34 +356,6 @@ class RecordsViewModel @Inject constructor(
     fun exportToExcel(context: Context, onExportReady: (File) -> Unit) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val timestamp = System.currentTimeMillis()
-                val tempFile = File(context.cacheDir, "registros_vehiculos_$timestamp.xlsx")
-                
-                val workbook = XSSFWorkbook()
-                val sheet = workbook.createSheet("Registros")
-                
-                // Crear estilos
-                val headerFont = workbook.createFont()
-                headerFont.bold = true
-                headerFont.fontHeightInPoints = 10
-                
-                val headerStyle = workbook.createCellStyle()
-                headerStyle.setFont(headerFont)
-                headerStyle.alignment = HorizontalAlignment.CENTER
-                
-                val numberStyle = workbook.createCellStyle()
-                val numberFormat = workbook.createDataFormat()
-                numberStyle.dataFormat = numberFormat.getFormat("#,##0.00")
-                
-                // Crear encabezados
-                val headerRow = sheet.createRow(0)
-                val headers = arrayOf("Vehículo", "Fecha", "Kilometraje", "Diferencia")
-                headers.forEachIndexed { index, header ->
-                    val cell = headerRow.createCell(index)
-                    cell.setCellValue(header)
-                    cell.cellStyle = headerStyle
-                }
-                
                 // Filtrar registros por patinete y fechas
                 val recordsToExport = _records.value.filter { record ->
                     val matchesScooter = _selectedScooterForExport.value?.let { scooter ->
@@ -393,46 +375,24 @@ class RecordsViewModel @Inject constructor(
                     }
                     
                     matchesScooter && matchesDate
-                }.sortedByDescending { it.fecha }
-                
-                // Agregar datos
-                recordsToExport.forEachIndexed { index, record ->
-                    val row = sheet.createRow(index + 1)
-                    
-                    val vehicleCell = row.createCell(0)
-                    vehicleCell.setCellValue(record.patinete)
-                    
-                    val dateCell = row.createCell(1)
-                    dateCell.setCellValue(record.fecha)
-                    
-                    val kmCell = row.createCell(2)
-                    kmCell.setCellValue(record.kilometraje)
-                    kmCell.cellStyle = numberStyle
-                    
-                    val diffCell = row.createCell(3)
-                    diffCell.setCellValue(record.diferencia)
-                    diffCell.cellStyle = numberStyle
                 }
                 
-                // Ajustar ancho de columnas
-                sheet.setColumnWidth(0, 20 * 256) // Vehículo
-                sheet.setColumnWidth(1, 15 * 256) // Fecha
-                sheet.setColumnWidth(2, 12 * 256) // Kilometraje
-                sheet.setColumnWidth(3, 12 * 256) // Diferencia
+                // Usar el nuevo ExcelExporter
+                val fileName = "registros_vehiculos_${System.currentTimeMillis()}.xlsx"
+                val result = ExcelExporter.exportRecords(context, recordsToExport, fileName)
                 
-                // Escribir archivo
-                val fileOut = FileOutputStream(tempFile)
-                workbook.write(fileOut)
-                workbook.close()
-                fileOut.close()
-
-                if (tempFile.exists() && tempFile.length() > 0) {
-                    withContext(Dispatchers.Main) {
-                        onExportReady(tempFile)
+                result.fold(
+                    onSuccess = { file ->
+                        withContext(Dispatchers.Main) {
+                            onExportReady(file)
+                        }
+                    },
+                    onFailure = { error ->
+                        withContext(Dispatchers.Main) {
+                            _uiState.value = RecordsUiState.Error("Error al exportar a Excel: ${error.message}")
+                        }
                     }
-                } else {
-                    throw Exception("Error al crear el archivo Excel")
-                }
+                )
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
                     _uiState.value = RecordsUiState.Error("Error al exportar a Excel: ${e.message}")

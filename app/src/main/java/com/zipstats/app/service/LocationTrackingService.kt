@@ -19,6 +19,9 @@ import androidx.core.app.NotificationCompat
 import com.zipstats.app.MainActivity
 import com.zipstats.app.model.RoutePoint
 import com.zipstats.app.util.LocationUtils
+import com.zipstats.app.tracking.LocationTracker
+import com.zipstats.app.tracking.SpeedCalculator
+import com.zipstats.app.tracking.SpeedPair
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationCallback
 import com.google.android.gms.location.LocationRequest
@@ -44,9 +47,10 @@ class LocationTrackingService : Service() {
     // Manager de estado global (singleton)
     private val trackingStateManager = TrackingStateManager
     
-    // Suavizador de velocidad con Media Móvil Exponencial (EMA) para respuesta rápida
-    // Alpha = 0.2 significa que equivale aproximadamente a una media de los últimos 5 segundos
-    private val speedSmoother = LocationUtils.SpeedSmoother(alpha = 0.2)
+    // Calculadora de velocidad en tiempo real
+    private lateinit var speedCalculator: SpeedCalculator
+    private lateinit var locationTracker: LocationTracker
+    private var currentVehicleType: com.zipstats.app.model.VehicleType = com.zipstats.app.model.VehicleType.PATINETE
     
     // Estado del servicio
     private val _isTracking = MutableStateFlow(false)
@@ -93,6 +97,10 @@ class LocationTrackingService : Service() {
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
         notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         
+        // Inicializar calculadora de velocidad y tracker GPS
+        locationTracker = LocationTracker(this)
+        speedCalculator = SpeedCalculator(com.zipstats.app.model.VehicleType.PATINETE) // Se actualizará con el vehículo seleccionado
+        
         createNotificationChannel()
         setupLocationCallback()
         
@@ -137,8 +145,8 @@ class LocationTrackingService : Service() {
         _routePoints.value = emptyList()
         _currentDistance.value = 0.0
         
-        // Resetear el suavizador de velocidad para nuevo seguimiento
-        speedSmoother.reset()
+        // Resetear la calculadora de velocidad para nuevo seguimiento
+        speedCalculator.reset()
         
         // Inicializar contadores de tiempo en movimiento
         _timeInMotion.value = 0L
@@ -147,16 +155,8 @@ class LocationTrackingService : Service() {
         isCurrentlyMoving = false
         lastStoppedTime = 0L
         
-        // Configurar solicitud de ubicación de alta precisión
-        val locationRequest = LocationRequest.Builder(
-            Priority.PRIORITY_HIGH_ACCURACY,
-            LOCATION_UPDATE_INTERVAL
-        ).apply {
-            setMinUpdateIntervalMillis(LOCATION_FASTEST_INTERVAL)
-            setMinUpdateDistanceMeters(LOCATION_MIN_DISTANCE)
-            setWaitForAccurateLocation(false)
-            setMaxUpdateDelayMillis(LOCATION_UPDATE_INTERVAL)
-        }.build()
+        // Usar configuración GPS optimizada del LocationTracker
+        val locationRequest = locationTracker.createOptimalLocationRequest()
 
         // Iniciar actualizaciones de ubicación
         fusedLocationClient.requestLocationUpdates(
@@ -265,8 +265,9 @@ class LocationTrackingService : Service() {
             }
         }
         
-        // Aplicar suavizado con media móvil para evitar saltos bruscos
-        val smoothedSpeed = speedSmoother.addSpeed(speedKmh)
+        // Procesar velocidad con calculadora avanzada
+        val speedPair = speedCalculator.processLocation(location)
+        val smoothedSpeed = speedPair?.smoothed?.toDouble() ?: 0.0
         
         // Aplicar filtro para velocidades muy bajas (GPS drift)
         val filteredSpeed = LocationUtils.filterSpeed(smoothedSpeed)
@@ -357,8 +358,8 @@ class LocationTrackingService : Service() {
         val currentTime = System.currentTimeMillis()
         val timeDiff = currentTime - lastSpeedUpdateTime
         
-        // Umbral de velocidad para considerar "parado" (3 km/h)
-        val isMoving = currentSpeedKmh >= 3.0
+        // Umbral de velocidad para considerar "parado" (usar umbral del vehículo)
+        val isMoving = currentSpeedKmh >= currentVehicleType.pauseSpeedThreshold
         
         if (isMoving && !isCurrentlyMoving) {
             // Empezó a moverse
@@ -401,6 +402,15 @@ class LocationTrackingService : Service() {
     }
     
     /**
+     * Actualiza el tipo de vehículo para ajustar umbrales
+     */
+    fun updateVehicleType(vehicleType: com.zipstats.app.model.VehicleType) {
+        currentVehicleType = vehicleType
+        speedCalculator = SpeedCalculator(vehicleType)
+        Log.d(TAG, "Tipo de vehículo actualizado: ${vehicleType.displayName}")
+    }
+    
+    /**
      * Limpia los datos de la ruta actual
      */
     fun clearRoute() {
@@ -409,7 +419,7 @@ class LocationTrackingService : Service() {
         _currentSpeed.value = 0.0
         _timeInMotion.value = 0L
         _averageMovingSpeed.value = 0.0
-        speedSmoother.reset()
+        speedCalculator.reset()
         isCurrentlyMoving = false
         lastStoppedTime = 0L
     }
@@ -495,9 +505,9 @@ class LocationTrackingService : Service() {
         private const val NOTIFICATION_ID = 1001
         private const val CHANNEL_ID = "location_tracking_channel"
         
-        // Configuración de ubicación
-        private const val LOCATION_UPDATE_INTERVAL = 3000L // 3 segundos
-        private const val LOCATION_FASTEST_INTERVAL = 1500L // 1.5 segundos
+        // Configuración de ubicación optimizada
+        private const val LOCATION_UPDATE_INTERVAL = 500L // 500ms (2Hz)
+        private const val LOCATION_FASTEST_INTERVAL = 250L // 250ms (4Hz)
         private const val LOCATION_MIN_DISTANCE = 3f // 3 metros
         
         // Filtros de calidad

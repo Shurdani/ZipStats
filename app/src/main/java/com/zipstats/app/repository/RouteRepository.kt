@@ -3,7 +3,9 @@ package com.zipstats.app.repository
 import android.util.Log
 import com.zipstats.app.model.Route
 import com.zipstats.app.model.RoutePoint
+import com.zipstats.app.model.VehicleType
 import com.zipstats.app.util.LocationUtils
+import com.zipstats.app.util.RouteAnalyzer
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
@@ -22,6 +24,8 @@ class RouteRepository @Inject constructor(
     private val firestore: FirebaseFirestore,
     private val auth: FirebaseAuth
 ) {
+    
+    private val routeAnalyzer = RouteAnalyzer()
     
     companion object {
         private const val TAG = "RouteRepository"
@@ -57,7 +61,64 @@ class RouteRepository @Inject constructor(
     }
     
     /**
-     * Crea una ruta a partir de una lista de puntos GPS
+     * Crea una ruta a partir de una lista de puntos GPS con análisis post-ruta y clima
+     */
+    suspend fun createRouteWithWeather(
+        points: List<RoutePoint>,
+        scooterId: String,
+        scooterName: String,
+        startTime: Long,
+        endTime: Long,
+        notes: String = "",
+        timeInMotion: Long? = null,
+        vehicleType: VehicleType = VehicleType.PATINETE
+    ): Route {
+        // Crear la ruta base
+        val route = createRouteFromPoints(
+            points = points,
+            scooterId = scooterId,
+            scooterName = scooterName,
+            startTime = startTime,
+            endTime = endTime,
+            notes = notes,
+            timeInMotion = timeInMotion,
+            vehicleType = vehicleType
+        )
+        
+        // Intentar obtener el clima actual
+        if (points.isNotEmpty()) {
+            try {
+                val weatherRepository = WeatherRepository()
+                val firstPoint = points.first()
+                
+                Log.d(TAG, "Obteniendo clima para ruta en lat=${firstPoint.latitude}, lon=${firstPoint.longitude}")
+                
+                val result = weatherRepository.getCurrentWeather(
+                    latitude = firstPoint.latitude,
+                    longitude = firstPoint.longitude
+                )
+                
+                result.onSuccess { weather ->
+                    Log.d(TAG, "Clima obtenido y guardado: ${weather.temperature}°C, ${weather.weatherEmoji}")
+                    return route.copy(
+                        weatherTemperature = weather.temperature,
+                        weatherEmoji = weather.weatherEmoji,
+                        weatherDescription = weather.description
+                    )
+                }.onFailure { error ->
+                    Log.e(TAG, "Error al obtener clima: ${error.message}", error)
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Excepción al obtener clima: ${e.message}", e)
+            }
+        }
+        
+        // Si no se pudo obtener el clima, devolver la ruta sin él
+        return route
+    }
+    
+    /**
+     * Crea una ruta a partir de una lista de puntos GPS con análisis post-ruta
      */
     fun createRouteFromPoints(
         points: List<RoutePoint>,
@@ -66,26 +127,57 @@ class RouteRepository @Inject constructor(
         startTime: Long,
         endTime: Long,
         notes: String = "",
-        timeInMotion: Long? = null
+        timeInMotion: Long? = null,
+        vehicleType: VehicleType = VehicleType.PATINETE
     ): Route {
         // Filtrar puntos para eliminar ruido GPS
         val filteredPoints = LocationUtils.filterPoints(points)
         
-        // Calcular estadísticas
-        val totalDistance = LocationUtils.calculateTotalDistance(filteredPoints)
+        // Asegurar que tenemos al menos 2 puntos para el mapa
+        val finalPoints = if (filteredPoints.size < 2 && points.size >= 2) {
+            // Si el filtrado eliminó demasiados puntos, usar los originales
+            Log.w(TAG, "Filtrado eliminó demasiados puntos (${filteredPoints.size}/${points.size}), usando puntos originales")
+            points
+        } else {
+            filteredPoints
+        }
+        
+        // Calcular estadísticas básicas
+        val totalDistance = LocationUtils.calculateTotalDistance(finalPoints)
         val totalDuration = endTime - startTime
         
-        // Usar el nuevo cálculo de velocidad en movimiento si está disponible
-        val averageSpeed = if (timeInMotion != null && timeInMotion > 0) {
-            // Velocidad media en movimiento (excluye tiempo parado)
+        // Convertir RoutePoint a RouteAnalyzer.RoutePoint para análisis
+        val analyzerPoints = finalPoints.map { point ->
+            RouteAnalyzer.RoutePoint(
+                latitude = point.latitude,
+                longitude = point.longitude,
+                speed = point.speed ?: 0f,
+                accuracy = point.accuracy ?: 100f,
+                timestamp = point.timestamp,
+                altitude = point.altitude
+            )
+        }
+        
+        // Realizar análisis post-ruta completo
+        val routeSummary = routeAnalyzer.generateSummary(analyzerPoints, vehicleType)
+        
+        // Usar el análisis post-ruta para métricas más precisas
+        val averageSpeed = if (routeSummary.averageOverallSpeed > 0) {
+            routeSummary.averageOverallSpeed.toDouble()
+        } else if (timeInMotion != null && timeInMotion > 0) {
+            // Fallback al cálculo en tiempo real si está disponible
             val timeInMotionHours = timeInMotion / (1000.0 * 60.0 * 60.0)
             if (timeInMotionHours > 0) totalDistance / timeInMotionHours else 0.0
         } else {
-            // Fallback al cálculo tradicional si no hay tiempo en movimiento
+            // Fallback al cálculo tradicional
             LocationUtils.calculateAverageSpeed(totalDistance, totalDuration)
         }
         
-        val maxSpeed = LocationUtils.calculateMaxSpeed(filteredPoints)
+        val maxSpeed = if (routeSummary.maxSpeed > 0) {
+            routeSummary.maxSpeed.toDouble()
+        } else {
+            LocationUtils.calculateMaxSpeed(finalPoints)
+        }
         
         return Route(
             userId = auth.currentUser?.uid ?: "",
@@ -97,9 +189,15 @@ class RouteRepository @Inject constructor(
             totalDuration = totalDuration,
             averageSpeed = averageSpeed,
             maxSpeed = maxSpeed,
-            points = filteredPoints,
+            points = finalPoints,
             isCompleted = true,
-            notes = notes
+            notes = notes,
+            // Nuevas métricas de análisis post-ruta
+            movingTime = routeSummary.movingTime,
+            pauseTime = routeSummary.pauseTime,
+            averageMovingSpeed = routeSummary.averageMovingSpeed.toDouble(),
+            pauseCount = routeSummary.pauseCount,
+            movingPercentage = routeSummary.movingPercentage
         )
     }
     

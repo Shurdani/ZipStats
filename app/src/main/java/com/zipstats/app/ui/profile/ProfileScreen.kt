@@ -1,10 +1,12 @@
 package com.zipstats.app.ui.profile
 
 import android.Manifest
+import android.os.Build
 import android.util.Log
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.app.ActivityCompat
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -156,6 +158,31 @@ fun ProfileScreen(
     ) { uri ->
         uri?.let { viewModel.handleEvent(ProfileEvent.UpdatePhoto(it)) }
     }
+
+    val storagePermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            galleryLauncher.launch("image/*")
+        } else {
+            showPermissionDialog = true
+        }
+    }
+    
+    val exportPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        android.util.Log.d("ProfileScreen", "=== RESULTADO DEL PERMISO ===")
+        android.util.Log.d("ProfileScreen", "Resultado del permiso de almacenamiento: $isGranted")
+        if (isGranted) {
+            android.util.Log.d("ProfileScreen", "Permiso concedido, exportando...")
+            viewModel.exportAllRecords(context)
+        } else {
+            android.util.Log.d("ProfileScreen", "Permiso denegado")
+            Toast.makeText(context, "Permiso de almacenamiento denegado. Ve a Configuración > Aplicaciones > ZipStats > Permisos para activarlo.", Toast.LENGTH_LONG).show()
+        }
+        android.util.Log.d("ProfileScreen", "=== FIN RESULTADO DEL PERMISO ===")
+    }
     
     // Observar cuando la cámara está lista y lanzarla
     val cameraReady by viewModel.cameraReady.collectAsState()
@@ -190,8 +217,13 @@ fun ProfileScreen(
                     ) {
                         TextButton(
                             onClick = {
-                                galleryLauncher.launch("image/*")
                                 showPhotoOptionsDialog = false
+                                // Verificar y pedir permiso de almacenamiento antes de abrir galería
+                                if (viewModel.checkStoragePermission(context)) {
+                                    galleryLauncher.launch("image/*")
+                                } else {
+                                    storagePermissionLauncher.launch(Manifest.permission.READ_MEDIA_IMAGES)
+                                }
                             },
                             modifier = Modifier.fillMaxWidth()
                         ) {
@@ -497,7 +529,33 @@ fun ProfileScreen(
                             unlockedAchievements = state.unlockedAchievements,
                             totalAchievements = state.totalAchievements,
                             onExport = {
-                                viewModel.exportAllRecords(context)
+                                android.util.Log.d("ProfileScreen", "Botón Exportar presionado desde SummaryCard")
+                                android.util.Log.d("ProfileScreen", "Android SDK: ${Build.VERSION.SDK_INT}")
+                                
+                                // Para Android 10+ no necesitamos permisos explícitos para MediaStore
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                                    android.util.Log.d("ProfileScreen", "Android 10+: Exportando directamente con MediaStore")
+                                    viewModel.exportAllRecords(context)
+                                } else {
+                                    // Android 9 y anteriores - verificar permiso de almacenamiento
+                                    val hasPermission = viewModel.checkStoragePermission(context)
+                                    android.util.Log.d("ProfileScreen", "Tiene permiso: $hasPermission")
+                                    
+                                    if (hasPermission) {
+                                        android.util.Log.d("ProfileScreen", "Exportando directamente...")
+                                        viewModel.exportAllRecords(context)
+                                    } else {
+                                        android.util.Log.d("ProfileScreen", "Solicitando permiso de almacenamiento...")
+                                        // Solo para Android 9 y anteriores
+                                        try {
+                                            exportPermissionLauncher.launch(android.Manifest.permission.WRITE_EXTERNAL_STORAGE)
+                                            android.util.Log.d("ProfileScreen", "Launcher lanzado exitosamente")
+                                        } catch (e: Exception) {
+                                            android.util.Log.e("ProfileScreen", "Error lanzando WRITE_EXTERNAL_STORAGE: ${e.message}")
+                                            Toast.makeText(context, "Error solicitando permisos. Ve a Configuración > Permisos de la app.", Toast.LENGTH_LONG).show()
+                                        }
+                                    }
+                                }
                             }
                         )
 
@@ -651,7 +709,7 @@ fun SummaryCard(
         ) {
                 Text(
                     text = "Resumen",
-                    style = MaterialTheme.typography.titleLarge,
+                    style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onPrimaryContainer
                 )

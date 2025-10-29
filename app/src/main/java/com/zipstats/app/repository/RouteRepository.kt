@@ -414,6 +414,67 @@ class RouteRepository @Inject constructor(
     }
     
     /**
+     * Actualiza los datos del clima de una ruta
+     */
+    suspend fun updateRouteWeather(
+        routeId: String,
+        temperature: Double,
+        emoji: String,
+        description: String
+    ): Result<Unit> {
+        return try {
+            val updates = mapOf(
+                "weatherTemperature" to temperature,
+                "weatherEmoji" to emoji,
+                "weatherDescription" to description
+            )
+            
+            firestore.collection(ROUTES_COLLECTION)
+                .document(routeId)
+                .update(updates)
+                .await()
+            
+            Log.d(TAG, "Clima actualizado para ruta $routeId: $temperature°C, $emoji")
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error al actualizar clima de la ruta", e)
+            Result.failure(e)
+        }
+    }
+    
+    /**
+     * Intenta obtener y actualizar el clima para una ruta específica
+     * Útil para rutas guardadas sin datos meteorológicos
+     */
+    suspend fun fetchAndUpdateWeather(routeId: String, latitude: Double, longitude: Double): Result<Unit> {
+        return try {
+            val weatherRepository = WeatherRepository()
+            
+            Log.d(TAG, "Obteniendo clima para actualizar ruta $routeId")
+            
+            val result = weatherRepository.getCurrentWeather(latitude, longitude)
+            
+            result.onSuccess { weather ->
+                updateRouteWeather(
+                    routeId = routeId,
+                    temperature = weather.temperature,
+                    emoji = weather.weatherEmoji,
+                    description = weather.description
+                )
+                Log.d(TAG, "✅ Clima actualizado exitosamente para ruta $routeId")
+            }.onFailure { error ->
+                Log.e(TAG, "❌ Error al obtener clima para actualizar: ${error.message}", error)
+                return Result.failure(error)
+            }
+            
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Log.e(TAG, "Excepción al obtener y actualizar clima", e)
+            Result.failure(e)
+        }
+    }
+    
+    /**
      * Obtiene el kilometraje total de todas las rutas del usuario
      */
     suspend fun getTotalKilometers(): Result<Double> {

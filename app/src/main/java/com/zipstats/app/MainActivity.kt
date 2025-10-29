@@ -50,12 +50,16 @@ import com.zipstats.app.repository.SettingsRepository
 import com.zipstats.app.service.LocationTrackingService
 import com.zipstats.app.ui.achievements.AchievementsViewModel
 import com.zipstats.app.ui.components.BottomNavigation
+import com.zipstats.app.ui.theme.ColorTheme
 import com.zipstats.app.ui.theme.PatinetatrackTheme
 import com.zipstats.app.ui.theme.ThemeMode
 import com.google.firebase.FirebaseApp
 import com.zipstats.app.R
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import androidx.lifecycle.lifecycleScope
 import java.io.File
 import java.io.IOException
 
@@ -141,6 +145,8 @@ class MainActivity : ComponentActivity() {
         setIntent(intent)
         // Si llega un nuevo intent mientras la app está abierta
         if (intent.action == LocationTrackingService.ACTION_OPEN_TRACKING) {
+            // Usar un enfoque más robusto: agregar flag para forzar navegación
+            intent.putExtra("FORCE_NAVIGATE_TO_TRACKING", true)
             // Re-crear el contenido para manejar la navegación
             setContent {
                 MainContent(
@@ -163,12 +169,27 @@ class MainActivity : ComponentActivity() {
         // Navegar a tracking si viene desde la notificación
         LaunchedEffect(shouldOpenTracking) {
             if (shouldOpenTracking) {
+                // Esperar un momento para asegurar que el NavController esté listo
+                kotlinx.coroutines.delay(100)
+                
+                // Obtener la ruta de inicio del grafo de navegación
+                val startRoute = navController.graph.startDestinationRoute ?: Screen.Records.route
+                
+                // Limpiar el back stack hasta la ruta inicial y navegar directamente a Tracking
                 navController.navigate(Screen.Tracking.route) {
+                    // Pop hasta la ruta inicial pero NO inclusive (para mantener la base)
+                    popUpTo(startRoute) {
+                        inclusive = false
+                        saveState = false
+                    }
+                    // Forzar navegación única top - si Tracking ya está en el stack, reutilizarlo
                     launchSingleTop = true
+                    restoreState = false
                 }
             }
         }
         var currentThemeMode by remember { mutableStateOf(ThemeMode.SYSTEM) }
+        var currentColorTheme by remember { mutableStateOf(ColorTheme.RIDE_BLUE) }
         var dynamicColorEnabled by remember { mutableStateOf(true) }
         var pureBlackOledEnabled by remember { mutableStateOf(false) }
         val composeScope = rememberCoroutineScope()
@@ -180,6 +201,11 @@ class MainActivity : ComponentActivity() {
         androidx.compose.runtime.LaunchedEffect(Unit) {
             settingsRepository.themeModeFlow.collect { mode ->
                 currentThemeMode = mode
+            }
+        }
+        androidx.compose.runtime.LaunchedEffect(Unit) {
+            settingsRepository.colorThemeFlow.collect { theme ->
+                currentColorTheme = theme
             }
         }
         androidx.compose.runtime.LaunchedEffect(Unit) {
@@ -211,6 +237,7 @@ class MainActivity : ComponentActivity() {
                 ThemeMode.DARK -> true
                 ThemeMode.SYSTEM -> isSystemInDarkTheme()
             },
+            colorTheme = currentColorTheme,
             dynamicColor = dynamicColorEnabled,
             pureBlackOled = pureBlackOledEnabled
         ) {
@@ -292,6 +319,13 @@ class MainActivity : ComponentActivity() {
                             currentThemeMode = newMode
                             composeScope.launch {
                                 settingsRepository.setThemeMode(newMode)
+                            }
+                        },
+                        currentColorTheme = currentColorTheme,
+                        onColorThemeChange = { newTheme ->
+                            currentColorTheme = newTheme
+                            composeScope.launch {
+                                settingsRepository.setColorTheme(newTheme)
                             }
                         },
                         dynamicColorEnabled = dynamicColorEnabled,
@@ -386,126 +420,143 @@ class MainActivity : ComponentActivity() {
 
         Log.d("MainActivity", "Archivo temporal válido: ${file.absolutePath}, tamaño: ${file.length()} bytes")
 
-        try {
-            val timestamp = System.currentTimeMillis()
-            val fileName = "registros_vehiculos_$timestamp.xlsx"
-            
-            // Verificar permisos de almacenamiento antes de proceder
-            val hasStoragePermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                // Android 10+ - MediaStore no requiere permisos explícitos para escribir
-                true
-            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                // Android 6-9 - verificar permiso de escritura externa
-                ContextCompat.checkSelfPermission(
-                    this,
-                    Manifest.permission.WRITE_EXTERNAL_STORAGE
-                ) == PackageManager.PERMISSION_GRANTED
-            } else {
-                // Android 5 y anteriores - no se necesita permiso explícito
-                true
-            }
-            
-            Log.d("MainActivity", "Permiso de almacenamiento: $hasStoragePermission")
-            
-            if (!hasStoragePermission) {
-                Log.e("MainActivity", "No se tiene permiso de almacenamiento")
+        // Ejecutar operaciones de IO en un hilo de fondo
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                val timestamp = System.currentTimeMillis()
+                val fileName = "registros_vehiculos_$timestamp.xlsx"
                 
-                // Solicitar permiso de almacenamiento solo para Android 6-9
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
-                    ActivityCompat.requestPermissions(
-                        this,
-                        arrayOf(Manifest.permission.WRITE_EXTERNAL_STORAGE),
-                        STORAGE_PERMISSION_REQUEST_CODE
-                    )
+                // Verificar permisos de almacenamiento antes de proceder
+                val hasStoragePermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    // Android 10+ - MediaStore no requiere permisos explícitos para escribir
+                    true
+                } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    // Android 6-9 - verificar permiso de escritura externa
+                    ContextCompat.checkSelfPermission(
+                        this@MainActivity,
+                        Manifest.permission.WRITE_EXTERNAL_STORAGE
+                    ) == PackageManager.PERMISSION_GRANTED
                 } else {
-                    Toast.makeText(this, "Se necesita permiso de almacenamiento para exportar", Toast.LENGTH_LONG).show()
+                    // Android 5 y anteriores - no se necesita permiso explícito
+                    true
                 }
-                return
-            }
-
-            // Mostrar notificación de progreso solo si tenemos permiso
-            if (hasNotificationPermission) {
-                val builder = NotificationCompat.Builder(this, CHANNEL_ID)
-                    .setSmallIcon(R.drawable.ic_download)
-                    .setContentTitle("Exportando registros")
-                    .setProgress(0, 0, true)
-                    .setPriority(NotificationCompat.PRIORITY_DEFAULT)
-
-                notificationManager.notify(NOTIFICATION_ID, builder.build())
-            }
-
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                try {
-                    Log.d("MainActivity", "Usando MediaStore para Android Q+")
+                
+                Log.d("MainActivity", "Permiso de almacenamiento: $hasStoragePermission")
+                
+                if (!hasStoragePermission) {
+                    Log.e("MainActivity", "No se tiene permiso de almacenamiento")
                     
-                    val contentValues = ContentValues().apply {
-                        put(MediaStore.Downloads.DISPLAY_NAME, fileName)
-                        put(MediaStore.Downloads.MIME_TYPE, "application/vnd.ms-excel")
-                        put(MediaStore.Downloads.IS_PENDING, 1)
+                    withContext(Dispatchers.Main) {
+                        // Solicitar permiso de almacenamiento solo para Android 6-9
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+                            ActivityCompat.requestPermissions(
+                                this@MainActivity,
+                                arrayOf(Manifest.permission.WRITE_EXTERNAL_STORAGE),
+                                STORAGE_PERMISSION_REQUEST_CODE
+                            )
+                        } else {
+                            Toast.makeText(this@MainActivity, "Se necesita permiso de almacenamiento para exportar", Toast.LENGTH_LONG).show()
+                        }
                     }
+                    return@launch
+                }
 
-                    val resolver = contentResolver
-                    val collection = MediaStore.Downloads.EXTERNAL_CONTENT_URI
-                    Log.d("MainActivity", "Insertando en MediaStore: $collection")
-                    
-                    val itemUri = resolver.insert(collection, contentValues)
-                    Log.d("MainActivity", "URI creada: $itemUri")
+                // Mostrar notificación de progreso solo si tenemos permiso
+                if (hasNotificationPermission) {
+                    withContext(Dispatchers.Main) {
+                        val builder = NotificationCompat.Builder(this@MainActivity, CHANNEL_ID)
+                            .setSmallIcon(R.drawable.ic_download)
+                            .setContentTitle("Exportando registros")
+                            .setProgress(0, 0, true)
+                            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
 
-                    if (itemUri != null) {
-                        Log.d("MainActivity", "Copiando archivo a MediaStore")
-                        resolver.openOutputStream(itemUri)?.use { outputStream ->
-                            file.inputStream().use { input ->
-                                input.copyTo(outputStream)
+                        notificationManager.notify(NOTIFICATION_ID, builder.build())
+                    }
+                }
+
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    try {
+                        Log.d("MainActivity", "Usando MediaStore para Android Q+")
+                        
+                        val contentValues = ContentValues().apply {
+                            put(MediaStore.Downloads.DISPLAY_NAME, fileName)
+                            put(MediaStore.Downloads.MIME_TYPE, "application/vnd.ms-excel")
+                            put(MediaStore.Downloads.IS_PENDING, 1)
+                        }
+
+                        val resolver = contentResolver
+                        val collection = MediaStore.Downloads.EXTERNAL_CONTENT_URI
+                        Log.d("MainActivity", "Insertando en MediaStore: $collection")
+                        
+                        val itemUri = resolver.insert(collection, contentValues)
+                        Log.d("MainActivity", "URI creada: $itemUri")
+
+                        if (itemUri != null) {
+                            Log.d("MainActivity", "Copiando archivo a MediaStore")
+                            resolver.openOutputStream(itemUri)?.use { outputStream ->
+                                file.inputStream().use { input ->
+                                    input.copyTo(outputStream)
+                                }
+                            }
+
+                            contentValues.clear()
+                            contentValues.put(MediaStore.Downloads.IS_PENDING, 0)
+                            resolver.update(itemUri, contentValues, null, null)
+                            Log.d("MainActivity", "Archivo copiado exitosamente")
+
+                            withContext(Dispatchers.Main) {
+                                if (hasNotificationPermission) {
+                                    showCompletionNotification(itemUri)
+                                } else {
+                                    Toast.makeText(this@MainActivity, "Archivo exportado exitosamente a Descargas", Toast.LENGTH_LONG).show()
+                                }
+                            }
+                        } else {
+                            Log.e("MainActivity", "No se pudo crear URI en MediaStore")
+                            withContext(Dispatchers.Main) {
+                                Toast.makeText(this@MainActivity, "Error: No se pudo crear el archivo en Descargas", Toast.LENGTH_LONG).show()
                             }
                         }
-
-                        contentValues.clear()
-                        contentValues.put(MediaStore.Downloads.IS_PENDING, 0)
-                        resolver.update(itemUri, contentValues, null, null)
-                        Log.d("MainActivity", "Archivo copiado exitosamente")
-
-                        if (hasNotificationPermission) {
-                            showCompletionNotification(itemUri)
-                        } else {
-                            Toast.makeText(this, "Archivo exportado exitosamente a Descargas", Toast.LENGTH_LONG).show()
+                    } catch (e: Exception) {
+                        Log.e("MainActivity", "Error en MediaStore", e)
+                        withContext(Dispatchers.Main) {
+                            Toast.makeText(this@MainActivity, "Error al exportar: ${e.message}", Toast.LENGTH_LONG).show()
                         }
-                    } else {
-                        Log.e("MainActivity", "No se pudo crear URI en MediaStore")
-                        Toast.makeText(this, "Error: No se pudo crear el archivo en Descargas", Toast.LENGTH_LONG).show()
                     }
-                } catch (e: Exception) {
-                    Log.e("MainActivity", "Error en MediaStore", e)
-                    Toast.makeText(this, "Error al exportar: ${e.message}", Toast.LENGTH_LONG).show()
-                }
-            } else {
-                val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-                val destinationFile = File(downloadsDir, fileName)
-
-                file.inputStream().use { input ->
-                    destinationFile.outputStream().use { output ->
-                        input.copyTo(output)
-                    }
-                }
-
-                val uri = FileProvider.getUriForFile(
-                    this,
-                    "${packageName}.provider",
-                    destinationFile
-                )
-                if (hasNotificationPermission) {
-                    showCompletionNotification(uri)
                 } else {
-                    Toast.makeText(this, "Archivo exportado exitosamente a Descargas", Toast.LENGTH_LONG).show()
+                    val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+                    val destinationFile = File(downloadsDir, fileName)
+
+                    file.inputStream().use { input ->
+                        destinationFile.outputStream().use { output ->
+                            input.copyTo(output)
+                        }
+                    }
+
+                    val uri = FileProvider.getUriForFile(
+                        this@MainActivity,
+                        "${packageName}.provider",
+                        destinationFile
+                    )
+                    withContext(Dispatchers.Main) {
+                        if (hasNotificationPermission) {
+                            showCompletionNotification(uri)
+                        } else {
+                            Toast.makeText(this@MainActivity, "Archivo exportado exitosamente a Descargas", Toast.LENGTH_LONG).show()
+                        }
+                    }
+                }
+
+                // Eliminar el archivo temporal
+                file.delete()
+            } catch (e: IOException) {
+                withContext(Dispatchers.Main) {
+                    if (hasNotificationPermission) {
+                        notificationManager.cancel(NOTIFICATION_ID)
+                    }
+                    Toast.makeText(this@MainActivity, "Error al guardar el archivo: ${e.message}", Toast.LENGTH_LONG).show()
                 }
             }
-
-            // Eliminar el archivo temporal
-            file.delete()
-        } catch (e: IOException) {
-            if (hasNotificationPermission) {
-                notificationManager.cancel(NOTIFICATION_ID)
-            }
-            Toast.makeText(this, "Error al guardar el archivo: ${e.message}", Toast.LENGTH_LONG).show()
         }
     }
 

@@ -174,12 +174,18 @@ object LocationUtils {
             
             val speedChange = kotlin.math.abs(newSpeed - previousSpeed)
             
-            // α agresivo (0.7-0.9) para cambios bruscos
-            // α suave (0.3-0.4) para velocidad estable
+            // α agresivo (0.75-0.98) para cambios bruscos o arranque desde parado
+            // α suave (0.35-0.4) para velocidad estable
             val alpha = when {
-                speedChange > 5.0 -> 0.85  // Cambio muy brusco (>5 km/h)
-                speedChange > 2.0 -> 0.65  // Cambio moderado
-                else -> 0.35               // Velocidad estable
+                // Arrancando desde parado o parando - respuesta casi instantánea
+                (smoothedSpeed < 1.5 && newSpeed > 1.5) || 
+                (smoothedSpeed > 1.5 && newSpeed < 1.5) -> 0.98
+                // Cambio muy brusco (>5 km/h)
+                speedChange > 5.0 -> 0.85
+                // Cambio moderado (2-5 km/h)
+                speedChange > 2.0 -> 0.65
+                // Velocidad estable (<2 km/h de cambio)
+                else -> 0.35
             }
             
             smoothedSpeed = alpha * newSpeed + (1.0 - alpha) * smoothedSpeed

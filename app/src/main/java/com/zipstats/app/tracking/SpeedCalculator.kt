@@ -15,9 +15,9 @@ class SpeedCalculator(private val vehicleType: VehicleType) {
     
     // Configuración de filtros
     private val MAX_ACCURACY = 20f // metros - precisión máxima aceptable
-    private val MIN_TIME_DELTA = 200L // ms - tiempo mínimo entre actualizaciones
+    private val MIN_TIME_DELTA = 100L // ms - tiempo mínimo entre actualizaciones (más frecuente)
     private val MAX_SPEED_MULTIPLIER = 1.2f // Multiplicador de velocidad máxima razonable
-    private val MAX_ACCELERATION = 15f // km/h - aceleración máxima razonable
+    private val MAX_ACCELERATION = 30f // km/h/s - aceleración máxima razonable (patinetes eléctricos)
     
     // Estado interno
     private var lastValidLocation: Location? = null
@@ -69,6 +69,7 @@ class SpeedCalculator(private val vehicleType: VehicleType) {
         }
         
         // FILTRO 4: Validar contra velocidad calculada por distancia (si hay punto anterior)
+        // SOLO aplicar si NO estamos arrancando desde parado
         lastValidLocation?.let { prevLocation ->
             val distance = location.distanceTo(prevLocation)
             val timeDelta = (currentTime - lastUpdateTime) / 1000f // segundos
@@ -76,8 +77,12 @@ class SpeedCalculator(private val vehicleType: VehicleType) {
             if (timeDelta > 0) {
                 val calculatedSpeed = (distance / timeDelta) * 3.6f // km/h
                 
-                // Si hay gran diferencia entre GPS y calculado, descartar
-                if (abs(gpsSpeed - calculatedSpeed) > MAX_ACCELERATION && 
+                // Saltar validación si estamos arrancando desde parado
+                val isAcceleratingFromStop = currentDisplaySpeed < 2.0f && gpsSpeed > 5.0f
+                
+                // Si hay gran diferencia entre GPS y calculado, descartar (excepto al arrancar)
+                if (!isAcceleratingFromStop && 
+                    abs(gpsSpeed - calculatedSpeed) > MAX_ACCELERATION && 
                     calculatedSpeed < vehicleType.maxSpeed) {
                     consecutiveRejectedUpdates++
                     return if (consecutiveRejectedUpdates < maxConsecutiveRejections) {
@@ -90,11 +95,17 @@ class SpeedCalculator(private val vehicleType: VehicleType) {
         }
         
         // FILTRO 5: Validar aceleración razonable
+        // Permitir aceleraciones más altas al arrancar o frenar
         if (lastUpdateTime > 0) {
             val timeDelta = (currentTime - lastUpdateTime) / 1000f
             if (timeDelta > 0) {
                 val acceleration = abs(gpsSpeed - currentDisplaySpeed) / timeDelta
-                if (acceleration > MAX_ACCELERATION) {
+                
+                // Límite de aceleración más permisivo al arrancar/frenar
+                val isStartingOrStopping = currentDisplaySpeed < 3.0f || gpsSpeed < 3.0f
+                val maxAccel = if (isStartingOrStopping) MAX_ACCELERATION * 2.0f else MAX_ACCELERATION
+                
+                if (acceleration > maxAccel) {
                     consecutiveRejectedUpdates++
                     return if (consecutiveRejectedUpdates < maxConsecutiveRejections) {
                         SpeedPair(currentDisplaySpeed, currentDisplaySpeed)

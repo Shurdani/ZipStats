@@ -305,3 +305,58 @@
     <init>();
     <init>(...);
 }
+
+# ========================================
+# REGLAS PARA APACHE COMMONS COMPRESS (CRÍTICO)
+# ========================================
+
+# Mantener todas las clases de Apache Commons Compress
+-keep class org.apache.commons.compress.** { *; }
+
+# Reglas específicas para archivers.zip que está causando el problema
+-keep class org.apache.commons.compress.archivers.** { *; }
+-keep class org.apache.commons.compress.archivers.zip.** { *; }
+
+# Mantener clases internas y tipos abstractos
+-keepclassmembers class org.apache.commons.compress.** {
+    *;
+}
+
+# No ofuscar nombres de clases de Commons Compress
+-keepnames class org.apache.commons.compress.** { *; }
+
+# Mantener constructores y métodos estáticos
+-keepclassmembers class org.apache.commons.compress.** {
+    <init>();
+    <init>(...);
+    public static *;
+}
+
+# Evitar eliminación de clases que parecen no usarse pero son necesarias
+-keep class org.apache.commons.compress.archivers.zip.ZipExtraField { *; }
+-keep class org.apache.commons.compress.archivers.zip.** implements org.apache.commons.compress.archivers.zip.ZipExtraField { *; }
+
+# Mantener todas las implementaciones de interfaces en Commons Compress
+-keep interface org.apache.commons.compress.** { *; }
+-keep class * implements org.apache.commons.compress.** { *; }
+
+# Ignorar warnings de Commons Compress
+-dontwarn org.apache.commons.compress.**
+
+# Reglas adicionales para evitar el error específico de Android 16
+-keep,allowobfuscation class org.apache.commons.compress.archivers.zip.** { *; }
+-keepclassmembers class org.apache.commons.compress.archivers.zip.** {
+    public <methods>;
+    protected <methods>;
+}
+
+# Mantener enumeraciones de Commons Compress
+-keepclassmembers enum org.apache.commons.compress.** {
+    public static **[] values();
+    public static ** valueOf(java.lang.String);
+}
+
+# Reglas para prevenir el error "is not a concrete class"
+-keep class * extends org.apache.commons.compress.archivers.zip.ZipExtraField { *; }
+-keep class org.apache.commons.compress.archivers.zip.ExtraFieldUtils { *; }
+-keep class org.apache.commons.compress.archivers.zip.ExtraFieldUtils$UnparseableExtraField { *; }

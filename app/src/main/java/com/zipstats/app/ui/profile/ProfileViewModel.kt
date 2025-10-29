@@ -980,6 +980,8 @@ class ProfileViewModel @Inject constructor(
     fun exportAllRecords(context: Context) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
+                Log.d("ProfileVM", "=== INICIO EXPORTACIÓN ===")
+                
                 // Verificar permisos de almacenamiento usando la misma lógica
                 val hasStoragePermission = checkStoragePermission(context)
                 Log.d("ProfileVM", "exportAllRecords - hasStoragePermission: $hasStoragePermission")
@@ -989,7 +991,18 @@ class ProfileViewModel @Inject constructor(
                     return@launch
                 }
                 
-                val records = recordRepository.getAllRecords()
+                Log.d("ProfileVM", "Obteniendo registros de la base de datos...")
+                val records = try {
+                    recordRepository.getAllRecords()
+                } catch (e: Exception) {
+                    Log.e("ProfileVM", "Error al obtener registros: ${e.message}", e)
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(context, "Error al obtener registros: ${e.message}", Toast.LENGTH_LONG).show()
+                    }
+                    return@launch
+                }
+                
+                Log.d("ProfileVM", "Registros obtenidos: ${records.size}")
                 
                 if (records.isEmpty()) {
                     withContext(Dispatchers.Main) {
@@ -1006,26 +1019,37 @@ class ProfileViewModel @Inject constructor(
                     return@launch
                 }
                 
+                Log.d("ProfileVM", "Creando archivo Excel...")
                 // Usar el nuevo ExcelExporter para crear archivo completo con estadísticas
                 val timestamp = System.currentTimeMillis()
                 val fileName = "todos_los_registros_$timestamp.xlsx"
                 val result = ExcelExporter.exportAllRecordsWithStats(context, records, fileName)
+                Log.d("ProfileVM", "Resultado de creación Excel: ${if (result.isSuccess) "SUCCESS" else "FAILURE"}")
                 
                 if (result.isFailure) {
-                    throw result.exceptionOrNull() ?: Exception("Error al crear archivo Excel")
+                    val error = result.exceptionOrNull() ?: Exception("Error al crear archivo Excel")
+                    Log.e("ProfileVM", "Error en creación de Excel: ${error.message}", error)
+                    throw error
                 }
                 
                 val tempFile = result.getOrThrow()
+                Log.d("ProfileVM", "Archivo temporal creado: ${tempFile.absolutePath}, tamaño: ${tempFile.length()} bytes")
                 
                 // Guardar en la carpeta de Descargas usando MainActivity
                 try {
+                    Log.d("ProfileVM", "Intentando obtener MainActivity...")
                     val activity = if (context is Activity) context else (context as? android.content.ContextWrapper)?.baseContext as? Activity
                     val mainActivity = activity as? com.zipstats.app.MainActivity
                     
+                    Log.d("ProfileVM", "MainActivity obtenida: ${mainActivity != null}")
+                    
                     if (mainActivity != null) {
+                        // exportToDownloads debe ser llamado desde el Main thread porque usa lifecycleScope
+                        Log.d("ProfileVM", "Llamando a exportToDownloads desde Main thread...")
                         withContext(Dispatchers.Main) {
                             mainActivity.exportToDownloads(tempFile)
                         }
+                        Log.d("ProfileVM", "exportToDownloads completado")
                         // MainActivity mostrará las notificaciones de progreso y resultado
                     } else {
                         // Si no podemos acceder a MainActivity, intentar compartir como fallback
@@ -1051,12 +1075,19 @@ class ProfileViewModel @Inject constructor(
                         }
                     }
                 } catch (e: Exception) {
-                    Log.e("ProfileViewModel", "Error al acceder a MainActivity o compartir archivo", e)
+                    Log.e("ProfileVM", "Error al acceder a MainActivity o compartir archivo: ${e.message}", e)
+                    e.printStackTrace()
                     withContext(Dispatchers.Main) {
                         Toast.makeText(context, "Error al exportar: ${e.message}", Toast.LENGTH_LONG).show()
                     }
                 }
             } catch (e: Exception) {
+                Log.e("ProfileVM", "=== ERROR EN EXPORTACIÓN ===")
+                Log.e("ProfileVM", "Tipo de error: ${e.javaClass.simpleName}")
+                Log.e("ProfileVM", "Mensaje: ${e.message}")
+                Log.e("ProfileVM", "Stack trace completo:", e)
+                e.printStackTrace()
+                
                 withContext(Dispatchers.Main) {
                     Toast.makeText(context, "Error al exportar: ${e.message}", Toast.LENGTH_LONG).show()
                 }
@@ -1068,8 +1099,8 @@ class ProfileViewModel @Inject constructor(
                         else -> ProfileUiState.Error("Error al exportar registros: ${e.message}")
                     }
                 }
-                Log.e("ProfileViewModel", "Error al exportar registros", e)
             }
+            Log.d("ProfileVM", "=== FIN EXPORTACIÓN ===")
         }
     }
 

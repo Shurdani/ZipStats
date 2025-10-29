@@ -22,6 +22,7 @@ import com.zipstats.app.ui.records.RecordsHistoryScreen
 import com.zipstats.app.ui.repairs.RepairsScreen
 import com.zipstats.app.ui.routes.RoutesScreen
 import com.zipstats.app.ui.statistics.StatisticsScreen
+import com.zipstats.app.ui.theme.ColorTheme
 import com.zipstats.app.ui.theme.ThemeMode
 import com.zipstats.app.ui.tracking.TrackingScreen
 import com.zipstats.app.navigation.Screen
@@ -31,6 +32,8 @@ fun NavGraph(
     navController: NavHostController,
     currentThemeMode: ThemeMode,
     onThemeModeChange: (ThemeMode) -> Unit,
+    currentColorTheme: ColorTheme,
+    onColorThemeChange: (ColorTheme) -> Unit,
     dynamicColorEnabled: Boolean,
     onDynamicColorChange: (Boolean) -> Unit,
     pureBlackOledEnabled: Boolean,
@@ -150,23 +153,13 @@ fun NavGraph(
             )
         }
 
-        composable(Screen.Settings.route) {
-            com.zipstats.app.ui.settings.SettingsScreen(
-                navController = navController,
-                currentThemeMode = currentThemeMode,
-                onThemeModeChange = onThemeModeChange,
-                dynamicColorEnabled = dynamicColorEnabled,
-                onDynamicColorChange = onDynamicColorChange,
-                pureBlackOledEnabled = pureBlackOledEnabled,
-                onPureBlackOledChange = onPureBlackOledChange
-            )
-        }
-
         composable(Screen.AccountSettings.route) {
             AccountSettingsScreen(
                 navController = navController,
                 currentThemeMode = currentThemeMode,
                 onThemeModeChange = onThemeModeChange,
+                currentColorTheme = currentColorTheme,
+                onColorThemeChange = onColorThemeChange,
                 dynamicColorEnabled = dynamicColorEnabled,
                 onDynamicColorChange = onDynamicColorChange,
                 pureBlackOledEnabled = pureBlackOledEnabled,

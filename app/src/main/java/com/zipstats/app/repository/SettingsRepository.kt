@@ -7,6 +7,7 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.zipstats.app.ui.theme.ColorTheme
 import com.zipstats.app.ui.theme.ThemeMode
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -23,6 +24,7 @@ class SettingsRepository @Inject constructor(
 ) {
     private object Keys {
         val THEME_MODE = stringPreferencesKey("theme_mode")
+        val COLOR_THEME = stringPreferencesKey("color_theme")
         val DYNAMIC_COLOR = booleanPreferencesKey("dynamic_color")
         val PURE_BLACK_OLED = booleanPreferencesKey("pure_black_oled")
     }
@@ -33,6 +35,10 @@ class SettingsRepository @Inject constructor(
             "DARK" -> ThemeMode.DARK
             else -> ThemeMode.SYSTEM
         }
+    }
+
+    val colorThemeFlow: Flow<ColorTheme> = context.dataStore.data.map { prefs ->
+        ColorTheme.fromString(prefs[Keys.COLOR_THEME] ?: "RIDE_BLUE")
     }
 
     val dynamicColorFlow: Flow<Boolean> = context.dataStore.data.map { prefs ->
@@ -50,6 +56,12 @@ class SettingsRepository @Inject constructor(
                 ThemeMode.DARK -> "DARK"
                 ThemeMode.SYSTEM -> "SYSTEM"
             }
+        }
+    }
+
+    suspend fun setColorTheme(theme: ColorTheme) {
+        context.dataStore.edit { prefs ->
+            prefs[Keys.COLOR_THEME] = theme.name
         }
     }
 

@@ -1,8 +1,11 @@
 package com.zipstats.app.ui.profile
 
 import android.widget.Toast
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -10,8 +13,18 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.ExperimentalAnimationApi
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Logout
@@ -19,9 +32,13 @@ import androidx.compose.material.icons.filled.Android
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.outlined.AccountCircle
+import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -44,21 +61,27 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.zipstats.app.navigation.Screen
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalAnimationApi::class)
 @Composable
 fun AccountSettingsScreen(
     navController: NavController,
     currentThemeMode: com.zipstats.app.ui.theme.ThemeMode,
     onThemeModeChange: (com.zipstats.app.ui.theme.ThemeMode) -> Unit,
+    currentColorTheme: com.zipstats.app.ui.theme.ColorTheme = com.zipstats.app.ui.theme.ColorTheme.RIDE_BLUE,
+    onColorThemeChange: (com.zipstats.app.ui.theme.ColorTheme) -> Unit = {},
     dynamicColorEnabled: Boolean,
     onDynamicColorChange: (Boolean) -> Unit,
     pureBlackOledEnabled: Boolean,
@@ -68,6 +91,7 @@ fun AccountSettingsScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
+    var isPaletteExpanded by remember { mutableStateOf(false) }
     var showEditNameDialog by remember { mutableStateOf(false) }
     var showChangePasswordDialog by remember { mutableStateOf(false) }
     var showDeleteAccountDialog by remember { mutableStateOf(false) }
@@ -240,7 +264,7 @@ fun AccountSettingsScreen(
                 }
             }
 
-            // Colores dinámicos y OLED
+            // Colores dinámicos, OLED y Paleta de colores
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -252,6 +276,7 @@ fun AccountSettingsScreen(
                 Column {
                     ListItem(
                         headlineContent = { Text("Colores dinámicos") },
+                        supportingContent = { Text("Tema adaptado a tu fondo de pantalla") },
                         leadingContent = { 
                             Icon(
                                 Icons.Default.Palette,
@@ -271,7 +296,8 @@ fun AccountSettingsScreen(
                     HorizontalDivider()
                     
                     ListItem(
-                        headlineContent = { Text("Negro puro (OLED)") },
+                        headlineContent = { Text("Negro puro") },
+                        supportingContent = { Text("Ahorra batería en pantallas OLED") },
                         leadingContent = { 
                             Icon(
                                 Icons.Default.DarkMode,
@@ -283,18 +309,91 @@ fun AccountSettingsScreen(
                             androidx.compose.material3.Switch(
                                 checked = pureBlackOledEnabled,
                                 onCheckedChange = onPureBlackOledChange,
-                                enabled = !dynamicColorEnabled
+                                enabled = true
                             )
                         }
                     )
+                    
+                    HorizontalDivider()
+                    
+                    // Desplegable de Paleta de Colores
+                    Column {
+                        ListItem(
+                            headlineContent = { Text("Paleta de colores") },
+                            supportingContent = { 
+                                Text(
+                                    if (dynamicColorEnabled && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                                        "Los colores dinámicos reemplazan la paleta personalizada"
+                                    } else {
+                                        "Elige el estilo visual de la app"
+                                    }
+                                )
+                            },
+                            leadingContent = { 
+                                Icon(
+                                    Icons.Default.Palette,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                            },
+                            trailingContent = {
+                                IconButton(
+                                    onClick = { isPaletteExpanded = !isPaletteExpanded }
+                                ) {
+                                    Icon(
+                                        imageVector = if (isPaletteExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                                        contentDescription = if (isPaletteExpanded) "Contraer" else "Expandir"
+                                    )
+                                }
+                            },
+                            modifier = Modifier.clickable { isPaletteExpanded = !isPaletteExpanded }
+                        )
+                        
+                        AnimatedVisibility(
+                            visible = isPaletteExpanded,
+                            enter = expandVertically() + fadeIn(),
+                            exit = slideOutVertically() + fadeOut()
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                            ) {
+                                // Grid de paletas (2 columnas)
+                                val palettes = com.zipstats.app.ui.theme.ColorTheme.entries.chunked(2)
+                                palettes.forEach { row ->
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(vertical = 4.dp),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        row.forEach { theme ->
+                                            ColorPaletteCard(
+                                                theme = theme,
+                                                selected = currentColorTheme == theme,
+                                                onClick = { onColorThemeChange(theme) },
+                                                enabled = !(dynamicColorEnabled && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S),
+                                                modifier = Modifier.weight(1f)
+                                            )
+                                        }
+                                        // Si es impar, añadir espaciador
+                                        if (row.size < 2) {
+                                            Spacer(modifier = Modifier.weight(1f))
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Sección de Información Personal
+            // Sección de Cuenta
             Text(
-                text = "Información Personal",
+                text = "Cuenta",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
@@ -309,12 +408,13 @@ fun AccountSettingsScreen(
                 )
             ) {
                 Column {
+                    // Editar perfil
                     ListItem(
-                        headlineContent = { Text("Editar nombre") },
+                        headlineContent = { Text("Editar perfil") },
                         supportingContent = { Text("Cambiar el nombre de tu perfil") },
                         leadingContent = { 
                             Icon(
-                                Icons.Default.Edit, 
+                                imageVector = Icons.Outlined.AccountCircle, 
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.primary
                             )
@@ -324,40 +424,23 @@ fun AccountSettingsScreen(
                     
                     HorizontalDivider()
                     
+                    // Cambiar contraseña
                     ListItem(
                         headlineContent = { Text("Cambiar contraseña") },
                         supportingContent = { Text("Actualizar tu contraseña de acceso") },
                         leadingContent = { 
                             Icon(
-                                Icons.Default.Lock, 
+                                imageVector = Icons.Default.Lock, 
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.primary
                             )
                         },
                         modifier = Modifier.clickable { showChangePasswordDialog = true }
                     )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            // Sección de Cuenta
-            Text(
-                text = "Gestión de Cuenta",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
-            )
-            
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 4.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surface
-                )
-            ) {
-                Column {
+                    
+                    HorizontalDivider()
+                    
+                    // Cerrar sesión
                     ListItem(
                         headlineContent = { 
                             Text(
@@ -368,7 +451,7 @@ fun AccountSettingsScreen(
                         supportingContent = { Text("Salir de tu cuenta") },
                         leadingContent = { 
                             Icon(
-                                Icons.AutoMirrored.Filled.Logout, 
+                                imageVector = Icons.AutoMirrored.Filled.Logout, 
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.error
                             )
@@ -378,6 +461,7 @@ fun AccountSettingsScreen(
                     
                     HorizontalDivider()
                     
+                    // Eliminar cuenta
                     ListItem(
                         headlineContent = { 
                             Text(
@@ -388,7 +472,7 @@ fun AccountSettingsScreen(
                         supportingContent = { Text("Eliminar permanentemente tu cuenta y todos tus datos") },
                         leadingContent = { 
                             Icon(
-                                Icons.Default.Delete, 
+                                imageVector = Icons.Outlined.DeleteOutline, 
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.error
                             )
@@ -556,4 +640,111 @@ fun ThemeOption(
         }
     }
 }
+
+@Composable
+private fun ColorPaletteCard(
+    theme: com.zipstats.app.ui.theme.ColorTheme,
+    selected: Boolean,
+    onClick: () -> Unit,
+    enabled: Boolean = true,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier
+            .clickable(onClick = onClick, enabled = enabled)
+            .then(
+                if (selected && enabled) Modifier.border(
+                    width = 2.dp,
+                    color = MaterialTheme.colorScheme.primary,
+                    shape = RoundedCornerShape(12.dp)
+                ) else Modifier
+            ),
+        colors = CardDefaults.cardColors(
+            containerColor = if (enabled) MaterialTheme.colorScheme.surfaceVariant 
+            else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+        ),
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            // Nombre de la paleta
+            Text(
+                text = theme.displayName,
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = if (selected && enabled) FontWeight.Bold else FontWeight.Medium,
+                color = if (enabled) {
+                    if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                } else {
+                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                },
+                textAlign = TextAlign.Center
+            )
+            
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            // Círculos de colores
+            Row(
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                // Color primario
+                Box(
+                    modifier = Modifier
+                        .size(28.dp)
+                        .clip(CircleShape)
+                        .background(theme.primaryLight)
+                        .border(
+                            width = if (selected && enabled) 2.dp else 1.dp,
+                            color = if (enabled) MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+                            else MaterialTheme.colorScheme.outline.copy(alpha = 0.1f),
+                            shape = CircleShape
+                        )
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                // Color secundario
+                Box(
+                    modifier = Modifier
+                        .size(28.dp)
+                        .clip(CircleShape)
+                        .background(theme.secondaryLight)
+                        .border(
+                            width = if (selected && enabled) 2.dp else 1.dp,
+                            color = if (enabled) MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+                            else MaterialTheme.colorScheme.outline.copy(alpha = 0.1f),
+                            shape = CircleShape
+                        )
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                // Blanco (representa el fondo claro)
+                Box(
+                    modifier = Modifier
+                        .size(28.dp)
+                        .clip(CircleShape)
+                        .background(Color.White)
+                        .border(
+                            width = if (selected && enabled) 2.dp else 1.dp,
+                            color = if (enabled) MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+                            else MaterialTheme.colorScheme.outline.copy(alpha = 0.1f),
+                            shape = CircleShape
+                        )
+                )
+            }
+            
+            if (!enabled) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "Desactivado",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                )
+            }
+        }
+    }
+}
+
 

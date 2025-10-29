@@ -215,7 +215,12 @@ class RecordRepository @Inject constructor(
             .await()
             .documents
             .mapNotNull { doc ->
-                doc.toObject(Record::class.java)?.copy(id = doc.id)
+                try {
+                    doc.toObject(Record::class.java)?.copy(id = doc.id)
+                } catch (e: Exception) {
+                    android.util.Log.e("RecordRepository", "Error deserializando documento ${doc.id}: ${e.message}", e)
+                    null
+                }
             }
     }
 

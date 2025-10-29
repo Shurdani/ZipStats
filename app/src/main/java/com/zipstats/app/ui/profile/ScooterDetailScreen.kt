@@ -176,6 +176,19 @@ fun ScooterDetailScreen(
                         onDismissRequest = { showMenu = false }
                     ) {
                         DropdownMenuItem(
+                            text = { Text("Editar vehículo") },
+                            onClick = {
+                                showMenu = false
+                                showEditSheet = true
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    Icons.Default.Edit,
+                                    contentDescription = "Editar"
+                                )
+                            }
+                        )
+                        DropdownMenuItem(
                             text = { 
                                 Text(
                                     "Eliminar vehículo",
@@ -438,27 +451,11 @@ fun ScooterDetailScreen(
                     Column(
                         modifier = Modifier.padding(12.dp)
                     ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    showEditSheet = true
-                                },
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "Información",
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Icon(
-                                imageVector = Icons.Default.Edit,
-                                contentDescription = "Editar vehículo",
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
+                        Text(
+                            text = "Información",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold
+                        )
                         
                         Spacer(modifier = Modifier.height(8.dp))
                         

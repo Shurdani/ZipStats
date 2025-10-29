@@ -18,6 +18,15 @@ import com.zipstats.app.repository.VehicleRepository
 import com.zipstats.app.service.LocationTrackingService
 import com.zipstats.app.service.TrackingStateManager
 import com.zipstats.app.utils.PreferencesManager
+import com.zipstats.app.tracking.LocationTracker
+import com.google.android.gms.location.FusedLocationProviderClient
+import com.google.android.gms.location.LocationCallback
+import com.google.android.gms.location.LocationRequest
+import com.google.android.gms.location.LocationResult
+import com.google.android.gms.location.LocationServices
+import android.location.Location
+import android.os.Looper
+import android.annotation.SuppressLint
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -33,6 +42,17 @@ sealed class TrackingState {
     object Paused : TrackingState()
     object Saving : TrackingState()
     data class Error(val message: String) : TrackingState()
+}
+
+/**
+ * Estado de la captura del clima
+ */
+sealed class WeatherStatus {
+    object Idle : WeatherStatus()
+    object Loading : WeatherStatus()
+    data class Success(val temperature: Double, val emoji: String) : WeatherStatus()
+    data class Error(val message: String) : WeatherStatus()
+    object NotAvailable : WeatherStatus()
 }
 
 /**
@@ -94,6 +114,37 @@ class TrackingViewModel @Inject constructor(
     private val _gpsSignalStrength = MutableStateFlow(0f) // 0-100
     val gpsSignalStrength: StateFlow<Float> = _gpsSignalStrength.asStateFlow()
     
+    // Estado de GPS previo (para posicionamiento antes de iniciar)
+    sealed class GpsPreLocationState {
+        object Searching : GpsPreLocationState()
+        data class Found(val accuracy: Float) : GpsPreLocationState()
+        object Ready : GpsPreLocationState()
+    }
+    
+    private val _gpsPreLocationState = MutableStateFlow<GpsPreLocationState>(GpsPreLocationState.Searching)
+    val gpsPreLocationState: StateFlow<GpsPreLocationState> = _gpsPreLocationState.asStateFlow()
+    
+    private val _preLocation = MutableStateFlow<Location?>(null)
+    val preLocation: StateFlow<Location?> = _preLocation.asStateFlow()
+    
+    // Cliente de ubicación para GPS previo
+    private lateinit var fusedLocationClient: FusedLocationProviderClient
+    private lateinit var locationTracker: LocationTracker
+    private var preLocationCallback: LocationCallback? = null
+    private var isPreLocationActive = false
+    
+    // Clima capturado al inicio de la ruta
+    private var _startWeatherTemperature: Double? = null
+    private var _startWeatherEmoji: String? = null
+    private var _startWeatherDescription: String? = null
+    
+    // Estado del clima
+    private val _weatherStatus = MutableStateFlow<WeatherStatus>(WeatherStatus.Idle)
+    val weatherStatus: StateFlow<WeatherStatus> = _weatherStatus.asStateFlow()
+    
+    // Job para manejo del clima en segundo plano
+    private var weatherJob: kotlinx.coroutines.Job? = null
+    
     // Lista de patinetes disponibles
     private val _scooters = MutableStateFlow<List<Scooter>>(emptyList())
     val scooters: StateFlow<List<Scooter>> = _scooters.asStateFlow()
@@ -125,6 +176,10 @@ class TrackingViewModel @Inject constructor(
         loadScooters()
         // Sincronizar con el estado global del servicio
         syncWithGlobalState()
+        
+        // Inicializar cliente de ubicación para GPS previo
+        fusedLocationClient = LocationServices.getFusedLocationProviderClient(context)
+        locationTracker = LocationTracker(context)
     }
 
     /**
@@ -239,6 +294,113 @@ class TrackingViewModel @Inject constructor(
     }
 
     /**
+     * Inicia la escucha de GPS previa (sin grabar ruta aún)
+     * Se llama cuando la pantalla entra en estado Idle
+     */
+    @SuppressLint("MissingPermission")
+    fun startPreLocationTracking() {
+        if (isPreLocationActive) return
+        
+        Log.d(TAG, "Iniciando posicionamiento GPS previo")
+        isPreLocationActive = true
+        _gpsPreLocationState.value = GpsPreLocationState.Searching
+        
+        val locationRequest = LocationRequest.Builder(
+            com.google.android.gms.location.Priority.PRIORITY_HIGH_ACCURACY,
+            1000L // Actualización cada segundo para ahorro de batería
+        ).apply {
+            setMinUpdateIntervalMillis(500L)
+            setMaxUpdateDelayMillis(2000L)
+            setWaitForAccurateLocation(false)
+        }.build()
+        
+        preLocationCallback = object : LocationCallback() {
+            override fun onLocationResult(result: LocationResult) {
+                result.lastLocation?.let { location ->
+                    handlePreLocation(location)
+                }
+            }
+        }
+        
+        try {
+            fusedLocationClient.requestLocationUpdates(
+                locationRequest,
+                preLocationCallback!!,
+                Looper.getMainLooper()
+            )
+        } catch (e: SecurityException) {
+            Log.e(TAG, "Error de permisos en posicionamiento previo", e)
+            _gpsPreLocationState.value = GpsPreLocationState.Searching
+        } catch (e: Exception) {
+            Log.e(TAG, "Error al iniciar posicionamiento previo", e)
+            _gpsPreLocationState.value = GpsPreLocationState.Searching
+        }
+    }
+    
+    /**
+     * Maneja las ubicaciones previas (antes de iniciar tracking)
+     */
+    private fun handlePreLocation(location: Location) {
+        val accuracy = location.accuracy
+        
+        // Mantener la mejor posición recibida
+        val currentPreLocation = _preLocation.value
+        if (currentPreLocation == null || accuracy < (currentPreLocation.accuracy)) {
+            _preLocation.value = location
+            
+            // Actualizar estado según precisión
+            when {
+                accuracy <= 6f -> {
+                    _gpsPreLocationState.value = GpsPreLocationState.Ready
+                    Log.d(TAG, "GPS previo: Listo (precisión: ${accuracy}m)")
+                }
+                accuracy <= 10f -> {
+                    _gpsPreLocationState.value = GpsPreLocationState.Found(accuracy)
+                    Log.d(TAG, "GPS previo: Señal encontrada (precisión: ${accuracy}m)")
+                }
+                else -> {
+                    _gpsPreLocationState.value = GpsPreLocationState.Found(accuracy)
+                    Log.d(TAG, "GPS previo: Buscando señal mejor (precisión: ${accuracy}m)")
+                }
+            }
+        }
+    }
+    
+    /**
+     * Detiene la escucha de GPS previo
+     */
+    fun stopPreLocationTracking() {
+        if (!isPreLocationActive) return
+        
+        Log.d(TAG, "Deteniendo posicionamiento GPS previo")
+        isPreLocationActive = false
+        
+        preLocationCallback?.let { callback ->
+            try {
+                fusedLocationClient.removeLocationUpdates(callback)
+            } catch (e: Exception) {
+                Log.e(TAG, "Error al detener posicionamiento previo", e)
+            }
+        }
+        
+        preLocationCallback = null
+        _gpsPreLocationState.value = GpsPreLocationState.Searching
+        _preLocation.value = null
+    }
+    
+    /**
+     * Verifica si hay señal GPS válida para iniciar
+     */
+    fun hasValidGpsSignal(): Boolean {
+        val state = _gpsPreLocationState.value
+        return when (state) {
+            is GpsPreLocationState.Ready -> true
+            is GpsPreLocationState.Found -> state.accuracy <= 10f
+            is GpsPreLocationState.Searching -> false
+        }
+    }
+
+    /**
      * Inicia el seguimiento de la ruta
      */
     fun startTracking() {
@@ -247,6 +409,15 @@ class TrackingViewModel @Inject constructor(
             _message.value = "Por favor, selecciona un vehículo primero"
             return
         }
+        
+        // Verificar que hay señal GPS válida
+        if (!hasValidGpsSignal()) {
+            _message.value = "Esperando señal GPS... Por favor espera unos segundos"
+            return
+        }
+        
+        // Detener el posicionamiento previo
+        stopPreLocationTracking()
 
         viewModelScope.launch {
             try {
@@ -268,9 +439,103 @@ class TrackingViewModel @Inject constructor(
                 trackingStateManager.updateTrackingState(true)
                 trackingStateManager.updatePausedState(false)
                 Log.d(TAG, "Seguimiento iniciado")
+                
+                // Capturar el clima al INICIO de la ruta
+                captureStartWeather()
+                
+                // Mostrar toast de confirmación
+                _message.value = "¡Tracking iniciado al 100%!"
             } catch (e: Exception) {
                 Log.e(TAG, "Error al iniciar seguimiento", e)
                 _trackingState.value = TrackingState.Error(e.message ?: "Error desconocido")
+            }
+        }
+    }
+    
+    /**
+     * Captura el clima al inicio de la ruta con reintentos automáticos
+     * Se ejecuta en segundo plano y no bloquea el inicio del tracking
+     */
+    private suspend fun captureStartWeather() {
+        // Cancelar cualquier job anterior de clima
+        weatherJob?.cancel()
+        
+        // Iniciar nuevo job en segundo plano
+        weatherJob = viewModelScope.launch {
+            try {
+                _weatherStatus.value = WeatherStatus.Loading
+                
+                // Paso 1: Esperar hasta 5 segundos a que llegue el primer punto GPS
+                Log.d(TAG, "🌤️ [Paso 1/2] Esperando primer punto GPS...")
+                var attempts = 0
+                var points = _routePoints.value
+                
+                while (points.isEmpty() && attempts < 10) { // 10 intentos × 500ms = 5 segundos
+                    kotlinx.coroutines.delay(500)
+                    points = _routePoints.value
+                    attempts++
+                    if (attempts % 2 == 0) { // Log cada segundo
+                        Log.d(TAG, "🌤️ Esperando GPS... ${attempts / 2}s")
+                    }
+                }
+                
+                if (points.isEmpty()) {
+                    Log.w(TAG, "⚠️ No hay puntos GPS después de 5 segundos")
+                    _weatherStatus.value = WeatherStatus.NotAvailable
+                    return@launch
+                }
+                
+                val firstPoint = points.first()
+                Log.d(TAG, "🌤️ [Paso 2/2] GPS obtenido. Consultando clima...")
+                Log.d(TAG, "🌤️ Ubicación: lat=${firstPoint.latitude}, lon=${firstPoint.longitude}")
+                
+                // Paso 2: Intentar obtener el clima con reintentos automáticos
+                val maxRetries = 3
+                var retryCount = 0
+                var success = false
+                val weatherRepository = com.zipstats.app.repository.WeatherRepository()
+                
+                while (!success && retryCount < maxRetries) {
+                    retryCount++
+                    Log.d(TAG, "🌤️ Intento ${retryCount}/${maxRetries} de obtener clima...")
+                    
+                    val result = weatherRepository.getCurrentWeather(
+                        latitude = firstPoint.latitude,
+                        longitude = firstPoint.longitude
+                    )
+                    
+                    result.onSuccess { weather ->
+                        _startWeatherTemperature = weather.temperature
+                        _startWeatherEmoji = weather.weatherEmoji
+                        _startWeatherDescription = weather.description
+                        _weatherStatus.value = WeatherStatus.Success(weather.temperature, weather.weatherEmoji)
+                        success = true
+                        Log.d(TAG, "✅ Clima capturado exitosamente: ${weather.temperature}°C ${weather.weatherEmoji}")
+                        Log.d(TAG, "✅ Descripción: ${weather.description}")
+                    }.onFailure { error ->
+                        Log.e(TAG, "❌ Error en intento ${retryCount}: ${error.message}")
+                        
+                        if (retryCount < maxRetries) {
+                            // Delay progresivo: 3s, 6s, 10s
+                            val delayMs = when (retryCount) {
+                                1 -> 3000L
+                                2 -> 6000L
+                                else -> 10000L
+                            }
+                            Log.d(TAG, "⏳ Reintentando en ${delayMs / 1000}s...")
+                            kotlinx.coroutines.delay(delayMs)
+                        } else {
+                            // Último intento falló
+                            _weatherStatus.value = WeatherStatus.Error(
+                                error.message ?: "Error al obtener clima"
+                            )
+                            Log.e(TAG, "❌ Todos los intentos fallaron. Clima no disponible.")
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "❌ Excepción al capturar clima: ${e.message}", e)
+                _weatherStatus.value = WeatherStatus.Error("Excepción: ${e.message}")
             }
         }
     }
@@ -330,8 +595,28 @@ class TrackingViewModel @Inject constructor(
                     throw Exception("No se registraron puntos GPS")
                 }
                 
-                // Crear la ruta con análisis post-ruta y clima
-                val route = routeRepository.createRouteWithWeather(
+                // Verificar estado del clima
+                val weatherState = _weatherStatus.value
+                Log.d(TAG, "Estado del clima al finalizar: $weatherState")
+                
+                // Si el clima aún está cargando, dar unos segundos más de gracia
+                if (weatherState is WeatherStatus.Loading) {
+                    Log.d(TAG, "⏳ Clima aún cargando, esperando hasta 5s más...")
+                    var waited = 0
+                    while (_weatherStatus.value is WeatherStatus.Loading && waited < 5000) {
+                        kotlinx.coroutines.delay(500)
+                        waited += 500
+                    }
+                    Log.d(TAG, "Estado después de espera: ${_weatherStatus.value}")
+                }
+                
+                // Guardar referencia al clima antes de resetear
+                val savedWeatherTemp = _startWeatherTemperature
+                val savedWeatherEmoji = _startWeatherEmoji
+                val savedWeatherDesc = _startWeatherDescription
+                
+                // Crear la ruta con análisis post-ruta
+                val baseRoute = routeRepository.createRouteFromPoints(
                     points = points,
                     scooterId = scooter.id,
                     scooterName = scooter.nombre,
@@ -342,10 +627,75 @@ class TrackingViewModel @Inject constructor(
                     vehicleType = scooter.vehicleType
                 )
                 
+                // Usar el clima capturado al INICIO de la ruta
+                val route = if (savedWeatherTemp != null) {
+                    Log.d(TAG, "✅ Usando clima del INICIO de la ruta: ${savedWeatherTemp}°C")
+                    baseRoute.copy(
+                        weatherTemperature = savedWeatherTemp,
+                        weatherEmoji = savedWeatherEmoji,
+                        weatherDescription = savedWeatherDesc
+                    )
+                } else {
+                    Log.w(TAG, "⚠️ No se capturó clima al inicio, guardando ruta sin clima")
+                    baseRoute
+                }
+                
                 // Guardar en Firebase
                 val result = routeRepository.saveRoute(route)
                 
                 if (result.isSuccess) {
+                    val savedRouteId = result.getOrNull() ?: ""
+                    
+                    // Si no hay clima aún, intentar obtenerlo en segundo plano
+                    if (savedWeatherTemp == null && points.isNotEmpty()) {
+                        Log.d(TAG, "🔄 Iniciando actualización de clima en segundo plano...")
+                        viewModelScope.launch {
+                            try {
+                                // Dar tiempo a que el weatherJob termine si aún está activo
+                                var retries = 0
+                                while (_weatherStatus.value is WeatherStatus.Loading && retries < 10) {
+                                    kotlinx.coroutines.delay(1000)
+                                    retries++
+                                    Log.d(TAG, "⏳ Esperando clima (${retries}s)...")
+                                }
+                                
+                                // Si se obtuvo el clima durante la espera, actualizar la ruta
+                                if (_startWeatherTemperature != null) {
+                                    Log.d(TAG, "✅ Clima obtenido, actualizando ruta $savedRouteId...")
+                                    routeRepository.updateRouteWeather(
+                                        routeId = savedRouteId,
+                                        temperature = _startWeatherTemperature!!,
+                                        emoji = _startWeatherEmoji ?: "☁️",
+                                        description = _startWeatherDescription ?: ""
+                                    )
+                                } else {
+                                    // Último intento: llamar directamente a la API
+                                    Log.d(TAG, "🔄 Último intento de obtener clima...")
+                                    val firstPoint = points.first()
+                                    routeRepository.fetchAndUpdateWeather(
+                                        routeId = savedRouteId,
+                                        latitude = firstPoint.latitude,
+                                        longitude = firstPoint.longitude
+                                    )
+                                }
+                            } catch (e: Exception) {
+                                Log.e(TAG, "Error al actualizar clima en segundo plano: ${e.message}", e)
+                            } finally {
+                                // Limpiar datos de clima
+                                _startWeatherTemperature = null
+                                _startWeatherEmoji = null
+                                _startWeatherDescription = null
+                                _weatherStatus.value = WeatherStatus.Idle
+                            }
+                        }
+                    } else {
+                        // Limpiar datos de clima después de usar
+                        _startWeatherTemperature = null
+                        _startWeatherEmoji = null
+                        _startWeatherDescription = null
+                        _weatherStatus.value = WeatherStatus.Idle
+                    }
+                    
                     var message = "Ruta guardada exitosamente: ${String.format("%.1f", route.totalDistance.roundToOneDecimal())} km"
                     
                     // Si se solicita añadir a registros
@@ -411,6 +761,9 @@ class TrackingViewModel @Inject constructor(
      * Cancela el seguimiento sin guardar
      */
     fun cancelTracking() {
+        // Cancelar job de clima si está activo
+        weatherJob?.cancel()
+        
         stopTrackingService()
         _trackingState.value = TrackingState.Idle
         trackingStateManager.resetState()
@@ -418,6 +771,13 @@ class TrackingViewModel @Inject constructor(
         _currentDistance.value = 0.0
         _currentSpeed.value = 0.0
         _duration.value = 0L
+        
+        // Limpiar datos de clima
+        _startWeatherTemperature = null
+        _startWeatherEmoji = null
+        _startWeatherDescription = null
+        _weatherStatus.value = WeatherStatus.Idle
+        
         _message.value = "Ruta cancelada"
     }
 
@@ -547,6 +907,12 @@ class TrackingViewModel @Inject constructor(
 
     override fun onCleared() {
         super.onCleared()
+        // Cancelar job de clima
+        weatherJob?.cancel()
+        
+        // Detener posicionamiento previo si está activo
+        stopPreLocationTracking()
+        
         if (serviceBound) {
             context.unbindService(serviceConnection)
         }

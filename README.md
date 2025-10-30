@@ -2,7 +2,7 @@
 
 **Aplicación Android para tracking GPS de patinetes, bicicletas y otros vehículos personales.**
 
-[![Version](https://img.shields.io/badge/Version-2.6-brightgreen.svg)](https://github.com/shurdani/Patinetatrack/releases)
+[![Version](https://img.shields.io/badge/Version-2.9-brightgreen.svg)](https://github.com/shurdani/Patinetatrack/releases)
 [![Kotlin](https://img.shields.io/badge/Kotlin-2.0.0-blue.svg)](https://kotlinlang.org)
 [![Android](https://img.shields.io/badge/Android-API%2031%2B-green.svg)](https://developer.android.com)
 [![Jetpack Compose](https://img.shields.io/badge/Jetpack%20Compose-2024.02.00-blue.svg)](https://developer.android.com/jetpack/compose)
@@ -13,95 +13,38 @@
 ## 📱 **Características Principales**
 
 ### 🗺️ **Tracking GPS en Tiempo Real**
-- ✅ Seguimiento preciso de rutas con GPS
-- ✅ Cálculo en tiempo real de distancia, velocidad y duración
-- ✅ Visualización de rutas en Google Maps
-- ✅ Marcadores de inicio y final de ruta
-- ✅ Filtrado de ruido GPS para mayor precisión
+- ✅ Seguimiento preciso de rutas con GPS en tiempo real
+- ✅ Cálculo automático de distancia, velocidad y duración
+- ✅ Visualización interactiva de rutas en Google Maps con estilo personalizado
+- ✅ Marcadores personalizados de inicio y final con orientación inteligente
+- ✅ Filtrado de ruido GPS para mayor precisión (precisión < 50m)
 - ✅ Velocidad = 0 cuando estás parado (filtro inteligente)
-- ✅ **Navegación mejorada** - Transición directa al finalizar rutas
-- ✅ **Recarga automática de mapas** - Se recargan al volver del background
-- ✅ **Compartir rutas** - Exportación de imágenes de mapas con diseño mejorado
+- ✅ Servicio en foreground que continúa funcionando en segundo plano
+- ✅ Pausa y reanudación del tracking
+- ✅ Captura automática del clima al inicio de la ruta
+- ✅ Compartir rutas con imágenes de mapas profesionales
 
 ### 📊 **Gestión de Vehículos**
 - ✅ Registro de múltiples vehículos (patinete, bicicleta, etc.)
 - ✅ Seguimiento de kilometraje por vehículo
 - ✅ Estadísticas individuales por vehículo
-- ✅ Imágenes personalizadas (Cloudinary)
+- ✅ Imágenes personalizadas con Cloudinary
 
 ### 📈 **Estadísticas y Registros**
-- ✅ Historial completo de rutas
-- ✅ Estadísticas detalladas (distancia total, velocidad promedio/máxima)
-- ✅ Visualización de rutas guardadas en mapa
-- ✅ Filtrado por fecha y vehículo
-- ✅ Exportación a Excel
-- ✅ **Filtrado optimizado por patinete** - Con índices de Firebase
-- ✅ **Gestión de estado mejorada** - Recarga automática de datos
+- ✅ Historial completo de rutas con visualización en mapa
+- ✅ Estadísticas detalladas (distancia total, velocidad promedio/máxima, tiempo en movimiento)
+- ✅ Filtrado por fecha y vehículo con índices optimizados de Firebase
+- ✅ Análisis post-ruta (porcentaje de tiempo en movimiento, pausas detectadas)
+- ✅ Exportación de datos a Excel
+- ✅ Recarga automática de componentes cuando es necesario
 
 ### 🎨 **Interfaz Moderna**
 - ✅ Diseño Material Design 3
-- ✅ Jetpack Compose
+- ✅ Jetpack Compose 100%
 - ✅ Navegación intuitiva con Bottom Navigation
 - ✅ Tema adaptable
-- ✅ Experiencia de usuario optimizada
-
----
-
-## 🆕 **Novedades en la Versión 2.6**
-
-### 🎯 **Mejoras Principales**
-- ✅ **Velocímetro Ultra-Preciso** - Media Móvil Exponencial para respuesta instantánea
-- ✅ **Rediseño Completo de Compartir Rutas** - Imágenes profesionales para redes sociales
-- ✅ **Mapa Minimalista** - Estilo personalizado sin distracciones
-- ✅ **Iconografía Unificada** - 5 iconos nuevos con diseño consistente
-- ✅ **Optimización de Rendimiento** - minifyEnabled reduce APK en 30%
-- ✅ **Corrección de Exportación** - Mejoras en generación de archivos Excel
-
-### 🚀 **Mejoras Técnicas**
-- ✅ **EMA para Velocímetro** - Reemplazo de SMA por Media Móvil Exponencial
-- ✅ **Factor Alfa 0.2** - Balance perfecto entre reactividad y estabilidad
-- ✅ **80% peso a lecturas recientes** - Respuesta casi instantánea
-- ✅ **ProGuard Optimizado** - Mejor rendimiento en release
-- ✅ **Gestión de Memoria Mejorada** - Menor consumo durante exportación
-
----
-
-## 📋 **Versión 2.5 (Anterior)**
-
-### **🚀 IMPLEMENTACIÓN COMPLETA DEL SISTEMA DE RUTAS**
-
-#### **🗺️ Pantalla de Rutas - NUEVA**
-- **Historial completo** - Visualización de todas las rutas guardadas por patinete
-- **Visualización en mapa** - Cada ruta se muestra en un mapa interactivo con Google Maps
-- **Marcadores inteligentes** - Punto de inicio (verde) y punto final (rojo) en cada ruta
-- **Información detallada** - Distancia, duración, velocidad promedio y máxima
-- **Filtrado por patinete** - Consultas optimizadas con índices de Firebase
-- **Compartir rutas** - Exportación de imagen del mapa de cada ruta
-- **Recarga automática** - Los mapas se recargan al volver del background
-
-#### **📊 Sistema de Tracking GPS Completo**
-- **Seguimiento en tiempo real** - GPS tracking con actualización cada 2 segundos
-- **Servicio en foreground** - Continúa funcionando en segundo plano
-- **Pausa/Reanudación** - Control completo del tracking durante la ruta
-- **Cálculos precisos** - Distancia (Haversine), velocidad en tiempo real, duración
-- **Filtrado inteligente** - Eliminación de ruido GPS y puntos imprecisos
-- **Guardado en Firebase** - Persistencia de rutas con todos los puntos GPS
-- **Asociación a patinete** - Cada ruta se vincula al patinete activo
-
-#### **🗂️ Gestión Avanzada de Rutas**
-- **Múltiples vistas de mapa** - Componentes optimizados para diferentes contextos
-- **Navegación fluida** - Transición directa al finalizar/cancelar rutas
-- **Índices de Firebase** - Consultas optimizadas por usuario + patinete + fecha
-- **Lifecycle management** - Gestión inteligente del ciclo de vida de mapas
-- **State management** - Recarga automática de componentes cuando es necesario
-- **Error handling** - Manejo robusto de errores en carga de mapas
-
-#### **🎨 Componentes de Mapas Implementados**
-- **CapturableMapView** - Para capturar y compartir imágenes de rutas
-- **RouteMapView** - Vista detallada de rutas con zoom automático
-- **BasicMapView** - Vista básica optimizada para listas
-- **SimpleMapView** - Vista simplificada para previews
-- Todos con **recarga automática** al volver del background
+- ✅ Velocímetro con Media Móvil Exponencial para respuesta instantánea
+- ✅ Iconografía unificada y consistente
 
 ---
 
@@ -151,11 +94,12 @@ cd Patinetatrack
 
 ### **2. Configurar Credenciales**
 
-Consulta la [Guía de Configuración Detallada (SETUP.md)](SETUP.md) para obtener instrucciones completas sobre cómo configurar:
+Configura las siguientes credenciales en `local.properties`:
 
 - ✅ Google Maps API Key
 - ✅ Firebase (google-services.json)
 - ✅ Cloudinary Credentials
+- ✅ OpenWeather API Key
 
 **⚠️ IMPORTANTE:** Copia `local.properties.example` a `local.properties` y configura tus credenciales.
 
@@ -168,69 +112,45 @@ Consulta la [Guía de Configuración Detallada (SETUP.md)](SETUP.md) para obtene
 
 ---
 
-## 📖 **Documentación**
-
-- 📘 [Guía de Configuración (SETUP.md)](SETUP.md)
-- 🔒 [Checklist de Seguridad (SECURITY_CHECKLIST.md)](SECURITY_CHECKLIST.md)
-- 🗺️ [Configuración de Google Maps (GOOGLE_MAPS_SETUP.md)](GOOGLE_MAPS_SETUP.md)
-- 📍 [Implementación GPS (GPS_IMPLEMENTATION_SUMMARY.md)](GPS_IMPLEMENTATION_SUMMARY.md)
-- 🐛 [Solución de Problemas GPS (SOLUCION_PROBLEMAS_GPS.md)](SOLUCION_PROBLEMAS_GPS.md)
-- 🎨 [Implementación: Mejora de Compartir Rutas (IMPLEMENTACION_MEJORA_COMPARTIR_RUTAS.md)](IMPLEMENTACION_MEJORA_COMPARTIR_RUTAS.md)
-
----
-
 ## 🏗️ **Arquitectura del Proyecto**
 
 ```
 app/src/main/java/com/zipstats/app/
 ├── di/                     # Módulos de inyección de dependencias (Hilt)
-├── model/                  # Modelos de datos
-│   ├── Route.kt           # Modelo de ruta con puntos GPS
-│   ├── Scooter.kt         # Modelo de vehículo
-│   └── RoutePoint.kt      # Punto GPS individual
+├── model/                  # Modelos de datos (Route, Scooter, RoutePoint)
 ├── repository/             # Repositorios (capa de datos)
-│   ├── RouteRepository.kt  # Gestión de rutas en Firebase
-│   └── ScooterRepository.kt
-├── service/                # Servicios
-│   └── LocationTrackingService.kt  # Servicio de tracking GPS
+├── service/                # Servicio de tracking GPS
 ├── ui/                     # Interfaz de usuario (Compose)
-│   ├── components/         # Componentes reutilizables
-│   │   ├── CapturableMapView.kt    # Mapa capturable para compartir
-│   │   ├── RouteMapView.kt         # Vista detallada de rutas
-│   │   ├── BasicMapView.kt         # Vista básica de rutas
-│   │   └── SimpleMapView.kt        # Vista simplificada
+│   ├── components/         # Componentes reutilizables de mapas
 │   ├── tracking/           # Pantalla de tracking GPS
-│   ├── routes/             # Pantalla de rutas (NUEVO)
+│   ├── routes/             # Pantalla de rutas
 │   ├── records/            # Pantalla de registros
 │   ├── statistics/         # Pantalla de estadísticas
 │   └── profile/            # Pantalla de perfil
 ├── navigation/             # Navegación entre pantallas
 ├── permission/             # Gestión de permisos
-├── util/                   # Utilidades (LocationUtils, etc.)
-└── PatinetaApplication.kt  # Clase Application (Hilt)
+└── util/                   # Utilidades
 ```
 
 ---
 
-## 🎯 **Características Técnicas Destacadas**
+## 🎯 **Características Técnicas**
 
 ### **🗺️ GPS Tracking Optimizado**
 - Filtrado de ruido GPS (precisión < 50m)
 - Distancia mínima entre puntos (5m) para evitar saltos
 - Velocidad filtrada (< 1.5 km/h = 0 km/h)
 - Servicio en foreground con notificación persistente
-- Pausa/reanudación del tracking
 - Cálculo preciso con fórmula Haversine
-- **Navegación fluida** - Transición directa al finalizar rutas
-- **Recarga inteligente de mapas** - Detección automática de cambios de estado
+- Actualización GPS cada 2 segundos
+- Media Móvil Exponencial (EMA) para respuesta instantánea del velocímetro
 
 ### **⚡ Rendimiento**
-- Actualización GPS cada 2 segundos
 - Carga lazy de imágenes con Coil
 - Reactive data streams con Flow
 - Optimización de memoria con LazyColumn
-- **Índices de Firebase optimizados** - Consultas más rápidas por patinete
-- **Gestión de estado reactiva** - Recarga automática de componentes
+- Índices de Firebase optimizados para consultas rápidas
+- Gestión de estado reactiva con recarga automática
 
 ### **🔒 Seguridad**
 - Autenticación Firebase
@@ -282,7 +202,7 @@ app/src/main/java/com/zipstats/app/
 4. Push a la rama (`git push origin feature/AmazingFeature`)
 5. Abre un Pull Request
 
-**⚠️ IMPORTANTE:** Revisa el [Checklist de Seguridad](SECURITY_CHECKLIST.md) antes de hacer commit.
+**⚠️ IMPORTANTE:** Asegúrate de que tu código sigue las mejores prácticas de seguridad antes de hacer commit.
 
 ---
 
@@ -311,36 +231,13 @@ Este proyecto está bajo la Licencia MIT - ver el archivo [LICENSE](LICENSE) par
 
 ¿Preguntas? ¿Sugerencias? ¿Encontraste un bug?
 
-- 📧 Email: dpcastillejo@gmail.com
+- 📧 Email: zipstatsapp@gmail.com
 - 🐛 Issues: [GitHub Issues](https://github.com/shurdani/Patinetatrack/issues)
 
 ---
 
-## 🗺️ **Roadmap**
+## 🔮 **Próximas Características**
 
-### **Versión 2.5 - SISTEMA DE RUTAS COMPLETO** ✅
-- [x] **Pantalla de Rutas** - Visualización completa de historial por patinete
-- [x] **Visualización en mapas** - Cada ruta se muestra en un mapa interactivo
-- [x] **Tracking GPS completo** - Seguimiento en tiempo real con todos los cálculos
-- [x] **Guardado de rutas** - Persistencia en Firebase con todos los puntos GPS
-- [x] **Filtrado optimizado** - Consultas con índices compuestos de Firebase
-- [x] **Compartir rutas** - Exportación de imágenes de mapas
-- [x] **Componentes de mapas** - 4 tipos diferentes según contexto
-- [x] **Recarga automática** - Lifecycle management para mapas
-- [x] **Navegación fluida** - UX mejorada en transiciones
-- [x] **Asociación a patinetes** - Cada ruta vinculada al vehículo activo
-
-### **Versión 2.6 - MEJORA ESTÉTICA DE COMPARTIR RUTAS** 🎨 ✅
-- [x] **Estilo de mapa personalizado** - Mapa limpio y minimalista para destacar rutas
-- [x] **Rutas destacadas** - Línea verde lima brillante (#39FF14) con grosor 15px
-- [x] **Marcadores personalizados** - Círculos verdes modernos para inicio/fin
-- [x] **Tarjeta flotante** - Diseño semitransparente con estadísticas mejoradas
-- [x] **Iconografía moderna** - Iconos outline para distancia, tiempo y velocidad
-- [x] **Tipografía mejorada** - Jerarquía visual clara en las imágenes compartidas
-- [x] **Fecha localizada** - Formato en español para mejor legibilidad
-- [x] **Implementación completa** - Aplicado en todos los componentes de mapa
-
-### **Próximas Características**
 - [ ] Modo offline para tracking sin conexión
 - [ ] Exportación de rutas en formato GPX
 - [ ] Compartir rutas con otros usuarios

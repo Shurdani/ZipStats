@@ -140,24 +140,26 @@ fun RoutesScreen(
     }
     
     // Diálogo de detalles de ruta
-    routeToView?.let { route ->
-        val isAddedToRecords = routeAddedToRecords[route.id] ?: false
+    routeToView?.let { clickedRoute ->
+        // Siempre obtener la ruta más reciente de la lista para asegurar datos actualizados
+        val currentRoute = routes.find { it.id == clickedRoute.id } ?: clickedRoute
+        val isAddedToRecords = routeAddedToRecords[currentRoute.id] ?: false
         RouteDetailDialog(
-            route = route,
+            route = currentRoute,
             onDismiss = { routeToView = null },
             onDelete = { 
-                routeToDelete = route
+                routeToDelete = currentRoute
                 routeToView = null
             },
             onAddToRecords = if (!isAddedToRecords) {
                 {
-                    viewModel.addRouteToRecords(route)
+                    viewModel.addRouteToRecords(currentRoute)
                     // Actualizar el estado local
-                    routeAddedToRecords = routeAddedToRecords + (route.id to true)
+                    routeAddedToRecords = routeAddedToRecords + (currentRoute.id to true)
                 }
             } else null,
             onShare = {
-                viewModel.shareRouteWithMap(route)
+                viewModel.shareRouteWithMap(currentRoute)
                 routeToView = null
             }
         )

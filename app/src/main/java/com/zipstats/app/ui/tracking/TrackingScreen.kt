@@ -23,9 +23,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.clickable
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.zipstats.app.model.Scooter
 import com.zipstats.app.model.VehicleType
@@ -203,7 +205,8 @@ fun TrackingScreen(
                         onPause = { viewModel.pauseTracking() },
                         onResume = { viewModel.resumeTracking() },
                         onFinish = { showFinishDialog = true },
-                        onCancel = { showCancelDialog = true }
+                        onCancel = { showCancelDialog = true },
+                        onFetchWeather = { viewModel.fetchWeatherManually() }
                     )
                 }
             }
@@ -521,7 +524,8 @@ fun TrackingActiveContent(
     onPause: () -> Unit,
     onResume: () -> Unit,
     onFinish: () -> Unit,
-    onCancel: () -> Unit
+    onCancel: () -> Unit,
+    onFetchWeather: () -> Unit = {}
 ) {
     val isPaused = trackingState is TrackingState.Paused
     val isSaving = trackingState is TrackingState.Saving
@@ -536,7 +540,10 @@ fun TrackingActiveContent(
         Spacer(modifier = Modifier.height(24.dp))
         
         // Indicador de clima
-        WeatherStatusIndicator(weatherStatus = weatherStatus)
+        WeatherStatusIndicator(
+            weatherStatus = weatherStatus,
+            onFetchWeatherClick = onFetchWeather
+        )
         
         Spacer(modifier = Modifier.height(16.dp))
         
@@ -959,16 +966,27 @@ private fun getSignalColor(signalStrength: Float): Color {
  * Indicador del estado de captura del clima
  */
 @Composable
-fun WeatherStatusIndicator(weatherStatus: WeatherStatus) {
+fun WeatherStatusIndicator(
+    weatherStatus: WeatherStatus,
+    onFetchWeatherClick: () -> Unit = {}
+) {
     AnimatedVisibility(
         visible = weatherStatus !is WeatherStatus.Idle,
         enter = androidx.compose.animation.fadeIn() + androidx.compose.animation.expandVertically(),
         exit = androidx.compose.animation.fadeOut() + androidx.compose.animation.shrinkVertically()
     ) {
+        val isClickable = weatherStatus is WeatherStatus.NotAvailable || 
+                          weatherStatus is WeatherStatus.Error
+        
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp),
+                .padding(horizontal = 16.dp)
+                .then(
+                    if (isClickable) {
+                        Modifier.clickable(onClick = onFetchWeatherClick)
+                    } else Modifier
+                ),
             colors = CardDefaults.cardColors(
                 containerColor = when (weatherStatus) {
                     is WeatherStatus.Loading -> MaterialTheme.colorScheme.surfaceVariant
@@ -1032,6 +1050,15 @@ fun WeatherStatusIndicator(weatherStatus: WeatherStatus) {
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onErrorContainer
                         )
+                        if (isClickable) {
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "- Toca para intentar",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.7f),
+                                fontStyle = FontStyle.Italic
+                            )
+                        }
                     }
                     is WeatherStatus.NotAvailable -> {
                         Icon(
@@ -1046,6 +1073,15 @@ fun WeatherStatusIndicator(weatherStatus: WeatherStatus) {
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onTertiaryContainer
                         )
+                        if (isClickable) {
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "- Toca para obtener",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.7f),
+                                fontStyle = FontStyle.Italic
+                            )
+                        }
                     }
                     else -> {}
                 }

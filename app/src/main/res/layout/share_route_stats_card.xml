@@ -88,7 +88,7 @@
                     <ImageView
                         android:layout_width="20dp"
                         android:layout_height="20dp"
-                        android:src="@drawable/ic_distance"
+                        android:src="@drawable/distancia"
                         app:tint="#FFFFFF"
                         android:contentDescription="Icono de distancia"
                         android:layout_marginEnd="8dp" />
@@ -115,7 +115,7 @@
                     <ImageView
                         android:layout_width="20dp"
                         android:layout_height="20dp"
-                        android:src="@drawable/ic_timer"
+                        android:src="@drawable/tiempo"
                         app:tint="#FFFFFF"
                         android:contentDescription="Icono de tiempo"
                         android:layout_marginEnd="8dp" />
@@ -142,7 +142,7 @@
                     <ImageView
                         android:layout_width="20dp"
                         android:layout_height="20dp"
-                        android:src="@drawable/ic_speed"
+                        android:src="@drawable/velocidad"
                         app:tint="#FFFFFF"
                         android:contentDescription="Icono de velocidad"
                         android:layout_marginEnd="8dp" />

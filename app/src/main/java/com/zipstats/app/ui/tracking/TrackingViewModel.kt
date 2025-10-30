@@ -454,6 +454,7 @@ class TrackingViewModel @Inject constructor(
     
     /**
      * Captura el clima al inicio de la ruta con reintentos automáticos
+     * Tiene hasta 60 segundos para obtener el clima antes de marcar error
      * Se ejecuta en segundo plano y no bloquea el inicio del tracking
      */
     private suspend fun captureStartWeather() {
@@ -465,35 +466,41 @@ class TrackingViewModel @Inject constructor(
             try {
                 _weatherStatus.value = WeatherStatus.Loading
                 
-                // Paso 1: Esperar hasta 5 segundos a que llegue el primer punto GPS
-                Log.d(TAG, "🌤️ [Paso 1/2] Esperando primer punto GPS...")
+                // Paso 1: Esperar hasta 30 segundos a que llegue el primer punto GPS
+                val startTime = System.currentTimeMillis()
+                Log.d(TAG, "🌤️ [Paso 1/2] Esperando primer punto GPS (hasta 30s)...")
                 var attempts = 0
                 var points = _routePoints.value
                 
-                while (points.isEmpty() && attempts < 10) { // 10 intentos × 500ms = 5 segundos
+                // 60 intentos × 500ms = 30 segundos para GPS
+                while (points.isEmpty() && attempts < 60) {
                     kotlinx.coroutines.delay(500)
                     points = _routePoints.value
                     attempts++
-                    if (attempts % 2 == 0) { // Log cada segundo
-                        Log.d(TAG, "🌤️ Esperando GPS... ${attempts / 2}s")
+                    val elapsedSeconds = (System.currentTimeMillis() - startTime) / 1000
+                    if (attempts % 10 == 0) { // Log cada 5 segundos
+                        Log.d(TAG, "🌤️ Esperando GPS... ${elapsedSeconds}s transcurridos")
                     }
                 }
                 
+                val gpsWaitTime = (System.currentTimeMillis() - startTime) / 1000
                 if (points.isEmpty()) {
-                    Log.w(TAG, "⚠️ No hay puntos GPS después de 5 segundos")
+                    Log.w(TAG, "⚠️ No hay puntos GPS después de ${gpsWaitTime}s. Mostrando error y botón clicable.")
                     _weatherStatus.value = WeatherStatus.NotAvailable
                     return@launch
                 }
                 
                 val firstPoint = points.first()
-                Log.d(TAG, "🌤️ [Paso 2/2] GPS obtenido. Consultando clima...")
+                Log.d(TAG, "🌤️ [Paso 2/2] GPS obtenido en ${gpsWaitTime}s. Consultando clima...")
                 Log.d(TAG, "🌤️ Ubicación: lat=${firstPoint.latitude}, lon=${firstPoint.longitude}")
                 
                 // Paso 2: Intentar obtener el clima con reintentos automáticos
-                val maxRetries = 3
+                // Objetivo: intentar durante ~30 segundos más, totalizando ~60s desde inicio
+                val maxRetries = 5  // Aumentado de 3 a 5 intentos
                 var retryCount = 0
                 var success = false
                 val weatherRepository = com.zipstats.app.repository.WeatherRepository()
+                val startApiTime = System.currentTimeMillis()
                 
                 while (!success && retryCount < maxRetries) {
                     retryCount++
@@ -505,41 +512,177 @@ class TrackingViewModel @Inject constructor(
                     )
                     
                     result.onSuccess { weather ->
+                        // Validar que el clima recibido sea válido antes de guardarlo
+                        if (weather.temperature.isNaN() || 
+                            weather.temperature.isInfinite() || 
+                            weather.temperature < -50 || 
+                            weather.temperature > 60) {
+                            Log.w(TAG, "⚠️ Clima recibido con temperatura inválida: ${weather.temperature}°C. Reintentando...")
+                            // Continuar intentando en lugar de marcar error inmediatamente
+                            if (retryCount < maxRetries) {
+                                val delayMs = when (retryCount) {
+                                    1 -> 5000L
+                                    2 -> 8000L
+                                    3 -> 10000L
+                                    4 -> 12000L
+                                    else -> 15000L
+                                }
+                                Log.d(TAG, "⏳ Reintentando en ${delayMs / 1000}s...")
+                                kotlinx.coroutines.delay(delayMs)
+                            } else {
+                                // Último intento y sigue inválido, marcar error
+                                _weatherStatus.value = WeatherStatus.Error("Temperatura inválida recibida")
+                                Log.e(TAG, "❌ Todos los intentos agotados. Temperatura inválida.")
+                                return@launch
+                            }
+                            // Continuar el bucle while
+                            return@onSuccess
+                        }
+                        
+                        if (weather.weatherEmoji.isBlank()) {
+                            Log.w(TAG, "⚠️ Clima recibido con emoji vacío. Reintentando...")
+                            // Continuar intentando en lugar de marcar error inmediatamente
+                            if (retryCount < maxRetries) {
+                                val delayMs = when (retryCount) {
+                                    1 -> 5000L
+                                    2 -> 8000L
+                                    3 -> 10000L
+                                    4 -> 12000L
+                                    else -> 15000L
+                                }
+                                Log.d(TAG, "⏳ Reintentando en ${delayMs / 1000}s...")
+                                kotlinx.coroutines.delay(delayMs)
+                            } else {
+                                // Último intento y sigue vacío, marcar error
+                                _weatherStatus.value = WeatherStatus.Error("Emoji de clima vacío")
+                                Log.e(TAG, "❌ Todos los intentos agotados. Emoji vacío.")
+                                return@launch
+                            }
+                            // Continuar el bucle while
+                            return@onSuccess
+                        }
+                        
+                        // Clima válido - guardar y salir
                         _startWeatherTemperature = weather.temperature
                         _startWeatherEmoji = weather.weatherEmoji
                         _startWeatherDescription = weather.description
                         _weatherStatus.value = WeatherStatus.Success(weather.temperature, weather.weatherEmoji)
                         success = true
-                        Log.d(TAG, "✅ Clima capturado exitosamente: ${weather.temperature}°C ${weather.weatherEmoji}")
+                        
+                        val elapsedMs = System.currentTimeMillis() - startApiTime
+                        Log.d(TAG, "✅ Clima capturado y VALIDADO en ${elapsedMs}ms: ${weather.temperature}°C ${weather.weatherEmoji}")
                         Log.d(TAG, "✅ Descripción: ${weather.description}")
                     }.onFailure { error ->
-                        Log.e(TAG, "❌ Error en intento ${retryCount}: ${error.message}")
+                        Log.e(TAG, "❌ Error en intento ${retryCount}/${maxRetries}: ${error.message}")
                         
                         if (retryCount < maxRetries) {
-                            // Delay progresivo: 3s, 6s, 10s
+                            // Delay progresivo más largo: 5s, 8s, 10s, 12s, 15s
                             val delayMs = when (retryCount) {
-                                1 -> 3000L
-                                2 -> 6000L
-                                else -> 10000L
+                                1 -> 5000L
+                                2 -> 8000L
+                                3 -> 10000L
+                                4 -> 12000L
+                                else -> 15000L
                             }
                             Log.d(TAG, "⏳ Reintentando en ${delayMs / 1000}s...")
                             kotlinx.coroutines.delay(delayMs)
                         } else {
-                            // Último intento falló
+                            // Último intento falló - ahora sí marcar error y hacer botón clicable
+                            val totalElapsed = (System.currentTimeMillis() - startApiTime) / 1000
+                            val totalTimeFromStart = (System.currentTimeMillis() - startTime) / 1000
                             _weatherStatus.value = WeatherStatus.Error(
                                 error.message ?: "Error al obtener clima"
                             )
-                            Log.e(TAG, "❌ Todos los intentos fallaron. Clima no disponible.")
+                            Log.e(TAG, "❌ Intento ${retryCount}/${maxRetries} falló después de ${totalElapsed}s de API (${totalTimeFromStart}s desde inicio). Clima no disponible. Botón clicable activado.")
                         }
                     }
                 }
+                
+                // Si llegamos aquí sin éxito y sin error marcado, marcar como no disponible
+                if (!success && _weatherStatus.value is WeatherStatus.Loading) {
+                    _weatherStatus.value = WeatherStatus.NotAvailable
+                    Log.w(TAG, "⚠️ Clima no obtenido después de todos los intentos. Botón clicable activado.")
+                }
             } catch (e: Exception) {
                 Log.e(TAG, "❌ Excepción al capturar clima: ${e.message}", e)
-                _weatherStatus.value = WeatherStatus.Error("Excepción: ${e.message}")
+                // Solo marcar error si es excepción, no si es por tiempo agotado
+                if (_weatherStatus.value is WeatherStatus.Loading) {
+                    _weatherStatus.value = WeatherStatus.Error("Excepción: ${e.message}")
+                }
             }
         }
     }
 
+    /**
+     * Intenta obtener el clima manualmente cuando el usuario hace clic en el cartel
+     * Solo funciona si hay puntos GPS y no hay clima guardado aún
+     */
+    fun fetchWeatherManually() {
+        viewModelScope.launch {
+            try {
+                val points = _routePoints.value
+                if (points.isEmpty()) {
+                    Log.w(TAG, "⚠️ No hay puntos GPS para obtener clima manualmente")
+                    _message.value = "Espera a tener puntos GPS"
+                    return@launch
+                }
+                
+                // Si ya hay clima válido, no hacer nada
+                if (_startWeatherTemperature != null) {
+                    Log.d(TAG, "✅ Ya hay clima guardado, no es necesario obtenerlo de nuevo")
+                    return@launch
+                }
+                
+                Log.d(TAG, "🌤️ Usuario solicitó obtener clima manualmente")
+                val firstPoint = points.first()
+                
+                _weatherStatus.value = WeatherStatus.Loading
+                
+                val weatherRepository = com.zipstats.app.repository.WeatherRepository()
+                val result = weatherRepository.getCurrentWeather(
+                    latitude = firstPoint.latitude,
+                    longitude = firstPoint.longitude
+                )
+                
+                result.onSuccess { weather ->
+                    // Validar que el clima recibido sea válido antes de guardarlo
+                    if (weather.temperature.isNaN() || 
+                        weather.temperature.isInfinite() || 
+                        weather.temperature < -50 || 
+                        weather.temperature > 60) {
+                        Log.e(TAG, "⚠️ Clima recibido con temperatura inválida: ${weather.temperature}°C. NO se guardará.")
+                        _weatherStatus.value = WeatherStatus.Error("Temperatura inválida recibida")
+                        _message.value = "Temperatura inválida recibida"
+                        return@launch
+                    }
+                    
+                    if (weather.weatherEmoji.isBlank()) {
+                        Log.e(TAG, "⚠️ Clima recibido con emoji vacío. NO se guardará.")
+                        _weatherStatus.value = WeatherStatus.Error("Emoji de clima vacío")
+                        _message.value = "Emoji de clima vacío"
+                        return@launch
+                    }
+                    
+                    _startWeatherTemperature = weather.temperature
+                    _startWeatherEmoji = weather.weatherEmoji
+                    _startWeatherDescription = weather.description
+                    _weatherStatus.value = WeatherStatus.Success(weather.temperature, weather.weatherEmoji)
+                    
+                    Log.d(TAG, "✅ Clima obtenido manualmente: ${weather.temperature}°C ${weather.weatherEmoji}")
+                    _message.value = "Clima obtenido: ${String.format("%.0f", weather.temperature)}°C ${weather.weatherEmoji}"
+                }.onFailure { error ->
+                    Log.e(TAG, "❌ Error al obtener clima manualmente: ${error.message}")
+                    _weatherStatus.value = WeatherStatus.Error(error.message ?: "Error al obtener clima")
+                    _message.value = "Error al obtener clima: ${error.message}"
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "❌ Excepción al obtener clima manualmente: ${e.message}", e)
+                _weatherStatus.value = WeatherStatus.Error("Excepción: ${e.message}")
+                _message.value = "Error: ${e.message}"
+            }
+        }
+    }
+    
     /**
      * Pausa el seguimiento
      */
@@ -596,7 +739,7 @@ class TrackingViewModel @Inject constructor(
                 }
                 
                 // Verificar estado del clima
-                val weatherState = _weatherStatus.value
+                var weatherState = _weatherStatus.value
                 Log.d(TAG, "Estado del clima al finalizar: $weatherState")
                 
                 // Si el clima aún está cargando, dar unos segundos más de gracia
@@ -607,13 +750,69 @@ class TrackingViewModel @Inject constructor(
                         kotlinx.coroutines.delay(500)
                         waited += 500
                     }
-                    Log.d(TAG, "Estado después de espera: ${_weatherStatus.value}")
+                    weatherState = _weatherStatus.value
+                    Log.d(TAG, "Estado después de espera: $weatherState")
                 }
                 
                 // Guardar referencia al clima antes de resetear
-                val savedWeatherTemp = _startWeatherTemperature
-                val savedWeatherEmoji = _startWeatherEmoji
-                val savedWeatherDesc = _startWeatherDescription
+                // IMPORTANTE: Solo usar clima si realmente se capturó correctamente (no valores genéricos)
+                var savedWeatherTemp = _startWeatherTemperature
+                var savedWeatherEmoji = _startWeatherEmoji
+                var savedWeatherDesc = _startWeatherDescription
+                
+                // Validar que el clima sea real y no valores por defecto
+                // Aceptar cualquier emoji válido (incluido ☁️) pero temperatura debe ser válida
+                var hasValidWeather = savedWeatherTemp != null && 
+                                      savedWeatherTemp > -50 && savedWeatherTemp < 60 && // Rango válido de temperatura
+                                      savedWeatherTemp != 0.0 && // No permitir 0.0 como valor por defecto
+                                      savedWeatherEmoji != null && 
+                                      savedWeatherEmoji.isNotBlank()
+                
+                Log.d(TAG, "🔍 Validación clima inicial: temp=$savedWeatherTemp, emoji=$savedWeatherEmoji, válido=$hasValidWeather")
+                
+                // Si no hay clima válido al finalizar, intentar obtenerlo una última vez
+                if (!hasValidWeather && points.isNotEmpty()) {
+                    Log.d(TAG, "🌤️ No hay clima válido al finalizar, intentando obtenerlo...")
+                    val firstPoint = points.first()
+                    
+                    try {
+                        val weatherRepository = com.zipstats.app.repository.WeatherRepository()
+                        _weatherStatus.value = WeatherStatus.Loading
+                        
+                        val weatherResult = weatherRepository.getCurrentWeather(
+                            latitude = firstPoint.latitude,
+                            longitude = firstPoint.longitude
+                        )
+                        
+                        // Verificar el resultado (getCurrentWeather devuelve Result, así que verificamos directamente)
+                        weatherResult.fold(
+                            onSuccess = { weather ->
+                                // Validar que el clima recibido sea válido
+                                if (!weather.temperature.isNaN() && 
+                                    !weather.temperature.isInfinite() && 
+                                    weather.temperature > -50 && 
+                                    weather.temperature < 60 &&
+                                    weather.temperature != 0.0 &&
+                                    weather.weatherEmoji.isNotBlank()) {
+                                    
+                                    savedWeatherTemp = weather.temperature
+                                    savedWeatherEmoji = weather.weatherEmoji
+                                    savedWeatherDesc = weather.description
+                                    hasValidWeather = true
+                                    
+                                    Log.d(TAG, "✅ Clima obtenido al finalizar: ${savedWeatherTemp}°C ${savedWeatherEmoji}")
+                                } else {
+                                    Log.w(TAG, "⚠️ Clima obtenido pero inválido, no se usará")
+                                }
+                            },
+                            onFailure = { error ->
+                                Log.e(TAG, "❌ Error al obtener clima al finalizar: ${error.message}")
+                            }
+                        )
+                    } catch (e: Exception) {
+                        Log.e(TAG, "❌ Excepción al obtener clima al finalizar: ${e.message}", e)
+                    }
+                }
                 
                 // Crear la ruta con análisis post-ruta
                 val baseRoute = routeRepository.createRouteFromPoints(
@@ -627,17 +826,22 @@ class TrackingViewModel @Inject constructor(
                     vehicleType = scooter.vehicleType
                 )
                 
-                // Usar el clima capturado al INICIO de la ruta
-                val route = if (savedWeatherTemp != null) {
-                    Log.d(TAG, "✅ Usando clima del INICIO de la ruta: ${savedWeatherTemp}°C")
+                // Usar el clima capturado al INICIO de la ruta SOLO si es válido
+                val route = if (hasValidWeather) {
+                    Log.d(TAG, "✅ Usando clima válido del INICIO de la ruta: ${savedWeatherTemp}°C ${savedWeatherEmoji}")
                     baseRoute.copy(
                         weatherTemperature = savedWeatherTemp,
                         weatherEmoji = savedWeatherEmoji,
                         weatherDescription = savedWeatherDesc
                     )
                 } else {
-                    Log.w(TAG, "⚠️ No se capturó clima al inicio, guardando ruta sin clima")
-                    baseRoute
+                    Log.w(TAG, "⚠️ No se capturó clima válido al inicio, guardando ruta SIN clima (temp=$savedWeatherTemp, emoji=$savedWeatherEmoji)")
+                    // Asegurar explícitamente que los campos de clima sean null
+                    baseRoute.copy(
+                        weatherTemperature = null,
+                        weatherEmoji = null,
+                        weatherDescription = null
+                    )
                 }
                 
                 // Guardar en Firebase
@@ -646,55 +850,17 @@ class TrackingViewModel @Inject constructor(
                 if (result.isSuccess) {
                     val savedRouteId = result.getOrNull() ?: ""
                     
-                    // Si no hay clima aún, intentar obtenerlo en segundo plano
-                    if (savedWeatherTemp == null && points.isNotEmpty()) {
-                        Log.d(TAG, "🔄 Iniciando actualización de clima en segundo plano...")
-                        viewModelScope.launch {
-                            try {
-                                // Dar tiempo a que el weatherJob termine si aún está activo
-                                var retries = 0
-                                while (_weatherStatus.value is WeatherStatus.Loading && retries < 10) {
-                                    kotlinx.coroutines.delay(1000)
-                                    retries++
-                                    Log.d(TAG, "⏳ Esperando clima (${retries}s)...")
-                                }
-                                
-                                // Si se obtuvo el clima durante la espera, actualizar la ruta
-                                if (_startWeatherTemperature != null) {
-                                    Log.d(TAG, "✅ Clima obtenido, actualizando ruta $savedRouteId...")
-                                    routeRepository.updateRouteWeather(
-                                        routeId = savedRouteId,
-                                        temperature = _startWeatherTemperature!!,
-                                        emoji = _startWeatherEmoji ?: "☁️",
-                                        description = _startWeatherDescription ?: ""
-                                    )
-                                } else {
-                                    // Último intento: llamar directamente a la API
-                                    Log.d(TAG, "🔄 Último intento de obtener clima...")
-                                    val firstPoint = points.first()
-                                    routeRepository.fetchAndUpdateWeather(
-                                        routeId = savedRouteId,
-                                        latitude = firstPoint.latitude,
-                                        longitude = firstPoint.longitude
-                                    )
-                                }
-                            } catch (e: Exception) {
-                                Log.e(TAG, "Error al actualizar clima en segundo plano: ${e.message}", e)
-                            } finally {
-                                // Limpiar datos de clima
-                                _startWeatherTemperature = null
-                                _startWeatherEmoji = null
-                                _startWeatherDescription = null
-                                _weatherStatus.value = WeatherStatus.Idle
-                            }
-                        }
-                    } else {
-                        // Limpiar datos de clima después de usar
-                        _startWeatherTemperature = null
-                        _startWeatherEmoji = null
-                        _startWeatherDescription = null
-                        _weatherStatus.value = WeatherStatus.Idle
+                    // NO intentar obtener clima en segundo plano - puede guardar el clima ACTUAL en lugar del del momento
+                    // Si no se capturó al inicio, la ruta se guarda sin clima (correcto)
+                    if (!hasValidWeather) {
+                        Log.d(TAG, "📝 Ruta guardada sin clima. No se intentará obtener clima actual (evitar guardar clima incorrecto o genérico)")
                     }
+                    
+                    // Limpiar datos de clima después de usar
+                    _startWeatherTemperature = null
+                    _startWeatherEmoji = null
+                    _startWeatherDescription = null
+                    _weatherStatus.value = WeatherStatus.Idle
                     
                     var message = "Ruta guardada exitosamente: ${String.format("%.1f", route.totalDistance.roundToOneDecimal())} km"
                     

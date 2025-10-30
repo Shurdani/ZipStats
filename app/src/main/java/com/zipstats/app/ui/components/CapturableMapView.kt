@@ -26,6 +26,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.key
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -45,10 +46,14 @@ import com.google.android.gms.maps.model.MapStyleOptions
 import com.google.android.gms.maps.model.JointType
 import com.google.android.gms.maps.model.RoundCap
 import com.google.android.gms.maps.model.BitmapDescriptor
+import com.google.android.gms.maps.model.CameraPosition
 import android.content.res.Resources
 import androidx.core.content.ContextCompat
 import com.zipstats.app.R
 import com.google.maps.android.SphericalUtil
+import kotlin.math.abs
+import kotlin.math.ln
+import kotlin.math.max
 import kotlinx.coroutines.delay
 
 @Composable
@@ -63,6 +68,7 @@ fun CapturableMapView(
     var shouldReloadMap by remember { mutableStateOf(false) } // Flag para forzar recarga
     var mapInstance by remember { mutableStateOf<com.google.android.gms.maps.GoogleMap?>(null) }
     var mapKey by remember { mutableStateOf(0) } // Clave para forzar recreación
+    var isCameraReady by remember { mutableStateOf(false) } // Flag para indicar que la cámara está configurada
     val lifecycleOwner = LocalLifecycleOwner.current
     
     // Convertir puntos de la ruta a LatLng
@@ -203,16 +209,97 @@ fun CapturableMapView(
                                     )
                                 }
                                 
-                                // Ajustar cámara a la ruta
+                                // Ajustar cámara a la ruta con rotación basada en bearing real
                                 if (routePoints.size > 1) {
+                                    // Construir bounds para calcular el centro
                                     val boundsBuilder = LatLngBounds.Builder()
                                     routePoints.forEach { boundsBuilder.include(it) }
                                     val bounds = boundsBuilder.build()
-                                    googleMap.moveCamera(CameraUpdateFactory.newLatLngBounds(bounds, 100))
-                                    Log.d("CapturableMapView", "📐 Cámara ajustada a bounds de ${routePoints.size} puntos")
+                                    val center = bounds.center
+                                    
+                                    // Calcular dimensiones del bounding box (información para logging)
+                                    val latSpan = bounds.northeast.latitude - bounds.southwest.latitude
+                                    val lonSpan = bounds.northeast.longitude - bounds.southwest.longitude
+                                    val avgLat = center.latitude
+                                    val latKm = latSpan * 111.0
+                                    val lonKm = lonSpan * 111.0 * kotlin.math.cos(Math.toRadians(avgLat))
+                                    val isLong = latKm > lonKm
+                                    
+                                    Log.d("CapturableMapView", "📏 Dimensiones: lat ${String.format("%.2f", latKm)}km, lon ${String.format("%.2f", lonKm)}km (${if (isLong) "larga" else "ancha"})")
+                                    
+                                    // Calcular bearing entre el primer y último punto
+                                    val firstPoint = routePoints.first()
+                                    val lastPoint = routePoints.last()
+                                    val bearingDouble = SphericalUtil.computeHeading(firstPoint, lastPoint)
+                                    
+                                    // Normalizar bearing a rango 0-360° y convertir a Float
+                                    val bearing = ((bearingDouble + 360) % 360).toFloat()
+                                    
+                                    // Determinar si la ruta es más horizontal que vertical basándose en proporción
+                                    // Si lonKm es mayor o similar a latKm, es horizontal
+                                    val isHorizontal = lonKm >= latKm * 0.8 // Permitimos un 20% de tolerancia
+                                    
+                                    // Rotar 90° SOLO si la ruta es más vertical que horizontal (isLong)
+                                    // para que quede horizontal en pantalla
+                                    // Si ya es horizontal, usar bearing 0° (norte arriba)
+                                    val cameraBearing = if (isLong && !isHorizontal) {
+                                        // Ruta vertical: rotar 90° para ponerla horizontal
+                                        ((bearing + 90) % 360).toFloat()
+                                    } else {
+                                        // Ruta horizontal: sin rotación, norte arriba
+                                        0f
+                                    }
+                                    
+                                    // Calcular zoom dinámico basado en el tamaño de la ruta
+                                    // Zoom interpolado suavemente entre 18f (muy pequeño) y 11f (muy grande)
+                                    // Aumentado +0.5f para acercar más la vista
+                                    val maxDimKm = max(latKm, lonKm)
+                                    val baseZoom = when {
+                                        maxDimKm < 0.1 -> 18f  // Ruta muy pequeña (< 100m): zoom fijo máximo
+                                        maxDimKm > 10f -> 11f  // Ruta muy larga (> 10km): zoom fijo mínimo
+                                        else -> {
+                                            // Interpolación suave usando escala logarítmica para transiciones naturales
+                                            // Rangos: 0.1km -> 18f, 10km -> 11f
+                                            val logMin = ln(0.1)
+                                            val logMax = ln(10.0)
+                                            val logCurrent = ln(maxDimKm.coerceAtLeast(0.1))
+                                            val t = (logCurrent - logMin) / (logMax - logMin)
+                                            (18.0 - t * 7.0).coerceIn(11.0, 18.0).toFloat() // Interpolación lineal entre 18 y 11
+                                        }
+                                    }
+                                    // Aplicar zoom adicional para rutas pequeñas y medianas para mejor encuadre
+                                    val dynamicZoom = when {
+                                        maxDimKm < 0.5 -> baseZoom + 1.0f // Rutas < 500m: +1 zoom
+                                        maxDimKm < 2.0 -> baseZoom + 0.7f // Rutas 500m-2km: +0.7 zoom
+                                        maxDimKm < 5.0 -> baseZoom + 0.5f // Rutas 2-5km: +0.5 zoom
+                                        else -> baseZoom // Rutas grandes: zoom base
+                                    }.coerceIn(11f, 20f) // Límites de zoom de Google Maps
+                                    
+                                    Log.d("CapturableMapView", "🧭 Bearing original: $bearing°")
+                                    Log.d("CapturableMapView", "🧭 isLong: $isLong, isHorizontal: $isHorizontal")
+                                    Log.d("CapturableMapView", "🧭 Camera bearing aplicado: $cameraBearing°")
+                                    Log.d("CapturableMapView", "🔍 Zoom dinámico: $dynamicZoom (ruta: ${String.format("%.1f", maxDimKm)}km)")
+                                    
+                                    // Aplicar bearing con rotación si es necesario y zoom ajustado
+                                    val cameraPosition = CameraPosition.Builder()
+                                        .target(center)
+                                        .zoom(dynamicZoom)
+                                        .bearing(cameraBearing)
+                                        .tilt(0f)
+                                        .build()
+                                    
+                                    // Usar moveCamera (sin animación) para aplicar la posición instantáneamente
+                                    googleMap.moveCamera(CameraUpdateFactory.newCameraPosition(cameraPosition))
+                                    
+                                    Log.d("CapturableMapView", "📐 Cámara ajustada con ${routePoints.size} puntos")
+                                    Log.d("CapturableMapView", "📍 Centro: ($center)")
+                                    
+                                    // Marcar que la cámara está lista
+                                    isCameraReady = true
                                 } else {
-                                    googleMap.moveCamera(CameraUpdateFactory.newLatLngZoom(routePoints.first(), 15f))
+                                    googleMap.moveCamera(CameraUpdateFactory.newLatLngZoom(routePoints.first(), 17f))
                                     Log.d("CapturableMapView", "📐 Cámara ajustada a punto único")
+                                    isCameraReady = true
                                 }
                                 
                                 Log.d("CapturableMapView", "📍 Marcadores añadidos: inicio y final")

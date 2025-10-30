@@ -114,8 +114,11 @@ data class Route(
                 averageMovingSpeed = map["averageMovingSpeed"] as? Double ?: 0.0,
                 pauseCount = map["pauseCount"] as? Int ?: 0,
                 movingPercentage = (map["movingPercentage"] as? Number)?.toFloat() ?: 0f,
-                weatherTemperature = map["weatherTemperature"] as? Double,
-                weatherEmoji = map["weatherEmoji"] as? String,
+                // Validar clima al parsear: solo aceptar valores válidos
+                weatherTemperature = (map["weatherTemperature"] as? Number)?.toDouble()?.takeIf { 
+                    !it.isNaN() && !it.isInfinite() && it >= -50 && it <= 60 && it != 0.0 
+                },
+                weatherEmoji = (map["weatherEmoji"] as? String)?.takeIf { it.isNotBlank() },
                 weatherDescription = map["weatherDescription"] as? String
             )
         }

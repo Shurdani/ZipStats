@@ -333,7 +333,7 @@ fun ScooterDetailScreen(
                                 
                                 Column {
                                     Text(
-                                        text = "Total recorrido",
+                                        text = "Ultimo viaje",
                                         style = MaterialTheme.typography.labelMedium,
                                         fontWeight = FontWeight.Light,
                                         color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.6f)

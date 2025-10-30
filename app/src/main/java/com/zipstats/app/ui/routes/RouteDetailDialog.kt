@@ -1615,44 +1615,10 @@ private fun shareBitmap(
             imageFile
         )
         
-        // Crear mensaje para compartir
-        val dateFormat = java.text.SimpleDateFormat("dd/MM/yyyy HH:mm", java.util.Locale.getDefault())
-        val date = dateFormat.format(java.util.Date(route.startTime))
-        
-        // Para el mensaje compartido usamos el nombre completo del vehículo
-        val vehicleModel = route.scooterName
-        
-        // Usar el mismo título que en la imagen
-        val messageTitle = if (route.notes.isNotBlank()) {
-            route.notes
-        } else {
-            if (route.points.isNotEmpty()) {
-                val startCity = getCityName(route.points.firstOrNull()?.latitude, route.points.firstOrNull()?.longitude)
-                val endCity = getCityName(route.points.lastOrNull()?.latitude, route.points.lastOrNull()?.longitude)
-                
-                when {
-                    startCity != null && endCity != null && startCity != endCity -> 
-                        "$startCity → $endCity"
-                    startCity != null -> 
-                        "Ruta por $startCity"
-                    else -> 
-                        "Mi ruta en $vehicleModel"
-                }
-            } else {
-                "Mi ruta en $vehicleModel"
-            }
-        }
-        
-        val shareMessage = """
-            🛴 $messageTitle en #ZipStats
-            
-        """.trimIndent()
-        
-        // Crear intent para compartir
+        // Crear intent para compartir solo la imagen
         val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
             type = "image/*"
             putExtra(android.content.Intent.EXTRA_STREAM, imageUri)
-            putExtra(android.content.Intent.EXTRA_TEXT, shareMessage)
             addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
             clipData = android.content.ClipData.newUri(
                 context.contentResolver,

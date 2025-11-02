@@ -105,8 +105,8 @@ dependencies {
     implementation 'androidx.compose.ui:ui-tooling-preview'
     implementation 'androidx.compose.material3:material3'
     implementation 'androidx.activity:activity-compose:1.8.2'
-    implementation 'androidx.navigation:navigation-compose:2.7.6'
-    implementation 'androidx.navigation:navigation-runtime-ktx:2.7.6'
+    implementation 'androidx.navigation:navigation-compose:2.9.5'
+    implementation 'androidx.navigation:navigation-runtime-ktx:2.9.5'
 
     // --- Hilt (actualizado y compatible con Kotlin 2.2.20) ---
     implementation "com.google.dagger:hilt-android:2.55"

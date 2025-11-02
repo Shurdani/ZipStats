@@ -208,7 +208,7 @@ app/src/main/java/com/zipstats/app/
 
 ## 📄 **Licencia**
 
-Este proyecto está bajo la Licencia MIT - ver el archivo [LICENSE](LICENSE) para más detalles.
+![License: GPLv3](https://img.shields.io/badge/License-GPLv3-blue.svg)
 
 ---
 

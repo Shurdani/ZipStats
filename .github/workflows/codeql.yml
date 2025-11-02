@@ -54,10 +54,16 @@ jobs:
         # see https://docs.github.com/en/code-security/code-scanning/creating-an-advanced-setup-for-code-scanning/customizing-your-advanced-setup-for-code-scanning.
         # If you are analyzing a compiled language, you can modify the 'build-mode' for that language to customize how
         # your codebase is analyzed, see https://docs.github.com/en/code-security/code-scanning/creating-an-advanced-setup-for-code-scanning/codeql-code-scanning-for-compiled-languages
-    steps:
+        steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Grant execute permission to gradlew
+      run: chmod +x ./gradlew
+
     - name: Build with Gradle (manual mode)
-  if: matrix.build-mode == 'manual'
-  run: ./gradlew assembleDebug
+      if: matrix.build-mode == 'manual'
+      run: ./gradlew assembleDebug
 
 
     # Add any setup steps before running the `github/codeql-action/init` action.

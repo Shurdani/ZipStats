@@ -114,8 +114,8 @@ dependencies {
     implementation 'androidx.hilt:hilt-navigation-compose:1.2.0'
 
     // --- Google Play Services / Maps ---
-    implementation 'com.google.android.gms:play-services-base:18.2.0'
-    implementation 'com.google.android.gms:play-services-maps:18.2.0'
+    implementation 'com.google.android.gms:play-services-base:18.9.0'
+    implementation 'com.google.android.gms:play-services-maps:18.9.0'
     implementation 'com.google.android.gms:play-services-location:21.0.1'
     implementation 'com.google.maps.android:maps-compose:4.3.0'
     implementation 'com.google.maps.android:android-maps-utils:3.8.0'

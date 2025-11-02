@@ -109,8 +109,8 @@ dependencies {
     implementation 'androidx.navigation:navigation-runtime-ktx:2.7.6'
 
     // --- Hilt (actualizado y compatible con Kotlin 2.2.20) ---
-    implementation "com.google.dagger:hilt-android:2.55"
-    kapt "com.google.dagger:hilt-compiler:2.55"
+    implementation "com.google.dagger:hilt-android:2.57.2"
+    kapt "com.google.dagger:hilt-compiler:2.57.2"
     implementation 'androidx.hilt:hilt-navigation-compose:1.2.0'
 
     // --- Google Play Services / Maps ---

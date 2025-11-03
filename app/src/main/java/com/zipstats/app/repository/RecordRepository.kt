@@ -238,18 +238,48 @@ class RecordRepository @Inject constructor(
     }
 
     suspend fun deleteScooterRecords(scooterId: String) {
+        android.util.Log.d("RecordRepository", "=== INICIO deleteScooterRecords ===")
+        android.util.Log.d("RecordRepository", "Nombre del vehículo: $scooterId")
+        
         val userId = auth.currentUser?.uid ?: throw Exception("Usuario no autenticado")
-        val records = recordsCollection
+        
+        // Buscar registros por el campo "patinete"
+        android.util.Log.d("RecordRepository", "Buscando registros con patinete='$scooterId'...")
+        val recordsByPatinete = recordsCollection
             .whereEqualTo("userId", userId)
             .whereEqualTo("patinete", scooterId)
             .get()
             .await()
             .documents
-
+        
+        android.util.Log.d("RecordRepository", "Registros encontrados por 'patinete': ${recordsByPatinete.size}")
+        
+        // También buscar por el campo "vehiculo" por compatibilidad
+        val recordsByVehiculo = recordsCollection
+            .whereEqualTo("userId", userId)
+            .whereEqualTo("vehiculo", scooterId)
+            .get()
+            .await()
+            .documents
+        
+        android.util.Log.d("RecordRepository", "Registros encontrados por 'vehiculo': ${recordsByVehiculo.size}")
+        
+        // Combinar ambos resultados eliminando duplicados
+        val allRecords = (recordsByPatinete + recordsByVehiculo).distinctBy { it.id }
+        
+        android.util.Log.d("RecordRepository", "Total de registros únicos a eliminar: ${allRecords.size}")
+        
         // Eliminar todos los registros del patinete, incluyendo el inicial
-        records.forEach { doc ->
-            doc.reference.delete().await()
+        allRecords.forEach { doc ->
+            try {
+                android.util.Log.d("RecordRepository", "Eliminando registro: ${doc.id}")
+                doc.reference.delete().await()
+            } catch (e: Exception) {
+                android.util.Log.e("RecordRepository", "Error eliminando registro ${doc.id}", e)
+            }
         }
+        
+        android.util.Log.d("RecordRepository", "=== FIN deleteScooterRecords ===")
     }
 
     fun getRecordsForScooter(patinete: String): Flow<List<Record>> = flow {

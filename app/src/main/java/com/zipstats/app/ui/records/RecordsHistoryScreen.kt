@@ -48,16 +48,22 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.zipstats.app.model.Record
 import com.zipstats.app.navigation.Screen
 import com.zipstats.app.ui.components.StandardDatePickerDialogWithValidation
+import com.zipstats.app.ui.onboarding.OnboardingDialog
+import com.zipstats.app.ui.records.OnboardingViewModel
 import com.zipstats.app.utils.DateUtils
+import javax.inject.Inject
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -66,20 +72,48 @@ import java.time.ZoneId
 @Composable
 fun RecordsHistoryScreen(
     navController: NavController,
-    viewModel: RecordsViewModel = hiltViewModel()
+    viewModel: RecordsViewModel = hiltViewModel(),
+    onboardingViewModel: OnboardingViewModel = hiltViewModel()
 ) {
+    val onboardingManager = onboardingViewModel.onboardingManager
     val records by viewModel.records.collectAsState()
     val userScooters by viewModel.userScooters.collectAsState()
     val selectedModel by viewModel.selectedModel.collectAsState()
+    val uiState by viewModel.uiState.collectAsState()
     var recordToDelete by remember { mutableStateOf<Record?>(null) }
     var recordToEdit by remember { mutableStateOf<Record?>(null) }
     var showBottomSheet by remember { mutableStateOf(false) }
+    var showOnboardingDialog by remember { mutableStateOf(false) }
+    var hasCheckedVehicles by remember { mutableStateOf(false) }
+    
+    val onboardingDismissedInSession by viewModel.onboardingDismissedInSession.collectAsState()
     
     // Estado para controlar el scroll de la lista
     val listState = rememberLazyListState()
     
     // Variable para detectar cuando se añade un registro
     var previousRecordsSize by remember { mutableStateOf(records.size) }
+    
+    // Verificar si se debe mostrar el onboarding
+    // Solo mostrar al abrir la app por primera vez si no hay vehículos y no se ha descartado
+    LaunchedEffect(userScooters.size, uiState, onboardingDismissedInSession) {
+        // Esperar a que los datos estén cargados (no esté en estado Loading)
+        val isLoading = uiState is RecordsUiState.Loading
+        
+        if (!isLoading && !hasCheckedVehicles && !onboardingDismissedInSession) {
+            hasCheckedVehicles = true
+            if (userScooters.isEmpty()) {
+                // Solo mostrar si no hay vehículos, es la primera vez y no se ha descartado
+                showOnboardingDialog = true
+            } else {
+                // Ocultar si hay vehículos
+                showOnboardingDialog = false
+            }
+        } else {
+            // Si ya verificamos, se descartó, o hay vehículos, ocultar el diálogo
+            showOnboardingDialog = false
+        }
+    }
 
     // Filtrar registros según el patinete seleccionado
     val filteredRecords = remember(records, selectedModel, userScooters) {
@@ -120,6 +154,32 @@ fun RecordsHistoryScreen(
                 TextButton(onClick = { recordToDelete = null }) {
                     Text("Cancelar")
                 }
+            }
+        )
+    }
+
+    // Diálogo de onboarding
+    if (showOnboardingDialog) {
+        OnboardingDialog(
+            onDismiss = {
+                // Cerrar el diálogo y marcar como descartado en esta sesión
+                // No volverá a aparecer hasta que se cierre y vuelva a abrir la aplicación
+                showOnboardingDialog = false
+                viewModel.markOnboardingDismissed()
+            },
+            onGoToProfile = {
+                // Cerrar el diálogo, marcar como descartado y navegar
+                showOnboardingDialog = false
+                viewModel.markOnboardingDismissed()
+                navController.navigate(Screen.Profile.route)
+            },
+            onRegisterVehicle = {
+                // Cerrar el diálogo, marcar como descartado y navegar
+                // El onboarding se marcará como completado cuando se registre un vehículo en ProfileViewModel
+                showOnboardingDialog = false
+                viewModel.markOnboardingDismissed()
+                // Navegar a perfil con el parámetro para abrir el diálogo
+                navController.navigate("${Screen.Profile.route}?openAddVehicle=true")
             }
         )
     }
@@ -223,40 +283,61 @@ fun RecordsHistoryScreen(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Encabezados de la tabla
+            // Encabezados de la tabla - Adaptativo según el tamaño de pantalla
+            val configuration = LocalConfiguration.current
+            val screenWidthDp = configuration.screenWidthDp
+            val isSmallScreen = screenWidthDp < 360 // Pantallas muy pequeñas (< 360dp)
+            val isMediumScreen = screenWidthDp < 420 // Pantallas medianas (360-420dp)
+            
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                    .padding(horizontal = if (isSmallScreen) 8.dp else 16.dp, vertical = 8.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "Vehículo",
-                    modifier = Modifier.weight(1.2f),
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold
+                    text = if (isSmallScreen) "Veh." else "Vehículo",
+                    modifier = Modifier.weight(if (isSmallScreen) 1.0f else 1.2f),
+                    style = MaterialTheme.typography.titleSmall.copy(
+                        fontSize = if (isSmallScreen) 11.sp else MaterialTheme.typography.titleSmall.fontSize
+                    ),
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
                 Text(
                     text = "Fecha",
-                    modifier = Modifier.weight(0.8f),
-                    style = MaterialTheme.typography.titleSmall,
+                    modifier = Modifier.weight(if (isSmallScreen) 0.9f else 0.8f),
+                    style = MaterialTheme.typography.titleSmall.copy(
+                        fontSize = if (isSmallScreen) 11.sp else MaterialTheme.typography.titleSmall.fontSize
+                    ),
                     fontWeight = FontWeight.Bold,
-                    textAlign = TextAlign.Center
+                    textAlign = TextAlign.Center,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
                 Text(
-                    text = "Total KM",
-                    modifier = Modifier.weight(0.8f),
-                    style = MaterialTheme.typography.titleSmall,
+                    text = if (isSmallScreen) "T. KM" else if (isMediumScreen) "T. KM" else "Total KM",
+                    modifier = Modifier.weight(if (isSmallScreen) 0.9f else 0.8f),
+                    style = MaterialTheme.typography.titleSmall.copy(
+                        fontSize = if (isSmallScreen) 11.sp else MaterialTheme.typography.titleSmall.fontSize
+                    ),
                     fontWeight = FontWeight.Bold,
-                    textAlign = TextAlign.End
+                    textAlign = TextAlign.End,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
                 Text(
-                    text = "Viaje KM",
-                    modifier = Modifier.weight(0.8f),
-                    style = MaterialTheme.typography.titleSmall,
+                    text = if (isSmallScreen) "V. KM" else if (isMediumScreen) "V. KM" else "Viaje KM",
+                    modifier = Modifier.weight(if (isSmallScreen) 0.9f else 0.8f),
+                    style = MaterialTheme.typography.titleSmall.copy(
+                        fontSize = if (isSmallScreen) 11.sp else MaterialTheme.typography.titleSmall.fontSize
+                    ),
                     fontWeight = FontWeight.Bold,
-                    textAlign = TextAlign.End
+                    textAlign = TextAlign.End,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
 
@@ -281,34 +362,52 @@ fun RecordsHistoryScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable { recordToEdit = record }
-                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                            .padding(
+                                horizontal = if (screenWidthDp < 360) 8.dp else 16.dp,
+                                vertical = 8.dp
+                            ),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
                             text = userScooters.find { it.nombre == record.patinete }?.modelo ?: record.patinete,
-                            modifier = Modifier.weight(1.2f),
-                            style = MaterialTheme.typography.bodyMedium,
-                            maxLines = 1
+                            modifier = Modifier.weight(if (isSmallScreen) 1.0f else 1.2f),
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                fontSize = if (isSmallScreen) 12.sp else MaterialTheme.typography.bodyMedium.fontSize
+                            ),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                         Text(
                             text = DateUtils.formatForDisplay(DateUtils.parseApiDate(record.fecha)),
-                            modifier = Modifier.weight(0.8f),
-                            style = MaterialTheme.typography.bodyMedium,
-                            textAlign = TextAlign.Center
+                            modifier = Modifier.weight(if (isSmallScreen) 0.9f else 0.8f),
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                fontSize = if (isSmallScreen) 12.sp else MaterialTheme.typography.bodyMedium.fontSize
+                            ),
+                            textAlign = TextAlign.Center,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                         Text(
                             text = String.format("%.1f", record.kilometraje),
-                            modifier = Modifier.weight(0.8f),
-                            style = MaterialTheme.typography.bodyMedium,
-                            textAlign = TextAlign.End
+                            modifier = Modifier.weight(if (isSmallScreen) 0.9f else 0.8f),
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                fontSize = if (isSmallScreen) 12.sp else MaterialTheme.typography.bodyMedium.fontSize
+                            ),
+                            textAlign = TextAlign.End,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                         Text(
                             text = String.format("+%.1f", record.diferencia),
-                            modifier = Modifier.weight(0.8f),
-                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.weight(if (isSmallScreen) 0.9f else 0.8f),
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                fontSize = if (isSmallScreen) 12.sp else MaterialTheme.typography.bodyMedium.fontSize
+                            ),
                             textAlign = TextAlign.End,
-                            color = MaterialTheme.colorScheme.primary
+                            color = MaterialTheme.colorScheme.primary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
                     HorizontalDivider(

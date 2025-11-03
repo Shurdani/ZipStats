@@ -38,9 +38,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.zipstats.app.model.Route
@@ -250,40 +253,61 @@ fun RoutesScreen(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Encabezados de la tabla
+            // Encabezados de la tabla - Adaptativo según el tamaño de pantalla
+            val configuration = LocalConfiguration.current
+            val screenWidthDp = configuration.screenWidthDp
+            val isSmallScreen = screenWidthDp < 360 // Pantallas muy pequeñas (< 360dp)
+            val isMediumScreen = screenWidthDp < 420 // Pantallas medianas (360-420dp)
+            
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                    .padding(horizontal = if (isSmallScreen) 8.dp else 16.dp, vertical = 8.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "Patinete",
-                    modifier = Modifier.weight(1.2f),
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold
+                    text = if (isSmallScreen) "Vel." else "Vehiculo",
+                    modifier = Modifier.weight(if (isSmallScreen) 1.0f else 1.2f),
+                    style = MaterialTheme.typography.titleSmall.copy(
+                        fontSize = if (isSmallScreen) 11.sp else MaterialTheme.typography.titleSmall.fontSize
+                    ),
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
                 Text(
                     text = "Fecha",
-                    modifier = Modifier.weight(0.8f),
-                    style = MaterialTheme.typography.titleSmall,
+                    modifier = Modifier.weight(if (isSmallScreen) 0.9f else 0.8f),
+                    style = MaterialTheme.typography.titleSmall.copy(
+                        fontSize = if (isSmallScreen) 11.sp else MaterialTheme.typography.titleSmall.fontSize
+                    ),
                     fontWeight = FontWeight.Bold,
-                    textAlign = TextAlign.Center
+                    textAlign = TextAlign.Center,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
                 Text(
-                    text = "Distancia",
-                    modifier = Modifier.weight(0.8f),
-                    style = MaterialTheme.typography.titleSmall,
+                    text = if (isSmallScreen) "Dist." else if (isMediumScreen) "Dist." else "Distancia",
+                    modifier = Modifier.weight(if (isSmallScreen) 0.9f else 0.8f),
+                    style = MaterialTheme.typography.titleSmall.copy(
+                        fontSize = if (isSmallScreen) 11.sp else MaterialTheme.typography.titleSmall.fontSize
+                    ),
                     fontWeight = FontWeight.Bold,
-                    textAlign = TextAlign.End
+                    textAlign = TextAlign.End,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
                 Text(
-                    text = "Duración",
-                    modifier = Modifier.weight(0.8f),
-                    style = MaterialTheme.typography.titleSmall,
+                    text = if (isSmallScreen) "Dur." else if (isMediumScreen) "Dur." else "Duración",
+                    modifier = Modifier.weight(if (isSmallScreen) 0.9f else 0.8f),
+                    style = MaterialTheme.typography.titleSmall.copy(
+                        fontSize = if (isSmallScreen) 11.sp else MaterialTheme.typography.titleSmall.fontSize
+                    ),
                     fontWeight = FontWeight.Bold,
-                    textAlign = TextAlign.End
+                    textAlign = TextAlign.End,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
 
@@ -318,15 +342,21 @@ fun RoutesScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clickable { routeToView = route }
-                                .padding(horizontal = 16.dp, vertical = 8.dp),
+                                .padding(
+                                    horizontal = if (screenWidthDp < 360) 8.dp else 16.dp,
+                                    vertical = 8.dp
+                                ),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
                                 text = userScooters.find { it.id == route.scooterId }?.modelo ?: route.scooterName,
-                                modifier = Modifier.weight(1.2f),
-                                style = MaterialTheme.typography.bodyMedium,
-                                maxLines = 1
+                                modifier = Modifier.weight(if (isSmallScreen) 1.0f else 1.2f),
+                                style = MaterialTheme.typography.bodyMedium.copy(
+                                    fontSize = if (isSmallScreen) 12.sp else MaterialTheme.typography.bodyMedium.fontSize
+                                ),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                             Text(
                                 text = DateUtils.formatForDisplay(
@@ -334,22 +364,34 @@ fun RoutesScreen(
                                         .atZone(ZoneId.systemDefault())
                                         .toLocalDate()
                                 ),
-                                modifier = Modifier.weight(0.8f),
-                                style = MaterialTheme.typography.bodyMedium,
-                                textAlign = TextAlign.Center
+                                modifier = Modifier.weight(if (isSmallScreen) 0.9f else 0.8f),
+                                style = MaterialTheme.typography.bodyMedium.copy(
+                                    fontSize = if (isSmallScreen) 12.sp else MaterialTheme.typography.bodyMedium.fontSize
+                                ),
+                                textAlign = TextAlign.Center,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                             Text(
                                 text = String.format("%.1f km", route.totalDistance),
-                                modifier = Modifier.weight(0.8f),
-                                style = MaterialTheme.typography.bodyMedium,
-                                textAlign = TextAlign.End
+                                modifier = Modifier.weight(if (isSmallScreen) 0.9f else 0.8f),
+                                style = MaterialTheme.typography.bodyMedium.copy(
+                                    fontSize = if (isSmallScreen) 12.sp else MaterialTheme.typography.bodyMedium.fontSize
+                                ),
+                                textAlign = TextAlign.End,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                             Text(
                                 text = route.durationFormatted,
-                                modifier = Modifier.weight(0.8f),
-                                style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier.weight(if (isSmallScreen) 0.9f else 0.8f),
+                                style = MaterialTheme.typography.bodyMedium.copy(
+                                    fontSize = if (isSmallScreen) 12.sp else MaterialTheme.typography.bodyMedium.fontSize
+                                ),
                                 textAlign = TextAlign.End,
-                                color = MaterialTheme.colorScheme.primary
+                                color = MaterialTheme.colorScheme.primary,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
                         HorizontalDivider(

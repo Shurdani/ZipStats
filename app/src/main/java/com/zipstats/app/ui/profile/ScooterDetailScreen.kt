@@ -111,9 +111,20 @@ fun ScooterDetailScreen(
             confirmButton = {
                 TextButton(
                     onClick = {
-                        viewModel.deleteScooter(scooterId)
                         showDeleteDialog = false
-                        navController.navigateUp()
+                        scope.launch {
+                            try {
+                                // Ejecutar la eliminación y esperar a que termine
+                                viewModel.deleteScooter(scooterId)
+                                // Esperar un momento adicional para asegurar que todo se sincronice
+                                kotlinx.coroutines.delay(300)
+                                // Navegar después de que la eliminación esté completa
+                                navController.navigateUp()
+                            } catch (e: Exception) {
+                                // Si hay un error, no navegar
+                                android.util.Log.e("ScooterDetailScreen", "Error durante eliminación", e)
+                            }
+                        }
                     }
                 ) {
                     Text("Eliminar", color = MaterialTheme.colorScheme.error)

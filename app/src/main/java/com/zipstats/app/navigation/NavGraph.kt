@@ -89,9 +89,6 @@ fun NavGraph(
                 },
                 onRegisterClick = {
                     navController.navigate(Screen.Register.route)
-                },
-                onEmailVerification = {
-                    navController.navigate(Screen.EmailVerification.route)
                 }
             )
         }
@@ -103,9 +100,6 @@ fun NavGraph(
                     navController.navigate(Screen.Records.route) {
                         popUpTo(Screen.Login.route) { inclusive = true }
                     }
-                },
-                onEmailVerification = {
-                    navController.navigate(Screen.EmailVerification.route)
                 }
             )
         }
@@ -143,13 +137,35 @@ fun NavGraph(
             AchievementsScreen(navController = navController)
         }
 
+        composable(
+            route = "${Screen.Profile.route}?openAddVehicle={openAddVehicle}",
+            arguments = listOf(
+                androidx.navigation.navArgument("openAddVehicle") {
+                    type = androidx.navigation.NavType.BoolType
+                    defaultValue = false
+                }
+            )
+        ) { backStackEntry ->
+            val openAddVehicle = backStackEntry.arguments?.getBoolean("openAddVehicle") ?: false
+            ProfileScreen(
+                navController = navController,
+                currentThemeMode = currentThemeMode,
+                onThemeModeChange = onThemeModeChange,
+                dynamicColorEnabled = dynamicColorEnabled,
+                onDynamicColorChange = onDynamicColorChange,
+                openAddVehicleDialog = openAddVehicle
+            )
+        }
+        
+        // Ruta sin parámetros para mantener compatibilidad
         composable(Screen.Profile.route) {
             ProfileScreen(
                 navController = navController,
                 currentThemeMode = currentThemeMode,
                 onThemeModeChange = onThemeModeChange,
                 dynamicColorEnabled = dynamicColorEnabled,
-                onDynamicColorChange = onDynamicColorChange
+                onDynamicColorChange = onDynamicColorChange,
+                openAddVehicleDialog = false
             )
         }
 

@@ -1,4 +1,4 @@
-package com.zipstats.app.util
+package com.zipstats.app.utils
 
 import android.content.Context
 import android.util.Log
@@ -370,3 +370,4 @@ object ExcelExporter {
         val numberStyle: CellStyle
     )
 }
+

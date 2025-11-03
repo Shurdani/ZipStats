@@ -4,8 +4,8 @@ import android.util.Log
 import com.zipstats.app.model.Route
 import com.zipstats.app.model.RoutePoint
 import com.zipstats.app.model.VehicleType
-import com.zipstats.app.util.LocationUtils
-import com.zipstats.app.util.RouteAnalyzer
+import com.zipstats.app.utils.LocationUtils
+import com.zipstats.app.utils.RouteAnalyzer
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
@@ -360,11 +360,21 @@ class RouteRepository @Inject constructor(
 
             // Eliminar todas las rutas del vehículo
             routes.forEach { doc ->
-                doc.reference.delete().await()
+                try {
+                    doc.reference.delete().await()
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e // Re-lanzar cancelación
+                } catch (e: Exception) {
+                    Log.w(TAG, "Error al eliminar ruta individual: ${doc.id}", e)
+                    // Continuar con las demás rutas
+                }
             }
             
             Log.d(TAG, "Rutas eliminadas para vehículo: $scooterId (${routes.size} rutas)")
             Result.success(Unit)
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            Log.d(TAG, "Eliminación de rutas cancelada para vehículo: $scooterId")
+            Result.failure(e)
         } catch (e: Exception) {
             Log.e(TAG, "Error al eliminar rutas del vehículo", e)
             Result.failure(e)

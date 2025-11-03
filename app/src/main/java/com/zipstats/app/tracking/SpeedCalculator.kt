@@ -2,7 +2,7 @@ package com.zipstats.app.tracking
 
 import android.location.Location
 import com.zipstats.app.model.VehicleType
-import com.zipstats.app.util.LocationUtils
+import com.zipstats.app.utils.LocationUtils
 import kotlin.math.abs
 
 /**

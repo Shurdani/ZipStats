@@ -1,0 +1,17 @@
+{
+  "categories": [
+    {
+      "title": "🚀 Features",
+      "labels": ["feature"]
+    },
+    {
+      "title": "🐛 Fixes",
+      "labels": ["bug"]
+    },
+    {
+      "title": "🧹 Maintenance",
+      "labels": ["chore", "refactor"]
+    }
+  ],
+  "template": "## 📦 Cambios en esta versión\n{{CHANGELOG}}"
+}

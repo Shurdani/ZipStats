@@ -191,35 +191,42 @@ class VehicleRepository @Inject constructor(
     suspend fun updateScooter(scooter: Scooter): Result<Unit> = updateVehicle(scooter)
 
     suspend fun deleteVehicle(vehicleId: String) {
+        android.util.Log.d("VehicleRepository", "=== INICIO deleteVehicle ===")
+        android.util.Log.d("VehicleRepository", "VehicleId: $vehicleId")
+        
         val userId = auth.currentUser?.uid ?: throw Exception("Usuario no autenticado")
+        android.util.Log.d("VehicleRepository", "UserId: $userId")
         
         // Verificar que el vehículo pertenece al usuario
+        android.util.Log.d("VehicleRepository", "Obteniendo documento del vehículo...")
         val vehicleDoc = vehiclesCollection.document(vehicleId).get().await()
-        if (vehicleDoc.getString("userId") != userId) {
+        
+        if (!vehicleDoc.exists()) {
+            android.util.Log.e("VehicleRepository", "El vehículo no existe en Firestore")
+            throw Exception("El vehículo no existe")
+        }
+        
+        val vehicleUserId = vehicleDoc.getString("userId")
+        android.util.Log.d("VehicleRepository", "UserId del vehículo: $vehicleUserId")
+        
+        if (vehicleUserId != userId) {
+            android.util.Log.e("VehicleRepository", "El vehículo no pertenece al usuario")
             throw Exception("No tienes permiso para eliminar este vehículo")
         }
         
         // Obtener el nombre del vehículo antes de eliminarlo
         val vehicleNombre = vehicleDoc.getString("nombre") ?: throw Exception("Error al obtener el nombre del vehículo")
+        android.util.Log.d("VehicleRepository", "Nombre del vehículo: $vehicleNombre")
         
-        // Eliminar todos los registros asociados, incluyendo el inicial
-        // Buscar por ambos campos para compatibilidad
-        firestore.collection("registros")
-            .whereEqualTo("userId", userId)
-            .get()
-            .await()
-            .documents
-            .filter { doc ->
-                val patinete = doc.getString("patinete") ?: ""
-                val vehiculo = doc.getString("vehiculo") ?: ""
-                patinete == vehicleNombre || vehiculo == vehicleNombre
-            }
-            .forEach { doc ->
-                doc.reference.delete().await()
-            }
+        // NOTA: Los registros ya han sido eliminados por recordRepository.deleteScooterRecords()
+        // que se ejecuta antes en ProfileViewModel.deleteScooter()
+        // No necesitamos eliminar los registros aquí para evitar duplicación
         
         // Luego eliminar el vehículo
+        android.util.Log.d("VehicleRepository", "Eliminando vehículo de Firestore...")
         vehiclesCollection.document(vehicleId).delete().await()
+        android.util.Log.d("VehicleRepository", "Vehículo eliminado correctamente")
+        android.util.Log.d("VehicleRepository", "=== FIN deleteVehicle ===")
     }
     
     // Alias para compatibilidad

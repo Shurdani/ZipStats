@@ -27,6 +27,7 @@ class SettingsRepository @Inject constructor(
         val COLOR_THEME = stringPreferencesKey("color_theme")
         val DYNAMIC_COLOR = booleanPreferencesKey("dynamic_color")
         val PURE_BLACK_OLED = booleanPreferencesKey("pure_black_oled")
+        val KEEP_SCREEN_ON_DURING_TRACKING = booleanPreferencesKey("keep_screen_on_during_tracking")
     }
 
     val themeModeFlow: Flow<ThemeMode> = context.dataStore.data.map { prefs ->
@@ -47,6 +48,10 @@ class SettingsRepository @Inject constructor(
 
     val pureBlackOledFlow: Flow<Boolean> = context.dataStore.data.map { prefs ->
         prefs[Keys.PURE_BLACK_OLED] ?: false
+    }
+
+    val keepScreenOnDuringTrackingFlow: Flow<Boolean> = context.dataStore.data.map { prefs ->
+        prefs[Keys.KEEP_SCREEN_ON_DURING_TRACKING] ?: false
     }
 
     suspend fun setThemeMode(mode: ThemeMode) {
@@ -74,6 +79,12 @@ class SettingsRepository @Inject constructor(
     suspend fun setPureBlackOled(enabled: Boolean) {
         context.dataStore.edit { prefs ->
             prefs[Keys.PURE_BLACK_OLED] = enabled
+        }
+    }
+
+    suspend fun setKeepScreenOnDuringTracking(enabled: Boolean) {
+        context.dataStore.edit { prefs ->
+            prefs[Keys.KEEP_SCREEN_ON_DURING_TRACKING] = enabled
         }
     }
 }

@@ -59,11 +59,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import java.time.LocalDate
@@ -141,6 +143,11 @@ fun StatisticsScreen(
             )
         }
     ) { padding ->
+        val configuration = LocalConfiguration.current
+        val screenWidthDp = configuration.screenWidthDp
+        val isSmallScreen = screenWidthDp < 360
+        val horizontalPadding = if (isSmallScreen) 8.dp else 16.dp
+        
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -237,8 +244,8 @@ fun StatisticsScreen(
                             modifier = Modifier
                                 .fillMaxSize()
                                 .verticalScroll(rememberScrollState())
-                                .padding(horizontal = 16.dp),
-                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                                .padding(horizontal = horizontalPadding),
+                            verticalArrangement = Arrangement.spacedBy(if (isSmallScreen) 8.dp else 12.dp)
                         ) {
                             Spacer(modifier = Modifier.height(4.dp))
                             
@@ -253,6 +260,7 @@ fun StatisticsScreen(
                             SummaryStatsCard(
                                 periodData = displayData,
                                 showMaxDistance = currentPeriod != StatisticsPeriod.ALL,
+                                horizontalPadding = horizontalPadding,
                                 onShare = {
                                     val shareText = when (currentPeriod) {
                                         StatisticsPeriod.MONTHLY -> viewModel.getMonthlyShareText(stats)
@@ -276,6 +284,7 @@ fun StatisticsScreen(
                             // Tarjeta de Comparación (si existe)
                             displayData.comparison?.let { comparison ->
                                 ComparisonCard(
+                                    horizontalPadding = horizontalPadding,
                                     comparison = comparison
                                 )
                             }
@@ -429,7 +438,8 @@ fun ImpactMetricEnhanced(
 fun SummaryStatsCard(
     periodData: PeriodData,
     showMaxDistance: Boolean,
-    onShare: () -> Unit
+    onShare: () -> Unit,
+    horizontalPadding: androidx.compose.ui.unit.Dp = 16.dp
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -441,7 +451,7 @@ fun SummaryStatsCard(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp)
+                .padding(horizontal = horizontalPadding, vertical = 16.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -540,6 +550,7 @@ fun StatMetric(
 
 @Composable
 fun ComparisonCard(
+    horizontalPadding: androidx.compose.ui.unit.Dp = 16.dp,
     comparison: ComparisonData
 ) {
     val monthNames = listOf(
@@ -568,7 +579,7 @@ fun ComparisonCard(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
+                .padding(horizontal = horizontalPadding, vertical = 16.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {

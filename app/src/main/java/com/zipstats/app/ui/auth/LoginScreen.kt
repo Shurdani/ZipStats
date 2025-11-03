@@ -1,6 +1,9 @@
 package com.zipstats.app.ui.auth
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -16,10 +19,12 @@ import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -34,21 +39,32 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.google.android.gms.auth.api.signin.GoogleSignIn
+import com.google.android.gms.auth.api.signin.GoogleSignInAccount
+import com.google.android.gms.auth.api.signin.GoogleSignInOptions
+import com.google.android.gms.common.api.ApiException
+import com.google.android.gms.tasks.Task
+import kotlin.Suppress
+
+// Web Client ID para Google Sign In (tipo 3 en google-services.json)
+private const val DEFAULT_WEB_CLIENT_ID = "811393382396-fi0s13vdo86gabespr7dmb559f202l7d.apps.googleusercontent.com"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LoginScreen(
     onLoginSuccess: () -> Unit,
     onRegisterClick: () -> Unit,
-    onEmailVerification: () -> Unit,
     viewModel: AuthViewModel = hiltViewModel()
 ) {
+    val context = LocalContext.current
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var showError by remember { mutableStateOf(false) }
@@ -58,11 +74,44 @@ fun LoginScreen(
     var resetEmail by remember { mutableStateOf("") }
     var showResetConfirmation by remember { mutableStateOf(false) }
     var resetError by remember { mutableStateOf("") }
+    var showMergeDialog by remember { mutableStateOf(false) }
+    var mergeEmail by remember { mutableStateOf("") }
+    var mergePassword by remember { mutableStateOf("") }
+    var mergePasswordVisible by remember { mutableStateOf(false) }
+    var mergeError by remember { mutableStateOf("") }
+    var pendingGoogleIdToken by remember { mutableStateOf<String?>(null) }
     
     // Estados de validación
     var emailError by remember { mutableStateOf("") }
 
     val authState by viewModel.authState.collectAsState()
+
+    // Configurar Google Sign In
+    // Nota: Las clases de Google Sign In están marcadas como deprecadas pero siguen siendo la API oficial
+    // y recomendada para autenticación con Firebase. La alternativa One Tap Sign In es más compleja.
+    @Suppress("DEPRECATION")
+    val googleSignInOptions = remember {
+        GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+            .requestIdToken(DEFAULT_WEB_CLIENT_ID)
+            .requestEmail()
+            .build()
+    }
+
+    @Suppress("DEPRECATION")
+    val googleSignInClient = remember {
+        GoogleSignIn.getClient(context, googleSignInOptions)
+    }
+
+    // Launcher para Google Sign In
+    val googleSignInLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        @Suppress("DEPRECATION")
+        val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
+        handleGoogleSignInResult(task, viewModel) { idToken ->
+            pendingGoogleIdToken = idToken
+        }
+    }
 
     // Personalizar colores de error
     val customErrorColors = OutlinedTextFieldDefaults.colors(
@@ -84,24 +133,40 @@ fun LoginScreen(
     }
 
     LaunchedEffect(authState) {
-        when (authState) {
+        when (val state = authState) {
             is AuthState.Success -> {
+                if (showMergeDialog) {
+                    // Si el merge fue exitoso, cerrar el diálogo y continuar
+                    showMergeDialog = false
+                    mergePassword = ""
+                    mergeError = ""
+                    pendingGoogleIdToken = null
+                }
                 onLoginSuccess()
             }
             is AuthState.Error -> {
-                showError = true
-                errorMessage = (authState as AuthState.Error).message
+                if (showMergeDialog) {
+                    // Si hay un error mientras el diálogo de merge está abierto, mostrar el error en el diálogo
+                    mergeError = state.message
+                } else {
+                    showError = true
+                    errorMessage = state.message
+                }
+            }
+            is AuthState.AccountMergeRequired -> {
+                mergeEmail = state.email
+                showMergeDialog = true
+                mergeError = ""
             }
             is AuthState.ResetEmailSent -> {
                 showResetDialog = false
                 showResetConfirmation = true
                 resetEmail = ""
             }
-            is AuthState.EmailNotVerified -> {
-                onEmailVerification()
-            }
             else -> {
-                showError = false
+                if (!showMergeDialog) {
+                    showError = false
+                }
             }
         }
     }
@@ -178,6 +243,116 @@ fun LoginScreen(
                             modifier = Modifier.padding(start = 8.dp)
                         ) {
                             Text("Enviar")
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Diálogo para fusionar cuentas
+    if (showMergeDialog) {
+        Dialog(onDismissRequest = { 
+            showMergeDialog = false
+            mergePassword = ""
+            mergeError = ""
+            pendingGoogleIdToken = null
+        }) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = "Vincular cuenta de Google",
+                        style = MaterialTheme.typography.titleLarge
+                    )
+                    
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    Text(
+                        text = "Ya existe una cuenta con el email $mergeEmail. Ingresa tu contraseña para vincular tu cuenta de Google.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        textAlign = TextAlign.Center
+                    )
+                    
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    OutlinedTextField(
+                        value = mergePassword,
+                        onValueChange = { 
+                            mergePassword = it
+                            mergeError = ""
+                        },
+                        label = { Text("Contraseña") },
+                        visualTransformation = if (mergePasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        isError = mergeError.isNotEmpty(),
+                        trailingIcon = {
+                            IconButton(onClick = { mergePasswordVisible = !mergePasswordVisible }) {
+                                Icon(
+                                    imageVector = if (mergePasswordVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                    contentDescription = if (mergePasswordVisible) "Ocultar contraseña" else "Mostrar contraseña",
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        }
+                    )
+                    
+                    if (mergeError.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = mergeError,
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                    
+                    Spacer(modifier = Modifier.height(24.dp))
+                    
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End
+                    ) {
+                        TextButton(
+                            onClick = { 
+                                showMergeDialog = false
+                                mergePassword = ""
+                                mergeError = ""
+                                pendingGoogleIdToken = null
+                            }
+                        ) {
+                            Text("Cancelar")
+                        }
+                        
+                        Button(
+                            onClick = {
+                                if (mergePassword.isEmpty()) {
+                                    mergeError = "Por favor, ingresa tu contraseña"
+                                } else if (pendingGoogleIdToken == null) {
+                                    mergeError = "Error: No se pudo obtener el token de Google. Por favor, intenta de nuevo."
+                                } else {
+                                    viewModel.linkGoogleAccount(pendingGoogleIdToken!!, mergeEmail, mergePassword)
+                                }
+                            },
+                            modifier = Modifier.padding(start = 8.dp),
+                            enabled = mergePassword.isNotEmpty() && authState !is AuthState.Loading
+                        ) {
+                            if (authState is AuthState.Loading) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(24.dp),
+                                    color = MaterialTheme.colorScheme.onPrimary
+                                )
+                            } else {
+                                Text("Vincular")
+                            }
                         }
                     }
                 }
@@ -296,17 +471,6 @@ fun LoginScreen(
                     text = errorMessage,
                     color = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
                 )
-                
-                // Si el error es sobre verificación de email, mostrar botón
-                if (errorMessage.contains("verifica tu correo electrónico")) {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    TextButton(
-                        onClick = { onEmailVerification() },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text("Ir a verificación de email")
-                    }
-                }
             }
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -344,11 +508,88 @@ fun LoginScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
+            // Separador
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center
+            ) {
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(horizontal = 8.dp)
+                ) {
+                    HorizontalDivider()
+                }
+                Text(
+                    text = "O",
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                )
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(horizontal = 8.dp)
+                ) {
+                    HorizontalDivider()
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Botón de Google Sign In
+            OutlinedButton(
+                onClick = {
+                    val signInIntent = googleSignInClient.signInIntent
+                    googleSignInLauncher.launch(signInIntent)
+                },
+                modifier = Modifier.fillMaxWidth(),
+                enabled = authState !is AuthState.Loading
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Icono de Google (usando un emoji o un icono de Material)
+                    Text(
+                        text = "G",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(end = 8.dp)
+                    )
+                    Text("Continuar con Google")
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
             TextButton(
                 onClick = onRegisterClick
             ) {
                 Text("¿No tienes cuenta? Regístrate")
             }
         }
+    }
+}
+
+@Suppress("DEPRECATION")
+private fun handleGoogleSignInResult(
+    completedTask: Task<GoogleSignInAccount>,
+    viewModel: AuthViewModel,
+    onIdTokenReady: (String) -> Unit
+) {
+    try {
+        val account = completedTask.getResult(ApiException::class.java)
+        val idToken = account?.idToken
+        val email = account?.email
+        if (idToken != null) {
+            onIdTokenReady(idToken)
+            viewModel.signInWithGoogle(idToken, email)
+        }
+    } catch (e: ApiException) {
+        android.util.Log.e("LoginScreen", "Error en Google Sign In", e)
+        // El error se manejará a través del AuthState en el ViewModel
     }
 } 

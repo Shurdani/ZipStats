@@ -46,7 +46,6 @@ import androidx.navigation.NavController
 fun RegisterScreen(
     navController: NavController,
     onRegisterSuccess: () -> Unit,
-    onEmailVerification: () -> Unit,
     viewModel: AuthViewModel = hiltViewModel()
 ) {
     var name by remember { mutableStateOf("") }
@@ -130,9 +129,6 @@ fun RegisterScreen(
         when (authState) {
             is AuthState.Success -> {
                 onRegisterSuccess()
-            }
-            is AuthState.EmailVerificationSent -> {
-                onEmailVerification()
             }
             is AuthState.Error -> {
                 showError = true

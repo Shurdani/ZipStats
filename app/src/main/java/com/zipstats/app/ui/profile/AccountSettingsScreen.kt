@@ -37,6 +37,7 @@ import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.ScreenLockPortrait
 import androidx.compose.material.icons.outlined.AccountCircle
 import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material3.AlertDialog
@@ -60,6 +61,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -73,6 +75,8 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.zipstats.app.navigation.Screen
+import com.zipstats.app.repository.SettingsRepository
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalAnimationApi::class)
 @Composable
@@ -91,6 +95,10 @@ fun AccountSettingsScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
+    val settingsRepository = remember { SettingsRepository(context) }
+    val keepScreenOnDuringTracking by settingsRepository.keepScreenOnDuringTrackingFlow.collectAsState(initial = false)
+    val composeScope = rememberCoroutineScope()
+    
     var isPaletteExpanded by remember { mutableStateOf(false) }
     var showEditNameDialog by remember { mutableStateOf(false) }
     var showChangePasswordDialog by remember { mutableStateOf(false) }
@@ -309,6 +317,31 @@ fun AccountSettingsScreen(
                             androidx.compose.material3.Switch(
                                 checked = pureBlackOledEnabled,
                                 onCheckedChange = onPureBlackOledChange,
+                                enabled = true
+                            )
+                        }
+                    )
+                    
+                    HorizontalDivider()
+                    
+                    ListItem(
+                        headlineContent = { Text("Mantener pantalla encendida") },
+                        supportingContent = { Text("Durante la grabación de rutas") },
+                        leadingContent = { 
+                            Icon(
+                                Icons.Default.ScreenLockPortrait,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        },
+                        trailingContent = {
+                            androidx.compose.material3.Switch(
+                                checked = keepScreenOnDuringTracking,
+                                onCheckedChange = { enabled ->
+                                    composeScope.launch {
+                                        settingsRepository.setKeepScreenOnDuringTracking(enabled)
+                                    }
+                                },
                                 enabled = true
                             )
                         }

@@ -1,4 +1,4 @@
-package com.zipstats.app.util
+package com.zipstats.app.utils
 
 import android.location.Location
 import com.zipstats.app.model.RoutePoint

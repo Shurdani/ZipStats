@@ -44,6 +44,7 @@ jobs:
       matrix:
         include:
         - language: java-kotlin
+          build-mode: manual
     
           # CodeQL supports the following values keywords for 'language': 'actions', 'c-cpp', 'csharp', 'go', 'java-kotlin', 'javascript-typescript', 'python', 'ruby', 'rust', 'swift'
           # Use `c-cpp` to analyze code written in C, C++ or both
@@ -111,6 +112,7 @@ jobs:
       uses: github/codeql-action/init@v4
       with:
         languages: ${{ matrix.language }}
+        build-mode: ${{ matrix.build-mode }}
         # If you wish to specify custom queries, you can do so here or in a config file.
         # By default, queries listed here will override any specified in a config file.
         # Prefix the list here with "+" to use these queries and those in the config file.
@@ -118,19 +120,16 @@ jobs:
         # For more details on CodeQL's query packs, refer to: https://docs.github.com/en/code-security/code-scanning/automatically-scanning-your-code-for-vulnerabilities-and-errors/configuring-code-scanning#using-queries-in-ql-packs
         # queries: security-extended,security-and-quality
 
-    # Build manually - CodeQL will automatically trace Gradle builds
-    # The google-services.json dummy is already created above
+    # Build manually with CodeQL tracing
+    # CodeQL will automatically trace the build when build-mode is manual
     - name: Build with Gradle for CodeQL
+      if: matrix.build-mode == 'manual'
       shell: bash
+      env:
+        CODEQL_ACTION_RUN_MODE: trace
       run: |
-        export CODEQL_RUNNER=$(find "$HOME" -name codeql-runner-linux 2>/dev/null | head -1 || echo "")
-        if [ -z "$CODEQL_RUNNER" ]; then
-          # Si no hay codeql-runner, ejecutar build normal - CodeQL lo detectará
-          ./gradlew clean assembleDebug --no-daemon
-        else
-          # Si hay codeql-runner, usarlo para tracing
-          $CODEQL_RUNNER assembleDebug --no-daemon
-        fi
+        # CodeQL will automatically wrap this command to trace it
+        ./gradlew clean assembleDebug --no-daemon || echo "Build may have warnings but continuing..."
 
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v4

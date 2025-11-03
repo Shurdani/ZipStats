@@ -31,28 +31,46 @@ jobs:
           const body = (context.payload.pull_request.body || '').toLowerCase();
           const text = title + ' ' + body;
           
+          // Mapeo de keywords a labels (sin emojis porque labeler usa nombres simples)
+          const labelMap = {
+            'bug': ['🐛 bug', 'bug'],
+            'feature': ['✨ feature', 'feature'],
+            'ui': ['🎨 ui', 'ui'],
+            'refactor': ['🔧 refactor', 'refactor'],
+            'documentation': ['📝 documentation', 'documentation'],
+            'tests': ['🧪 tests', 'tests']
+          };
+          
           const labels = [];
           
           if (text.match(/\b(bug|fix|error|issue|problem|corregir|solucionar)\b/)) {
-            labels.push('🐛 bug');
+            labels.push(...labelMap.bug);
           } else if (text.match(/\b(feat|feature|new|add|nuev|añadir)\b/)) {
-            labels.push('✨ feature');
+            labels.push(...labelMap.feature);
           } else if (text.match(/\b(ui|ux|design|visual|theme|interfaz|pantalla)\b/)) {
-            labels.push('🎨 ui');
+            labels.push(...labelMap.ui);
           } else if (text.match(/\b(refactor|clean|restructure|refactorizar)\b/)) {
-            labels.push('🔧 refactor');
+            labels.push(...labelMap.refactor);
           } else if (text.match(/\b(doc|readme|guide|documentation|documentación)\b/)) {
-            labels.push('📝 documentation');
+            labels.push(...labelMap.documentation);
           } else if (text.match(/\b(test|spec|testing|prueba)\b/)) {
-            labels.push('🧪 tests');
+            labels.push(...labelMap.tests);
           }
           
+          // Intentar añadir labels, ignorar errores si no existen
           if (labels.length > 0) {
-            await github.rest.issues.addLabels({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.payload.pull_request.number,
-              labels: labels
-            });
+            for (const label of labels) {
+              try {
+                await github.rest.issues.addLabels({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: context.payload.pull_request.number,
+                  labels: [label]
+                });
+              } catch (error) {
+                // Ignorar si la label no existe
+                console.log(`Label ${label} no encontrada, saltando...`);
+              }
+            }
           }
 

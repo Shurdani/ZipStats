@@ -118,10 +118,19 @@ jobs:
         # For more details on CodeQL's query packs, refer to: https://docs.github.com/en/code-security/code-scanning/automatically-scanning-your-code-for-vulnerabilities-and-errors/configuring-code-scanning#using-queries-in-ql-packs
         # queries: security-extended,security-and-quality
 
-    # Autobuild detects the build system and runs the build with CodeQL tracing
+    # Build manually - CodeQL will automatically trace Gradle builds
     # The google-services.json dummy is already created above
-    - name: Autobuild
-      uses: github/codeql-action/autobuild@v3
+    - name: Build with Gradle for CodeQL
+      shell: bash
+      run: |
+        export CODEQL_RUNNER=$(find "$HOME" -name codeql-runner-linux 2>/dev/null | head -1 || echo "")
+        if [ -z "$CODEQL_RUNNER" ]; then
+          # Si no hay codeql-runner, ejecutar build normal - CodeQL lo detectará
+          ./gradlew clean assembleDebug --no-daemon
+        else
+          # Si hay codeql-runner, usarlo para tracing
+          $CODEQL_RUNNER assembleDebug --no-daemon
+        fi
 
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v4

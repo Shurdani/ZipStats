@@ -1,48 +1,56 @@
 # Configuración para auto-etiquetado de PRs basado en archivos modificados
-# Formato para actions/labeler@v5
+# Formato para actions/labeler@v5 - cada label debe tener changed-files
 
 ui:
-  - app/src/main/java/com/zipstats/app/ui/**/*
+  changed-files:
+    - any-glob-to-any-file: 'app/src/main/java/com/zipstats/app/ui/**/*'
 
 feature:
-  - app/src/main/java/com/zipstats/app/ui/**/*
-  - app/src/main/java/com/zipstats/app/service/**/*
+  changed-files:
+    - any-glob-to-any-file: 'app/src/main/java/com/zipstats/app/ui/**/*'
+    - any-glob-to-any-file: 'app/src/main/java/com/zipstats/app/service/**/*'
 
 bug:
-  - app/src/main/java/com/zipstats/app/**/*
+  changed-files:
+    - any-glob-to-any-file: 'app/src/main/java/com/zipstats/app/**/*'
 
 refactor:
-  - app/src/main/java/com/zipstats/app/**/*
-  - build.gradle
-  - app/build.gradle
-  - gradle/**/*
+  changed-files:
+    - any-glob-to-any-file: 'app/src/main/java/com/zipstats/app/**/*'
+    - any-glob-to-any-file: 'build.gradle'
+    - any-glob-to-any-file: 'app/build.gradle'
+    - any-glob-to-any-file: 'gradle/**/*'
 
 documentation:
-  - README.md
-  - CHANGELOG.md
-  - .github/**/*.md
-  - docs/**/*
+  changed-files:
+    - any-glob-to-any-file: 'README.md'
+    - any-glob-to-any-file: 'CHANGELOG.md'
+    - any-glob-to-any-file: '.github/**/*.md'
+    - any-glob-to-any-file: 'docs/**/*'
 
 tests:
-  - app/src/test/**/*
-  - app/src/androidTest/**/*
+  changed-files:
+    - any-glob-to-any-file: 'app/src/test/**/*'
+    - any-glob-to-any-file: 'app/src/androidTest/**/*'
 
 security:
-  - .github/workflows/**/*
-  - .github/SECURITY_*.md
-  - app/src/main/java/com/zipstats/app/repository/**/*
-  - app/src/main/java/com/zipstats/app/auth/**/*
+  changed-files:
+    - any-glob-to-any-file: '.github/workflows/**/*'
+    - any-glob-to-any-file: '.github/SECURITY_*.md'
+    - any-glob-to-any-file: 'app/src/main/java/com/zipstats/app/repository/**/*'
+    - any-glob-to-any-file: 'app/src/main/java/com/zipstats/app/auth/**/*'
 
 config:
-  - build.gradle
-  - app/build.gradle
-  - gradle.properties
-  - gradle/**/*
-  - .github/**/*.yml
-  - .github/**/*.yaml
+  changed-files:
+    - any-glob-to-any-file: 'build.gradle'
+    - any-glob-to-any-file: 'app/build.gradle'
+    - any-glob-to-any-file: 'gradle.properties'
+    - any-glob-to-any-file: 'gradle/**/*'
+    - any-glob-to-any-file: '.github/**/*.yml'
+    - any-glob-to-any-file: '.github/**/*.yaml'
 
 release:
-  - app/build.gradle
-  - README.md
-  - CHANGELOG.md
-
+  changed-files:
+    - any-glob-to-any-file: 'app/build.gradle'
+    - any-glob-to-any-file: 'README.md'
+    - any-glob-to-any-file: 'CHANGELOG.md'

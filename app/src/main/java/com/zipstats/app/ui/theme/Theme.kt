@@ -476,12 +476,16 @@ fun PatinetatrackTheme(
             val window = (view.context as Activity).window
             
             // Hacer que la barra de estado tenga el color primario
+            @Suppress("DEPRECATION")
             window.statusBarColor = colorScheme.primary.toArgb()
+            @Suppress("DEPRECATION")
             window.navigationBarColor = Color.Transparent.toArgb()
             
             // Configurar el sistema de barras para Android 10+
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                @Suppress("DEPRECATION")
                 window.isStatusBarContrastEnforced = false
+                @Suppress("DEPRECATION")
                 window.isNavigationBarContrastEnforced = false
             }
 

@@ -1,3 +1,5 @@
+@file:Suppress("DEPRECATION")
+
 package com.zipstats.app.ui.auth
 
 import androidx.compose.foundation.layout.Arrangement

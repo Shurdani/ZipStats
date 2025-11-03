@@ -9,8 +9,7 @@
 [![Android](https://img.shields.io/badge/Android-API%2031%2B-green.svg)](https://developer.android.com)
 [![Jetpack Compose](https://img.shields.io/badge/Jetpack%20Compose-2024.02.00-blue.svg)](https://developer.android.com/jetpack/compose)
 [![License: GPLv3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0.html)
-[![Downloads](https://img.shields.io/github/downloads/shurdani/Patinetatrack/total?label=Downloads&color=brightgreen)](https://github.com/shurdani/Patinetatrack/releases)
-
+[![Downloads](https://img.shields.io/github/downloads/Shurdani/ZipStats/total?label=Downloads&color=brightgreen)](https://github.com/Shurdani/ZipStats/releases)
 ---
 
 ## 📱 **Características Principales**

@@ -1,47 +1,47 @@
 # Configuración para auto-etiquetado de PRs basado en archivos modificados
-# Formato para actions/labeler@v5 - cada label debe tener changed-files
+# Formato para actions/labeler@v5 - cada label debe ser un array de opciones de configuración
 
 ui:
-  changed-files:
+  - changed-files:
     - any-glob-to-any-file: 'app/src/main/java/com/zipstats/app/ui/**/*'
 
 feature:
-  changed-files:
+  - changed-files:
     - any-glob-to-any-file: 'app/src/main/java/com/zipstats/app/ui/**/*'
     - any-glob-to-any-file: 'app/src/main/java/com/zipstats/app/service/**/*'
 
 bug:
-  changed-files:
+  - changed-files:
     - any-glob-to-any-file: 'app/src/main/java/com/zipstats/app/**/*'
 
 refactor:
-  changed-files:
+  - changed-files:
     - any-glob-to-any-file: 'app/src/main/java/com/zipstats/app/**/*'
     - any-glob-to-any-file: 'build.gradle'
     - any-glob-to-any-file: 'app/build.gradle'
     - any-glob-to-any-file: 'gradle/**/*'
 
 documentation:
-  changed-files:
+  - changed-files:
     - any-glob-to-any-file: 'README.md'
     - any-glob-to-any-file: 'CHANGELOG.md'
     - any-glob-to-any-file: '.github/**/*.md'
     - any-glob-to-any-file: 'docs/**/*'
 
 tests:
-  changed-files:
+  - changed-files:
     - any-glob-to-any-file: 'app/src/test/**/*'
     - any-glob-to-any-file: 'app/src/androidTest/**/*'
 
 security:
-  changed-files:
+  - changed-files:
     - any-glob-to-any-file: '.github/workflows/**/*'
     - any-glob-to-any-file: '.github/SECURITY_*.md'
     - any-glob-to-any-file: 'app/src/main/java/com/zipstats/app/repository/**/*'
     - any-glob-to-any-file: 'app/src/main/java/com/zipstats/app/auth/**/*'
 
 config:
-  changed-files:
+  - changed-files:
     - any-glob-to-any-file: 'build.gradle'
     - any-glob-to-any-file: 'app/build.gradle'
     - any-glob-to-any-file: 'gradle.properties'
@@ -50,7 +50,7 @@ config:
     - any-glob-to-any-file: '.github/**/*.yaml'
 
 release:
-  changed-files:
+  - changed-files:
     - any-glob-to-any-file: 'app/build.gradle'
     - any-glob-to-any-file: 'README.md'
     - any-glob-to-any-file: 'CHANGELOG.md'

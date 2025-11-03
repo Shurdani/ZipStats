@@ -4,10 +4,10 @@
 # You may wish to alter this file to override the set of languages analyzed,
 # or to provide custom queries or build logic.
 #
-# ******** NOTE ********
-# We have attempted to detect the languages in your repository. Please check
-# the `language` matrix defined below to confirm you have the correct set of
-# supported CodeQL languages.
+# IMPORTANTE: Este workflow requiere que el "Default setup" de Code Scanning esté DESACTIVADO
+# en GitHub Settings → Security → Code scanning → CodeQL analysis
+# para evitar el error: "CodeQL analyses from advanced configurations cannot be processed
+# when the default setup is enabled"
 #
 name: "CodeQL Advanced"
 
@@ -33,8 +33,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-        - language: java-kotlin
-          build-mode: manual
+        - language: java
+          build-mode: autobuild
     
     steps:
     - name: Checkout repository
@@ -96,22 +96,12 @@ jobs:
         build-mode: ${{ matrix.build-mode }}
         config-file: .github/codeql/codeql-config.yml
 
-    # Build manually - Use CodeQL's trace-command to trace the Gradle build
-    # CodeQL needs explicit tracing when build-mode is manual
-    - name: Build with Gradle for CodeQL
-      if: matrix.build-mode == 'manual'
-      shell: bash
-      run: |
-        # Get CodeQL database path from the init step output
-        CODEQL_DB="${{ github.workspace }}/_temp/codeql_databases/java"
-        
-        # Use codeql database trace-command to trace the build
-        codeql database trace-command \
-          --working-dir="${{ github.workspace }}" \
-          --command="./gradlew clean assembleDebug --no-daemon" \
-          "$CODEQL_DB" || ./gradlew clean assembleDebug --no-daemon
+    # Autobuild detecta automáticamente el sistema de build (Gradle) y lo ejecuta
+    # Esto es más confiable que el modo manual para proyectos Android/Gradle
+    - name: Autobuild
+      uses: github/codeql-action/autobuild@v4
 
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v4
       with:
-        category: "/language:${{matrix.language}}"
+        category: "/language:${{ matrix.language }}"

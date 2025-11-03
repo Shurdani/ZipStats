@@ -1,17 +1,31 @@
 {
   "categories": [
     {
-      "title": "🚀 Features",
-      "labels": ["feature"]
+      "title": "✨ Nuevas Características",
+      "labels": ["feature", "enhancement"]
     },
     {
-      "title": "🐛 Fixes",
-      "labels": ["bug"]
+      "title": "🐛 Correcciones de Bugs",
+      "labels": ["bug", "fix"]
     },
     {
-      "title": "🧹 Maintenance",
-      "labels": ["chore", "refactor"]
+      "title": "🚀 Actualizaciones",
+      "labels": ["update", "dependencies"]
+    },
+    {
+      "title": "🎨 Mejoras de UI",
+      "labels": ["ui", "design"]
+    },
+    {
+      "title": "🔧 Refactorización",
+      "labels": ["refactor", "chore"]
+    },
+    {
+      "title": "📝 Documentación",
+      "labels": ["docs", "documentation"]
     }
   ],
-  "template": "## 📦 Cambios en esta versión\n{{CHANGELOG}}"
+  "template": "## 📦 Cambios en esta versión\n\n{{CHANGELOG}}\n\n---\n\n## 📥 Instalación\n\nDescarga el APK desde los archivos adjuntos.",
+  "ignore_labels": ["wontfix", "duplicate", "question", "invalid"],
+  "sort": "ASC"
 }

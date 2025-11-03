@@ -4,17 +4,24 @@ import android.content.SharedPreferences
 import android.net.Uri
 import com.google.firebase.FirebaseNetworkException
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.FirebaseAuthException
 import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
 import com.google.firebase.auth.FirebaseAuthInvalidUserException
 import com.google.firebase.auth.FirebaseAuthUserCollisionException
 import com.google.firebase.auth.FirebaseAuthWeakPasswordException
 import com.google.firebase.auth.FirebaseUser
+import com.google.firebase.auth.GoogleAuthProvider
 import com.google.firebase.auth.UserProfileChangeRequest
 import kotlinx.coroutines.tasks.await
 import javax.inject.Inject
 import javax.inject.Singleton
 
 class EmailNotVerifiedException(message: String) : Exception(message)
+
+class AccountMergeRequiredException(
+    val email: String,
+    message: String
+) : Exception(message)
 
 @Singleton
 class AuthRepository @Inject constructor(
@@ -51,12 +58,6 @@ class AuthRepository @Inject constructor(
         return try {
             val result = auth.signInWithEmailAndPassword(email, password).await()
             
-            // Verificar si el email está verificado
-            if (!result.user?.isEmailVerified!!) {
-                logout() // Limpiar credenciales si no está verificado
-                throw EmailNotVerifiedException("Por favor, verifica tu correo electrónico antes de iniciar sesión.")
-            }
-            
             // Guardar credenciales y timestamp
             sharedPreferences.edit().apply {
                 putString(KEY_USER_EMAIL, email)
@@ -87,14 +88,16 @@ class AuthRepository @Inject constructor(
             android.util.Log.d("AuthRepository", "Iniciando registro para: $email")
             val result = auth.createUserWithEmailAndPassword(email, password).await()
             
-            // Enviar email de verificación (método simple que funciona)
-            android.util.Log.d("AuthRepository", "Usuario creado, enviando email de verificación...")
-            result.user?.sendEmailVerification()?.await()
-            android.util.Log.d("AuthRepository", "Email de verificación enviado exitosamente a: $email")
+            // Guardar credenciales inmediatamente después del registro
+            sharedPreferences.edit().apply {
+                putString(KEY_USER_EMAIL, email)
+                putString(KEY_USER_PASSWORD, password)
+                putBoolean(KEY_IS_LOGGED_IN, true)
+                putLong(KEY_LAST_LOGIN, System.currentTimeMillis())
+                apply()
+            }
             
-            // NO guardar credenciales hasta que el email esté verificado
-            // El usuario tendrá que iniciar sesión después de verificar su email
-            
+            android.util.Log.d("AuthRepository", "Usuario creado exitosamente: $email")
             Result.success(Unit)
         } catch (e: FirebaseAuthUserCollisionException) {
             Result.failure(Exception("Ya existe una cuenta con este correo electrónico."))
@@ -121,12 +124,32 @@ class AuthRepository @Inject constructor(
 
     suspend fun autoSignIn(): Result<FirebaseUser> {
         // Si ya hay un usuario autenticado y está marcado como logged in, retornarlo
-        if (isLoggedIn) {
-            auth.currentUser?.let {
-                return Result.success(it)
+        val currentUser = auth.currentUser
+        if (isLoggedIn && currentUser != null) {
+            return Result.success(currentUser)
+        }
+
+        // Si hay un usuario autenticado pero no está marcado como logged in, verificar si es válido
+        if (currentUser != null) {
+            val lastLogin = sharedPreferences.getLong(KEY_LAST_LOGIN, 0)
+            val currentTime = System.currentTimeMillis()
+            val isSessionValid = (currentTime - lastLogin) < DAYS_UNTIL_SESSION_EXPIRY * 24 * 60 * 60 * 1000
+            
+            if (isSessionValid) {
+                // Actualizar timestamp de último login
+                sharedPreferences.edit()
+                    .putLong(KEY_LAST_LOGIN, currentTime)
+                    .putBoolean(KEY_IS_LOGGED_IN, true)
+                    .apply()
+                return Result.success(currentUser)
+            } else {
+                // Sesión expirada, hacer logout
+                logout()
+                return Result.failure(Exception("La sesión ha expirado"))
             }
         }
 
+        // Intentar auto-login solo si hay email y password (método tradicional)
         val email = sharedPreferences.getString(KEY_USER_EMAIL, null)
         val password = sharedPreferences.getString(KEY_USER_PASSWORD, null)
         val lastLogin = sharedPreferences.getLong(KEY_LAST_LOGIN, 0)
@@ -147,7 +170,7 @@ class AuthRepository @Inject constructor(
                 Result.failure(e)
             }
         } else {
-            logout() // Limpiar credenciales si la sesión expiró
+            logout() // Limpiar credenciales si la sesión expiró o no hay credenciales
             Result.failure(Exception("No hay credenciales guardadas o la sesión ha expirado"))
         }
     }
@@ -207,6 +230,130 @@ class AuthRepository @Inject constructor(
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
+        }
+    }
+
+    suspend fun signInWithGoogle(idToken: String, email: String? = null): Result<Unit> {
+        return try {
+            val credential = GoogleAuthProvider.getCredential(idToken, null)
+            val result = auth.signInWithCredential(credential).await()
+            
+            // Guardar estado de login (para Google no guardamos email/password)
+            sharedPreferences.edit().apply {
+                putBoolean(KEY_IS_LOGGED_IN, true)
+                putLong(KEY_LAST_LOGIN, System.currentTimeMillis())
+                // Guardar el email si existe para futuras referencias
+                result.user?.email?.let {
+                    putString(KEY_USER_EMAIL, it)
+                }
+                // No guardamos password para Google Sign In
+                remove(KEY_USER_PASSWORD)
+                apply()
+            }
+            
+            Result.success(Unit)
+        } catch (e: FirebaseAuthException) {
+            // Verificar si el error es "email already in use"
+            val errorCode = e.errorCode
+            if (errorCode == "ERROR_EMAIL_ALREADY_IN_USE" || errorCode == "ERROR_ACCOUNT_EXISTS_WITH_DIFFERENT_CREDENTIAL") {
+                // El email ya está registrado con otro método de autenticación
+                // Necesitamos obtener el email del ID token de Google
+                // El email debería venir en el mensaje de error o podemos decodificarlo del token
+                try {
+                    // Extraer el email del mensaje de error si es posible
+                    val errorMessage = e.message ?: ""
+                    val emailRegex = Regex("""[\w\.-]+@[\w\.-]+\.\w+""")
+                    val emailMatch = emailRegex.find(errorMessage)
+                    val extractedEmail = emailMatch?.value
+                    
+                    // Usar el email pasado como parámetro, el extraído del error, o el guardado
+                    val finalEmail = email ?: extractedEmail ?: sharedPreferences.getString(KEY_USER_EMAIL, null)
+                    
+                    if (finalEmail != null) {
+                        // Intentar hacer login con email/password si tenemos las credenciales guardadas
+                        val savedPassword = sharedPreferences.getString(KEY_USER_PASSWORD, null)
+                        
+                        if (savedPassword != null) {
+                            // Tenemos las credenciales guardadas, hacer login y vincular
+                            try {
+                                val loginResult = auth.signInWithEmailAndPassword(finalEmail, savedPassword).await()
+                                // Ahora vincular la credencial de Google
+                                val googleCredential = GoogleAuthProvider.getCredential(idToken, null)
+                                loginResult.user?.linkWithCredential(googleCredential)?.await()
+                                
+                                // Guardar estado de login
+                                sharedPreferences.edit().apply {
+                                    putBoolean(KEY_IS_LOGGED_IN, true)
+                                    putLong(KEY_LAST_LOGIN, System.currentTimeMillis())
+                                    putString(KEY_USER_EMAIL, finalEmail)
+                                    // Mantener password guardada para futuros logins
+                                    apply()
+                                }
+                                
+                                Result.success(Unit)
+                            } catch (linkError: Exception) {
+                                logout()
+                                Result.failure(Exception("Error al vincular cuenta de Google. Por favor, intenta iniciar sesión con email y contraseña primero."))
+                            }
+                        } else {
+                            // No tenemos las credenciales guardadas, necesitamos que el usuario ingrese su contraseña
+                            logout()
+                            Result.failure(AccountMergeRequiredException(finalEmail, "Ya existe una cuenta con este email. Por favor, ingresa tu contraseña para vincular tu cuenta de Google."))
+                        }
+                    } else {
+                        logout()
+                        Result.failure(Exception("Ya existe una cuenta con este email usando otro método de autenticación."))
+                    }
+                } catch (mergeError: Exception) {
+                    logout()
+                    Result.failure(Exception("Error al fusionar cuentas: ${mergeError.message}"))
+                }
+            } else {
+                // Otro error de Firebase Auth
+                logout()
+                Result.failure(Exception(e.message ?: "Error al iniciar sesión con Google"))
+            }
+        } catch (e: FirebaseNetworkException) {
+            logout()
+            Result.failure(Exception("Error de conexión. Por favor, verifica tu conexión a internet."))
+        } catch (e: Exception) {
+            logout()
+            Result.failure(Exception(e.message ?: "Error al iniciar sesión con Google"))
+        }
+    }
+    
+    /**
+     * Vincula una cuenta de Google a una cuenta existente de email/password
+     * El usuario debe estar autenticado previamente con email/password
+     */
+    suspend fun linkGoogleAccount(idToken: String, password: String): Result<Unit> {
+        return try {
+            val currentUser = auth.currentUser
+            if (currentUser == null) {
+                return Result.failure(Exception("No hay un usuario autenticado"))
+            }
+            
+            val googleCredential = GoogleAuthProvider.getCredential(idToken, null)
+            currentUser.linkWithCredential(googleCredential).await()
+            
+            // Actualizar estado
+            val email = currentUser.email
+            sharedPreferences.edit().apply {
+                putBoolean(KEY_IS_LOGGED_IN, true)
+                putLong(KEY_LAST_LOGIN, System.currentTimeMillis())
+                // Mantener email y password guardados para que puedan usar ambos métodos
+                if (email != null) {
+                    putString(KEY_USER_EMAIL, email)
+                    putString(KEY_USER_PASSWORD, password)
+                }
+                apply()
+            }
+            
+            Result.success(Unit)
+        } catch (e: FirebaseNetworkException) {
+            Result.failure(Exception("Error de conexión. Por favor, verifica tu conexión a internet."))
+        } catch (e: Exception) {
+            Result.failure(Exception(e.message ?: "Error al vincular cuenta de Google"))
         }
     }
 } 

@@ -1,0 +1,9 @@
+build:
+  maxIssues: 10
+style:
+  MagicNumber:
+    active: true
+    ignoreNumbers: [-1, 0, 1, 2]
+complexity:
+  LongMethod:
+    threshold: 60

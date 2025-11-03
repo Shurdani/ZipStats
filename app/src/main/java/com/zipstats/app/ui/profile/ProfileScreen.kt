@@ -78,6 +78,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.layout.ContentScale
@@ -108,12 +111,13 @@ fun ProfileScreen(
     onThemeModeChange: (ThemeMode) -> Unit,
     dynamicColorEnabled: Boolean,
     onDynamicColorChange: (Boolean) -> Unit,
-    viewModel: ProfileViewModel = hiltViewModel()
+    viewModel: ProfileViewModel = hiltViewModel(),
+    openAddVehicleDialog: Boolean = false
 ) {
     var showPhotoOptionsDialog by remember { mutableStateOf(false) }
     var showAvatarDialog by remember { mutableStateOf(false) }
     var showPermissionDialog by remember { mutableStateOf(false) }
-    var showAddScooterDialog by remember { mutableStateOf(false) }
+    var showAddScooterDialog by remember { mutableStateOf(openAddVehicleDialog) }
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -202,6 +206,13 @@ fun ProfileScreen(
 
     LaunchedEffect(Unit) {
         viewModel.handleEvent(ProfileEvent.LoadUserProfile)
+    }
+    
+    // Abrir diálogo de vehículo si viene el parámetro
+    LaunchedEffect(openAddVehicleDialog) {
+        if (openAddVehicleDialog) {
+            showAddScooterDialog = true
+        }
     }
 
     // Diálogo de opciones de foto
@@ -397,6 +408,11 @@ fun ProfileScreen(
         },
         snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { padding ->
+        val configuration = LocalConfiguration.current
+        val screenWidthDp = configuration.screenWidthDp
+        val isSmallScreen = screenWidthDp < 360
+        val cardPadding = if (isSmallScreen) 8.dp else 16.dp
+        
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -421,7 +437,7 @@ fun ProfileScreen(
                         Card(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(16.dp),
+                                .padding(cardPadding),
                             colors = CardDefaults.cardColors(
                                 containerColor = MaterialTheme.colorScheme.surface
                             ),
@@ -430,7 +446,7 @@ fun ProfileScreen(
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(16.dp),
+                                    .padding(cardPadding),
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(16.dp)
                             ) {
@@ -458,7 +474,7 @@ fun ProfileScreen(
                                                 contentDescription = "Foto de perfil no encontrada",
                                                 modifier = Modifier
                                                     .fillMaxSize()
-                                                    .padding(16.dp),
+                                                    .padding(cardPadding),
                                                 tint = MaterialTheme.colorScheme.onSurfaceVariant
                                             )
                                         }
@@ -476,7 +492,7 @@ fun ProfileScreen(
                                             contentDescription = "Foto de perfil por defecto",
                                             modifier = Modifier
                                                 .fillMaxSize()
-                                                .padding(16.dp),
+                                                .padding(cardPadding),
                                             tint = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                     }

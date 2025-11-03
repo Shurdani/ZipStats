@@ -2,8 +2,8 @@ package com.zipstats.app.ui.auth
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.zipstats.app.repository.AccountMergeRequiredException
 import com.zipstats.app.repository.AuthRepository
-import com.zipstats.app.repository.EmailNotVerifiedException
 import com.zipstats.app.repository.UserRepository
 import com.google.firebase.auth.FirebaseAuth
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -67,17 +67,8 @@ class AuthViewModel @Inject constructor(
                     _authState.value = AuthState.Success
                 } else {
                     val exception = result.exceptionOrNull()
-                    when (exception) {
-                        is EmailNotVerifiedException -> {
-                            _authState.value = AuthState.EmailNotVerified
-                        }
-                        else -> {
-                            _authState.value = AuthState.Error(exception?.message ?: "Error al iniciar sesión")
-                        }
-                    }
+                    _authState.value = AuthState.Error(exception?.message ?: "Error al iniciar sesión")
                 }
-            } catch (e: EmailNotVerifiedException) {
-                _authState.value = AuthState.EmailNotVerified
             } catch (e: Exception) {
                 _authState.value = AuthState.Error(e.message ?: "Error al iniciar sesión")
             }
@@ -93,7 +84,7 @@ class AuthViewModel @Inject constructor(
                 if (result.isSuccess) {
                     // Crear documento de usuario en Firestore
                     userRepository.createUser(email, name)
-                    _authState.value = AuthState.EmailVerificationSent
+                    _authState.value = AuthState.Success
                 } else {
                     _authState.value = AuthState.Error(result.exceptionOrNull()?.message ?: "Error al registrar usuario")
                 }
@@ -161,6 +152,99 @@ class AuthViewModel @Inject constructor(
     fun getCurrentUserEmail(): String? {
         return authRepository.getCurrentUserEmail()
     }
+
+    fun signInWithGoogle(idToken: String, email: String? = null) {
+        viewModelScope.launch {
+            try {
+                _authState.value = AuthState.Loading
+                val result = authRepository.signInWithGoogle(idToken, email)
+                if (result.isSuccess) {
+                    // Verificar si es un usuario nuevo y crear el documento en Firestore si es necesario
+                    val currentUser = auth.currentUser
+                    if (currentUser != null) {
+                        // Intentar obtener el usuario de Firestore para ver si existe
+                        try {
+                            val userDoc = userRepository.getUser(currentUser.uid)
+                            if (userDoc == null) {
+                                // Usuario nuevo, crear documento en Firestore
+                                val displayName = currentUser.displayName ?: currentUser.email?.substringBefore("@") ?: "Usuario"
+                                userRepository.createUser(currentUser.email ?: "", displayName)
+                            }
+                        } catch (e: Exception) {
+                            // Si no existe, crear el documento
+                            try {
+                                val displayName = currentUser.displayName ?: currentUser.email?.substringBefore("@") ?: "Usuario"
+                                userRepository.createUser(currentUser.email ?: "", displayName)
+                            } catch (createError: Exception) {
+                                // Log error pero no fallar la autenticación
+                                android.util.Log.e("AuthViewModel", "Error al crear usuario en Firestore", createError)
+                            }
+                        }
+                    }
+                    _authState.value = AuthState.Success
+                } else {
+                    val exception = result.exceptionOrNull()
+                    when (exception) {
+                        is AccountMergeRequiredException -> {
+                            _authState.value = AuthState.AccountMergeRequired(exception.email)
+                        }
+                        else -> {
+                            _authState.value = AuthState.Error(exception?.message ?: "Error al iniciar sesión con Google")
+                        }
+                    }
+                }
+            } catch (e: AccountMergeRequiredException) {
+                _authState.value = AuthState.AccountMergeRequired(e.email)
+            } catch (e: Exception) {
+                _authState.value = AuthState.Error(e.message ?: "Error al iniciar sesión con Google")
+            }
+        }
+    }
+
+    fun linkGoogleAccount(idToken: String, email: String, password: String) {
+        viewModelScope.launch {
+            try {
+                _authState.value = AuthState.Loading
+                // Primero hacer login con email/password para obtener el usuario actual
+                val loginResult = authRepository.login(email, password)
+                if (loginResult.isSuccess) {
+                    // Ahora vincular la cuenta de Google
+                    val linkResult = authRepository.linkGoogleAccount(idToken, password)
+                    if (linkResult.isSuccess) {
+                        // Verificar si es un usuario nuevo y crear el documento en Firestore si es necesario
+                        val currentUser = auth.currentUser
+                        if (currentUser != null) {
+                            // Intentar obtener el usuario de Firestore para ver si existe
+                            try {
+                                val userDoc = userRepository.getUser(currentUser.uid)
+                                if (userDoc == null) {
+                                    // Usuario nuevo, crear documento en Firestore
+                                    val displayName = currentUser.displayName ?: currentUser.email?.substringBefore("@") ?: "Usuario"
+                                    userRepository.createUser(currentUser.email ?: "", displayName)
+                                }
+                            } catch (e: Exception) {
+                                // Si no existe, crear el documento
+                                try {
+                                    val displayName = currentUser.displayName ?: currentUser.email?.substringBefore("@") ?: "Usuario"
+                                    userRepository.createUser(currentUser.email ?: "", displayName)
+                                } catch (createError: Exception) {
+                                    // Log error pero no fallar la autenticación
+                                    android.util.Log.e("AuthViewModel", "Error al crear usuario en Firestore", createError)
+                                }
+                            }
+                        }
+                        _authState.value = AuthState.Success
+                    } else {
+                        _authState.value = AuthState.Error(linkResult.exceptionOrNull()?.message ?: "Error al vincular cuenta de Google")
+                    }
+                } else {
+                    _authState.value = AuthState.Error(loginResult.exceptionOrNull()?.message ?: "Contraseña incorrecta")
+                }
+            } catch (e: Exception) {
+                _authState.value = AuthState.Error(e.message ?: "Error al vincular cuenta de Google")
+            }
+        }
+    }
 }
 
 sealed class AuthState {
@@ -170,5 +254,6 @@ sealed class AuthState {
     object ResetEmailSent : AuthState()
     object EmailVerificationSent : AuthState()
     object EmailNotVerified : AuthState()
+    data class AccountMergeRequired(val email: String) : AuthState()
     data class Error(val message: String) : AuthState()
 } 

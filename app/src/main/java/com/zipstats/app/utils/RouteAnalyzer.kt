@@ -1,4 +1,4 @@
-package com.zipstats.app.util
+package com.zipstats.app.utils
 
 import android.location.Location
 import com.zipstats.app.model.RoutePoint
@@ -349,3 +349,4 @@ class RouteAnalyzer {
         return if (timeDiff > 0) (distance / timeDiff) * 3.6f else 0f
     }
 }
+

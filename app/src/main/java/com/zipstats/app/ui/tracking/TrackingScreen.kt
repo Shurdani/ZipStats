@@ -1,6 +1,8 @@
 package com.zipstats.app.ui.tracking
 
 import android.Manifest
+import android.app.Activity
+import android.view.WindowManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
@@ -21,12 +23,15 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.clickable
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.zipstats.app.model.Scooter
@@ -37,7 +42,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.res.painterResource
 import com.zipstats.app.R
-import com.zipstats.app.util.LocationUtils
+import com.zipstats.app.utils.LocationUtils
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
@@ -45,6 +50,8 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import java.text.SimpleDateFormat
 import java.util.*
 import kotlin.math.roundToInt
+import com.zipstats.app.repository.SettingsRepository
+import androidx.compose.foundation.rememberScrollState
 
 /**
  * Pantalla principal para el seguimiento de rutas GPS
@@ -58,12 +65,28 @@ fun TrackingScreen(
 ) {
     val context = LocalContext.current
     val permissionManager = remember { PermissionManager(context) }
+    val settingsRepository = remember { SettingsRepository(context) }
+    val keepScreenOnEnabled by settingsRepository.keepScreenOnDuringTrackingFlow.collectAsState(initial = false)
     
     // Manager de estado global
     val trackingStateManager = TrackingStateManager
     
     // Estados del ViewModel
     val trackingState by viewModel.trackingState.collectAsState()
+    val isTracking = trackingState is TrackingState.Tracking
+    
+    // Mantener la pantalla encendida durante el tracking si está habilitado
+    DisposableEffect(keepScreenOnEnabled, isTracking) {
+        val window = (context as? Activity)?.window
+        if (keepScreenOnEnabled && isTracking && window != null) {
+            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            onDispose {
+                window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            }
+        } else {
+            onDispose { }
+        }
+    }
     val selectedScooter by viewModel.selectedScooter.collectAsState()
     val scooters by viewModel.scooters.collectAsState()
     val currentDistance by viewModel.currentDistance.collectAsState()
@@ -530,6 +553,13 @@ fun TrackingActiveContent(
     val isPaused = trackingState is TrackingState.Paused
     val isSaving = trackingState is TrackingState.Saving
     
+    val configuration = LocalConfiguration.current
+    val screenWidthDp = configuration.screenWidthDp
+    val isSmallScreen = screenWidthDp < 360
+    val verticalSpacing = if (isSmallScreen) 16.dp else 24.dp
+    val mediumSpacing = if (isSmallScreen) 12.dp else 16.dp
+    val largeSpacing = if (isSmallScreen) 24.dp else 32.dp
+    
     Column(
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally
@@ -537,7 +567,7 @@ fun TrackingActiveContent(
         // Indicador animado
         AnimatedTrackingIndicator(isPaused = isPaused, signalStrength = gpsSignalStrength)
         
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(verticalSpacing))
         
         // Indicador de clima
         WeatherStatusIndicator(
@@ -545,7 +575,7 @@ fun TrackingActiveContent(
             onFetchWeatherClick = onFetchWeather
         )
         
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(mediumSpacing))
         
         // Estadísticas principales
         StatsGrid(
@@ -555,7 +585,7 @@ fun TrackingActiveContent(
             pointsCount = pointsCount
         )
         
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(largeSpacing))
         
         // Controles
         if (!isSaving) {
@@ -567,49 +597,63 @@ fun TrackingActiveContent(
                 FloatingActionButton(
                     onClick = { if (isPaused) onResume() else onPause() },
                     containerColor = if (isPaused) MaterialTheme.colorScheme.primary 
-                                   else MaterialTheme.colorScheme.tertiary
+                                   else MaterialTheme.colorScheme.tertiary,
+                    modifier = Modifier.size(if (isSmallScreen) 48.dp else 56.dp)
                 ) {
                     Icon(
                         imageVector = if (isPaused) Icons.Default.PlayArrow else Icons.Default.Pause,
                         contentDescription = if (isPaused) "Reanudar" else "Pausar",
-                        modifier = Modifier.size(32.dp)
+                        modifier = Modifier.size(if (isSmallScreen) 24.dp else 32.dp)
                     )
                 }
                 
                 // Botón finalizar
                 FloatingActionButton(
                     onClick = onFinish,
-                    containerColor = MaterialTheme.colorScheme.primary
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(if (isSmallScreen) 48.dp else 56.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Default.Check,
                         contentDescription = "Finalizar",
-                        modifier = Modifier.size(32.dp)
+                        modifier = Modifier.size(if (isSmallScreen) 24.dp else 32.dp)
                     )
                 }
                 
                 // Botón cancelar
                 FloatingActionButton(
                     onClick = onCancel,
-                    containerColor = MaterialTheme.colorScheme.error
+                    containerColor = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.size(if (isSmallScreen) 48.dp else 56.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Default.Close,
                         contentDescription = "Cancelar",
-                        modifier = Modifier.size(32.dp)
+                        modifier = Modifier.size(if (isSmallScreen) 24.dp else 32.dp)
                     )
                 }
             }
         } else {
             CircularProgressIndicator()
-            Spacer(modifier = Modifier.height(16.dp))
-            Text("Guardando ruta...")
+            Spacer(modifier = Modifier.height(mediumSpacing))
+            Text(
+                text = "Guardando ruta...",
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    fontSize = if (isSmallScreen) 12.sp else MaterialTheme.typography.bodyMedium.fontSize
+                )
+            )
         }
     }
 }
 
 @Composable
 fun AnimatedTrackingIndicator(isPaused: Boolean, signalStrength: Float) {
+    val configuration = LocalConfiguration.current
+    val screenWidthDp = configuration.screenWidthDp
+    val isSmallScreen = screenWidthDp < 360
+    val indicatorSize = if (isSmallScreen) 80.dp else 100.dp
+    val iconSize = if (isSmallScreen) 96.dp else 120.dp
+    
     val infiniteTransition = rememberInfiniteTransition(label = "pulse")
     val scale by infiniteTransition.animateFloat(
         initialValue = 1f,
@@ -623,12 +667,12 @@ fun AnimatedTrackingIndicator(isPaused: Boolean, signalStrength: Float) {
     
     Box(
         contentAlignment = Alignment.Center,
-        modifier = Modifier.size(100.dp)
+        modifier = Modifier.size(indicatorSize)
     ) {
         if (!isPaused) {
             Box(
                 modifier = Modifier
-                    .size(100.dp * scale)
+                    .size(indicatorSize * scale)
                     .clip(CircleShape)
                     .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.2f))
             )
@@ -636,7 +680,7 @@ fun AnimatedTrackingIndicator(isPaused: Boolean, signalStrength: Float) {
         GpsIconWithSignalRing(
             signalStrength = signalStrength,
             isPaused = isPaused,
-            modifier = Modifier.size(120.dp)
+            modifier = Modifier.size(iconSize)
         )
     }
 }
@@ -648,40 +692,49 @@ fun StatsGrid(
     duration: Long,
     pointsCount: Int
 ) {
+    val configuration = LocalConfiguration.current
+    val screenWidthDp = configuration.screenWidthDp
+    val isSmallScreen = screenWidthDp < 360
+    val spacing = if (isSmallScreen) 8.dp else 16.dp
+    
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(16.dp)
+            horizontalArrangement = Arrangement.spacedBy(spacing)
         ) {
             StatCard(
                 title = "Distancia",
                 value = LocationUtils.formatDistance(distance),
                 icon = Icons.Default.Route,
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f),
+                isSmallScreen = isSmallScreen
             )
             StatCard(
                 title = "Velocidad",
                 value = LocationUtils.formatSpeed(speed),
                 icon = Icons.Default.Speed,
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f),
+                isSmallScreen = isSmallScreen
             )
         }
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(spacing))
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(16.dp)
+            horizontalArrangement = Arrangement.spacedBy(spacing)
         ) {
             StatCard(
                 title = "Duración",
                 value = formatDuration(duration),
                 icon = Icons.Default.Timer,
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f),
+                isSmallScreen = isSmallScreen
             )
             StatCard(
                 title = "Puntos GPS",
                 value = pointsCount.toString(),
                 icon = Icons.Default.Place,
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f),
+                isSmallScreen = isSmallScreen
             )
         }
     }
@@ -692,7 +745,8 @@ fun StatCard(
     title: String,
     value: String,
     icon: androidx.compose.ui.graphics.vector.ImageVector,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isSmallScreen: Boolean = false
 ) {
     Card(
         modifier = modifier,
@@ -703,26 +757,34 @@ fun StatCard(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
+                .padding(if (isSmallScreen) 8.dp else 16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                modifier = Modifier.size(24.dp),
+                modifier = Modifier.size(if (isSmallScreen) 20.dp else 24.dp),
                 tint = MaterialTheme.colorScheme.onPrimaryContainer
             )
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(if (isSmallScreen) 4.dp else 8.dp))
             Text(
                 text = value,
-                style = MaterialTheme.typography.titleMedium,
+                style = MaterialTheme.typography.titleMedium.copy(
+                    fontSize = if (isSmallScreen) 14.sp else MaterialTheme.typography.titleMedium.fontSize
+                ),
                 fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onPrimaryContainer
+                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
             )
             Text(
                 text = title,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+                style = MaterialTheme.typography.bodySmall.copy(
+                    fontSize = if (isSmallScreen) 10.sp else MaterialTheme.typography.bodySmall.fontSize
+                ),
+                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f),
+                maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
             )
         }
     }
@@ -837,7 +899,7 @@ fun FinishRouteDialog(
                 OutlinedTextField(
                     value = notes,
                     onValueChange = { notes = it },
-                    label = { Text("Notas (opcional)") },
+                    label = { Text("Título (opcional)") },
                     modifier = Modifier.fillMaxWidth(),
                     maxLines = 3
                 )

@@ -18,7 +18,7 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.zipstats.app.MainActivity
 import com.zipstats.app.model.RoutePoint
-import com.zipstats.app.util.LocationUtils
+import com.zipstats.app.utils.LocationUtils
 import com.zipstats.app.tracking.LocationTracker
 import com.zipstats.app.tracking.SpeedCalculator
 import com.zipstats.app.tracking.SpeedPair

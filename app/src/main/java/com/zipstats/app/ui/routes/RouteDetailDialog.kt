@@ -1417,13 +1417,24 @@ private val cityAreas = listOf(
 /**
  * Obtiene el nombre de la ciudad basado en coordenadas GPS
  * Usa mapeo manual de ciudades españolas conocidas
+ * Si múltiples ciudades contienen las coordenadas, devuelve la más específica (área más pequeña)
  */
 private fun getCityName(latitude: Double?, longitude: Double?): String? {
     if (latitude == null || longitude == null) return null
     
-    return cityAreas.firstOrNull { city ->
+    // Encontrar todas las ciudades que contienen estas coordenadas
+    val matchingCities = cityAreas.filter { city ->
         latitude >= city.latMin && latitude <= city.latMax &&
         longitude >= city.lonMin && longitude <= city.lonMax
+    }
+    
+    // Si no hay coincidencias, devolver null
+    if (matchingCities.isEmpty()) return null
+    
+    // Si hay múltiples coincidencias, devolver la más específica (área más pequeña)
+    // Calcular área como: (latMax - latMin) * (lonMax - lonMin)
+    return matchingCities.minByOrNull { city ->
+        (city.latMax - city.latMin) * (city.lonMax - city.lonMin)
     }?.name
 }
 

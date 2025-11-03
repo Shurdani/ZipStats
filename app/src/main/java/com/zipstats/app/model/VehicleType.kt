@@ -42,7 +42,7 @@ enum class VehicleType(
     ),
     MONOCICLO(
         displayName = "Monociclo", 
-        emoji = "🛸",
+        emoji = "🛞",
         minSpeed = 5f,        // Reducido de 6f a 5f
         maxSpeed = 60f,
         pauseRadius = 10f,

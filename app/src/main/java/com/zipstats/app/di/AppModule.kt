@@ -10,6 +10,7 @@ import com.zipstats.app.repository.RepairRepository
 import com.zipstats.app.repository.RouteRepository
 import com.zipstats.app.repository.VehicleRepository
 import com.zipstats.app.utils.PreferencesManager
+import com.zipstats.app.utils.OnboardingManager
 import com.google.firebase.FirebaseApp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
@@ -121,6 +122,12 @@ object AppModule {
     @Singleton
     fun providePreferencesManager(@ApplicationContext context: Context): PreferencesManager {
         return PreferencesManager(context)
+    }
+    
+    @Provides
+    @Singleton
+    fun provideOnboardingManager(sharedPreferences: SharedPreferences): OnboardingManager {
+        return OnboardingManager(sharedPreferences)
     }
     
 } 

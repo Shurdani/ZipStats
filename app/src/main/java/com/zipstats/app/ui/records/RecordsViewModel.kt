@@ -13,7 +13,7 @@ import com.zipstats.app.model.Record
 import com.zipstats.app.model.Scooter
 import com.zipstats.app.repository.RecordRepository
 import com.zipstats.app.repository.VehicleRepository
-import com.zipstats.app.util.ExcelExporter
+import com.zipstats.app.utils.ExcelExporter
 import com.google.firebase.auth.FirebaseAuth
 import dagger.hilt.android.lifecycle.HiltViewModel
 import org.apache.poi.ss.usermodel.*
@@ -66,6 +66,14 @@ class RecordsViewModel @Inject constructor(
 
     private val _uiState = MutableStateFlow<RecordsUiState>(RecordsUiState.Loading)
     val uiState: StateFlow<RecordsUiState> = _uiState.asStateFlow()
+    
+    // Estado para controlar si el onboarding se ha descartado en esta sesión
+    private val _onboardingDismissedInSession = MutableStateFlow(false)
+    val onboardingDismissedInSession: StateFlow<Boolean> = _onboardingDismissedInSession.asStateFlow()
+    
+    fun markOnboardingDismissed() {
+        _onboardingDismissedInSession.value = true
+    }
 
     // Función auxiliar para validar fechas
     private fun isValidDate(dateStr: String): Boolean {

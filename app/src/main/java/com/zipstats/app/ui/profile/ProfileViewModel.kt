@@ -26,7 +26,7 @@ import com.zipstats.app.repository.RecordRepository
 import com.zipstats.app.repository.VehicleRepository
 import com.zipstats.app.repository.UserRepository
 import com.zipstats.app.repository.RepairRepository
-import com.zipstats.app.util.ExcelExporter
+import com.zipstats.app.utils.ExcelExporter
 import com.zipstats.app.utils.DateUtils
 import com.google.firebase.auth.EmailAuthProvider
 import org.apache.poi.ss.usermodel.*
@@ -43,6 +43,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -95,6 +96,7 @@ sealed class ProfileEvent {
 class ProfileViewModel @Inject constructor(
     private val userRepository: UserRepository,
     private val vehicleRepository: VehicleRepository,
+    private val onboardingManager: com.zipstats.app.utils.OnboardingManager,
     private val recordRepository: RecordRepository,
     private val repairRepository: RepairRepository,
     private val routeRepository: com.zipstats.app.repository.RouteRepository,
@@ -131,6 +133,41 @@ class ProfileViewModel @Inject constructor(
 
     init {
         loadUserProfile()
+        observeVehicles()
+    }
+    
+    // Observar cambios en los vehículos y registros para actualizar la UI automáticamente
+    private fun observeVehicles() {
+        viewModelScope.launch {
+            // Combinar los Flows de vehículos y registros para actualizar automáticamente
+            combine(
+                vehicleRepository.getScooters(),
+                recordRepository.getRecords()
+            ) { scooters, records ->
+                // Calcular kilometraje total para cada patinete
+                val scootersWithKm = scooters.map { scooter ->
+                    val scooterRecords = records.filter { it.patinete == scooter.nombre }
+                    val totalKm = scooterRecords.sumOf { it.diferencia }
+                    scooter.copy(kilometrajeActual = totalKm)
+                }
+                
+                // Calcular logros desbloqueados
+                val stats = recordRepository.getAchievementStats()
+                val unlockedAchievements = calculateUnlockedAchievements(stats)
+                
+                // Actualizar el estado
+                val currentUser = _user.value
+                if (currentUser != null) {
+                    val currentState = _uiState.value
+                    if (currentState is ProfileUiState.Success) {
+                        _uiState.value = currentState.copy(
+                            scooters = scootersWithKm,
+                            unlockedAchievements = unlockedAchievements
+                        )
+                    }
+                }
+            }.collect { }
+        }
     }
     
     // Eliminado: ahora se usa achievementsService.allAchievements
@@ -459,7 +496,8 @@ class ProfileViewModel @Inject constructor(
     private fun loadUserScooters() {
         viewModelScope.launch {
             try {
-                val scooters = vehicleRepository.getUserScooters()
+                // Usar el Flow para obtener la lista más actualizada
+                val scooters = vehicleRepository.getScooters().first()
                 val records = recordRepository.getRecords().first()
                 
                 // Calcular kilometraje total para cada patinete
@@ -497,7 +535,12 @@ class ProfileViewModel @Inject constructor(
                     fechaCompra = fechaFormateada,
                     vehicleType = vehicleType
                 )
-                loadUserScooters()
+                
+                // No necesitamos llamar a loadUserScooters() porque el Flow
+                // se actualizará automáticamente cuando Firestore detecte el cambio
+                
+                // No necesitamos marcar el onboarding como completado
+                // El diálogo simplemente no aparecerá cuando haya vehículos registrados
             } catch (e: Exception) {
                 Log.e("ProfileViewModel", "Error adding scooter", e)
                 _uiState.update { currentState ->
@@ -531,8 +574,9 @@ class ProfileViewModel @Inject constructor(
                 )
                 
                 vehicleRepository.updateScooter(updatedScooter)
-                loadUserScooters()
-                loadUserProfile() // Recargar el perfil completo para actualizar la UI
+                
+                // No necesitamos llamar a loadUserScooters() o loadUserProfile() porque el Flow
+                // se actualizará automáticamente cuando Firestore detecte el cambio
             } catch (e: Exception) {
                 Log.e("ProfileViewModel", "Error updating scooter", e)
                 _uiState.update { currentState ->
@@ -547,37 +591,114 @@ class ProfileViewModel @Inject constructor(
         }
     }
 
-    fun deleteScooter(scooterId: String) {
-        viewModelScope.launch {
-            try {
-                // Obtener el nombre del vehículo antes de eliminarlo para los registros
-                val scooter = vehicleRepository.getScooters().first().find { it.id == scooterId }
-                val scooterName = scooter?.nombre
-                
-                // Eliminar registros del vehículo
-                if (scooterName != null) {
-                    recordRepository.deleteScooterRecords(scooterName)
-                }
-                
-                // Eliminar rutas del vehículo
-                routeRepository.deleteScooterRoutes(scooterId)
-                
-                // Eliminar el vehículo
-                vehicleRepository.deleteScooter(scooterId)
-                
-                // Recargar la lista de vehículos
-                loadUserScooters()
-            } catch (e: Exception) {
-                Log.e("ProfileViewModel", "Error deleting scooter", e)
+    suspend fun deleteScooter(scooterId: String) {
+        try {
+            Log.d("ProfileViewModel", "=== INICIO ELIMINACIÓN VEHÍCULO ===")
+            Log.d("ProfileViewModel", "ID del vehículo a eliminar: $scooterId")
+            
+            // Obtener el nombre del vehículo antes de eliminarlo para los registros
+            val scooters = vehicleRepository.getScooters().first()
+            Log.d("ProfileViewModel", "Vehículos encontrados: ${scooters.size}")
+            val scooter = scooters.find { it.id == scooterId }
+            
+            if (scooter == null) {
+                Log.e("ProfileViewModel", "Vehículo no encontrado con ID: $scooterId")
                 _uiState.update { currentState ->
                     when (currentState) {
                         is ProfileUiState.Success -> {
-                            currentState.copy(message = "Error al eliminar el vehículo: ${e.message}")
+                            currentState.copy(message = "Vehículo no encontrado")
                         }
                         else -> currentState
                     }
                 }
+                return
             }
+            
+            val scooterName = scooter.nombre
+            Log.d("ProfileViewModel", "Nombre del vehículo: $scooterName")
+            
+            // Eliminar registros del vehículo (continuar incluso si falla)
+            try {
+                if (scooterName.isNotEmpty()) {
+                    Log.d("ProfileViewModel", "Eliminando registros del vehículo...")
+                    recordRepository.deleteScooterRecords(scooterName)
+                    Log.d("ProfileViewModel", "Registros eliminados correctamente")
+                }
+            } catch (e: Exception) {
+                Log.e("ProfileViewModel", "Error eliminando registros del vehículo", e)
+                // Continuar con la eliminación del vehículo
+            }
+            
+            // Eliminar rutas del vehículo (continuar incluso si falla)
+            try {
+                Log.d("ProfileViewModel", "Eliminando rutas del vehículo...")
+                val routesResult = routeRepository.deleteScooterRoutes(scooterId)
+                routesResult.fold(
+                    onSuccess = { Log.d("ProfileViewModel", "Rutas eliminadas correctamente") },
+                    onFailure = { e -> 
+                        if (e !is kotlinx.coroutines.CancellationException) {
+                            Log.e("ProfileViewModel", "Error eliminando rutas del vehículo", e)
+                        }
+                    }
+                )
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e // Re-lanzar cancelación
+            } catch (e: Exception) {
+                Log.e("ProfileViewModel", "Error eliminando rutas del vehículo", e)
+                // Continuar con la eliminación del vehículo
+            }
+            
+            // Eliminar el vehículo (esta es la operación principal)
+            Log.d("ProfileViewModel", "Eliminando vehículo de Firestore...")
+            vehicleRepository.deleteScooter(scooterId)
+            Log.d("ProfileViewModel", "Vehículo eliminado de Firestore correctamente")
+            
+            // Esperar un momento para que Firestore propague el cambio
+            kotlinx.coroutines.delay(500)
+            
+            // Verificar que el vehículo ya no existe
+            val remainingScooters = vehicleRepository.getScooters().first()
+            val stillExists = remainingScooters.any { it.id == scooterId }
+            if (stillExists) {
+                Log.w("ProfileViewModel", "El vehículo todavía existe después de la eliminación. Reintentando...")
+                // Reintentar la eliminación
+                vehicleRepository.deleteScooter(scooterId)
+                kotlinx.coroutines.delay(500)
+            }
+            
+            Log.d("ProfileViewModel", "=== ELIMINACIÓN COMPLETADA ===")
+            
+            // No necesitamos esperar ni recargar manualmente porque el Flow
+            // se actualizará automáticamente cuando Firestore detecte el cambio
+            // El observador continuo en observeVehicles() actualizará la UI
+            
+            // Mostrar mensaje de éxito
+            _uiState.update { currentState ->
+                when (currentState) {
+                    is ProfileUiState.Success -> {
+                        currentState.copy(message = "Vehículo eliminado correctamente")
+                    }
+                    else -> currentState
+                }
+            }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            // Si se cancela, simplemente loguear y no mostrar error al usuario
+            Log.d("ProfileViewModel", "Eliminación de vehículo cancelada")
+            throw e // Re-lanzar para que la cancelación se propague correctamente
+        } catch (e: Exception) {
+            Log.e("ProfileViewModel", "=== ERROR EN ELIMINACIÓN ===")
+            Log.e("ProfileViewModel", "Tipo de error: ${e.javaClass.simpleName}")
+            Log.e("ProfileViewModel", "Mensaje: ${e.message}")
+            Log.e("ProfileViewModel", "Stack trace:", e)
+            _uiState.update { currentState ->
+                when (currentState) {
+                    is ProfileUiState.Success -> {
+                        currentState.copy(message = "Error al eliminar el vehículo: ${e.message}")
+                    }
+                    else -> currentState
+                }
+            }
+            throw e // Re-lanzar el error para que el caller sepa que falló
         }
     }
 

@@ -5,11 +5,12 @@ plugins {
     id 'kotlin-kapt'
     id 'dagger.hilt.android.plugin'
     id 'com.google.gms.google-services'
+    
 }
 
 android {
     namespace 'com.zipstats.app'
-    compileSdk 34
+    compileSdk 35
 
     // Leer credenciales de Cloudinary desde local.properties
     def localProperties = new Properties()
@@ -22,8 +23,8 @@ android {
         applicationId "com.zipstats.app"
         minSdk 31
         targetSdk 34
-        versionCode 9
-        versionName "2.9"
+        versionCode 10
+        versionName "3.0"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -105,16 +106,16 @@ dependencies {
     implementation 'androidx.compose.ui:ui-tooling-preview'
     implementation 'androidx.compose.material3:material3'
     implementation 'androidx.activity:activity-compose:1.8.2'
-    implementation 'androidx.navigation:navigation-compose:2.7.6'
-    implementation 'androidx.navigation:navigation-runtime-ktx:2.7.6'
+    implementation 'androidx.navigation:navigation-compose:2.9.5'
+    implementation 'androidx.navigation:navigation-runtime-ktx:2.9.5'
 
     // --- Hilt (actualizado y compatible con Kotlin 2.2.20) ---
-    implementation "com.google.dagger:hilt-android:2.55"
-    kapt "com.google.dagger:hilt-compiler:2.55"
+    implementation "com.google.dagger:hilt-android:2.57.2"
+    kapt "com.google.dagger:hilt-compiler:2.57.2"
     implementation 'androidx.hilt:hilt-navigation-compose:1.2.0'
 
     // --- Google Play Services / Maps ---
-    implementation 'com.google.android.gms:play-services-base:18.2.0'
+    implementation 'com.google.android.gms:play-services-base:18.9.0'
     implementation 'com.google.android.gms:play-services-maps:18.2.0'
     implementation 'com.google.android.gms:play-services-location:21.0.1'
     implementation 'com.google.maps.android:maps-compose:4.3.0'
@@ -126,6 +127,9 @@ dependencies {
     implementation 'com.google.firebase:firebase-firestore-ktx'
     implementation 'com.google.firebase:firebase-storage-ktx'
     implementation 'com.google.firebase:firebase-analytics-ktx'
+    
+    // --- Google Sign In ---
+    implementation 'com.google.android.gms:play-services-auth:21.2.0'
 
     // --- Cloudinary ---
     implementation 'com.cloudinary:cloudinary-android:3.1.1'
@@ -158,7 +162,7 @@ dependencies {
     // --- Testing ---
     testImplementation 'junit:junit:4.13.2'
     androidTestImplementation 'androidx.test.ext:junit:1.1.5'
-    androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'
+    androidTestImplementation 'androidx.test.espresso:espresso-core:3.7.0'
     androidTestImplementation 'androidx.compose.ui:ui-test-junit4:1.5.4'
     debugImplementation 'androidx.compose.ui:ui-tooling:1.5.4'
     debugImplementation 'androidx.compose.ui:ui-test-manifest:1.5.4'

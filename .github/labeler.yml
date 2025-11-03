@@ -1,38 +1,39 @@
 # Configuración para auto-etiquetado de PRs basado en archivos modificados
+# Formato para actions/labeler@v5
 
-🎨 ui:
+ui:
   - app/src/main/java/com/zipstats/app/ui/**/*
 
-✨ feature:
+feature:
   - app/src/main/java/com/zipstats/app/ui/**/*
   - app/src/main/java/com/zipstats/app/service/**/*
 
-🐛 bug:
+bug:
   - app/src/main/java/com/zipstats/app/**/*
 
-🔧 refactor:
+refactor:
   - app/src/main/java/com/zipstats/app/**/*
   - build.gradle
   - app/build.gradle
   - gradle/**/*
 
-📝 documentation:
+documentation:
   - README.md
   - CHANGELOG.md
   - .github/**/*.md
   - docs/**/*
 
-🧪 tests:
+tests:
   - app/src/test/**/*
   - app/src/androidTest/**/*
 
-🔒 security:
+security:
   - .github/workflows/**/*
   - .github/SECURITY_*.md
   - app/src/main/java/com/zipstats/app/repository/**/*
   - app/src/main/java/com/zipstats/app/auth/**/*
 
-⚙️ config:
+config:
   - build.gradle
   - app/build.gradle
   - gradle.properties
@@ -40,7 +41,7 @@
   - .github/**/*.yml
   - .github/**/*.yaml
 
-🚀 release:
+release:
   - app/build.gradle
   - README.md
   - CHANGELOG.md

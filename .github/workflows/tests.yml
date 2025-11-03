@@ -26,11 +26,54 @@ jobs:
     - name: Grant execute permission to gradlew
       run: chmod +x ./gradlew
 
+    - name: Create dummy google-services.json for tests
+      run: |
+        mkdir -p app/src/debug app/src/release
+        cat > app/google-services.json << 'EOF'
+        {
+          "project_info": {
+            "project_number": "123456789",
+            "project_id": "dummy-project",
+            "storage_bucket": "dummy-project.appspot.com"
+          },
+          "client": [
+            {
+              "client_info": {
+                "mobilesdk_app_id": "1:123456789:android:dummy",
+                "android_client_info": {
+                  "package_name": "com.zipstats.app"
+                }
+              },
+              "oauth_client": [],
+              "api_key": [
+                {
+                  "current_key": "dummy-api-key-for-tests"
+                }
+              ],
+              "services": {
+                "appinvite_service": {
+                  "other_platform_oauth_client": []
+                }
+              }
+            }
+          ],
+          "configuration_version": "1"
+        }
+        EOF
+        cp app/google-services.json app/src/debug/google-services.json 2>/dev/null || true
+        cp app/google-services.json app/src/release/google-services.json 2>/dev/null || true
+
     - name: Run unit tests
-      run: ./gradlew test --no-daemon
+      env:
+        ORG_GRADLE_JAVA_HOME: ${{ env.JAVA_HOME }}
+        GRADLE_OPTS: "-Dorg.gradle.java.home=${{ env.JAVA_HOME }}"
+      run: ./gradlew test --no-daemon -Dorg.gradle.java.home=${{ env.JAVA_HOME }}
 
     - name: Build debug APK
-      run: ./gradlew assembleDebug --no-daemon
+      env:
+        ORG_GRADLE_JAVA_HOME: ${{ env.JAVA_HOME }}
+        GRADLE_OPTS: "-Dorg.gradle.java.home=${{ env.JAVA_HOME }}"
+      run: ./gradlew assembleDebug --no-daemon -Dorg.gradle.java.home=${{ env.JAVA_HOME }}
 
     - name: Upload test results
       if: always()

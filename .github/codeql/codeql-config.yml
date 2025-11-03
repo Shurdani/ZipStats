@@ -1,0 +1,24 @@
+# CodeQL configuration file
+# This file helps CodeQL analyze the codebase correctly
+
+name: "CodeQL Config for ZipStats"
+
+# Paths to analyze
+paths:
+  - "app/src/main/java"
+  - "app/src/main/kotlin"
+
+# Paths to exclude
+paths-ignore:
+  - "**/test/**"
+  - "**/androidTest/**"
+  - "**/build/**"
+
+# Query suites to use
+query-filters:
+  - include:
+      kind: problem
+      precision: high
+  - exclude:
+      id: java/insecure-temporary-file
+

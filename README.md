@@ -2,6 +2,8 @@
 
 **Aplicación Android para tracking GPS de patinetes, bicicletas y otros vehículos personales.**
 
+<!-- Test commit para verificar workflows -->
+
 [![Version](https://img.shields.io/badge/Version-3.0-brightgreen.svg)](https://github.com/shurdani/Patinetatrack/releases)
 [![Kotlin](https://img.shields.io/badge/Kotlin-2.0.0-blue.svg)](https://kotlinlang.org)
 [![Android](https://img.shields.io/badge/Android-API%2031%2B-green.svg)](https://developer.android.com)

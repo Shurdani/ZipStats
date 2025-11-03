@@ -96,12 +96,16 @@ jobs:
         build-mode: ${{ matrix.build-mode }}
         config-file: .github/codeql/codeql-config.yml
 
-    # Build manually - CodeQL will automatically trace Gradle builds
-    # The build command must be executed after init
-    - name: Build with Gradle
+    # Build manually - CodeQL automatically traces Gradle when build-mode is manual
+    # The build must succeed for CodeQL to detect compiled code
+    - name: Build with Gradle for CodeQL
       if: matrix.build-mode == 'manual'
       shell: bash
+      env:
+        CODEQL_RUNNER: ${{ env.CODEQL_RUNNER }}
       run: |
+        # When build-mode is manual, CodeQL sets up tracing automatically
+        # Just run the build command normally - CodeQL will wrap it
         ./gradlew clean assembleDebug --no-daemon
 
     - name: Perform CodeQL Analysis

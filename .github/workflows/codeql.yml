@@ -44,7 +44,6 @@ jobs:
       matrix:
         include:
         - language: java-kotlin
-          build-mode: manual
     
           # CodeQL supports the following values keywords for 'language': 'actions', 'c-cpp', 'csharp', 'go', 'java-kotlin', 'javascript-typescript', 'python', 'ruby', 'rust', 'swift'
           # Use `c-cpp` to analyze code written in C, C++ or both
@@ -112,7 +111,6 @@ jobs:
       uses: github/codeql-action/init@v4
       with:
         languages: ${{ matrix.language }}
-        build-mode: ${{ matrix.build-mode }}
         # If you wish to specify custom queries, you can do so here or in a config file.
         # By default, queries listed here will override any specified in a config file.
         # Prefix the list here with "+" to use these queries and those in the config file.
@@ -120,18 +118,10 @@ jobs:
         # For more details on CodeQL's query packs, refer to: https://docs.github.com/en/code-security/code-scanning/automatically-scanning-your-code-for-vulnerabilities-and-errors/configuring-code-scanning#using-queries-in-ql-packs
         # queries: security-extended,security-and-quality
 
-    # Build manually with CodeQL tracing
-    # When build-mode is manual, we need to run the build command
-    # CodeQL should automatically detect and trace Gradle builds
-    - name: Perform CodeQL Build
+    # Autobuild will detect Gradle and build automatically
+    # google-services.json dummy is already created above
+    - name: Autobuild
       uses: github/codeql-action/autobuild@v3
-      continue-on-error: true
-      
-    - name: Manual Build (if autobuild fails)
-      if: failure()
-      run: |
-        # Intentar build manual si autobuild falla
-        ./gradlew clean assembleDebug --no-daemon || echo "Build completed with errors, continuing for CodeQL..."
 
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v4

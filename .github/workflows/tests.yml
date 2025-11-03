@@ -28,7 +28,21 @@ jobs:
 
     - name: Install Android SDK components
       run: |
-        sdkmanager "platforms;android-35" "build-tools;35.0.0" || echo "SDK 35 not available, continuing..."
+        echo "Available SDK platforms:"
+        sdkmanager --list | grep "platforms;android-" | head -20
+        echo "Installing Android SDK 34 (stable for CI)..."
+        sdkmanager "platforms;android-34" "build-tools;34.0.0"
+        echo "Installing Android SDK 35 if available..."
+        sdkmanager "platforms;android-35" "build-tools;35.0.0" || echo "SDK 35 not yet available in CI"
+
+    - name: Adjust compileSdk for CI if needed
+      run: |
+        if [ ! -d "$ANDROID_SDK_ROOT/platforms/android-35" ]; then
+          echo "SDK 35 not available, adjusting compileSdk to 34 for CI..."
+          sed -i 's/compileSdk 35/compileSdk 34/' app/build.gradle
+          echo "Updated build.gradle:"
+          grep "compileSdk" app/build.gradle
+        fi
 
     - name: Grant execute permission to gradlew
       run: chmod +x ./gradlew
@@ -89,7 +103,16 @@ jobs:
       continue-on-error: true
 
     - name: Build debug APK
-      run: ./gradlew assembleDebug --stacktrace --info --no-daemon -Dorg.gradle.java.home=$JAVA_HOME
+      run: |
+        set -e
+        ./gradlew assembleDebug --stacktrace --no-daemon -Dorg.gradle.java.home=$JAVA_HOME 2>&1 | tee build.log
+        exit_code=${PIPESTATUS[0]}
+        if [ $exit_code -ne 0 ]; then
+          echo "::error::Build failed with exit code $exit_code"
+          echo "--- Last 100 lines of build log ---"
+          tail -100 build.log
+          exit $exit_code
+        fi
 
     - name: Upload test results
       if: always()

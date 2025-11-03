@@ -44,7 +44,6 @@ jobs:
       matrix:
         include:
         - language: java-kotlin
-          build-mode: none
     
           # CodeQL supports the following values keywords for 'language': 'actions', 'c-cpp', 'csharp', 'go', 'java-kotlin', 'javascript-typescript', 'python', 'ruby', 'rust', 'swift'
           # Use `c-cpp` to analyze code written in C, C++ or both
@@ -119,12 +118,10 @@ jobs:
         # For more details on CodeQL's query packs, refer to: https://docs.github.com/en/code-security/code-scanning/automatically-scanning-your-code-for-vulnerabilities-and-errors/configuring-code-scanning#using-queries-in-ql-packs
         # queries: security-extended,security-and-quality
 
-    # Build with CodeQL tracing - needs to be done manually to ensure google-services.json is available
-    - name: Build with CodeQL tracing
-      shell: bash
-      run: |
-        # Usar el comando codeql trace-command para rastrear el build
-        ./gradlew clean assembleDebug --no-daemon || true
+    # Autobuild detects the build system and runs the build with CodeQL tracing
+    # The google-services.json dummy is already created above
+    - name: Autobuild
+      uses: github/codeql-action/autobuild@v3
 
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v4

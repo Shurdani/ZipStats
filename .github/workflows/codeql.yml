@@ -47,6 +47,17 @@ jobs:
         java-version: '17'
         cache: 'gradle'
 
+    - name: Create dummy local.properties for CI
+      run: |
+        cat > local.properties << 'EOF'
+        # Dummy properties for CI builds
+        cloudinary.cloud_name=dummy_cloud
+        cloudinary.api_key=dummy_api_key
+        cloudinary.api_secret=dummy_api_secret
+        openweather.api.key=dummy_openweather_key
+        google.maps.api.key=dummy_google_maps_key
+        EOF
+
     - name: Create dummy google-services.json for CodeQL
       run: |
         mkdir -p app/src/debug app/src/release
@@ -100,6 +111,8 @@ jobs:
     # Esto es más confiable que el modo manual para proyectos Android/Gradle
     - name: Autobuild
       uses: github/codeql-action/autobuild@v4
+      env:
+        GRADLE_OPTS: "-Dorg.gradle.java.home=${{ env.JAVA_HOME }}"
 
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v4

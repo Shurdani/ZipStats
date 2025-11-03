@@ -26,6 +26,20 @@ jobs:
     - name: Grant execute permission to gradlew
       run: chmod +x ./gradlew
 
+    - name: Display Gradle version
+      run: ./gradlew --version
+
+    - name: Create dummy local.properties for CI
+      run: |
+        cat > local.properties << 'EOF'
+        # Dummy properties for CI builds
+        cloudinary.cloud_name=dummy_cloud
+        cloudinary.api_key=dummy_api_key
+        cloudinary.api_secret=dummy_api_secret
+        openweather.api.key=dummy_openweather_key
+        google.maps.api.key=dummy_google_maps_key
+        EOF
+
     - name: Create dummy google-services.json for tests
       run: |
         mkdir -p app/src/debug app/src/release
@@ -64,17 +78,11 @@ jobs:
         cp app/google-services.json app/src/release/google-services.json 2>/dev/null || true
 
     - name: Run unit tests
-      env:
-        ORG_GRADLE_JAVA_HOME: ${{ env.JAVA_HOME }}
-        GRADLE_OPTS: "-Dorg.gradle.java.home=${{ env.JAVA_HOME }}"
-      run: ./gradlew test --no-daemon -Dorg.gradle.java.home=${{ env.JAVA_HOME }}
+      run: ./gradlew test --stacktrace --no-daemon -Dorg.gradle.java.home=$JAVA_HOME
       continue-on-error: true
 
     - name: Build debug APK
-      env:
-        ORG_GRADLE_JAVA_HOME: ${{ env.JAVA_HOME }}
-        GRADLE_OPTS: "-Dorg.gradle.java.home=${{ env.JAVA_HOME }}"
-      run: ./gradlew assembleDebug --no-daemon -Dorg.gradle.java.home=${{ env.JAVA_HOME }}
+      run: ./gradlew assembleDebug --stacktrace --no-daemon -Dorg.gradle.java.home=$JAVA_HOME
 
     - name: Upload test results
       if: always()

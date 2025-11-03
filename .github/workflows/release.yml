@@ -9,6 +9,10 @@ jobs:
   build-release:
     name: Build and Release APK
     runs-on: ubuntu-latest
+    permissions:
+      contents: write      # Para crear releases
+      pull-requests: read  # Para leer PRs (changelog)
+      actions: read        # Para leer otros workflows
 
     steps:
     - name: Checkout repository

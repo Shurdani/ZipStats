@@ -22,6 +22,10 @@ jobs:
   bump-version:
     name: Bump Version
     runs-on: ubuntu-latest
+    permissions:
+      contents: write      # Para crear PRs
+      pull-requests: write # Para crear PRs
+      actions: read        # Para leer otros workflows
     
     steps:
     - name: Checkout repository

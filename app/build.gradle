@@ -125,7 +125,7 @@ dependencies {
     implementation 'com.google.maps.android:android-maps-utils:3.8.0'
 
     // --- Firebase (BoM actualizado) ---
-    implementation platform('com.google.firebase:firebase-bom:33.5.1')
+    implementation platform('com.google.firebase:firebase-bom:34.5.0')
     implementation 'com.google.firebase:firebase-auth-ktx'
     implementation 'com.google.firebase:firebase-firestore-ktx'
     implementation 'com.google.firebase:firebase-storage-ktx'

@@ -119,6 +119,16 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private val requestStoragePermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            Toast.makeText(this, "Permiso concedido. Intenta exportar nuevamente.", Toast.LENGTH_SHORT).show()
+        } else {
+            Toast.makeText(this, "Permiso denegado. No se puede exportar sin acceso al almacenamiento.", Toast.LENGTH_LONG).show()
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
@@ -449,11 +459,7 @@ class MainActivity : ComponentActivity() {
                     withContext(Dispatchers.Main) {
                         // Solicitar permiso de almacenamiento solo para Android 6-9
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
-                            ActivityCompat.requestPermissions(
-                                this@MainActivity,
-                                arrayOf(Manifest.permission.WRITE_EXTERNAL_STORAGE),
-                                STORAGE_PERMISSION_REQUEST_CODE
-                            )
+                            requestStoragePermissionLauncher.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
                         } else {
                             Toast.makeText(this@MainActivity, "Se necesita permiso de almacenamiento para exportar", Toast.LENGTH_LONG).show()
                         }
@@ -584,25 +590,14 @@ class MainActivity : ComponentActivity() {
         notificationManager.notify(NOTIFICATION_ID, builder.build())
     }
     
+    @Deprecated("Deprecated in Java. Use Activity Result API instead.")
     override fun onRequestPermissionsResult(
         requestCode: Int,
         permissions: Array<out String>,
         grantResults: IntArray
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        
-        when (requestCode) {
-            STORAGE_PERMISSION_REQUEST_CODE -> {
-                if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                    Toast.makeText(this, "Permiso concedido. Intenta exportar nuevamente.", Toast.LENGTH_SHORT).show()
-                } else {
-                    Toast.makeText(this, "Permiso denegado. No se puede exportar sin acceso al almacenamiento.", Toast.LENGTH_LONG).show()
-                }
-            }
-        }
-    }
-    
-    companion object {
-        private const val STORAGE_PERMISSION_REQUEST_CODE = 1002
+        // Este método ya no se usa, se migró a Activity Result API
+        // Se mantiene por compatibilidad pero no realiza ninguna acción
     }
 }

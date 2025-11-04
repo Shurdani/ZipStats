@@ -145,8 +145,8 @@ dependencies {
     implementation 'io.coil-kt:coil-compose:2.7.0'
 
     // --- Retrofit (para APIs externas, OpenWeather, etc.) ---
-    implementation 'com.squareup.retrofit2:retrofit:2.11.0'
-    implementation 'com.squareup.retrofit2:converter-gson:2.11.0'
+    implementation 'com.squareup.retrofit2:retrofit:3.0.0'
+    implementation 'com.squareup.retrofit2:converter-gson:3.0.0'
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0'
 
     // --- Excel (Apache POI - versión actualizada y optimizada) ---

@@ -256,8 +256,6 @@ El nombre "ZipStats", su logotipo y elementos visuales están protegidos como id
 - [ ] Compartir rutas con otros usuarios
 - [ ] Estadísticas avanzadas con gráficos
 - [ ] Integración con wearables (smartwatch)
-- [ ] Modo oscuro automático según hora del día
-- [ ] Notificaciones de recordatorios de mantenimiento
 
 ---
 

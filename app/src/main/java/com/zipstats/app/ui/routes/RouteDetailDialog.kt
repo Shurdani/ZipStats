@@ -49,6 +49,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.annotation.DrawableRes
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
@@ -397,14 +399,44 @@ private fun RouteTitle(route: Route) {
 }
 
 /**
+ * Obtiene el ID del recurso drawable del icono del clima desde el emoji guardado.
+ * Mapea el emoji a un código de OpenWeather aproximado y luego al drawable.
+ */
+@DrawableRes
+private fun getWeatherIconResId(emoji: String?, startTime: Long): Int {
+    if (emoji == null) return R.drawable.help_outline
+    
+    // Determinar si es de día basándose en la hora (6 AM - 8 PM aproximadamente)
+    val hour = java.util.Calendar.getInstance().apply {
+        timeInMillis = startTime
+    }.get(java.util.Calendar.HOUR_OF_DAY)
+    val isDayTime = hour >= 6 && hour < 20
+    
+    // Mapear emoji a código de OpenWeather aproximado y luego a drawable
+    val iconCode = when (emoji) {
+        "☀️" -> if (isDayTime) "01d" else "01n"
+        "🌙" -> "01n"
+        "🌤️", "🌥️" -> if (isDayTime) "02d" else "02n"
+        "☁️" -> if (isDayTime) "04d" else "04n"
+        "🌫️" -> if (isDayTime) "50d" else "50n"
+        "🌧️", "🌦️" -> if (isDayTime) "10d" else "10n"
+        "❄️" -> if (isDayTime) "13d" else "13n"
+        "⛈️" -> if (isDayTime) "11d" else "11n"
+        else -> "01d" // Por defecto
+    }
+    
+    return WeatherRepository.getIconResIdForWeather(iconCode)
+}
+
+/**
  * Estadísticas en chips: Distancia, Duración y Clima
  */
 @Composable
 private fun StatsChips(route: Route) {
     // Usar el clima guardado si existe, sino valores por defecto
     // IMPORTANTE: usar remember(route.id) para reinicializar el estado cuando cambia la ruta
-    var weatherEmoji by remember(route.id) { 
-        mutableStateOf(route.weatherEmoji ?: "☁️") 
+    var weatherIconRes by remember(route.id) { 
+        mutableStateOf(getWeatherIconResId(route.weatherEmoji, route.startTime))
     }
     var weatherTemp by remember(route.id) { 
         mutableStateOf(
@@ -423,7 +455,7 @@ private fun StatsChips(route: Route) {
     LaunchedEffect(route.id, route.weatherTemperature, route.weatherEmoji) {
         // Primero, siempre inicializar con los valores guardados de la ruta actual
         if (route.weatherTemperature != null) {
-            weatherEmoji = route.weatherEmoji ?: "☁️"
+            weatherIconRes = getWeatherIconResId(route.weatherEmoji, route.startTime)
             weatherTemp = String.format("%.0f°C", route.weatherTemperature)
             isLoadingWeather = false
             android.util.Log.d("StatsChips", "Usando clima guardado para ruta ${route.id}: ${route.weatherTemperature}°C, ${route.weatherEmoji}")
@@ -447,8 +479,8 @@ private fun StatsChips(route: Route) {
                 )
                 
                 result.onSuccess { weather ->
-                    android.util.Log.d("StatsChips", "Clima obtenido para ruta ${route.id}: ${weather.temperature}°C, emoji=${weather.weatherEmoji}")
-                    weatherEmoji = weather.weatherEmoji
+                    android.util.Log.d("StatsChips", "Clima obtenido para ruta ${route.id}: ${weather.temperature}°C, icon=${weather.icon}")
+                    weatherIconRes = WeatherRepository.getIconResIdForWeather(weather.icon)
                     weatherTemp = String.format("%.0f°C", weather.temperature)
                 }.onFailure { error ->
                     // Mantener valores por defecto en caso de error
@@ -485,7 +517,7 @@ private fun StatsChips(route: Route) {
         StatChip(
             value = if (isLoadingWeather) "..." else weatherTemp,
             label = "Clima",
-            icon = weatherEmoji
+            iconRes = weatherIconRes
         )
     }
 }
@@ -494,7 +526,7 @@ private fun StatsChips(route: Route) {
  * Chip individual de estadística con icono opcional
  */
 @Composable
-private fun StatChip(value: String, label: String, icon: String? = null) {
+private fun StatChip(value: String, label: String, iconRes: Int? = null) {
     Surface(
         shape = RoundedCornerShape(16.dp),
         color = MaterialTheme.colorScheme.primaryContainer,
@@ -508,11 +540,14 @@ private fun StatChip(value: String, label: String, icon: String? = null) {
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.Center
             ) {
-                if (icon != null) {
-                    Text(
-                        text = icon,
-                        style = MaterialTheme.typography.titleMedium,
-                        modifier = Modifier.padding(end = 4.dp)
+                if (iconRes != null) {
+                    androidx.compose.foundation.Image(
+                        painter = painterResource(id = iconRes),
+                        contentDescription = "Icono del clima",
+                        modifier = Modifier
+                            .size(48.dp)
+                            .padding(end = 8.dp),
+                        colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.onPrimaryContainer)
                     )
                 }
                 Text(
@@ -772,7 +807,9 @@ private fun FullscreenMapDialog(
                     
                     // Configurar clima si está disponible
                     if (route.weatherEmoji != null && route.weatherTemperature != null) {
-                        cardView.findViewById<android.widget.TextView>(R.id.weatherEmoji).text = route.weatherEmoji
+                        val weatherIconRes = getWeatherIconResId(route.weatherEmoji, route.startTime)
+                        cardView.findViewById<android.widget.ImageView>(R.id.weatherIcon).setImageResource(weatherIconRes)
+                        cardView.findViewById<android.widget.ImageView>(R.id.weatherIcon).setColorFilter(android.graphics.Color.WHITE)
                         cardView.findViewById<android.widget.TextView>(R.id.weatherTemp).text = 
                             String.format("%.0f°C", route.weatherTemperature)
                         cardView.findViewById<android.widget.LinearLayout>(R.id.weatherContainer).visibility = android.view.View.VISIBLE
@@ -966,7 +1003,9 @@ private suspend fun configurarTarjetaCompartir(
     
     // Configurar clima si está disponible
     if (route.weatherEmoji != null && route.weatherTemperature != null) {
-        cardView.findViewById<android.widget.TextView>(R.id.weatherEmoji).text = route.weatherEmoji
+        val weatherIconRes = getWeatherIconResId(route.weatherEmoji, route.startTime)
+        cardView.findViewById<android.widget.ImageView>(R.id.weatherIcon).setImageResource(weatherIconRes)
+        cardView.findViewById<android.widget.ImageView>(R.id.weatherIcon).setColorFilter(android.graphics.Color.WHITE)
         cardView.findViewById<android.widget.TextView>(R.id.weatherTemp).text = 
             String.format("%.0f°C", route.weatherTemperature)
         cardView.findViewById<android.widget.LinearLayout>(R.id.weatherContainer).visibility = android.view.View.VISIBLE

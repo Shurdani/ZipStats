@@ -1,7 +1,9 @@
 package com.zipstats.app.repository
 
 import android.util.Log
+import androidx.annotation.DrawableRes
 import com.zipstats.app.BuildConfig
+import com.zipstats.app.R
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
@@ -51,6 +53,42 @@ class WeatherRepository @Inject constructor() {
             "50d" to "🌫️",  // Niebla
             "50n" to "🌫️"   // Niebla noche
         )
+        
+        /**
+         * Convierte un código de icono de OpenWeather (ej: "01d", "02n") en un ID de Recurso de Drawable.
+         * @param iconCode Código de icono de OpenWeather (ej: "01d", "02n", "03d", etc.)
+         * @return ID del recurso drawable correspondiente
+         */
+        @DrawableRes
+        fun getIconResIdForWeather(iconCode: String): Int {
+            return when (iconCode) {
+                // Cielo Despejado
+                "01d" -> R.drawable.wb_sunny
+                "01n" -> R.drawable.nightlight
+
+                // Pocas nubes / Parcialmente nublado
+                "02d" -> R.drawable.partly_cloudy_day
+                "02n" -> R.drawable.partly_cloudy_night
+
+                // Nubes dispersas / Nublado
+                "03d", "03n", "04d", "04n" -> R.drawable.cloud
+
+                // Lluvia / Llovizna / Chubascos
+                "09d", "09n", "10d", "10n" -> R.drawable.rainy
+
+                // Tormenta
+                "11d", "11n" -> R.drawable.thunderstorm
+
+                // Nieve
+                "13d", "13n" -> R.drawable.snowing
+
+                // Niebla
+                "50d", "50n" -> R.drawable.foggy
+
+                // Icono por defecto
+                else -> R.drawable.help_outline
+            }
+        }
     }
     
     /**

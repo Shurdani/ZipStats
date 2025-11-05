@@ -170,13 +170,14 @@
                 android:paddingStart="8dp"
                 android:paddingEnd="8dp">
 
-                <TextView
-                    android:id="@+id/weatherEmoji"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:textSize="60sp"
+                <ImageView
+                    android:id="@+id/weatherIcon"
+                    android:layout_width="60dp"
+                    android:layout_height="60dp"
                     android:layout_marginBottom="4dp"
-                    tools:text="☀️" />
+                    android:contentDescription="Icono del clima"
+                    app:tint="#FFFFFF"
+                    tools:src="@drawable/wb_sunny" />
 
                 <TextView
                     android:id="@+id/weatherTemp"

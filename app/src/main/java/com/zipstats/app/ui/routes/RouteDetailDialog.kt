@@ -545,8 +545,8 @@ private fun StatChip(value: String, label: String, iconRes: Int? = null) {
                         painter = painterResource(id = iconRes),
                         contentDescription = "Icono del clima",
                         modifier = Modifier
-                            .size(48.dp)
-                            .padding(end = 8.dp),
+                            .size(32.dp)
+                            .padding(end = 6.dp),
                         colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.onPrimaryContainer)
                     )
                 }
@@ -1127,7 +1127,9 @@ private suspend fun createFinalRouteImage(route: Route, mapBitmap: android.graph
     
     // 4. Clima (si está disponible)
     if (route.weatherEmoji != null && route.weatherTemperature != null) {
-        cardView.findViewById<android.widget.TextView>(R.id.weatherEmoji).text = route.weatherEmoji
+        val weatherIconRes = getWeatherIconResId(route.weatherEmoji, route.startTime)
+        cardView.findViewById<android.widget.ImageView>(R.id.weatherIcon).setImageResource(weatherIconRes)
+        cardView.findViewById<android.widget.ImageView>(R.id.weatherIcon).setColorFilter(android.graphics.Color.WHITE)
         cardView.findViewById<android.widget.TextView>(R.id.weatherTemp).text = 
             String.format("%.0f°C", route.weatherTemperature)
         cardView.findViewById<android.widget.LinearLayout>(R.id.weatherContainer).visibility = android.view.View.VISIBLE

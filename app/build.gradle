@@ -9,8 +9,8 @@ plugins {
 }
 
 android {
-    namespace = 'com.zipstats.app'
-    compileSdk = 35
+    namespace 'com.zipstats.app'
+    compileSdk 35
 
     // Leer credenciales de Cloudinary desde local.properties
     def localProperties = new Properties()
@@ -20,15 +20,15 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.zipstats.app"
-        minSdk = 31
-        targetSdk = 34
-        versionCode = 10
-        versionName = "3.0"
+        applicationId "com.zipstats.app"
+        minSdk 31
+        targetSdk 34
+        versionCode 11
+        versionName "3.1"
 
-        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
-            useSupportLibrary = true
+            useSupportLibrary true
         }
 
         // Exponer credenciales en BuildConfig
@@ -43,16 +43,40 @@ android {
         ]
     }
 
+    signingConfigs {
+        release {
+            // Leer configuración de signing desde variables de entorno o local.properties
+            def keystorePropertiesFile = rootProject.file("keystore.properties")
+            def keystoreProperties = new Properties()
+            
+            // Intentar leer desde keystore.properties (para desarrollo local)
+            if (keystorePropertiesFile.exists()) {
+                keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+                storeFile file(keystoreProperties['storeFile'])
+                storePassword keystoreProperties['storePassword']
+                keyAlias keystoreProperties['keyAlias']
+                keyPassword keystoreProperties['keyPassword']
+            } else {
+                // Usar variables de entorno (para CI/CD)
+                storeFile file(System.getenv("KEYSTORE_FILE") ?: "keystore.jks")
+                storePassword System.getenv("KEYSTORE_PASSWORD") ?: ""
+                keyAlias System.getenv("KEY_ALIAS") ?: ""
+                keyPassword System.getenv("KEY_PASSWORD") ?: ""
+            }
+        }
+    }
+
     buildTypes {
         release {
-            minifyEnabled = true
-            shrinkResources = true
-            proguardFiles = [getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro']
+            signingConfig signingConfigs.release
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
     }
     kotlinOptions {
         jvmTarget = '17'
@@ -62,26 +86,23 @@ android {
         ]
     }
     buildFeatures {
-        compose = true
-        buildConfig = true
+        compose true
+        buildConfig true
     }
     packaging {
         resources {
-            excludes += [
-                '/META-INF/{AL2.0,LGPL2.1}',
-                '/META-INF/DEPENDENCIES',
-                '/META-INF/LICENSE',
-                '/META-INF/LICENSE.txt',
-                '/META-INF/license.txt',
-                '/META-INF/NOTICE',
-                '/META-INF/NOTICE.txt',
-                '/META-INF/notice.txt',
-                '/META-INF/ASL2.0'
-            ]
+            excludes += '/META-INF/{AL2.0,LGPL2.1}'
+            excludes += '/META-INF/DEPENDENCIES'
+            excludes += '/META-INF/LICENSE'
+            excludes += '/META-INF/LICENSE.txt'
+            excludes += '/META-INF/license.txt'
+            excludes += '/META-INF/NOTICE'
+            excludes += '/META-INF/NOTICE.txt'
+            excludes += '/META-INF/notice.txt'
+            excludes += '/META-INF/ASL2.0'
         }
     }
-    ndkVersion = '27.1.12297006'
-
+    ndkVersion '27.1.12297006'
 }
 
 dependencies {
@@ -120,12 +141,12 @@ dependencies {
     // --- Google Play Services / Maps ---
     implementation 'com.google.android.gms:play-services-base:18.9.0'
     implementation 'com.google.android.gms:play-services-maps:18.2.0'
-    implementation 'com.google.android.gms:play-services-location:21.3.0'
+    implementation 'com.google.android.gms:play-services-location:21.0.1'
     implementation 'com.google.maps.android:maps-compose:4.3.0'
     implementation 'com.google.maps.android:android-maps-utils:3.8.0'
 
     // --- Firebase (BoM actualizado) ---
-    implementation platform('com.google.firebase:firebase-bom:34.5.0')
+    implementation platform('com.google.firebase:firebase-bom:33.5.1')
     implementation 'com.google.firebase:firebase-auth-ktx'
     implementation 'com.google.firebase:firebase-firestore-ktx'
     implementation 'com.google.firebase:firebase-storage-ktx'
@@ -145,8 +166,8 @@ dependencies {
     implementation 'io.coil-kt:coil-compose:2.7.0'
 
     // --- Retrofit (para APIs externas, OpenWeather, etc.) ---
-    implementation 'com.squareup.retrofit2:retrofit:3.0.0'
-    implementation 'com.squareup.retrofit2:converter-gson:3.0.0'
+    implementation 'com.squareup.retrofit2:retrofit:2.11.0'
+    implementation 'com.squareup.retrofit2:converter-gson:2.11.0'
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0'
 
     // --- Excel (Apache POI - versión actualizada y optimizada) ---
@@ -166,13 +187,13 @@ dependencies {
     testImplementation 'junit:junit:4.13.2'
     androidTestImplementation 'androidx.test.ext:junit:1.1.5'
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.7.0'
-    androidTestImplementation 'androidx.compose.ui:ui-test-junit4:1.9.4'
-    debugImplementation 'androidx.compose.ui:ui-tooling:1.9.4'
-    debugImplementation 'androidx.compose.ui:ui-test-manifest:1.9.4'
+    androidTestImplementation 'androidx.compose.ui:ui-test-junit4:1.5.4'
+    debugImplementation 'androidx.compose.ui:ui-tooling:1.5.4'
+    debugImplementation 'androidx.compose.ui:ui-test-manifest:1.5.4'
 }
 
 kapt {
-    correctErrorTypes = true
+    correctErrorTypes true
 }
 
 hilt {

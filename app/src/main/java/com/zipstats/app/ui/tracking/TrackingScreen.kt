@@ -43,6 +43,9 @@ import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.res.painterResource
 import com.zipstats.app.R
 import com.zipstats.app.utils.LocationUtils
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.annotation.DrawableRes
+import com.zipstats.app.repository.WeatherRepository
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
@@ -1025,6 +1028,32 @@ private fun getSignalColor(signalStrength: Float): Color {
 }
 
 /**
+ * Obtiene el ID del recurso drawable del icono del clima desde el emoji.
+ * Usa la hora actual para determinar si es de día o noche.
+ */
+@DrawableRes
+private fun getWeatherIconResIdFromEmoji(emoji: String): Int {
+    // Determinar si es de día basándose en la hora actual (6 AM - 8 PM aproximadamente)
+    val hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
+    val isDayTime = hour >= 6 && hour < 20
+    
+    // Mapear emoji a código de OpenWeather aproximado y luego a drawable
+    val iconCode = when (emoji) {
+        "☀️" -> if (isDayTime) "01d" else "01n"
+        "🌙" -> "01n"
+        "🌤️", "🌥️" -> if (isDayTime) "02d" else "02n"
+        "☁️" -> if (isDayTime) "04d" else "04n"
+        "🌫️" -> if (isDayTime) "50d" else "50n"
+        "🌧️", "🌦️" -> if (isDayTime) "10d" else "10n"
+        "❄️" -> if (isDayTime) "13d" else "13n"
+        "⛈️" -> if (isDayTime) "11d" else "11n"
+        else -> "01d" // Por defecto
+    }
+    
+    return WeatherRepository.getIconResIdForWeather(iconCode)
+}
+
+/**
  * Indicador del estado de captura del clima
  */
 @Composable
@@ -1080,9 +1109,12 @@ fun WeatherStatusIndicator(
                         )
                     }
                     is WeatherStatus.Success -> {
-                        Text(
-                            text = weatherStatus.emoji,
-                            style = MaterialTheme.typography.titleMedium
+                        val weatherIconRes = getWeatherIconResIdFromEmoji(weatherStatus.emoji)
+                        Image(
+                            painter = painterResource(id = weatherIconRes),
+                            contentDescription = "Icono del clima",
+                            modifier = Modifier.size(32.dp),
+                            colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.onPrimaryContainer)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(

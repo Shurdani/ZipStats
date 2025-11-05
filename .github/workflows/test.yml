@@ -26,11 +26,11 @@ jobs:
       run: chmod +x ./gradlew
 
     - name: Run unit tests
-      run: ./gradlew test
+      run: ./gradlew test --no-daemon
 
     - name: Run instrumented tests
       uses: reactivecircus/android-emulator-runner@v2
       with:
         api-level: 34
-        script: ./gradlew connectedAndroidTest
+        script: ./gradlew connectedAndroidTest --no-daemon
 

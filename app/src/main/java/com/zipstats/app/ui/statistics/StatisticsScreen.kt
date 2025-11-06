@@ -45,6 +45,7 @@ import androidx.compose.material3.Tab
 import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.Button
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -75,6 +76,11 @@ enum class StatisticsPeriod {
     MONTHLY, ALL, YEARLY
 }
 
+sealed class SelectionMode {
+    object Month : SelectionMode()
+    object Year : SelectionMode()
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun StatisticsScreen(
@@ -97,8 +103,16 @@ fun StatisticsScreen(
             currentYear = selectedYear ?: LocalDate.now().year,
             availableMonthYears = availableMonthYears,
             onDismiss = { showMonthYearPicker = false },
-            onConfirm = { month, year ->
-                viewModel.setSelectedPeriod(month, year)
+            onConfirm = { month, year, isYearOnly ->
+                if (isYearOnly) {
+                    // Si solo se selecciona año, cambiar a pestaña "Este Año"
+                    selectedPeriod = 2
+                    viewModel.setSelectedPeriod(null, year)
+                } else {
+                    // Si se selecciona mes, cambiar a pestaña "Este Mes"
+                    selectedPeriod = 0
+                    viewModel.setSelectedPeriod(month, year)
+                }
                 showMonthYearPicker = false
             }
         )
@@ -114,7 +128,8 @@ fun StatisticsScreen(
                         periodTitle?.let { title ->
                             Text(
                                 text = title,
-                                style = MaterialTheme.typography.bodySmall
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f)
                             )
                         }
                     }
@@ -126,8 +141,12 @@ fun StatisticsScreen(
                             contentDescription = "Seleccionar período"
                         )
                     }
-                    if (selectedMonth != null && selectedYear != null) {
-                        IconButton(onClick = { viewModel.clearSelectedPeriod() }) {
+                    if ((selectedMonth != null && selectedYear != null) || (selectedYear != null && selectedMonth == null)) {
+                        IconButton(onClick = { 
+                            viewModel.clearSelectedPeriod()
+                            // Volver a la pestaña por defecto (Este Mes)
+                            selectedPeriod = 0
+                        }) {
                             Icon(
                                 imageVector = Icons.Default.Close,
                                 contentDescription = "Limpiar filtro"
@@ -210,13 +229,31 @@ fun StatisticsScreen(
                             else -> StatisticsPeriod.YEARLY
                         }
                         
+                        // Determinar el título según el período y selección
+                        val currentSelectedMonth = selectedMonth
+                        val currentSelectedYear = selectedYear
+                        
+                        val monthlyTitle = if (currentSelectedMonth != null && currentSelectedYear != null) {
+                            val monthNames = listOf("Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+                                "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre")
+                            "${monthNames[currentSelectedMonth - 1]} $currentSelectedYear has recorrido:"
+                        } else {
+                            "Este mes has recorrido:"
+                        }
+                        
+                        val yearlyTitle = if (currentSelectedYear != null && currentSelectedMonth == null) {
+                            "$currentSelectedYear has recorrido:"
+                        } else {
+                            "Este año has recorrido:"
+                        }
+                        
                         val displayData = when (currentPeriod) {
                             StatisticsPeriod.MONTHLY -> PeriodData(
                             totalDistance = stats.monthlyDistance,
                             averageDistance = stats.monthlyAverageDistance,
                             maxDistance = stats.monthlyMaxDistance,
                             totalRecords = stats.monthlyRecords,
-                                title = "Este mes has recorrido:",
+                                title = monthlyTitle,
                                 chartData = stats.monthlyChartData,
                                 comparison = stats.monthlyComparison
                             )
@@ -234,7 +271,7 @@ fun StatisticsScreen(
                                 averageDistance = stats.yearlyAverageDistance,
                                 maxDistance = stats.yearlyMaxDistance,
                                 totalRecords = stats.yearlyRecords,
-                                title = "Este año has recorrido:",
+                                title = yearlyTitle,
                                 chartData = stats.yearlyChartData,
                                 comparison = stats.yearlyComparison
                             )
@@ -259,7 +296,7 @@ fun StatisticsScreen(
                             // Tarjetas de Resumen
                             SummaryStatsCard(
                                 periodData = displayData,
-                                showMaxDistance = currentPeriod != StatisticsPeriod.ALL,
+                                showMaxDistance = false,
                                 horizontalPadding = horizontalPadding,
                                 onShare = {
                                     val shareText = when (currentPeriod) {
@@ -337,12 +374,13 @@ fun EcologicalImpactCardEnhanced(
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.primaryContainer
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+        shape = com.zipstats.app.ui.theme.CardShape
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
+                .padding(horizontal = 16.dp, vertical = 14.dp), // Reducir padding ligeramente
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Row(
@@ -428,7 +466,7 @@ fun ImpactMetricEnhanced(
         Text(
             text = description,
             style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f),
+            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f), // Mejor contraste
             textAlign = TextAlign.Center
         )
     }
@@ -446,7 +484,8 @@ fun SummaryStatsCard(
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp), // Sombra más sutil pero presente
+        shape = com.zipstats.app.ui.theme.SmallCardShape
     ) {
         Column(
             modifier = Modifier
@@ -541,7 +580,7 @@ fun StatMetric(
         Text(
             text = label,
             style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f), // Mejor contraste
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
@@ -661,7 +700,7 @@ fun NextAchievementCard(
                         text = nextAchievement.title,
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.secondary
+                        color = MaterialTheme.colorScheme.onSecondaryContainer
                     )
                     Text(
                         text = nextAchievement.requirementText,
@@ -744,7 +783,7 @@ fun MonthYearPickerDialog(
     currentYear: Int,
     availableMonthYears: List<Pair<Int, Int>>,
     onDismiss: () -> Unit,
-    onConfirm: (month: Int, year: Int) -> Unit
+    onConfirm: (month: Int, year: Int, isYearOnly: Boolean) -> Unit
 ) {
     // Validar que hay períodos disponibles
     if (availableMonthYears.isEmpty()) {
@@ -753,7 +792,7 @@ fun MonthYearPickerDialog(
             title = { Text("Sin datos") },
             text = { Text("No hay registros disponibles para consultar.") },
             confirmButton = {
-                TextButton(onClick = onDismiss) {
+                Button(onClick = onDismiss) {
                     Text("Aceptar")
                 }
             }
@@ -761,8 +800,10 @@ fun MonthYearPickerDialog(
         return
     }
     
+    var selectedMode by remember { mutableStateOf<SelectionMode?>(null) } // null = no seleccionado, Month = mes, Year = año
     var selectedMonth by remember { mutableIntStateOf(currentMonth) }
     var selectedYear by remember { mutableIntStateOf(currentYear) }
+    var showModeDropdown by remember { mutableStateOf(false) }
     var showMonthDropdown by remember { mutableStateOf(false) }
     var showYearDropdown by remember { mutableStateOf(false) }
     
@@ -798,33 +839,76 @@ fun MonthYearPickerDialog(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                // Selector de mes
+                // Selector de modo (Mes o Año)
                 ExposedDropdownMenuBox(
-                    expanded = showMonthDropdown,
-                    onExpandedChange = { showMonthDropdown = it }
+                    expanded = showModeDropdown,
+                    onExpandedChange = { showModeDropdown = it }
                 ) {
                     OutlinedTextField(
-                        value = monthNames[selectedMonth - 1],
+                        value = when (selectedMode) {
+                            is SelectionMode.Month -> "Mes"
+                            is SelectionMode.Year -> "Año"
+                            null -> "Seleccionar tipo"
+                            else -> "Seleccionar tipo"
+                        },
                         onValueChange = { },
                         readOnly = true,
-                        label = { Text("Mes") },
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = showMonthDropdown) },
-            modifier = Modifier
+                        label = { Text("Tipo de período") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = showModeDropdown) },
+                        modifier = Modifier
                             .fillMaxWidth()
                             .menuAnchor()
                     )
                     ExposedDropdownMenu(
-                        expanded = showMonthDropdown,
-                        onDismissRequest = { showMonthDropdown = false }
+                        expanded = showModeDropdown,
+                        onDismissRequest = { showModeDropdown = false }
                     ) {
-                        availableMonthsForYear.forEach { monthNumber ->
-                            DropdownMenuItem(
-                                text = { Text(monthNames[monthNumber - 1]) },
-                                onClick = {
-                                    selectedMonth = monthNumber
-                                    showMonthDropdown = false
-                                }
-                            )
+                        DropdownMenuItem(
+                            text = { Text("Mes") },
+                            onClick = {
+                                selectedMode = SelectionMode.Month
+                                showModeDropdown = false
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Año") },
+                            onClick = {
+                                selectedMode = SelectionMode.Year
+                                showModeDropdown = false
+                            }
+                        )
+                    }
+                }
+                
+                // Selector de mes (solo si se selecciona modo "Mes")
+                if (selectedMode is SelectionMode.Month) {
+                    ExposedDropdownMenuBox(
+                        expanded = showMonthDropdown,
+                        onExpandedChange = { showMonthDropdown = it }
+                    ) {
+                        OutlinedTextField(
+                            value = monthNames[selectedMonth - 1],
+                            onValueChange = { },
+                            readOnly = true,
+                            label = { Text("Mes") },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = showMonthDropdown) },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .menuAnchor()
+                        )
+                        ExposedDropdownMenu(
+                            expanded = showMonthDropdown,
+                            onDismissRequest = { showMonthDropdown = false }
+                        ) {
+                            availableMonthsForYear.forEach { monthNumber ->
+                                DropdownMenuItem(
+                                    text = { Text(monthNames[monthNumber - 1]) },
+                                    onClick = {
+                                        selectedMonth = monthNumber
+                                        showMonthDropdown = false
+                                    }
+                                )
+                            }
                         }
                     }
                 }
@@ -862,16 +946,22 @@ fun MonthYearPickerDialog(
             }
         },
         confirmButton = {
-            TextButton(
-                onClick = { onConfirm(selectedMonth, selectedYear) }
-            ) {
-                Text("Aplicar")
-            }
+            com.zipstats.app.ui.components.DialogApplyButton(
+                onClick = { 
+                    when (selectedMode) {
+                        is SelectionMode.Month -> onConfirm(selectedMonth, selectedYear, false)
+                        is SelectionMode.Year -> onConfirm(selectedMonth, selectedYear, true)
+                        null -> { /* No hacer nada si no se seleccionó modo */ }
+                    }
+                },
+                enabled = selectedMode != null
+            )
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancelar")
-            }
+            com.zipstats.app.ui.components.DialogCancelButton(
+                text = "Cancelar",
+                onClick = onDismiss
+            )
         }
     )
 }

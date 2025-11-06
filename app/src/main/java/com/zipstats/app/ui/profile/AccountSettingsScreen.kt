@@ -38,6 +38,11 @@ import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.ScreenLockPortrait
+import androidx.compose.material.icons.filled.Security
+import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Camera
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.outlined.AccountCircle
 import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material3.AlertDialog
@@ -53,6 +58,8 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -76,7 +83,12 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.zipstats.app.navigation.Screen
 import com.zipstats.app.repository.SettingsRepository
+import com.zipstats.app.permission.PermissionManager
 import kotlinx.coroutines.launch
+import android.content.Intent
+import android.provider.Settings
+import android.net.Uri
+import android.Manifest
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalAnimationApi::class)
 @Composable
@@ -96,10 +108,27 @@ fun AccountSettingsScreen(
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
     val settingsRepository = remember { SettingsRepository(context) }
+    val permissionManager = remember { PermissionManager(context) }
     val keepScreenOnDuringTracking by settingsRepository.keepScreenOnDuringTrackingFlow.collectAsState(initial = false)
     val composeScope = rememberCoroutineScope()
     
     var isPaletteExpanded by remember { mutableStateOf(false) }
+    var isPermissionsExpanded by remember { mutableStateOf(false) }
+    var permissionStates by remember { mutableStateOf(permissionManager.getPermissionStates()) }
+    val allPermissions = remember { permissionManager.getAllPermissions() }
+    
+    // Actualizar estados de permisos cuando la pantalla vuelve a estar visible
+    LaunchedEffect(Unit) {
+        permissionStates = permissionManager.getPermissionStates()
+    }
+    
+    // Función para abrir configuración de permisos de Android
+    fun openAppSettings() {
+        val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+            data = Uri.fromParts("package", context.packageName, null)
+        }
+        context.startActivity(intent)
+    }
     var showEditNameDialog by remember { mutableStateOf(false) }
     var showChangePasswordDialog by remember { mutableStateOf(false) }
     var showDeleteAccountDialog by remember { mutableStateOf(false) }
@@ -177,17 +206,27 @@ fun AccountSettingsScreen(
             title = { Text("Cerrar sesión") },
             text = { Text("¿Estás seguro de que quieres cerrar sesión?") },
             confirmButton = {
-                TextButton(
+                Button(
                     onClick = {
                         authViewModel.logout()
                         showLogoutDialog = false
-                    }
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error,
+                        contentColor = MaterialTheme.colorScheme.onError
+                    )
                 ) {
                     Text("Cerrar sesión")
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showLogoutDialog = false }) {
+                Button(
+                    onClick = { showLogoutDialog = false },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                ) {
                     Text("Cancelar")
                 }
             }
@@ -424,6 +463,86 @@ fun AccountSettingsScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
+            // Sección de Permisos
+            Text(
+                text = "Permisos",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
+            )
+            
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 4.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                )
+            ) {
+                Column {
+                    // Encabezado desplegable
+                    ListItem(
+                        headlineContent = { Text("Permisos de la app") },
+                        supportingContent = { Text("Gestiona los permisos desde la configuración") },
+                        leadingContent = { 
+                            Icon(
+                                Icons.Default.Security,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        },
+                        trailingContent = {
+                            IconButton(
+                                onClick = { isPermissionsExpanded = !isPermissionsExpanded }
+                            ) {
+                                Icon(
+                                    imageVector = if (isPermissionsExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                                    contentDescription = if (isPermissionsExpanded) "Contraer" else "Expandir"
+                                )
+                            }
+                        },
+                        modifier = Modifier.clickable { isPermissionsExpanded = !isPermissionsExpanded }
+                    )
+                    
+                    AnimatedVisibility(
+                        visible = isPermissionsExpanded,
+                        enter = expandVertically() + fadeIn(),
+                        exit = slideOutVertically() + fadeOut()
+                    ) {
+                        Column {
+                            allPermissions.forEach { permission ->
+                                HorizontalDivider()
+                                ListItem(
+                                    headlineContent = { 
+                                        Text(getPermissionDisplayName(permission.permission))
+                                    },
+                                    supportingContent = { 
+                                        Text(permission.description)
+                                    },
+                                    leadingContent = { 
+                                        Icon(
+                                            getPermissionIcon(permission.permission),
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.primary
+                                        )
+                                    },
+                                    trailingContent = {
+                                        androidx.compose.material3.Switch(
+                                            checked = permissionStates[permission.permission] ?: false,
+                                            onCheckedChange = { openAppSettings() },
+                                            enabled = true
+                                        )
+                                    },
+                                    modifier = Modifier.clickable { openAppSettings() }
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
             // Sección de Cuenta
             Text(
                 text = "Cuenta",
@@ -540,7 +659,7 @@ private fun EditNameDialog(
             )
         },
         confirmButton = {
-            TextButton(
+            Button(
                 onClick = { onSave(name) },
                 enabled = name.isNotEmpty()
             ) {
@@ -548,7 +667,13 @@ private fun EditNameDialog(
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
+            Button(
+                onClick = onDismiss,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            ) {
                 Text("Cancelar")
             }
         }
@@ -595,7 +720,7 @@ private fun ChangePasswordDialog(
             }
         },
         confirmButton = {
-            TextButton(
+            Button(
                 onClick = { onSave(currentPassword, newPassword, confirmPassword) },
                 enabled = currentPassword.isNotEmpty() && 
                          newPassword.isNotEmpty() && 
@@ -605,7 +730,13 @@ private fun ChangePasswordDialog(
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
+            Button(
+                onClick = onDismiss,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            ) {
                 Text("Cancelar")
             }
         }
@@ -622,14 +753,24 @@ fun DeleteAccountDialog(
         title = { Text("Eliminar cuenta") },
         text = { Text("¿Estás seguro de que quieres eliminar tu cuenta? Esta acción no se puede deshacer y se eliminarán todos tus datos permanentemente.") },
         confirmButton = {
-            TextButton(
-                onClick = onConfirm
+            Button(
+                onClick = onConfirm,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.error,
+                    contentColor = MaterialTheme.colorScheme.onError
+                )
             ) {
-                Text("Eliminar", color = MaterialTheme.colorScheme.error)
+                Text("Eliminar")
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
+            Button(
+                onClick = onDismiss,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            ) {
                 Text("Cancelar")
             }
         }
@@ -777,6 +918,30 @@ private fun ColorPaletteCard(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun getPermissionIcon(permission: String): androidx.compose.ui.graphics.vector.ImageVector {
+    return when {
+        permission.contains("LOCATION") -> Icons.Default.LocationOn
+        permission.contains("NOTIFICATION") || permission.contains("POST_NOTIFICATIONS") -> Icons.Default.Notifications
+        permission.contains("CAMERA") -> Icons.Default.Camera
+        permission.contains("MEDIA_IMAGES") -> Icons.Default.Image
+        permission.contains("MEDIA_DOCUMENTS") -> Icons.Default.Image
+        else -> Icons.Default.Security
+    }
+}
+
+private fun getPermissionDisplayName(permission: String): String {
+    return when {
+        permission.contains("FINE_LOCATION") -> "Ubicación"
+        permission.contains("COARSE_LOCATION") -> "Ubicación"
+        permission.contains("NOTIFICATION") || permission.contains("POST_NOTIFICATIONS") -> "Notificaciones"
+        permission.contains("CAMERA") -> "Cámara"
+        permission.contains("MEDIA_IMAGES") -> "Imágenes"
+        permission.contains("MEDIA_DOCUMENTS") -> "Documentos"
+        else -> "Permiso"
     }
 }
 

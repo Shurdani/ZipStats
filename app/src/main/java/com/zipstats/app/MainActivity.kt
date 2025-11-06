@@ -18,11 +18,13 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.core.app.ActivityCompat
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -53,6 +55,9 @@ import com.zipstats.app.ui.components.BottomNavigation
 import com.zipstats.app.ui.theme.ColorTheme
 import com.zipstats.app.ui.theme.PatinetatrackTheme
 import com.zipstats.app.ui.theme.ThemeMode
+import com.zipstats.app.permission.PermissionManager
+import com.zipstats.app.ui.permissions.PermissionsDialog
+import dagger.hilt.android.EntryPointAccessors
 import com.google.firebase.FirebaseApp
 import com.zipstats.app.R
 import dagger.hilt.android.AndroidEntryPoint
@@ -140,12 +145,14 @@ class MainActivity : ComponentActivity() {
         val showErrorDialog = intent.getBooleanExtra("SHOW_ERROR_DIALOG", false)
         val errorMessage = intent.getStringExtra("ERROR_MESSAGE")
         val shouldOpenTracking = intent.action == LocationTrackingService.ACTION_OPEN_TRACKING
+        val navigateToRoute = intent.getStringExtra("navigate_to")
 
         setContent {
             MainContent(
                 showErrorDialog = showErrorDialog,
                 errorMessage = errorMessage,
-                shouldOpenTracking = shouldOpenTracking
+                shouldOpenTracking = shouldOpenTracking,
+                navigateToRoute = navigateToRoute
             )
         }
     }
@@ -162,8 +169,21 @@ class MainActivity : ComponentActivity() {
                 MainContent(
                     showErrorDialog = false,
                     errorMessage = null,
-                    shouldOpenTracking = true
+                    shouldOpenTracking = true,
+                    navigateToRoute = null
                 )
+            }
+        } else {
+            val navigateToRoute = intent.getStringExtra("navigate_to")
+            if (navigateToRoute != null) {
+                setContent {
+                    MainContent(
+                        showErrorDialog = false,
+                        errorMessage = null,
+                        shouldOpenTracking = false,
+                        navigateToRoute = navigateToRoute
+                    )
+                }
             }
         }
     }
@@ -172,7 +192,8 @@ class MainActivity : ComponentActivity() {
     private fun MainContent(
         showErrorDialog: Boolean,
         errorMessage: String?,
-        shouldOpenTracking: Boolean = false
+        shouldOpenTracking: Boolean = false,
+        navigateToRoute: String? = null
     ) {
         val navController = rememberNavController()
         
@@ -195,6 +216,16 @@ class MainActivity : ComponentActivity() {
                     // Forzar navegación única top - si Tracking ya está en el stack, reutilizarlo
                     launchSingleTop = true
                     restoreState = false
+                }
+            }
+        }
+        
+        // Navegar a una ruta específica si viene desde una notificación
+        LaunchedEffect(navigateToRoute) {
+            navigateToRoute?.let { route ->
+                kotlinx.coroutines.delay(100)
+                navController.navigate(route) {
+                    launchSingleTop = true
                 }
             }
         }
@@ -238,6 +269,24 @@ class MainActivity : ComponentActivity() {
         }
         var showDialog by remember { mutableStateOf(showErrorDialog) }
         
+        // Sistema de permisos centralizado
+        val permissionManager = remember { PermissionManager(applicationContext) }
+        var showPermissionsDialog by remember { mutableStateOf(false) }
+        val allPermissions = remember { permissionManager.getAllPermissions() }
+        val permissionLauncher = rememberLauncherForActivityResult(
+            ActivityResultContracts.RequestMultiplePermissions()
+        ) { permissions ->
+            // Los permisos se han solicitado, el diálogo se cerrará automáticamente
+            showPermissionsDialog = false
+        }
+        
+        // Mostrar diálogo de permisos al inicio si no están todos concedidos
+        LaunchedEffect(Unit) {
+            if (!permissionManager.hasAllRequiredPermissions()) {
+                showPermissionsDialog = true
+            }
+        }
+        
         // Obtener el AuthViewModel aquí
         val authViewModel: com.zipstats.app.ui.auth.AuthViewModel = hiltViewModel()
         
@@ -254,62 +303,39 @@ class MainActivity : ComponentActivity() {
             val navBackStackEntry by navController.currentBackStackEntryAsState()
             val currentRoute = navBackStackEntry?.destination?.route
 
+            // Diálogo de permisos al inicio
+            if (showPermissionsDialog) {
+                PermissionsDialog(
+                    permissions = allPermissions,
+                    onConfirm = {
+                        val permissionsToRequest = permissionManager.getRequiredStartupPermissions()
+                        if (permissionsToRequest.isNotEmpty()) {
+                            permissionLauncher.launch(permissionsToRequest)
+                        } else {
+                            showPermissionsDialog = false
+                        }
+                    },
+                    onDismiss = {
+                        showPermissionsDialog = false
+                    }
+                )
+            }
+            
             if (showDialog && errorMessage != null) {
                 AlertDialog(
                     onDismissRequest = { showDialog = false },
                     title = { Text("Error en la importación") },
                     text = { Text(errorMessage) },
                     confirmButton = {
-                        TextButton(onClick = { showDialog = false }) {
+                        Button(onClick = { showDialog = false }) {
                             Text("Aceptar")
                         }
                     }
                 )
             }
 
-            // ViewModels globales
-            val achievementsViewModel: AchievementsViewModel = hiltViewModel()
-            val snackbarHostState = androidx.compose.material3.SnackbarHostState()
-            val snackbarMessage by achievementsViewModel.newAchievementMessage.collectAsState()
-            
-            // Mostrar Snackbar cuando hay un logro nuevo
-            LaunchedEffect(snackbarMessage) {
-                snackbarMessage?.let { message ->
-                    val result = snackbarHostState.showSnackbar(
-                        message = message,
-                        actionLabel = "Ver",
-                        duration = androidx.compose.material3.SnackbarDuration.Long,
-                        withDismissAction = true
-                    )
-                    
-                    // Si el usuario pulsa "Ver", navegar a la pantalla de logros
-                    if (result == androidx.compose.material3.SnackbarResult.ActionPerformed) {
-                        navController.navigate(Screen.Achievements.route) {
-                            launchSingleTop = true
-                        }
-                    }
-                    
-                    achievementsViewModel.clearSnackbarMessage()
-                }
-            }
-            
             Scaffold(
                 modifier = Modifier.fillMaxSize(),
-                snackbarHost = { 
-                    androidx.compose.material3.SnackbarHost(
-                        hostState = snackbarHostState,
-                        snackbar = { data ->
-                            androidx.compose.material3.Snackbar(
-                                snackbarData = data,
-                                containerColor = MaterialTheme.colorScheme.primaryContainer,
-                                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                                actionColor = MaterialTheme.colorScheme.primary,
-                                dismissActionContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                                shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)
-                            )
-                        }
-                    )
-                },
                 bottomBar = {
                     if (currentRoute !in listOf(Screen.Login.route, Screen.Register.route)) {
                         BottomNavigation(navController = navController)

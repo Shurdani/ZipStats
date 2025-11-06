@@ -1,16 +1,28 @@
 package com.zipstats.app.service
 
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
 import android.content.Context
+import android.content.Intent
 import android.content.SharedPreferences
+import android.os.Build
 import android.util.Log
+import androidx.core.app.NotificationCompat
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
+import com.zipstats.app.MainActivity
+import com.zipstats.app.R
 import com.zipstats.app.model.Achievement
 import com.zipstats.app.model.AchievementLevel
 import com.zipstats.app.model.AchievementRequirementType
+import com.zipstats.app.navigation.Screen
 import com.zipstats.app.repository.RecordRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.tasks.await
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -25,11 +37,10 @@ import javax.inject.Singleton
 @Singleton
 class AchievementsService @Inject constructor(
     @ApplicationContext private val context: Context,
-    private val recordRepository: RecordRepository
+    private val recordRepository: RecordRepository,
+    private val firestore: FirebaseFirestore,
+    private val auth: FirebaseAuth
 ) {
-    
-    private val _newAchievementMessage = MutableStateFlow<String?>(null)
-    val newAchievementMessage: StateFlow<String?> = _newAchievementMessage.asStateFlow()
     
     private val _lastUnlockedAchievementId = MutableStateFlow<String?>(null)
     val lastUnlockedAchievementId: StateFlow<String?> = _lastUnlockedAchievementId.asStateFlow()
@@ -39,6 +50,34 @@ class AchievementsService @Inject constructor(
     
     private val prefs: SharedPreferences by lazy {
         context.getSharedPreferences("achievements_prefs", Context.MODE_PRIVATE)
+    }
+    
+    private val notificationManager: NotificationManager by lazy {
+        context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+    }
+    
+    private val CHANNEL_ID = "achievements_channel"
+    private val NOTIFICATION_ID = 1000
+    private val ACHIEVEMENTS_COLLECTION = "user_achievements"
+    
+    init {
+        createNotificationChannel()
+    }
+    
+    private fun createNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                CHANNEL_ID,
+                "Logros Desbloqueados",
+                NotificationManager.IMPORTANCE_DEFAULT
+            ).apply {
+                description = "Notificaciones cuando desbloqueas logros"
+                setShowBadge(true)
+                enableLights(true)
+                enableVibration(true)
+            }
+            notificationManager.createNotificationChannel(channel)
+        }
     }
     
     /**
@@ -385,6 +424,99 @@ class AchievementsService @Inject constructor(
     )
 
     /**
+     * Obtiene los logros desbloqueados del usuario desde Firebase
+     */
+    private suspend fun getFirebaseUnlockedAchievements(): Set<String> {
+        val userId = auth.currentUser?.uid ?: return emptySet()
+        
+        return try {
+            val snapshot = firestore.collection(ACHIEVEMENTS_COLLECTION)
+                .whereEqualTo("userId", userId)
+                .get()
+                .await()
+            
+            snapshot.documents.mapNotNull { doc ->
+                doc.getString("achievementId")
+            }.toSet()
+        } catch (e: Exception) {
+            Log.e("AchievementsService", "Error al obtener logros de Firebase: ${e.message}")
+            emptySet()
+        }
+    }
+    
+    /**
+     * Guarda un logro desbloqueado en Firebase
+     */
+    private suspend fun saveAchievementToFirebase(achievementId: String) {
+        val userId = auth.currentUser?.uid ?: return
+        
+        try {
+            val achievementData = hashMapOf(
+                "userId" to userId,
+                "achievementId" to achievementId,
+                "unlockedAt" to com.google.firebase.Timestamp.now()
+            )
+            
+            // Usar achievementId como parte del documento para evitar duplicados
+            firestore.collection(ACHIEVEMENTS_COLLECTION)
+                .document("${userId}_${achievementId}")
+                .set(achievementData)
+                .await()
+            
+            Log.d("AchievementsService", "Logro guardado en Firebase: $achievementId")
+        } catch (e: Exception) {
+            Log.e("AchievementsService", "Error al guardar logro en Firebase: ${e.message}")
+        }
+    }
+    
+    /**
+     * Sincroniza logros locales con Firebase
+     * Combina logros locales y de Firebase, guardando los que faltan en cada lado
+     */
+    suspend fun syncAchievementsWithFirebase() {
+        val userId = auth.currentUser?.uid ?: return
+        
+        try {
+            Log.d("AchievementsService", "Iniciando sincronización de logros con Firebase")
+            
+            // Obtener logros de Firebase
+            val firebaseAchievements = getFirebaseUnlockedAchievements()
+            Log.d("AchievementsService", "Logros en Firebase: ${firebaseAchievements.size}")
+            
+            // Obtener logros locales (de SharedPreferences)
+            val localAchievements = prefs.getStringSet("notified_achievements", emptySet())?.toSet() ?: emptySet()
+            Log.d("AchievementsService", "Logros locales: ${localAchievements.size}")
+            
+            // Combinar ambos conjuntos
+            val allUnlockedAchievements = (firebaseAchievements + localAchievements).toSet()
+            
+            // Guardar en Firebase los logros locales que no están en Firebase
+            val toSaveInFirebase = localAchievements - firebaseAchievements
+            if (toSaveInFirebase.isNotEmpty()) {
+                Log.d("AchievementsService", "Guardando ${toSaveInFirebase.size} logros locales en Firebase")
+                toSaveInFirebase.forEach { achievementId ->
+                    saveAchievementToFirebase(achievementId)
+                }
+            }
+            
+            // Actualizar SharedPreferences con los logros de Firebase que no están localmente
+            val toSaveLocally = firebaseAchievements - localAchievements
+            if (toSaveLocally.isNotEmpty()) {
+                Log.d("AchievementsService", "Actualizando ${toSaveLocally.size} logros locales desde Firebase")
+                val updatedSet = (localAchievements + toSaveLocally).toMutableSet()
+                prefs.edit()
+                    .putStringSet("notified_achievements", updatedSet)
+                    .apply()
+            }
+            
+            Log.d("AchievementsService", "Sincronización completada. Total logros: ${allUnlockedAchievements.size}")
+        } catch (e: Exception) {
+            Log.e("AchievementsService", "Error al sincronizar logros: ${e.message}")
+            e.printStackTrace()
+        }
+    }
+    
+    /**
      * Verifica si hay nuevos logros desbloqueados y muestra notificación si es necesario.
      * Este método debe llamarse cuando:
      * - Se añade un nuevo registro
@@ -394,8 +526,19 @@ class AchievementsService @Inject constructor(
      */
     suspend fun checkAndNotifyNewAchievements() {
         try {
+            val userId = auth.currentUser?.uid
+            if (userId == null) {
+                Log.d("AchievementsService", "Usuario no autenticado, usando solo almacenamiento local")
+            }
+            
             val stats = recordRepository.getAchievementStats()
-            val notifiedSet = prefs.getStringSet("notified_achievements", emptySet())?.toMutableSet() ?: mutableSetOf()
+            
+            // Obtener logros ya notificados desde Firebase (si está autenticado) o local
+            val notifiedSet = if (userId != null) {
+                getFirebaseUnlockedAchievements().toMutableSet()
+            } else {
+                prefs.getStringSet("notified_achievements", emptySet())?.toMutableSet() ?: mutableSetOf()
+            }
             
             Log.d("AchievementsService", "Verificando logros - Stats: $stats")
             Log.d("AchievementsService", "Logros notificados: ${notifiedSet.size}")
@@ -410,15 +553,18 @@ class AchievementsService @Inject constructor(
                 }
             }
             
-            // Limpiar logros que ya no están desbloqueados
+            // Limpiar logros que ya no están desbloqueados (solo localmente, Firebase se mantiene)
             val toRemoveFromNotified = notifiedSet.filter { it !in currentlyUnlockedIds }
             
             if (toRemoveFromNotified.isNotEmpty()) {
                 Log.d("AchievementsService", "Limpiando ${toRemoveFromNotified.size} logros notificados que ya no están desbloqueados")
                 notifiedSet.removeAll(toRemoveFromNotified.toSet())
-                prefs.edit()
-                    .putStringSet("notified_achievements", notifiedSet)
-                    .apply()
+                // Solo actualizar local si no está autenticado
+                if (userId == null) {
+                    prefs.edit()
+                        .putStringSet("notified_achievements", notifiedSet)
+                        .apply()
+                }
             }
             
             // Verificar logros nuevos (desbloqueados pero no notificados)
@@ -430,17 +576,28 @@ class AchievementsService @Inject constructor(
                 }
             }
             
-            // Mostrar notificación del primer logro nuevo
+            // Mostrar notificación de logros nuevos (anidados si hay múltiples)
             if (newlyUnlocked.isNotEmpty()) {
-                val achievement = newlyUnlocked.first()
-                _newAchievementMessage.value = "🏆 ¡Logro desbloqueado! ${achievement.emoji} ${achievement.title}"
-                _lastUnlockedAchievementId.value = achievement.id
+                // Guardar en Firebase y marcar como notificados
+                newlyUnlocked.forEach { achievement ->
+                    notifiedSet.add(achievement.id)
+                    _lastUnlockedAchievementId.value = achievement.id
+                    
+                    // Guardar en Firebase si está autenticado
+                    if (userId != null) {
+                        saveAchievementToFirebase(achievement.id)
+                    } else {
+                        // Guardar localmente si no está autenticado
+                        prefs.edit()
+                            .putStringSet("notified_achievements", notifiedSet)
+                            .apply()
+                    }
+                }
                 
-                // Marcar como notificado
-                notifiedSet.add(achievement.id)
-                prefs.edit().putStringSet("notified_achievements", notifiedSet).apply()
+                // Crear notificación anidada si hay múltiples logros
+                showAchievementNotification(newlyUnlocked)
                 
-                Log.d("AchievementsService", "Mostrando notificación para: ${achievement.title}")
+                Log.d("AchievementsService", "Mostrando notificación para ${newlyUnlocked.size} logro(s)")
             }
             
             // Notificar que deben actualizarse los logros en la UI
@@ -493,10 +650,55 @@ class AchievementsService @Inject constructor(
     }
     
     /**
-     * Limpia el mensaje de notificación después de mostrarlo
+     * Muestra una notificación para los logros desbloqueados
+     * Si hay múltiples logros, los anida en una sola notificación
      */
-    fun clearNotificationMessage() {
-        _newAchievementMessage.value = null
+    private fun showAchievementNotification(achievements: List<Achievement>) {
+        val intent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+            putExtra("navigate_to", Screen.Achievements.route)
+        }
+        val pendingIntent = PendingIntent.getActivity(
+            context,
+            0,
+            intent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+        
+        val notificationBuilder = NotificationCompat.Builder(context, CHANNEL_ID)
+            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setContentIntent(pendingIntent)
+            .setAutoCancel(true)
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+        
+        if (achievements.size == 1) {
+            // Un solo logro
+            val achievement = achievements.first()
+            val bigTextStyle = NotificationCompat.BigTextStyle()
+                .bigText("${achievement.emoji} ${achievement.title}\n\n${achievement.description}")
+            
+            notificationBuilder
+                .setContentTitle("🏆 ¡Logro desbloqueado!")
+                .setContentText("${achievement.emoji} ${achievement.title}")
+                .setStyle(bigTextStyle)
+        } else {
+            // Múltiples logros - usar estilo de inbox
+            val title = "🏆 ¡${achievements.size} logros desbloqueados!"
+            val inboxStyle = NotificationCompat.InboxStyle()
+                .setBigContentTitle(title)
+                .setSummaryText("${achievements.size} logros nuevos")
+            
+            achievements.forEach { achievement ->
+                inboxStyle.addLine("${achievement.emoji} ${achievement.title}")
+            }
+            
+            notificationBuilder
+                .setContentTitle(title)
+                .setContentText(achievements.first().title)
+                .setStyle(inboxStyle)
+        }
+        
+        notificationManager.notify(NOTIFICATION_ID, notificationBuilder.build())
     }
     
     /**

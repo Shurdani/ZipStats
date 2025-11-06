@@ -116,7 +116,8 @@ fun RouteDetailDialog(
             modifier = Modifier
                 .fillMaxSize()
                     .padding(12.dp),
-            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
+            shape = com.zipstats.app.ui.theme.DialogShape
         ) {
             Column(
                 modifier = Modifier
@@ -175,7 +176,7 @@ fun RouteDetailDialog(
                             containerColor = MaterialTheme.colorScheme.surface
                         ),
                                 elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-                                shape = RoundedCornerShape(12.dp)
+                                shape = com.zipstats.app.ui.theme.SmallCardShape
                     ) {
                         CapturableMapView(
                             route = route,
@@ -502,22 +503,23 @@ private fun StatsChips(route: Route) {
         // Distancia
         StatChip(
             value = String.format("%.1f km", route.totalDistance),
-                    label = "Distancia",
-            icon = null
-                )
+            label = "Distancia",
+            modifier = Modifier.weight(1f)
+        )
         
         // Duración con unidades
         StatChip(
             value = formatDurationWithUnits(route.totalDuration),
-                    label = "Duración",
-            icon = null
+            label = "Duración",
+            modifier = Modifier.weight(1f)
         )
         
         // Clima
         StatChip(
             value = if (isLoadingWeather) "..." else weatherTemp,
             label = "Clima",
-            iconRes = weatherIconRes
+            iconRes = weatherIconRes,
+            modifier = Modifier.weight(1f)
         )
     }
 }
@@ -526,11 +528,16 @@ private fun StatsChips(route: Route) {
  * Chip individual de estadística con icono opcional
  */
 @Composable
-private fun StatChip(value: String, label: String, iconRes: Int? = null) {
+private fun StatChip(
+    value: String, 
+    label: String, 
+    iconRes: Int? = null,
+    modifier: Modifier = Modifier
+) {
     Surface(
         shape = RoundedCornerShape(16.dp),
         color = MaterialTheme.colorScheme.primaryContainer,
-        modifier = Modifier.padding(horizontal = 4.dp)
+        modifier = modifier.padding(horizontal = 4.dp)
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -545,7 +552,7 @@ private fun StatChip(value: String, label: String, iconRes: Int? = null) {
                         painter = painterResource(id = iconRes),
                         contentDescription = "Icono del clima",
                         modifier = Modifier
-                            .size(32.dp)
+                            .size(24.dp)
                             .padding(end = 6.dp),
                         colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.onPrimaryContainer)
                     )

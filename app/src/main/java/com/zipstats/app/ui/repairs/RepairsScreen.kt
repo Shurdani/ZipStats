@@ -138,6 +138,13 @@ fun RepairsScreen(
                         modifier = Modifier.fillMaxWidth(),
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done)
                     )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Si se deja en blanco, se usará el kilometraje del último viaje antes de esta fecha.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                        modifier = Modifier.padding(start = 16.dp, end = 16.dp)
+                    )
                 }
             },
             confirmButton = {
@@ -233,6 +240,13 @@ fun RepairsScreen(
                         label = { Text("Kilometraje (opcional)") },
                         modifier = Modifier.fillMaxWidth(),
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done)
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Si se deja en blanco, se usará el kilometraje del último viaje antes de esta fecha.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                        modifier = Modifier.padding(start = 16.dp, end = 16.dp)
                     )
                 }
             },

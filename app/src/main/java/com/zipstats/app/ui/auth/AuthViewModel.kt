@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.zipstats.app.repository.AccountMergeRequiredException
 import com.zipstats.app.repository.AuthRepository
 import com.zipstats.app.repository.UserRepository
+import com.zipstats.app.service.AchievementsService
 import com.google.firebase.auth.FirebaseAuth
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -18,7 +19,8 @@ import javax.inject.Inject
 class AuthViewModel @Inject constructor(
     private val auth: FirebaseAuth,
     private val userRepository: UserRepository,
-    private val authRepository: AuthRepository
+    private val authRepository: AuthRepository,
+    private val achievementsService: AchievementsService
 ) : ViewModel() {
 
     private val _authState = MutableStateFlow<AuthState>(AuthState.Initial)
@@ -37,13 +39,15 @@ class AuthViewModel @Inject constructor(
                 // Verificar si ya hay un usuario autenticado
                 val currentUser = auth.currentUser
                 if (currentUser != null) {
-                    // Usuario ya autenticado
+                    // Usuario ya autenticado - sincronizar logros
+                    achievementsService.syncAchievementsWithFirebase()
                     _authState.value = AuthState.Success
                 } else {
                     // Intentar auto-login con credenciales guardadas
                     try {
                         val result = authRepository.autoSignIn()
                         if (result.isSuccess) {
+                            achievementsService.syncAchievementsWithFirebase()
                             _authState.value = AuthState.Success
                         } else {
                             _authState.value = AuthState.Initial
@@ -64,6 +68,7 @@ class AuthViewModel @Inject constructor(
                 _authState.value = AuthState.Loading
                 val result = authRepository.login(email, password)
                 if (result.isSuccess) {
+                    achievementsService.syncAchievementsWithFirebase()
                     _authState.value = AuthState.Success
                 } else {
                     val exception = result.exceptionOrNull()
@@ -84,6 +89,7 @@ class AuthViewModel @Inject constructor(
                 if (result.isSuccess) {
                     // Crear documento de usuario en Firestore
                     userRepository.createUser(email, name)
+                    achievementsService.syncAchievementsWithFirebase()
                     _authState.value = AuthState.Success
                 } else {
                     _authState.value = AuthState.Error(result.exceptionOrNull()?.message ?: "Error al registrar usuario")
@@ -139,6 +145,7 @@ class AuthViewModel @Inject constructor(
                 _authState.value = AuthState.Loading
                 authRepository.reloadUser()
                 if (authRepository.isEmailVerified()) {
+                    achievementsService.syncAchievementsWithFirebase()
                     _authState.value = AuthState.Success
                 } else {
                     _authState.value = AuthState.EmailNotVerified
@@ -181,6 +188,7 @@ class AuthViewModel @Inject constructor(
                             }
                         }
                     }
+                    achievementsService.syncAchievementsWithFirebase()
                     _authState.value = AuthState.Success
                 } else {
                     val exception = result.exceptionOrNull()
@@ -233,6 +241,7 @@ class AuthViewModel @Inject constructor(
                                 }
                             }
                         }
+                        achievementsService.syncAchievementsWithFirebase()
                         _authState.value = AuthState.Success
                     } else {
                         _authState.value = AuthState.Error(linkResult.exceptionOrNull()?.message ?: "Error al vincular cuenta de Google")

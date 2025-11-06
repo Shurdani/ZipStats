@@ -20,6 +20,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MoreVert
@@ -28,8 +29,8 @@ import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
@@ -40,14 +41,12 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -84,7 +83,6 @@ fun ScooterDetailScreen(
     var vehicleStats by remember { mutableStateOf<VehicleDetailedStats?>(null) }
     var isLoadingStats by remember { mutableStateOf(true) }
     var showEditSheet by remember { mutableStateOf(false) }
-    val sheetState = rememberModalBottomSheetState()
     val scope = rememberCoroutineScope()
     
     val scooter = when (val state = uiState) {
@@ -109,7 +107,7 @@ fun ScooterDetailScreen(
             title = { Text("Eliminar vehículo") },
             text = { Text("¿Estás seguro de que quieres eliminar este vehículo? Esta acción también eliminará todos los registros asociados.") },
             confirmButton = {
-                TextButton(
+                Button(
                     onClick = {
                         showDeleteDialog = false
                         scope.launch {
@@ -125,43 +123,39 @@ fun ScooterDetailScreen(
                                 android.util.Log.e("ScooterDetailScreen", "Error durante eliminación", e)
                             }
                         }
-                    }
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error,
+                        contentColor = MaterialTheme.colorScheme.onError
+                    )
                 ) {
-                    Text("Eliminar", color = MaterialTheme.colorScheme.error)
+                    Text("Eliminar")
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showDeleteDialog = false }) {
+                Button(
+                    onClick = { showDeleteDialog = false },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                ) {
                     Text("Cancelar")
                 }
             }
         )
     }
 
-    // Bottom sheet para editar el vehículo
+    // Diálogo para editar el vehículo
     if (showEditSheet && scooter != null) {
-        ModalBottomSheet(
-            onDismissRequest = { showEditSheet = false },
-            sheetState = sheetState,
-            dragHandle = { BottomSheetDefaults.DragHandle() }
-        ) {
-            EditScooterBottomSheet(
-                scooter = scooter,
-                onSave = { nombre, marca, modelo, fechaCompra ->
-                    viewModel.updateScooter(scooterId, nombre, marca, modelo, fechaCompra)
-                    scope.launch {
-                        sheetState.hide()
-                        showEditSheet = false
-                    }
-                },
-                onCancel = {
-                    scope.launch {
-                        sheetState.hide()
-                        showEditSheet = false
-                    }
-                }
-            )
-        }
+        EditScooterDialog(
+            scooter = scooter,
+            onDismiss = { showEditSheet = false },
+            onSave = { nombre, marca, modelo, fechaCompra ->
+                viewModel.updateScooter(scooterId, nombre, marca, modelo, fechaCompra)
+                showEditSheet = false
+            }
+        )
     }
 
     Scaffold(
@@ -517,7 +511,7 @@ fun ScooterDetailScreen(
                                 )
                             }
                             Icon(
-                                Icons.AutoMirrored.Filled.ArrowBack,
+                                Icons.Default.ChevronRight,
                                 contentDescription = "Ver todo",
                                 tint = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.size(18.dp)
@@ -634,10 +628,10 @@ private fun InfoRow(label: String, value: String) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun EditScooterBottomSheet(
+private fun EditScooterDialog(
     scooter: com.zipstats.app.model.Scooter,
-    onSave: (String, String, String, String) -> Unit,
-    onCancel: () -> Unit
+    onDismiss: () -> Unit,
+    onSave: (String, String, String, String) -> Unit
 ) {
     var nombre by remember { mutableStateOf(scooter.nombre) }
     var marca by remember { mutableStateOf(scooter.marca) }
@@ -652,103 +646,113 @@ private fun EditScooterBottomSheet(
             }
         )
     }
+    var fechaTexto by remember { mutableStateOf(DateUtils.formatForDisplay(selectedDate)) }
+    var fechaError by remember { mutableStateOf<String?>(null) }
     var showError by remember { mutableStateOf(false) }
+
+    LaunchedEffect(selectedDate) {
+        fechaTexto = DateUtils.formatForDisplay(selectedDate)
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Editar vehículo") },
+        text = {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedTextField(
+                    value = nombre,
+                    onValueChange = { nombre = it },
+                    label = { Text("Nombre") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = marca,
+                    onValueChange = { marca = it },
+                    label = { Text("Marca") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = modelo,
+                    onValueChange = { modelo = it },
+                    label = { Text("Modelo") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = fechaTexto,
+                    onValueChange = { nuevoTexto ->
+                        fechaTexto = nuevoTexto
+                        try {
+                            val parsedDate = DateUtils.parseDisplayDate(nuevoTexto)
+                            if (parsedDate.isAfter(LocalDate.now())) {
+                                fechaError = "La fecha no puede ser futura"
+                            } else {
+                                fechaError = null
+                                selectedDate = parsedDate
+                            }
+                        } catch (e: Exception) {
+                            fechaError = "Fecha inválida"
+                        }
+                    },
+                    label = { Text("Fecha de compra") },
+                    isError = fechaError != null,
+                    supportingText = fechaError?.let { { Text(it) } },
+                    trailingIcon = {
+                        IconButton(onClick = { showDatePicker = true }) {
+                            Icon(Icons.Default.CalendarMonth, contentDescription = "Seleccionar fecha")
+                        }
+                    },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                
+                if (showError) {
+                    Text(
+                        text = "Por favor, complete todos los campos",
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            com.zipstats.app.ui.components.DialogConfirmButton(
+                text = "Guardar",
+                onClick = {
+                    if (nombre.isBlank() || marca.isBlank() || modelo.isBlank() || fechaError != null) {
+                        showError = true
+                    } else {
+                        onSave(nombre, marca, modelo, fechaTexto)
+                        showError = false
+                    }
+                },
+                enabled = nombre.isNotBlank() && marca.isNotBlank() && modelo.isNotBlank() && fechaError == null
+            )
+        },
+        dismissButton = {
+            com.zipstats.app.ui.components.DialogCancelButton(
+                text = "Cancelar",
+                onClick = onDismiss
+            )
+        },
+        shape = com.zipstats.app.ui.theme.DialogShape
+    )
 
     if (showDatePicker) {
         com.zipstats.app.ui.components.StandardDatePickerDialogWithValidation(
             selectedDate = selectedDate,
-            onDateSelected = { selectedDate = it },
+            onDateSelected = { 
+                selectedDate = it
+                fechaError = null
+            },
             onDismiss = { showDatePicker = false },
-            title = "Fecha de compra",
+            title = "Seleccionar fecha de compra",
             maxDate = LocalDate.now(),
             validateDate = { date -> !date.isAfter(LocalDate.now()) }
         )
-    }
-
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp)
-            .padding(bottom = 32.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        Text(
-            text = "Editar Vehículo",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold
-        )
-
-        OutlinedTextField(
-            value = nombre,
-            onValueChange = { nombre = it },
-            label = { Text("Nombre") },
-            placeholder = { Text("ej: Mi patinete") },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth()
-        )
-
-        OutlinedTextField(
-            value = marca,
-            onValueChange = { marca = it },
-            label = { Text("Marca") },
-            placeholder = { Text("ej: Xiaomi") },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth()
-        )
-
-        OutlinedTextField(
-            value = modelo,
-            onValueChange = { modelo = it },
-            label = { Text("Modelo") },
-            placeholder = { Text("ej: Mi Scooter Pro 2") },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth()
-        )
-
-        OutlinedTextField(
-            value = DateUtils.formatForDisplay(selectedDate),
-            onValueChange = { },
-            label = { Text("Fecha de compra") },
-            readOnly = true,
-            trailingIcon = {
-                IconButton(onClick = { showDatePicker = true }) {
-                    Icon(Icons.Default.CalendarMonth, contentDescription = "Seleccionar fecha")
-                }
-            },
-            modifier = Modifier.fillMaxWidth()
-        )
-
-        if (showError) {
-            Text(
-                text = "Por favor, complete todos los campos",
-                color = MaterialTheme.colorScheme.error,
-                style = MaterialTheme.typography.bodySmall
-            )
-        }
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            TextButton(
-                onClick = onCancel,
-                modifier = Modifier.weight(1f)
-            ) {
-                Text("Cancelar")
-            }
-            Button(
-                onClick = {
-                    if (nombre.isBlank() || marca.isBlank() || modelo.isBlank()) {
-                        showError = true
-                    } else {
-                        onSave(nombre, marca, modelo, DateUtils.formatForDisplay(selectedDate))
-                        showError = false
-                    }
-                },
-                modifier = Modifier.weight(1f)
-            ) {
-                Text("Guardar")
-            }
-        }
     }
 }

@@ -31,5 +31,23 @@ service cloud.firestore {
       // Solo permitir acceso al propio perfil del usuario
       allow read, write: if request.auth != null && userId == request.auth.uid;
     }
+    
+    // Reglas específicas para user_achievements (logros desbloqueados)
+    match /user_achievements/{achievementDocId} {
+      // Permitir lectura si el usuario está autenticado y es propietario del logro
+      allow read: if request.auth != null && resource.data.userId == request.auth.uid;
+      
+      // Permitir escritura si el usuario está autenticado y el documento tiene su ID como userId
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      
+      // Permitir actualización si el usuario está autenticado, es propietario, 
+      // y no está cambiando el userId
+      allow update: if request.auth != null && 
+                     resource.data.userId == request.auth.uid && 
+                     request.resource.data.userId == resource.data.userId;
+      
+      // No permitir eliminación (los logros desbloqueados no se pueden eliminar)
+      allow delete: if false;
+    }
   }
 } 

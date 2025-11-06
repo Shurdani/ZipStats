@@ -28,3 +28,4 @@ google-services.json
 # Sensitive files - NEVER commit these!
 local.properties
 google-services.json
+keystore.properties

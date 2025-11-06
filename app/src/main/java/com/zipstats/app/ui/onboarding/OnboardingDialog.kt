@@ -1,8 +1,6 @@
 package com.zipstats.app.ui.onboarding
 
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -25,7 +23,6 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun OnboardingDialog(
     onDismiss: () -> Unit,
-    onGoToProfile: () -> Unit,
     onRegisterVehicle: () -> Unit
 ) {
     AlertDialog(
@@ -75,16 +72,14 @@ fun OnboardingDialog(
             }
         },
         dismissButton = {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
+            Button(
+                onClick = onDismiss,
+                colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                    containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant,
+                    contentColor = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant
+                )
             ) {
-                TextButton(onClick = onDismiss) {
-                    Text("Más tarde")
-                }
-                TextButton(onClick = onGoToProfile) {
-                    Text("Ir a perfil")
-                }
+                Text("Más tarde")
             }
         }
     )

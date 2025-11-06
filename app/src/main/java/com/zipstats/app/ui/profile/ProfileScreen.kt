@@ -6,7 +6,6 @@ import android.util.Log
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.core.app.ActivityCompat
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -32,6 +31,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.res.painterResource
 import com.zipstats.app.R
@@ -145,48 +145,23 @@ fun ProfileScreen(
         viewModel.clearCameraReady()
     }
     
-    val cameraPermissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission()
-    ) { isGranted ->
-        if (isGranted) {
-            // Preparar la cámara cuando se concede el permiso
-            viewModel.prepareCamera(context)
-        } else {
-            // Mostrar diálogo si se deniega el permiso
-            showPermissionDialog = true
-        }
-    }
-
     val galleryLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri ->
         uri?.let { viewModel.handleEvent(ProfileEvent.UpdatePhoto(it)) }
     }
-
-    val storagePermissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission()
-    ) { isGranted ->
-        if (isGranted) {
-            galleryLauncher.launch("image/*")
-        } else {
-            showPermissionDialog = true
+    
+    // PermissionManager para verificar permisos (solo verificación, no solicitud)
+    val permissionManager = remember { com.zipstats.app.permission.PermissionManager(context) }
+    
+    // Función para abrir configuración de permisos
+    fun openAppSettings() {
+        val intent = android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+            data = android.net.Uri.fromParts("package", context.packageName, null)
         }
+        context.startActivity(intent)
     }
     
-    val exportPermissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission()
-    ) { isGranted ->
-        android.util.Log.d("ProfileScreen", "=== RESULTADO DEL PERMISO ===")
-        android.util.Log.d("ProfileScreen", "Resultado del permiso de almacenamiento: $isGranted")
-        if (isGranted) {
-            android.util.Log.d("ProfileScreen", "Permiso concedido, exportando...")
-            viewModel.exportAllRecords(context)
-        } else {
-            android.util.Log.d("ProfileScreen", "Permiso denegado")
-            Toast.makeText(context, "Permiso de almacenamiento denegado. Ve a Configuración > Aplicaciones > ZipStats > Permisos para activarlo.", Toast.LENGTH_LONG).show()
-        }
-        android.util.Log.d("ProfileScreen", "=== FIN RESULTADO DEL PERMISO ===")
-    }
     
     // Observar cuando la cámara está lista y lanzarla
     val cameraReady by viewModel.cameraReady.collectAsState()
@@ -229,11 +204,12 @@ fun ProfileScreen(
                         TextButton(
                             onClick = {
                                 showPhotoOptionsDialog = false
-                                // Verificar y pedir permiso de almacenamiento antes de abrir galería
-                                if (viewModel.checkStoragePermission(context)) {
+                                // Verificar permiso de almacenamiento (solo verificación)
+                                if (permissionManager.hasStoragePermission()) {
                                     galleryLauncher.launch("image/*")
                                 } else {
-                                    storagePermissionLauncher.launch(Manifest.permission.READ_MEDIA_IMAGES)
+                                    Toast.makeText(context, "Permiso de almacenamiento requerido. Ve a Configuración > Aplicaciones > ZipStats > Permisos.", Toast.LENGTH_LONG).show()
+                                    openAppSettings()
                                 }
                             },
                             modifier = Modifier.fillMaxWidth()
@@ -252,15 +228,13 @@ fun ProfileScreen(
                         TextButton(
                             onClick = {
                                 showPhotoOptionsDialog = false
-                                when {
-                                    viewModel.checkAndRequestCameraPermission(context) -> {
-                                        // Si ya tiene permiso, preparar la cámara (se lanzará automáticamente)
-                                        viewModel.prepareCamera(context)
-                                    }
-                                    else -> {
-                                        // Pedir permiso
-                                        cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
-                                    }
+                                // Verificar permiso de cámara (solo verificación)
+                                if (permissionManager.hasCameraPermission()) {
+                                    // Si ya tiene permiso, preparar la cámara (se lanzará automáticamente)
+                                    viewModel.prepareCamera(context)
+                                } else {
+                                    Toast.makeText(context, "Permiso de cámara requerido. Ve a Configuración > Aplicaciones > ZipStats > Permisos.", Toast.LENGTH_LONG).show()
+                                    openAppSettings()
                                 }
                             },
                             modifier = Modifier.fillMaxWidth()
@@ -318,10 +292,12 @@ fun ProfileScreen(
                     }
                 },
                 confirmButton = {
-                    TextButton(onClick = { showPhotoOptionsDialog = false }) {
-                        Text("Cancelar")
-                    }
-                }
+                    com.zipstats.app.ui.components.DialogCancelButton(
+                        text = "Cancelar",
+                        onClick = { showPhotoOptionsDialog = false }
+                    )
+                },
+                shape = com.zipstats.app.ui.theme.DialogShape
             )
         }
 
@@ -344,20 +320,22 @@ fun ProfileScreen(
             title = { Text("Permiso necesario") },
             text = { Text("Para tomar fotos, necesitamos acceso a la cámara. ¿Deseas conceder el permiso?") },
             confirmButton = {
-                TextButton(
+                Button(
                     onClick = {
                         showPermissionDialog = false
-                        cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+                        openAppSettings()
                     }
                 ) {
-                    Text("Conceder permiso")
+                    Text("Abrir configuración")
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showPermissionDialog = false }) {
-                    Text("Cancelar")
-                }
-            }
+                com.zipstats.app.ui.components.DialogCancelButton(
+                    text = "Cancelar",
+                    onClick = { showPermissionDialog = false }
+                )
+            },
+            shape = com.zipstats.app.ui.theme.DialogShape
         )
     }
 
@@ -441,7 +419,8 @@ fun ProfileScreen(
                             colors = CardDefaults.cardColors(
                                 containerColor = MaterialTheme.colorScheme.surface
                             ),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                            elevation = CardDefaults.cardElevation(defaultElevation = 3.dp), // Sombra más sutil pero presente
+                            shape = com.zipstats.app.ui.theme.CardShape
                         ) {
                             Row(
                                 modifier = Modifier
@@ -531,7 +510,54 @@ fun ProfileScreen(
                                     Text(
                                         text = state.user.email,
                                         style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f) // Mejor contraste
+                                    )
+                                }
+                                
+                                // Botón Exportar
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    IconButton(onClick = {
+                                        android.util.Log.d("ProfileScreen", "Botón Exportar presionado desde tarjeta de usuario")
+                                        android.util.Log.d("ProfileScreen", "Android SDK: ${Build.VERSION.SDK_INT}")
+                                        
+                                        // Para Android 10+ no necesitamos permisos explícitos para MediaStore
+                                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                                            android.util.Log.d("ProfileScreen", "Android 10+: Exportando directamente con MediaStore")
+                                            viewModel.exportAllRecords(context)
+                                        } else {
+                                            // Android 9 y anteriores - verificar permiso de almacenamiento
+                                            val hasPermission = viewModel.checkStoragePermission(context)
+                                            android.util.Log.d("ProfileScreen", "Tiene permiso: $hasPermission")
+                                            
+                                            if (hasPermission) {
+                                                android.util.Log.d("ProfileScreen", "Exportando directamente...")
+                                                viewModel.exportAllRecords(context)
+                                            } else {
+                                                android.util.Log.d("ProfileScreen", "Verificando permiso de almacenamiento...")
+                                                // Solo verificar, no solicitar
+                                                if (permissionManager.hasStoragePermission()) {
+                                                    android.util.Log.d("ProfileScreen", "Permiso concedido, exportando...")
+                                                    viewModel.exportAllRecords(context)
+                                                } else {
+                                                    android.util.Log.d("ProfileScreen", "Permiso denegado")
+                                                    Toast.makeText(context, "Permiso de almacenamiento requerido. Ve a Configuración > Aplicaciones > ZipStats > Permisos.", Toast.LENGTH_LONG).show()
+                                                    openAppSettings()
+                                                }
+                                            }
+                                        }
+                                    }) {
+                                        Icon(
+                                            imageVector = Icons.Default.FileDownload,
+                                            contentDescription = "Exportar registros",
+                                            tint = MaterialTheme.colorScheme.primary
+                                        )
+                                    }
+                                    Text(
+                                        text = "Exportar",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f) // Mejor contraste
                                     )
                                 }
                             }
@@ -543,36 +569,7 @@ fun ProfileScreen(
                         SummaryCard(
                             totalKm = state.scooters.sumOf { it.kilometrajeActual ?: 0.0 },
                             unlockedAchievements = state.unlockedAchievements,
-                            totalAchievements = state.totalAchievements,
-                            onExport = {
-                                android.util.Log.d("ProfileScreen", "Botón Exportar presionado desde SummaryCard")
-                                android.util.Log.d("ProfileScreen", "Android SDK: ${Build.VERSION.SDK_INT}")
-                                
-                                // Para Android 10+ no necesitamos permisos explícitos para MediaStore
-                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                                    android.util.Log.d("ProfileScreen", "Android 10+: Exportando directamente con MediaStore")
-                                    viewModel.exportAllRecords(context)
-                                } else {
-                                    // Android 9 y anteriores - verificar permiso de almacenamiento
-                                    val hasPermission = viewModel.checkStoragePermission(context)
-                                    android.util.Log.d("ProfileScreen", "Tiene permiso: $hasPermission")
-                                    
-                                    if (hasPermission) {
-                                        android.util.Log.d("ProfileScreen", "Exportando directamente...")
-                                        viewModel.exportAllRecords(context)
-                                    } else {
-                                        android.util.Log.d("ProfileScreen", "Solicitando permiso de almacenamiento...")
-                                        // Solo para Android 9 y anteriores
-                                        try {
-                                            exportPermissionLauncher.launch(android.Manifest.permission.WRITE_EXTERNAL_STORAGE)
-                                            android.util.Log.d("ProfileScreen", "Launcher lanzado exitosamente")
-                                        } catch (e: Exception) {
-                                            android.util.Log.e("ProfileScreen", "Error lanzando WRITE_EXTERNAL_STORAGE: ${e.message}")
-                                            Toast.makeText(context, "Error solicitando permisos. Ve a Configuración > Permisos de la app.", Toast.LENGTH_LONG).show()
-                                        }
-                                    }
-                                }
-                            }
+                            totalAchievements = state.totalAchievements
                         )
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -596,12 +593,13 @@ fun ProfileScreen(
                                 colors = CardDefaults.cardColors(
                                     containerColor = MaterialTheme.colorScheme.surface
                                     ),
-                                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                                    shape = com.zipstats.app.ui.theme.SmallCardShape
                             ) {
                                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                                            .padding(32.dp),
+                                            .padding(24.dp), // Reducir padding para mejor respiración
                                         horizontalAlignment = Alignment.CenterHorizontally
                                         ) {
                                             Icon(
@@ -614,7 +612,7 @@ fun ProfileScreen(
                         Text(
                             text = "No tienes vehículos registrados",
                                             style = MaterialTheme.typography.bodyMedium,
-                                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f) // Mejor contraste
                                         )
                                     }
                                 }
@@ -662,6 +660,7 @@ fun AvatarSelectionDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Seleccionar avatar") },
+        shape = com.zipstats.app.ui.theme.DialogShape,
         text = {
             LazyVerticalGrid(
                 columns = GridCells.Fixed(4),
@@ -689,9 +688,10 @@ fun AvatarSelectionDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancelar")
-            }
+            com.zipstats.app.ui.components.DialogCancelButton(
+                text = "Cancelar",
+                onClick = onDismiss
+            )
         }
     )
 }
@@ -700,17 +700,17 @@ fun AvatarSelectionDialog(
 fun SummaryCard(
     totalKm: Double,
     unlockedAchievements: Int,
-    totalAchievements: Int,
-    onExport: () -> Unit
+    totalAchievements: Int
 ) {
-    Card(
+        Card(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.primaryContainer
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp), // Sombra más sutil pero presente
+        shape = com.zipstats.app.ui.theme.CardShape
     ) {
         Column(
             modifier = Modifier
@@ -718,37 +718,15 @@ fun SummaryCard(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            Text(
+                text = "Resumen",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onPrimaryContainer
+            )
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-                Text(
-                    text = "Resumen",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                )
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    IconButton(onClick = onExport) {
-                    Icon(
-                            imageVector = Icons.Default.FileDownload,
-                            contentDescription = "Exportar registros",
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                }
-                    Text(
-                        text = "Exportar",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
-                    )
-                }
-            }
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceEvenly
             ) {
                 SummaryMetric(
@@ -783,8 +761,8 @@ fun SummaryMetric(
         Icon(
             imageVector = icon,
             contentDescription = null,
-            tint = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.size(32.dp)
+            tint = MaterialTheme.colorScheme.onPrimaryContainer,
+            modifier = Modifier.size(48.dp)
                 )
                 Text(
             text = value,
@@ -795,7 +773,7 @@ fun SummaryMetric(
                 Text(
             text = label,
             style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f) // Mejor contraste
         )
     }
 }
@@ -818,14 +796,15 @@ fun ScooterCardItem(
     scooter: com.zipstats.app.model.Scooter,
     onClick: () -> Unit
 ) {
-    Card(
+        Card(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        shape = com.zipstats.app.ui.theme.SmallCardShape
     ) {
         Row(
             modifier = Modifier
@@ -870,7 +849,7 @@ fun ScooterCardItem(
                         Text(
                         text = scooter.modelo,
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f) // Mejor contraste
                         )
                         Text(
                         text = "${String.format("%.1f", scooter.kilometrajeActual ?: 0.0)} km",
@@ -924,10 +903,18 @@ fun AddScooterDialog(
                     onExpandedChange = { vehicleTypeExpanded = it }
                 ) {
                     OutlinedTextField(
-                        value = "${selectedVehicleType.emoji} ${selectedVehicleType.displayName}",
+                        value = selectedVehicleType.displayName,
                         onValueChange = { },
                         label = { Text("Tipo de vehículo") },
                         readOnly = true,
+                        leadingIcon = {
+                            Image(
+                                painter = getVehicleIcon(selectedVehicleType),
+                                contentDescription = null,
+                                modifier = Modifier.size(24.dp),
+                                colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.onSurface)
+                            )
+                        },
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = vehicleTypeExpanded) },
                         modifier = Modifier
                             .fillMaxWidth()
@@ -939,7 +926,20 @@ fun AddScooterDialog(
                     ) {
                         VehicleType.values().forEach { type ->
                             DropdownMenuItem(
-                                text = { Text("${type.emoji} ${type.displayName}") },
+                                text = { 
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                    ) {
+                                        Image(
+                                            painter = getVehicleIcon(type),
+                                            contentDescription = null,
+                                            modifier = Modifier.size(24.dp),
+                                            colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.onSurface)
+                                        )
+                                        Text(type.displayName)
+                                    }
+                                },
                                 onClick = { 
                                     selectedVehicleType = type
                                     vehicleTypeExpanded = false
@@ -953,7 +953,6 @@ fun AddScooterDialog(
                     value = nombre,
                     onValueChange = { nombre = it },
                     label = { Text("Nombre") },
-                    placeholder = { Text("ej: Mi vehículo") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -961,7 +960,6 @@ fun AddScooterDialog(
                     value = marca,
                     onValueChange = { marca = it },
                     label = { Text("Marca") },
-                    placeholder = { Text("ej: Xiaomi") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -969,7 +967,6 @@ fun AddScooterDialog(
                     value = modelo,
                     onValueChange = { modelo = it },
                     label = { Text("Modelo") },
-                    placeholder = { Text("ej: Mi Scooter Pro 2") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -1004,7 +1001,8 @@ fun AddScooterDialog(
             }
         },
         confirmButton = {
-            TextButton(
+            com.zipstats.app.ui.components.DialogConfirmButton(
+                text = "Guardar",
                 onClick = {
                     if (nombre.isNotBlank() && marca.isNotBlank() && modelo.isNotBlank() && fechaError == null) {
                         onConfirm(
@@ -1017,15 +1015,15 @@ fun AddScooterDialog(
                     }
                 },
                 enabled = nombre.isNotBlank() && marca.isNotBlank() && modelo.isNotBlank() && fechaError == null
-            ) {
-                Text("Guardar")
-            }
+            )
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancelar")
-            }
-        }
+            com.zipstats.app.ui.components.DialogCancelButton(
+                text = "Cancelar",
+                onClick = onDismiss
+            )
+        },
+        shape = com.zipstats.app.ui.theme.DialogShape
     )
 
     if (showDatePicker) {

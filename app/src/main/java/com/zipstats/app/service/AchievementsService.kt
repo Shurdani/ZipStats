@@ -1,16 +1,28 @@
 package com.zipstats.app.service
 
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
 import android.content.Context
+import android.content.Intent
 import android.content.SharedPreferences
+import android.os.Build
 import android.util.Log
+import androidx.core.app.NotificationCompat
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
+import com.zipstats.app.MainActivity
+import com.zipstats.app.R
 import com.zipstats.app.model.Achievement
 import com.zipstats.app.model.AchievementLevel
 import com.zipstats.app.model.AchievementRequirementType
+import com.zipstats.app.navigation.Screen
 import com.zipstats.app.repository.RecordRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.tasks.await
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -25,11 +37,10 @@ import javax.inject.Singleton
 @Singleton
 class AchievementsService @Inject constructor(
     @ApplicationContext private val context: Context,
-    private val recordRepository: RecordRepository
+    private val recordRepository: RecordRepository,
+    private val firestore: FirebaseFirestore,
+    private val auth: FirebaseAuth
 ) {
-    
-    private val _newAchievementMessage = MutableStateFlow<String?>(null)
-    val newAchievementMessage: StateFlow<String?> = _newAchievementMessage.asStateFlow()
     
     private val _lastUnlockedAchievementId = MutableStateFlow<String?>(null)
     val lastUnlockedAchievementId: StateFlow<String?> = _lastUnlockedAchievementId.asStateFlow()
@@ -39,6 +50,34 @@ class AchievementsService @Inject constructor(
     
     private val prefs: SharedPreferences by lazy {
         context.getSharedPreferences("achievements_prefs", Context.MODE_PRIVATE)
+    }
+    
+    private val notificationManager: NotificationManager by lazy {
+        context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+    }
+    
+    private val CHANNEL_ID = "achievements_channel"
+    private val NOTIFICATION_ID = 1000
+    private val ACHIEVEMENTS_COLLECTION = "user_achievements"
+    
+    init {
+        createNotificationChannel()
+    }
+    
+    private fun createNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                CHANNEL_ID,
+                "Logros Desbloqueados",
+                NotificationManager.IMPORTANCE_DEFAULT
+            ).apply {
+                description = "Notificaciones cuando desbloqueas logros"
+                setShowBadge(true)
+                enableLights(true)
+                enableVibration(true)
+            }
+            notificationManager.createNotificationChannel(channel)
+        }
     }
     
     /**
@@ -54,7 +93,7 @@ class AchievementsService @Inject constructor(
             level = AchievementLevel.NOVATO,
             emoji = "👶🛴",
             hashtag = "#RodandoAndo",
-            shareMessage = "¡Lo hice! 50 km recorridos y mi VMP y yo ya somos mejores amigos. ¡Que empiece el juego! #RodandoAndo",
+            shareMessage = "¡Lo hice! 50 km recorridos y mi VMP y yo ya somos mejores amigos. ¡Que empiece el juego! #RodandoAndo #ZipStats",
             requiredDistance = 50.0,
             requirementType = AchievementRequirementType.DISTANCE
         ),
@@ -65,7 +104,7 @@ class AchievementsService @Inject constructor(
             level = AchievementLevel.NOVATO,
             emoji = "📋✅",
             hashtag = "#DataGeek",
-            shareMessage = "¡No solo ruedo, también registro! Mis primeros 10 viajes ya están en la base de datos. ¡La organización es la clave! #DataGeek",
+            shareMessage = "¡No solo ruedo, también registro! Mis primeros 10 viajes ya están en la base de datos. ¡La organización es la clave! #DataGeek #ZipStats",
             requiredTrips = 10,
             requirementType = AchievementRequirementType.TRIPS
         ),
@@ -76,7 +115,7 @@ class AchievementsService @Inject constructor(
             level = AchievementLevel.NOVATO,
             emoji = "📅🗓️",
             hashtag = "#HábitoVerde",
-            shareMessage = "Soy más consistente que la alarma de las 6 AM. ¡Tres semanas seguidas de movilidad sostenible! ¿Quién dijo rutina? #HábitoVerde",
+            shareMessage = "Soy más consistente que la alarma de las 6 AM. ¡Tres semanas seguidas de movilidad sostenible! ¿Quién dijo rutina? #HábitoVerde #ZipStats",
             requiredUniqueWeeks = 3,
             requirementType = AchievementRequirementType.UNIQUE_WEEKS
         ),
@@ -87,7 +126,7 @@ class AchievementsService @Inject constructor(
             level = AchievementLevel.NOVATO,
             emoji = "⏱️🔥",
             hashtag = "#NoFaltes",
-            shareMessage = "El asfalto me llama, y yo respondo. ¡Una semana completa sin fallar! Mi VMP y yo somos imparables. #NoFaltes",
+            shareMessage = "El asfalto me llama, y yo respondo. ¡Una semana completa sin fallar! Mi VMP y yo somos imparables. #NoFaltes #ZipStats",
             requiredConsecutiveDays = 7,
             requirementType = AchievementRequirementType.CONSECUTIVE_DAYS
         ),
@@ -98,7 +137,7 @@ class AchievementsService @Inject constructor(
             level = AchievementLevel.NOVATO,
             emoji = "🗺️📍",
             hashtag = "#AsfaltoConquistado",
-            shareMessage = "¡250 km! Ya conozco mi barrio mejor que el repartidor de pizza. Ahora a conquistar la ciudad entera. #AsfaltoConquistado",
+            shareMessage = "¡250 km! Ya conozco mi barrio mejor que el repartidor de pizza. Ahora a conquistar la ciudad entera. #AsfaltoConquistado #ZipStats",
             requiredDistance = 250.0,
             requirementType = AchievementRequirementType.DISTANCE
         ),
@@ -109,7 +148,7 @@ class AchievementsService @Inject constructor(
             level = AchievementLevel.NOVATO,
             emoji = "🏅🥉",
             hashtag = "#LeyendaLocal",
-            shareMessage = "¡Medio millar de kilómetros! ¡Casi un centenario y no me he cansado! A este paso, me hacen un monumento. #LeyendaLocal",
+            shareMessage = "¡Medio millar de kilómetros! ¡Casi un centenario y no me he cansado! A este paso, me hacen un monumento. #LeyendaLocal #ZipStats",
             requiredDistance = 500.0,
             requirementType = AchievementRequirementType.DISTANCE
         ),
@@ -122,7 +161,7 @@ class AchievementsService @Inject constructor(
             level = AchievementLevel.EXPLORADOR,
             emoji = "🦸‍♂️🌟",
             hashtag = "#MilYContando",
-            shareMessage = "¡Héroe de los 1.000! Si esto fuera un juego de rol, acabo de subir de nivel. ¡A por los 2.000! #MilYContando",
+            shareMessage = "¡Héroe de los 1.000! Si esto fuera un juego de rol, acabo de subir de nivel. ¡A por los 2.000! #MilYContando #ZipStats",
             requiredDistance = 1000.0,
             requirementType = AchievementRequirementType.DISTANCE
         ),
@@ -133,7 +172,7 @@ class AchievementsService @Inject constructor(
             level = AchievementLevel.EXPLORADOR,
             emoji = "🛣️💨",
             hashtag = "#KilómetrosSinFin",
-            shareMessage = "2.500 km, y contando. Parece que mi VMP tiene más vida social que yo. ¡El movimiento constante es la clave! #KilómetrosSinFin",
+            shareMessage = "2.500 km, y contando. Parece que mi VMP tiene más vida social que yo. ¡El movimiento constante es la clave! #KilómetrosSinFin #ZipStats",
             requiredDistance = 2500.0,
             requirementType = AchievementRequirementType.DISTANCE
         ),
@@ -144,7 +183,7 @@ class AchievementsService @Inject constructor(
             level = AchievementLevel.EXPLORADOR,
             emoji = "🗃️🔎",
             hashtag = "#TrackingPro",
-            shareMessage = "50 registros y mi historial es más largo que un libro de fantasía. ¡Me encanta tener mis datos bajo control! #TrackingPro",
+            shareMessage = "50 registros y mi historial es más largo que un libro de fantasía. ¡Me encanta tener mis datos bajo control! #TrackingPro #ZipStats",
             requiredTrips = 50,
             requirementType = AchievementRequirementType.TRIPS
         ),
@@ -155,7 +194,7 @@ class AchievementsService @Inject constructor(
             level = AchievementLevel.EXPLORADOR,
             emoji = "🔧⚙️",
             hashtag = "#Mantenimiento",
-            shareMessage = "Cinco veces en el 'taller' (mi garaje). Un VMP bien cuidado es un VMP feliz. ¡Siempre revisando los detalles! #Mantenimiento",
+            shareMessage = "Cinco veces en el 'taller' (mi garaje). Un VMP bien cuidado es un VMP feliz. ¡Siempre revisando los detalles! #Mantenimiento #ZipStats",
             requiredMaintenanceCount = 5,
             requirementType = AchievementRequirementType.MAINTENANCE_COUNT
         ),
@@ -166,7 +205,7 @@ class AchievementsService @Inject constructor(
             level = AchievementLevel.EXPLORADOR,
             emoji = "🧭🏛️",
             hashtag = "#ViajeroÉpico",
-            shareMessage = "¡5.000 km! Mi épica odisea urbana no ha hecho más que empezar. Ulises lo hizo en barco, yo en ruedas. #ViajeroÉpico",
+            shareMessage = "¡5.000 km! Mi épica odisea urbana no ha hecho más que empezar. Ulises lo hizo en barco, yo en ruedas. #ViajeroÉpico #ZipStats",
             requiredDistance = 5000.0,
             requirementType = AchievementRequirementType.DISTANCE
         ),
@@ -177,7 +216,7 @@ class AchievementsService @Inject constructor(
             level = AchievementLevel.EXPLORADOR,
             emoji = "🌳🌍",
             hashtag = "#PlanetaVerde",
-            shareMessage = "¡50 kg de CO2 que no fueron al ambiente! Mi contribución al planeta hoy es ir rodando. ¡Soy un Eco-Amigo de verdad! #PlanetaVerde",
+            shareMessage = "¡50 kg de CO2 que no fueron al ambiente! Mi contribución al planeta hoy es ir rodando. ¡Soy un Eco-Amigo de verdad! #PlanetaVerde #ZipStats",
             requiredCO2Saved = 50.0,
             requirementType = AchievementRequirementType.CO2_SAVED
         ),
@@ -188,7 +227,7 @@ class AchievementsService @Inject constructor(
             level = AchievementLevel.EXPLORADOR,
             emoji = "🗓️🔟",
             hashtag = "#Explorador",
-            shareMessage = "Llevo 10 meses explorando la ciudad sin importar el clima. ¡Ni la lluvia ni el sol me detienen! #Explorador",
+            shareMessage = "Llevo 10 meses explorando la ciudad sin importar el clima. ¡Ni la lluvia ni el sol me detienen! #Explorador #ZipStats",
             requiredUniqueMonths = 10,
             requirementType = AchievementRequirementType.UNIQUE_MONTHS
         ),
@@ -199,7 +238,7 @@ class AchievementsService @Inject constructor(
             level = AchievementLevel.EXPLORADOR,
             emoji = "🏃💨",
             hashtag = "#Correcaminos",
-            shareMessage = "7.500 km, casi un viaje transcontinental. Mis ruedas están echando humo (figurativamente, claro). #Correcaminos",
+            shareMessage = "7.500 km, casi un viaje transcontinental. Mis ruedas están echando humo (figurativamente, claro). #Correcaminos #ZipStats",
             requiredDistance = 7500.0,
             requirementType = AchievementRequirementType.DISTANCE
         ),
@@ -210,7 +249,7 @@ class AchievementsService @Inject constructor(
             level = AchievementLevel.EXPLORADOR,
             emoji = "🚀🔟",
             hashtag = "#DobleCifra",
-            shareMessage = "¡10.000 km! El primer gran hito de cinco cifras. Gracias a mi VMP por ser mi fiel compañero de fatigas. #DobleCifra",
+            shareMessage = "¡10.000 km! El primer gran hito de cinco cifras. Gracias a mi VMP por ser mi fiel compañero de fatigas. #DobleCifra #ZipStats",
             requiredDistance = 10000.0,
             requirementType = AchievementRequirementType.DISTANCE
         ),
@@ -221,7 +260,7 @@ class AchievementsService @Inject constructor(
             level = AchievementLevel.EXPLORADOR,
             emoji = "🎚️📈",
             hashtag = "#MidPoint",
-            shareMessage = "12.500 km. Justo en el punto medio de la leyenda. ¡La inercia me impulsa hacia la meta final! #MidPoint",
+            shareMessage = "12.500 km. Justo en el punto medio de la leyenda. ¡La inercia me impulsa hacia la meta final! #MidPoint #ZipStats",
             requiredDistance = 12500.0,
             requirementType = AchievementRequirementType.DISTANCE
         ),
@@ -234,7 +273,7 @@ class AchievementsService @Inject constructor(
             level = AchievementLevel.MAESTRO,
             emoji = "🗺️🌐",
             hashtag = "#RodandoSiempre",
-            shareMessage = "15.000 km. Más vueltas que una noria en hora punta. ¡Mi VMP y yo somos un equipo imparable! #RodandoSiempre",
+            shareMessage = "15.000 km. Más vueltas que una noria en hora punta. ¡Mi VMP y yo somos un equipo imparable! #RodandoSiempre #ZipStats",
             requiredDistance = 15000.0,
             requirementType = AchievementRequirementType.DISTANCE
         ),
@@ -245,7 +284,7 @@ class AchievementsService @Inject constructor(
             level = AchievementLevel.MAESTRO,
             emoji = "🛡️♻️",
             hashtag = "#GuardiánVerde",
-            shareMessage = "¡100 kg de CO2 evitados! No soy un superhéroe, solo un ciudadano rodante. ¡Salvando el planeta de a poco! #GuardiánVerde",
+            shareMessage = "¡100 kg de CO2 evitados! No soy un superhéroe, solo un ciudadano rodante. ¡Salvando el planeta de a poco! #GuardiánVerde #ZipStats",
             requiredCO2Saved = 100.0,
             requirementType = AchievementRequirementType.CO2_SAVED
         ),
@@ -256,7 +295,7 @@ class AchievementsService @Inject constructor(
             level = AchievementLevel.MAESTRO,
             emoji = "👑👴",
             hashtag = "#Veterano",
-            shareMessage = "¡20.000 km! Ya soy un veterano del asfalto. Tengo más historias de ruedas que un libro de mecánica. ¡A seguir sumando! #Veterano",
+            shareMessage = "¡20.000 km! Ya soy un veterano del asfalto. Tengo más historias de ruedas que un libro de mecánica. ¡A seguir sumando! #Veterano #ZipStats",
             requiredDistance = 20000.0,
             requirementType = AchievementRequirementType.DISTANCE
         ),
@@ -267,7 +306,7 @@ class AchievementsService @Inject constructor(
             level = AchievementLevel.MAESTRO,
             emoji = "💯📊",
             hashtag = "#Titán",
-            shareMessage = "¡100 registros en la app! Mi historial es tan limpio como mi conciencia ecológica. ¡El orden de los datos es un arte! #Titán",
+            shareMessage = "¡100 registros en la app! Mi historial es tan limpio como mi conciencia ecológica. ¡El orden de los datos es un arte! #Titán #ZipStats",
             requiredTrips = 100,
             requirementType = AchievementRequirementType.TRIPS
         ),
@@ -278,7 +317,7 @@ class AchievementsService @Inject constructor(
             level = AchievementLevel.MAESTRO,
             emoji = "🔥🔋",
             hashtag = "#Incombustible",
-            shareMessage = "¡25.000 km! Sigo rodando como si fuera el primer día. Mi energía es inagotable, ¡o al menos mi batería lo es! #Incombustible",
+            shareMessage = "¡25.000 km! Sigo rodando como si fuera el primer día. Mi energía es inagotable, ¡o al menos mi batería lo es! #Incombustible #ZipStats",
             requiredDistance = 25000.0,
             requirementType = AchievementRequirementType.DISTANCE
         ),
@@ -289,7 +328,7 @@ class AchievementsService @Inject constructor(
             level = AchievementLevel.MAESTRO,
             emoji = "🏆🥇",
             hashtag = "#MiTerritorio",
-            shareMessage = "¡30.000 km! He conquistado tres veces la distancia del ecuador. Soy el dueño absoluto de mi camino. #MiTerritorio",
+            shareMessage = "¡30.000 km! He conquistado tres veces la distancia del ecuador. Soy el dueño absoluto de mi camino. #MiTerritorio #ZipStats",
             requiredDistance = 30000.0,
             requirementType = AchievementRequirementType.DISTANCE
         ),
@@ -300,7 +339,7 @@ class AchievementsService @Inject constructor(
             level = AchievementLevel.MAESTRO,
             emoji = "🌎💫",
             hashtag = "#Trotamundos",
-            shareMessage = "¡40.000 km! Técnicamente acabo de darle una vuelta entera a la Tierra. ¿Próximo destino? La luna. #Trotamundos",
+            shareMessage = "¡40.000 km! Técnicamente acabo de darle una vuelta entera a la Tierra. ¿Próximo destino? La luna. #Trotamundos #ZipStats",
             requiredDistance = 40000.0,
             requirementType = AchievementRequirementType.DISTANCE
         ),
@@ -311,7 +350,7 @@ class AchievementsService @Inject constructor(
             level = AchievementLevel.MAESTRO,
             emoji = "🔄📅",
             hashtag = "#CicloCompleto",
-            shareMessage = "¡Un año entero sin parar! El movimiento es vida, y yo no pienso detenerme. Gracias por acompañarme. #CicloCompleto",
+            shareMessage = "¡Un año entero sin parar! El movimiento es vida, y yo no pienso detenerme. Gracias por acompañarme. #CicloCompleto #ZipStats",
             requiredConsecutiveMonths = 12,
             requirementType = AchievementRequirementType.CONSECUTIVE_MONTHS
         ),
@@ -322,7 +361,7 @@ class AchievementsService @Inject constructor(
             level = AchievementLevel.MAESTRO,
             emoji = "🌟✨",
             hashtag = "#Leyenda",
-            shareMessage = "¡La Leyenda! ¡50.000 km alcanzados! Si me vieran en el museo, sería la estrella. ¡El hito más grande de mi vida sobre ruedas! #Leyenda",
+            shareMessage = "¡La Leyenda! ¡50.000 km alcanzados! Si me vieran en el museo, sería la estrella. ¡El hito más grande de mi vida sobre ruedas! #Leyenda #ZipStats",
             requiredDistance = 50000.0,
             requirementType = AchievementRequirementType.DISTANCE
         ),
@@ -333,7 +372,7 @@ class AchievementsService @Inject constructor(
             level = AchievementLevel.MAESTRO,
             emoji = "🤖👑",
             hashtag = "#MaestroTotal",
-            shareMessage = "¡Lo hice! No queda ni un logro por desbloquear. Soy el Maestro Absoluto de la Movilidad Personal. ¡A esperar el siguiente parche! #MaestroTotal",
+            shareMessage = "¡Lo hice! No queda ni un logro por desbloquear. Soy el Maestro Absoluto de la Movilidad Personal. ¡A esperar el siguiente parche! #MaestroTotal #ZipStats",
             requirementType = AchievementRequirementType.ALL_OTHERS
         ),
 
@@ -345,7 +384,7 @@ class AchievementsService @Inject constructor(
             level = AchievementLevel.SECRETO,
             emoji = "🥉🎯",
             hashtag = "#Triplete",
-            shareMessage = "¡Lo logré! Mi odómetro marcó la cifra mágica: 555 km exactos. No fue suerte, fue precisión milimétrica. ¡A rodar con estilo! #Triplete",
+            shareMessage = "¡Lo logré! Mi odómetro marcó la cifra mágica: 555 km exactos. No fue suerte, fue precisión milimétrica. ¡A rodar con estilo! #Triplete #ZipStats",
             requiredDistance = 555.0,
             requirementType = AchievementRequirementType.DISTANCE
         ),
@@ -356,7 +395,7 @@ class AchievementsService @Inject constructor(
             level = AchievementLevel.SECRETO,
             emoji = "🔄🪞",
             hashtag = "#Capicúa",
-            shareMessage = "¡Mi kilometraje es un espejo! Alcanzar el hito capicúa fue un reflejo de mi dedicación. ¡Esto es arte numérico! #Capicúa",
+            shareMessage = "¡Mi kilometraje es un espejo! Alcanzar el hito capicúa fue un reflejo de mi dedicación. ¡Esto es arte numérico! #Capicúa #ZipStats",
             requiredDistance = 2552.0,
             requirementType = AchievementRequirementType.DISTANCE
         ),
@@ -367,7 +406,7 @@ class AchievementsService @Inject constructor(
             level = AchievementLevel.SECRETO,
             emoji = "🔢🚀",
             hashtag = "#Perfecto",
-            shareMessage = "¡Secuencia Maestra desbloqueada! Mis kilómetros van en orden perfecto. Esta cifra es un regalo para cualquier ingeniero. #Perfecto",
+            shareMessage = "¡Secuencia Maestra desbloqueada! Mis kilómetros van en orden perfecto. Esta cifra es un regalo para cualquier ingeniero. #Perfecto #ZipStats",
             requiredDistance = 12345.0,
             requirementType = AchievementRequirementType.DISTANCE
         ),
@@ -378,12 +417,105 @@ class AchievementsService @Inject constructor(
             level = AchievementLevel.SECRETO,
             emoji = "🧱✖️",
             hashtag = "#Muro",
-            shareMessage = "¡Derribé el Muro de los Dos! 22.222 km de pura constancia. No hay obstáculo que se interponga entre yo y el asfalto. #Muro",
+            shareMessage = "¡Derribé el Muro de los Dos! 22.222 km de pura constancia. No hay obstáculo que se interponga entre yo y el asfalto. #Muro #ZipStats",
             requiredDistance = 22222.0,
             requirementType = AchievementRequirementType.DISTANCE
         )
     )
 
+    /**
+     * Obtiene los logros desbloqueados del usuario desde Firebase
+     */
+    private suspend fun getFirebaseUnlockedAchievements(): Set<String> {
+        val userId = auth.currentUser?.uid ?: return emptySet()
+        
+        return try {
+            val snapshot = firestore.collection(ACHIEVEMENTS_COLLECTION)
+                .whereEqualTo("userId", userId)
+                .get()
+                .await()
+            
+            snapshot.documents.mapNotNull { doc ->
+                doc.getString("achievementId")
+            }.toSet()
+        } catch (e: Exception) {
+            Log.e("AchievementsService", "Error al obtener logros de Firebase: ${e.message}")
+            emptySet()
+        }
+    }
+    
+    /**
+     * Guarda un logro desbloqueado en Firebase
+     */
+    private suspend fun saveAchievementToFirebase(achievementId: String) {
+        val userId = auth.currentUser?.uid ?: return
+        
+        try {
+            val achievementData = hashMapOf(
+                "userId" to userId,
+                "achievementId" to achievementId,
+                "unlockedAt" to com.google.firebase.Timestamp.now()
+            )
+            
+            // Usar achievementId como parte del documento para evitar duplicados
+            firestore.collection(ACHIEVEMENTS_COLLECTION)
+                .document("${userId}_${achievementId}")
+                .set(achievementData)
+                .await()
+            
+            Log.d("AchievementsService", "Logro guardado en Firebase: $achievementId")
+        } catch (e: Exception) {
+            Log.e("AchievementsService", "Error al guardar logro en Firebase: ${e.message}")
+        }
+    }
+    
+    /**
+     * Sincroniza logros locales con Firebase
+     * Combina logros locales y de Firebase, guardando los que faltan en cada lado
+     */
+    suspend fun syncAchievementsWithFirebase() {
+        val userId = auth.currentUser?.uid ?: return
+        
+        try {
+            Log.d("AchievementsService", "Iniciando sincronización de logros con Firebase")
+            
+            // Obtener logros de Firebase
+            val firebaseAchievements = getFirebaseUnlockedAchievements()
+            Log.d("AchievementsService", "Logros en Firebase: ${firebaseAchievements.size}")
+            
+            // Obtener logros locales (de SharedPreferences)
+            val localAchievements = prefs.getStringSet("notified_achievements", emptySet())?.toSet() ?: emptySet()
+            Log.d("AchievementsService", "Logros locales: ${localAchievements.size}")
+            
+            // Combinar ambos conjuntos
+            val allUnlockedAchievements = (firebaseAchievements + localAchievements).toSet()
+            
+            // Guardar en Firebase los logros locales que no están en Firebase
+            val toSaveInFirebase = localAchievements - firebaseAchievements
+            if (toSaveInFirebase.isNotEmpty()) {
+                Log.d("AchievementsService", "Guardando ${toSaveInFirebase.size} logros locales en Firebase")
+                toSaveInFirebase.forEach { achievementId ->
+                    saveAchievementToFirebase(achievementId)
+                }
+            }
+            
+            // Actualizar SharedPreferences con los logros de Firebase que no están localmente
+            val toSaveLocally = firebaseAchievements - localAchievements
+            if (toSaveLocally.isNotEmpty()) {
+                Log.d("AchievementsService", "Actualizando ${toSaveLocally.size} logros locales desde Firebase")
+                val updatedSet = (localAchievements + toSaveLocally).toMutableSet()
+                prefs.edit()
+                    .putStringSet("notified_achievements", updatedSet)
+                    .apply()
+            }
+            
+            Log.d("AchievementsService", "Sincronización completada. Total logros: ${allUnlockedAchievements.size}")
+        } catch (e: Exception) {
+            Log.e("AchievementsService", "Error al sincronizar logros: ${e.message}")
+            e.printStackTrace()
+        }
+    }
+    
     /**
      * Verifica si hay nuevos logros desbloqueados y muestra notificación si es necesario.
      * Este método debe llamarse cuando:
@@ -394,8 +526,19 @@ class AchievementsService @Inject constructor(
      */
     suspend fun checkAndNotifyNewAchievements() {
         try {
+            val userId = auth.currentUser?.uid
+            if (userId == null) {
+                Log.d("AchievementsService", "Usuario no autenticado, usando solo almacenamiento local")
+            }
+            
             val stats = recordRepository.getAchievementStats()
-            val notifiedSet = prefs.getStringSet("notified_achievements", emptySet())?.toMutableSet() ?: mutableSetOf()
+            
+            // Obtener logros ya notificados desde Firebase (si está autenticado) o local
+            val notifiedSet = if (userId != null) {
+                getFirebaseUnlockedAchievements().toMutableSet()
+            } else {
+                prefs.getStringSet("notified_achievements", emptySet())?.toMutableSet() ?: mutableSetOf()
+            }
             
             Log.d("AchievementsService", "Verificando logros - Stats: $stats")
             Log.d("AchievementsService", "Logros notificados: ${notifiedSet.size}")
@@ -410,15 +553,18 @@ class AchievementsService @Inject constructor(
                 }
             }
             
-            // Limpiar logros que ya no están desbloqueados
+            // Limpiar logros que ya no están desbloqueados (solo localmente, Firebase se mantiene)
             val toRemoveFromNotified = notifiedSet.filter { it !in currentlyUnlockedIds }
             
             if (toRemoveFromNotified.isNotEmpty()) {
                 Log.d("AchievementsService", "Limpiando ${toRemoveFromNotified.size} logros notificados que ya no están desbloqueados")
                 notifiedSet.removeAll(toRemoveFromNotified.toSet())
-                prefs.edit()
-                    .putStringSet("notified_achievements", notifiedSet)
-                    .apply()
+                // Solo actualizar local si no está autenticado
+                if (userId == null) {
+                    prefs.edit()
+                        .putStringSet("notified_achievements", notifiedSet)
+                        .apply()
+                }
             }
             
             // Verificar logros nuevos (desbloqueados pero no notificados)
@@ -430,17 +576,28 @@ class AchievementsService @Inject constructor(
                 }
             }
             
-            // Mostrar notificación del primer logro nuevo
+            // Mostrar notificación de logros nuevos (anidados si hay múltiples)
             if (newlyUnlocked.isNotEmpty()) {
-                val achievement = newlyUnlocked.first()
-                _newAchievementMessage.value = "🏆 ¡Logro desbloqueado! ${achievement.emoji} ${achievement.title}"
-                _lastUnlockedAchievementId.value = achievement.id
+                // Guardar en Firebase y marcar como notificados
+                newlyUnlocked.forEach { achievement ->
+                    notifiedSet.add(achievement.id)
+                    _lastUnlockedAchievementId.value = achievement.id
+                    
+                    // Guardar en Firebase si está autenticado
+                    if (userId != null) {
+                        saveAchievementToFirebase(achievement.id)
+                    } else {
+                        // Guardar localmente si no está autenticado
+                        prefs.edit()
+                            .putStringSet("notified_achievements", notifiedSet)
+                            .apply()
+                    }
+                }
                 
-                // Marcar como notificado
-                notifiedSet.add(achievement.id)
-                prefs.edit().putStringSet("notified_achievements", notifiedSet).apply()
+                // Crear notificación anidada si hay múltiples logros
+                showAchievementNotification(newlyUnlocked)
                 
-                Log.d("AchievementsService", "Mostrando notificación para: ${achievement.title}")
+                Log.d("AchievementsService", "Mostrando notificación para ${newlyUnlocked.size} logro(s)")
             }
             
             // Notificar que deben actualizarse los logros en la UI
@@ -493,10 +650,55 @@ class AchievementsService @Inject constructor(
     }
     
     /**
-     * Limpia el mensaje de notificación después de mostrarlo
+     * Muestra una notificación para los logros desbloqueados
+     * Si hay múltiples logros, los anida en una sola notificación
      */
-    fun clearNotificationMessage() {
-        _newAchievementMessage.value = null
+    private fun showAchievementNotification(achievements: List<Achievement>) {
+        val intent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+            putExtra("navigate_to", Screen.Achievements.route)
+        }
+        val pendingIntent = PendingIntent.getActivity(
+            context,
+            0,
+            intent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+        
+        val notificationBuilder = NotificationCompat.Builder(context, CHANNEL_ID)
+            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setContentIntent(pendingIntent)
+            .setAutoCancel(true)
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+        
+        if (achievements.size == 1) {
+            // Un solo logro
+            val achievement = achievements.first()
+            val bigTextStyle = NotificationCompat.BigTextStyle()
+                .bigText("${achievement.emoji} ${achievement.title}\n\n${achievement.description}")
+            
+            notificationBuilder
+                .setContentTitle("🏆 ¡Logro desbloqueado!")
+                .setContentText("${achievement.emoji} ${achievement.title}")
+                .setStyle(bigTextStyle)
+        } else {
+            // Múltiples logros - usar estilo de inbox
+            val title = "🏆 ¡${achievements.size} logros desbloqueados!"
+            val inboxStyle = NotificationCompat.InboxStyle()
+                .setBigContentTitle(title)
+                .setSummaryText("${achievements.size} logros nuevos")
+            
+            achievements.forEach { achievement ->
+                inboxStyle.addLine("${achievement.emoji} ${achievement.title}")
+            }
+            
+            notificationBuilder
+                .setContentTitle(title)
+                .setContentText(achievements.first().title)
+                .setStyle(inboxStyle)
+        }
+        
+        notificationManager.notify(NOTIFICATION_ID, notificationBuilder.build())
     }
     
     /**

@@ -1,6 +1,8 @@
 package com.zipstats.app.ui.routes
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
+import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,6 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.GpsFixed
@@ -109,10 +112,12 @@ fun RoutesScreen(
             title = { Text("Información") },
             text = { Text(msg) },
             confirmButton = {
-                TextButton(onClick = { viewModel.clearMessage() }) {
-                    Text("Aceptar")
-                }
-            }
+                com.zipstats.app.ui.components.DialogConfirmButton(
+                    text = "Aceptar",
+                    onClick = { viewModel.clearMessage() }
+                )
+            },
+            shape = com.zipstats.app.ui.theme.DialogShape
         )
     }
     
@@ -123,22 +128,23 @@ fun RoutesScreen(
             title = { Text("Confirmar eliminación") },
             text = { Text("¿Estás seguro de que quieres eliminar esta ruta?") },
             confirmButton = {
-                TextButton(
+                com.zipstats.app.ui.components.DialogConfirmButton(
+                    text = "Eliminar",
                     onClick = {
                         viewModel.deleteRoute(route.id)
                         // Limpiar el estado local de la ruta eliminada
                         routeAddedToRecords = routeAddedToRecords - route.id
                         routeToDelete = null
                     }
-                ) {
-                    Text("Eliminar")
-                }
+                )
             },
             dismissButton = {
-                TextButton(onClick = { routeToDelete = null }) {
-                    Text("Cancelar")
-                }
-            }
+                com.zipstats.app.ui.components.DialogCancelButton(
+                    text = "Cancelar",
+                    onClick = { routeToDelete = null }
+                )
+            },
+            shape = com.zipstats.app.ui.theme.DialogShape
         )
     }
     
@@ -175,10 +181,12 @@ fun RoutesScreen(
             title = { Text("Error") },
             text = { Text(error) },
             confirmButton = {
-                TextButton(onClick = { viewModel.clearError() }) {
-                    Text("Aceptar")
-                }
-            }
+                com.zipstats.app.ui.components.DialogConfirmButton(
+                    text = "Aceptar",
+                    onClick = { viewModel.clearError() }
+                )
+            },
+            shape = com.zipstats.app.ui.theme.DialogShape
         )
     }
 
@@ -262,52 +270,49 @@ fun RoutesScreen(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = if (isSmallScreen) 8.dp else 16.dp, vertical = 8.dp),
+                    .padding(horizontal = if (isSmallScreen) 8.dp else 16.dp, vertical = 12.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = if (isSmallScreen) "Vel." else "Vehiculo",
-                    modifier = Modifier.weight(if (isSmallScreen) 1.0f else 1.2f),
-                    style = MaterialTheme.typography.titleSmall.copy(
-                        fontSize = if (isSmallScreen) 11.sp else MaterialTheme.typography.titleSmall.fontSize
+                    text = "Vehículo",
+                    modifier = Modifier.weight(1.4f),
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontSize = 14.sp
                     ),
                     fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.87f),
+                    
                 )
                 Text(
                     text = "Fecha",
-                    modifier = Modifier.weight(if (isSmallScreen) 0.9f else 0.8f),
-                    style = MaterialTheme.typography.titleSmall.copy(
-                        fontSize = if (isSmallScreen) 11.sp else MaterialTheme.typography.titleSmall.fontSize
+                    modifier = Modifier.weight(0.8f),
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontSize = 14.sp
                     ),
                     fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.87f),
                     textAlign = TextAlign.Center,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
                 )
                 Text(
-                    text = if (isSmallScreen) "Dist." else if (isMediumScreen) "Dist." else "Distancia",
-                    modifier = Modifier.weight(if (isSmallScreen) 0.9f else 0.8f),
-                    style = MaterialTheme.typography.titleSmall.copy(
-                        fontSize = if (isSmallScreen) 11.sp else MaterialTheme.typography.titleSmall.fontSize
+                    text = "Km",
+                    modifier = Modifier.weight(1.0f),
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontSize = 14.sp
                     ),
                     fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.87f),
                     textAlign = TextAlign.End,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
                 )
                 Text(
-                    text = if (isSmallScreen) "Dur." else if (isMediumScreen) "Dur." else "Duración",
-                    modifier = Modifier.weight(if (isSmallScreen) 0.9f else 0.8f),
-                    style = MaterialTheme.typography.titleSmall.copy(
-                        fontSize = if (isSmallScreen) 11.sp else MaterialTheme.typography.titleSmall.fontSize
+                    text = "Lapso",
+                    modifier = Modifier.weight(0.8f),
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontSize = 14.sp
                     ),
                     fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.87f),
                     textAlign = TextAlign.End,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
                 )
             }
 
@@ -334,26 +339,34 @@ fun RoutesScreen(
                         .fillMaxWidth()
                         .weight(1f)
                 ) {
-                    items(
+                    itemsIndexed(
                         items = filteredRoutes,
-                        key = { it.id }
-                    ) { route ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { routeToView = route }
-                                .padding(
-                                    horizontal = if (screenWidthDp < 360) 8.dp else 16.dp,
-                                    vertical = 8.dp
-                                ),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
+                        key = { _, route -> route.id }
+                    ) { index, route ->
+                        Column {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { routeToView = route }
+                                    .background(
+                                        color = if (index % 2 == 0) {
+                                            Color.Transparent
+                                        } else {
+                                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                                        }
+                                    )
+                                    .padding(
+                                        horizontal = if (screenWidthDp < 360) 8.dp else 16.dp,
+                                        vertical = 14.dp
+                                    ),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
                             Text(
                                 text = userScooters.find { it.id == route.scooterId }?.modelo ?: route.scooterName,
-                                modifier = Modifier.weight(if (isSmallScreen) 1.0f else 1.2f),
+                                modifier = Modifier.weight(1.4f),
                                 style = MaterialTheme.typography.bodyMedium.copy(
-                                    fontSize = if (isSmallScreen) 12.sp else MaterialTheme.typography.bodyMedium.fontSize
+                                    fontSize = 14.sp
                                 ),
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
@@ -364,9 +377,9 @@ fun RoutesScreen(
                                         .atZone(ZoneId.systemDefault())
                                         .toLocalDate()
                                 ),
-                                modifier = Modifier.weight(if (isSmallScreen) 0.9f else 0.8f),
+                                modifier = Modifier.weight(0.8f),
                                 style = MaterialTheme.typography.bodyMedium.copy(
-                                    fontSize = if (isSmallScreen) 12.sp else MaterialTheme.typography.bodyMedium.fontSize
+                                    fontSize = 14.sp
                                 ),
                                 textAlign = TextAlign.Center,
                                 maxLines = 1,
@@ -374,9 +387,9 @@ fun RoutesScreen(
                             )
                             Text(
                                 text = String.format("%.1f km", route.totalDistance),
-                                modifier = Modifier.weight(if (isSmallScreen) 0.9f else 0.8f),
+                                modifier = Modifier.weight(1.0f),
                                 style = MaterialTheme.typography.bodyMedium.copy(
-                                    fontSize = if (isSmallScreen) 12.sp else MaterialTheme.typography.bodyMedium.fontSize
+                                    fontSize = 14.sp
                                 ),
                                 textAlign = TextAlign.End,
                                 maxLines = 1,
@@ -384,9 +397,9 @@ fun RoutesScreen(
                             )
                             Text(
                                 text = route.durationFormatted,
-                                modifier = Modifier.weight(if (isSmallScreen) 0.9f else 0.8f),
+                                modifier = Modifier.weight(0.8f),
                                 style = MaterialTheme.typography.bodyMedium.copy(
-                                    fontSize = if (isSmallScreen) 12.sp else MaterialTheme.typography.bodyMedium.fontSize
+                                    fontSize = 14.sp
                                 ),
                                 textAlign = TextAlign.End,
                                 color = MaterialTheme.colorScheme.primary,
@@ -402,6 +415,7 @@ fun RoutesScreen(
                     }
                 }
             }
+        }
         }
     }
 }

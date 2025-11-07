@@ -42,7 +42,6 @@ class AchievementsViewModel @Inject constructor(
     val achievements: StateFlow<AchievementsUiState> = _achievements.asStateFlow()
 
     // Delegar al servicio centralizado
-    val newAchievementMessage = achievementsService.newAchievementMessage
     val lastUnlockedAchievementId = achievementsService.lastUnlockedAchievementId
     val shouldRefreshAchievements = achievementsService.shouldRefreshAchievements
 
@@ -202,10 +201,6 @@ class AchievementsViewModel @Inject constructor(
         }
     }
 
-    fun clearSnackbarMessage() {
-        achievementsService.clearNotificationMessage()
-    }
-    
     fun clearLastUnlockedAchievementId() {
         achievementsService.clearLastUnlockedAchievementId()
     }

@@ -3,8 +3,6 @@ package com.zipstats.app.ui.tracking
 import android.Manifest
 import android.app.Activity
 import android.view.WindowManager
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Image
@@ -43,6 +41,9 @@ import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.res.painterResource
 import com.zipstats.app.R
 import com.zipstats.app.utils.LocationUtils
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.annotation.DrawableRes
+import com.zipstats.app.repository.WeatherRepository
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
@@ -52,6 +53,8 @@ import java.util.*
 import kotlin.math.roundToInt
 import com.zipstats.app.repository.SettingsRepository
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 
 /**
  * Pantalla principal para el seguimiento de rutas GPS
@@ -105,28 +108,26 @@ fun TrackingScreen(
     var showScooterPicker by remember { mutableStateOf(false) }
     var showFinishDialog by remember { mutableStateOf(false) }
     var showCancelDialog by remember { mutableStateOf(false) }
-    var hasLocationPermission by remember { 
-        mutableStateOf(permissionManager.hasLocationPermissions()) 
-    }
     
-    // Launcher para permisos de ubicación y notificaciones
-    val locationPermissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestMultiplePermissions()
-    ) { permissions ->
-        hasLocationPermission = permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true &&
-                                permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
-        if (!hasLocationPermission) {
-            // Mostrar mensaje de error
-            viewModel.clearMessage()
+    // Verificar permisos usando PermissionManager (solo verificación, no solicitud)
+    val hasLocationPermission = permissionManager.hasLocationPermissions()
+    val hasNotificationPermission = permissionManager.hasNotificationPermission()
+    val hasAllRequiredPermissions = hasLocationPermission && hasNotificationPermission
+    
+    // Función para abrir configuración de permisos
+    fun openAppSettings() {
+        val intent = android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+            data = android.net.Uri.fromParts("package", context.packageName, null)
         }
+        context.startActivity(intent)
     }
     
     // Variable para rastrear si acabamos de guardar una ruta
     var routeSaved by remember { mutableStateOf(false) }
     
     // Iniciar posicionamiento GPS previo cuando se entra en estado Idle y hay permisos
-    LaunchedEffect(hasLocationPermission, trackingState) {
-        if (hasLocationPermission && trackingState is TrackingState.Idle) {
+    LaunchedEffect(hasAllRequiredPermissions, trackingState) {
+        if (hasAllRequiredPermissions && trackingState is TrackingState.Idle) {
             // Iniciar posicionamiento previo después de un pequeño delay
             kotlinx.coroutines.delay(300)
             viewModel.startPreLocationTracking()
@@ -171,8 +172,9 @@ fun TrackingScreen(
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    titleContentColor = MaterialTheme.colorScheme.onPrimary,
+                    actionIconContentColor = MaterialTheme.colorScheme.onPrimary
                 )
             )
         }
@@ -185,26 +187,15 @@ fun TrackingScreen(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             when {
-                !hasLocationPermission -> {
-                    // Solicitar permisos
+                !hasAllRequiredPermissions -> {
+                    // Verificar permisos (solo mostrar mensaje para ir a configuración)
                     PermissionRequestCard(
                         onRequestPermissions = {
-                            // Solicitar permisos de ubicación y notificaciones
-                            val permissions = mutableListOf(
-                                Manifest.permission.ACCESS_FINE_LOCATION,
-                                Manifest.permission.ACCESS_COARSE_LOCATION
-                            )
-                            
-                            // Agregar permiso de notificaciones en Android 13+
-                            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
-                                permissions.add(Manifest.permission.POST_NOTIFICATIONS)
-                            }
-                            
-                            locationPermissionLauncher.launch(permissions.toTypedArray())
+                            openAppSettings()
                         }
                     )
                 }
-                trackingState is TrackingState.Idle -> {
+                trackingState is TrackingState.Idle && hasAllRequiredPermissions -> {
                     // Selección de patinete e inicio
                     IdleStateContent(
                         selectedScooter = selectedScooter,
@@ -310,13 +301,13 @@ fun PermissionRequestCard(onRequestPermissions: () -> Unit) {
             )
             Spacer(modifier = Modifier.height(16.dp))
             Text(
-                text = "Permisos de ubicación requeridos",
+                text = "Permisos requeridos",
                 style = MaterialTheme.typography.titleLarge,
                 color = MaterialTheme.colorScheme.onErrorContainer
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = "Para grabar rutas GPS, necesitamos:\n• Acceso a tu ubicación\n• Mostrar notificación persistente",
+                text = "Para grabar rutas GPS, necesitamos:\n• Acceso a tu ubicación\n• Mostrar notificación persistente\n\nVe a Configuración > Aplicaciones > ZipStats > Permisos para activarlos.",
                 style = MaterialTheme.typography.bodyMedium,
                 textAlign = TextAlign.Center,
                 color = MaterialTheme.colorScheme.onErrorContainer
@@ -328,7 +319,7 @@ fun PermissionRequestCard(onRequestPermissions: () -> Unit) {
                     containerColor = MaterialTheme.colorScheme.error
                 )
             ) {
-                Text("Otorgar permisos")
+                Text("Abrir configuración")
             }
         }
     }
@@ -845,7 +836,7 @@ fun ScooterPickerDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) {
+            Button(onClick = onDismiss) {
                 Text("Cerrar")
             }
         }
@@ -911,7 +902,13 @@ fun FinishRouteDialog(
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
+            Button(
+                onClick = onDismiss,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            ) {
                 Text("Cancelar")
             }
         }
@@ -931,14 +928,21 @@ fun CancelRouteDialog(
             Button(
                 onClick = onConfirm,
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.error
+                    containerColor = MaterialTheme.colorScheme.error,
+                    contentColor = MaterialTheme.colorScheme.onError
                 )
             ) {
                 Text("Cancelar ruta")
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
+            Button(
+                onClick = onDismiss,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            ) {
                 Text("Volver")
             }
         }
@@ -1025,6 +1029,32 @@ private fun getSignalColor(signalStrength: Float): Color {
 }
 
 /**
+ * Obtiene el ID del recurso drawable del icono del clima desde el emoji.
+ * Usa la hora actual para determinar si es de día o noche.
+ */
+@DrawableRes
+private fun getWeatherIconResIdFromEmoji(emoji: String): Int {
+    // Determinar si es de día basándose en la hora actual (6 AM - 8 PM aproximadamente)
+    val hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
+    val isDayTime = hour >= 6 && hour < 20
+    
+    // Mapear emoji a código de OpenWeather aproximado y luego a drawable
+    val iconCode = when (emoji) {
+        "☀️" -> if (isDayTime) "01d" else "01n"
+        "🌙" -> "01n"
+        "🌤️", "🌥️" -> if (isDayTime) "02d" else "02n"
+        "☁️" -> if (isDayTime) "04d" else "04n"
+        "🌫️" -> if (isDayTime) "50d" else "50n"
+        "🌧️", "🌦️" -> if (isDayTime) "10d" else "10n"
+        "❄️" -> if (isDayTime) "13d" else "13n"
+        "⛈️" -> if (isDayTime) "11d" else "11n"
+        else -> "01d" // Por defecto
+    }
+    
+    return WeatherRepository.getIconResIdForWeather(iconCode)
+}
+
+/**
  * Indicador del estado de captura del clima
  */
 @Composable
@@ -1080,9 +1110,12 @@ fun WeatherStatusIndicator(
                         )
                     }
                     is WeatherStatus.Success -> {
-                        Text(
-                            text = weatherStatus.emoji,
-                            style = MaterialTheme.typography.titleMedium
+                        val weatherIconRes = getWeatherIconResIdFromEmoji(weatherStatus.emoji)
+                        Image(
+                            painter = painterResource(id = weatherIconRes),
+                            contentDescription = "Icono del clima",
+                            modifier = Modifier.size(32.dp),
+                            colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.onPrimaryContainer)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(

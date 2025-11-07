@@ -2,14 +2,11 @@
 
 **Aplicación Android para tracking GPS de patinetes, bicicletas y otros vehículos personales.**
 
-<!-- Test commit para verificar workflows -->
-
 [![Version](https://img.shields.io/badge/Version-3.0-brightgreen.svg)](https://github.com/shurdani/Patinetatrack/releases)
 [![Kotlin](https://img.shields.io/badge/Kotlin-2.0.0-blue.svg)](https://kotlinlang.org)
 [![Android](https://img.shields.io/badge/Android-API%2031%2B-green.svg)](https://developer.android.com)
 [![Jetpack Compose](https://img.shields.io/badge/Jetpack%20Compose-2024.02.00-blue.svg)](https://developer.android.com/jetpack/compose)
-[![License: GPLv3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0.html)
-[![Downloads](https://img.shields.io/github/downloads/Shurdani/ZipStats/total?label=Downloads&color=brightgreen)](https://github.com/Shurdani/ZipStats/releases)
+[![License: GPLv3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 
 ---
 
@@ -193,8 +190,6 @@ app/src/main/java/com/zipstats/app/
 ./gradlew connectedAndroidTest
 ```
 
-**Nota:** Los tests se ejecutan automáticamente en cada Pull Request a través de GitHub Actions.
-
 ---
 
 ## 🤝 **Contribuir**
@@ -205,16 +200,9 @@ app/src/main/java/com/zipstats/app/
 2. Crea una rama para tu feature (`git checkout -b feature/AmazingFeature`)
 3. Commit tus cambios (`git commit -m 'Add some AmazingFeature'`)
 4. Push a la rama (`git push origin feature/AmazingFeature`)
-5. Abre un Pull Request (se rellenará automáticamente una plantilla)
+5. Abre un Pull Request
 
 **⚠️ IMPORTANTE:** Asegúrate de que tu código sigue las mejores prácticas de seguridad antes de hacer commit.
-
-### 📚 Documentación para Colaboradores
-
-- [🔒 Guía de Seguridad](.github/SECURITY_RECOMMENDATIONS.md) - Reglas de seguridad del repositorio
-- [✅ Checklist de Seguridad](.github/SECURITY_SETUP_CHECKLIST.md) - Pasos para configurar seguridad
-- [🤖 Automatización de Releases](.github/AUTOMATION.md) - Cómo crear releases automáticamente
-- [🏷️ Protección de Tags](.github/TAG_PROTECTION_GUIDE.md) - Guía de protección de tags de versión
 
 ---
 
@@ -256,6 +244,8 @@ El nombre "ZipStats", su logotipo y elementos visuales están protegidos como id
 - [ ] Compartir rutas con otros usuarios
 - [ ] Estadísticas avanzadas con gráficos
 - [ ] Integración con wearables (smartwatch)
+- [ ] Modo oscuro automático según hora del día
+- [ ] Notificaciones de recordatorios de mantenimiento
 
 ---
 

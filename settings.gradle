@@ -3,6 +3,7 @@ pluginManagement {
         google()
         mavenCentral()
         gradlePluginPortal()
+        maven { url "https://maven.google.com" }
     }
 }
 
@@ -11,8 +12,9 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
+        maven { url "https://maven.google.com" }
     }
 }
 
-rootProject.name = "Patineta"
-include ':app'
+rootProject.name = "ZipStats"
+include ':app' 

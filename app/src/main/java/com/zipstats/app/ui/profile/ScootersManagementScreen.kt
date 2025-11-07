@@ -315,7 +315,6 @@ fun AddScooterBottomSheet(
             value = nombre,
             onValueChange = { nombre = it },
             label = { Text("Nombre") },
-            placeholder = { Text("ej: Mi patinete") },
             singleLine = true,
             modifier = Modifier.fillMaxWidth()
         )
@@ -324,7 +323,6 @@ fun AddScooterBottomSheet(
             value = marca,
             onValueChange = { marca = it },
             label = { Text("Marca") },
-            placeholder = { Text("ej: Xiaomi") },
             singleLine = true,
             modifier = Modifier.fillMaxWidth()
         )
@@ -333,7 +331,6 @@ fun AddScooterBottomSheet(
             value = modelo,
             onValueChange = { modelo = it },
             label = { Text("Modelo") },
-            placeholder = { Text("ej: Mi Scooter Pro 2") },
             singleLine = true,
             modifier = Modifier.fillMaxWidth()
         )
@@ -363,9 +360,13 @@ fun AddScooterBottomSheet(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            androidx.compose.material3.TextButton(
+            androidx.compose.material3.Button(
                 onClick = onCancel,
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f),
+                colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                    containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant,
+                    contentColor = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant
+                )
             ) {
                 Text("Cancelar")
             }

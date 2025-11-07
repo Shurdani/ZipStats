@@ -7,28 +7,125 @@ import android.os.Build
 import androidx.core.content.ContextCompat
 import javax.inject.Inject
 
+data class AppPermission(
+    val permission: String,
+    val name: String,
+    val description: String,
+    val isRequired: Boolean = true
+)
+
 class PermissionManager @Inject constructor(
     private val context: Context
 ) {
+    /**
+     * Obtiene todos los permisos de la app con sus descripciones
+     */
+    fun getAllPermissions(): List<AppPermission> {
+        val permissions = mutableListOf<AppPermission>()
+        
+        // Permiso de ubicación (solo FINE_LOCATION, ya que incluye COARSE)
+        permissions.add(
+            AppPermission(
+                permission = Manifest.permission.ACCESS_FINE_LOCATION,
+                name = "Ubicación",
+                description = "Necesario para el seguimiento GPS de rutas y calcular distancias recorridas"
+            )
+        )
+        
+        // Permiso de notificaciones
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            permissions.add(
+                AppPermission(
+                    permission = Manifest.permission.POST_NOTIFICATIONS,
+                    name = "Notificaciones",
+                    description = "Necesario para mostrar notificaciones de logros y el seguimiento GPS en segundo plano"
+                )
+            )
+        }
+        
+        // Permiso de cámara
+        permissions.add(
+            AppPermission(
+                permission = Manifest.permission.CAMERA,
+                name = "Cámara",
+                description = "Necesario para tomar fotos de perfil"
+            )
+        )
+        
+        // Permisos de almacenamiento
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            permissions.add(
+                AppPermission(
+                    permission = Manifest.permission.READ_MEDIA_IMAGES,
+                    name = "Imágenes",
+                    description = "Necesario para seleccionar imágenes de la galería para el perfil"
+                )
+            )
+        }
+        
+        return permissions
+    }
+    
+    /**
+     * Obtiene todos los permisos que se deben solicitar al inicio
+     */
+    fun getRequiredStartupPermissions(): Array<String> {
+        val permissions = getAllPermissions()
+            .filter { it.isRequired }
+            .map { it.permission }
+            .toMutableList()
+        
+        // Asegurar que se incluyan ambos permisos de ubicación (aunque solo mostremos uno en el diálogo)
+        if (Manifest.permission.ACCESS_FINE_LOCATION in permissions && 
+            Manifest.permission.ACCESS_COARSE_LOCATION !in permissions) {
+            permissions.add(Manifest.permission.ACCESS_COARSE_LOCATION)
+        }
+        
+        return permissions.toTypedArray()
+    }
+    
+    /**
+     * Verifica si todos los permisos requeridos están concedidos
+     */
+    fun hasAllRequiredPermissions(): Boolean {
+        return getAllPermissions()
+            .filter { it.isRequired }
+            .all { hasPermission(it.permission) }
+    }
+    
+    /**
+     * Verifica si un permiso específico está concedido
+     */
+    fun hasPermission(permission: String): Boolean {
+        return ContextCompat.checkSelfPermission(
+            context,
+            permission
+        ) == PackageManager.PERMISSION_GRANTED
+    }
+    
+    /**
+     * Obtiene el estado de todos los permisos
+     */
+    fun getPermissionStates(): Map<String, Boolean> {
+        return getAllPermissions().associate { it.permission to hasPermission(it.permission) }
+    }
+    
     fun hasStoragePermission(): Boolean {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            // Android 14+ - verificar permisos de medios para documentos
-            ContextCompat.checkSelfPermission(
-                context,
-                "android.permission.READ_MEDIA_DOCUMENTS"
-            ) == PackageManager.PERMISSION_GRANTED
+            hasPermission("android.permission.READ_MEDIA_DOCUMENTS")
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            hasPermission(Manifest.permission.READ_MEDIA_IMAGES)
         } else {
-            // Android 12-13 - no se necesita permiso explícito para MediaStore
             true
         }
     }
 
     fun getRequiredPermissions(): Array<String> {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            // Android 14+ - permisos de medios para documentos
             arrayOf("android.permission.READ_MEDIA_DOCUMENTS")
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            arrayOf(Manifest.permission.READ_MEDIA_IMAGES)
         } else {
-            // Android 12-13 - no se necesita permiso explícito
             emptyArray()
         }
     }
@@ -37,17 +134,8 @@ class PermissionManager @Inject constructor(
      * Verifica si la app tiene permisos de ubicación
      */
     fun hasLocationPermissions(): Boolean {
-        val fineLocation = ContextCompat.checkSelfPermission(
-            context,
-            Manifest.permission.ACCESS_FINE_LOCATION
-        ) == PackageManager.PERMISSION_GRANTED
-        
-        val coarseLocation = ContextCompat.checkSelfPermission(
-            context,
-            Manifest.permission.ACCESS_COARSE_LOCATION
-        ) == PackageManager.PERMISSION_GRANTED
-        
-        return fineLocation && coarseLocation
+        return hasPermission(Manifest.permission.ACCESS_FINE_LOCATION) &&
+               hasPermission(Manifest.permission.ACCESS_COARSE_LOCATION)
     }
     
     /**
@@ -61,14 +149,18 @@ class PermissionManager @Inject constructor(
     }
     
     /**
+     * Verifica si tiene permiso de cámara
+     */
+    fun hasCameraPermission(): Boolean {
+        return hasPermission(Manifest.permission.CAMERA)
+    }
+    
+    /**
      * Verifica si tiene permiso de notificaciones (necesario para foreground service)
      */
     fun hasNotificationPermission(): Boolean {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            ContextCompat.checkSelfPermission(
-                context,
-                Manifest.permission.POST_NOTIFICATIONS
-            ) == PackageManager.PERMISSION_GRANTED
+            hasPermission(Manifest.permission.POST_NOTIFICATIONS)
         } else {
             true // No se necesita en versiones anteriores
         }

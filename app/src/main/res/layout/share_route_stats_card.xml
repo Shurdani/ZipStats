@@ -20,7 +20,7 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
-            android:gravity="center_vertical"
+            android:gravity="top|start"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintTop_toTopOf="parent">
@@ -170,19 +170,20 @@
                 android:paddingStart="8dp"
                 android:paddingEnd="8dp">
 
-                <TextView
-                    android:id="@+id/weatherEmoji"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:textSize="60sp"
+                <ImageView
+                    android:id="@+id/weatherIcon"
+                    android:layout_width="80dp"
+                    android:layout_height="80dp"
                     android:layout_marginBottom="4dp"
-                    tools:text="☀️" />
+                    android:contentDescription="Icono del clima"
+                    app:tint="#FFFFFF"
+                    tools:src="@drawable/wb_sunny" />
 
                 <TextView
                     android:id="@+id/weatherTemp"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:textSize="16sp"
+                    android:textSize="18sp"
                     android:textStyle="bold"
                     android:textColor="#FFFFFF"
                     tools:text="18°C" />

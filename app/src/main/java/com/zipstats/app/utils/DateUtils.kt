@@ -6,7 +6,7 @@ import java.time.format.DateTimeFormatter
 import java.util.Date
 
 object DateUtils {
-    private val dateFormatter = DateTimeFormatter.ofPattern("dd/MM/yyyy")
+    private val dateFormatter = DateTimeFormatter.ofPattern("dd/MM/yy")
     private val apiDateFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")
     
     fun toLocalDate(date: Date): LocalDate = date.toInstant().atZone(ZoneId.systemDefault()).toLocalDate()

@@ -129,10 +129,14 @@ class StatisticsViewModel @Inject constructor(
         _selectedMonth,
         _selectedYear
     ) { month, year ->
-        if (month != null && year != null) {
-            val monthNames = listOf("Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic")
-            "${monthNames[month - 1]} $year"
-        } else null
+        when {
+            month != null && year != null -> {
+                val monthNames = listOf("Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic")
+                "${monthNames[month - 1]} $year"
+            }
+            year != null -> year.toString()
+            else -> null
+        }
     }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     // Obtener la lista de logros del servicio centralizado
@@ -180,14 +184,18 @@ class StatisticsViewModel @Inject constructor(
                         val totalRecords = records.size
                         val lastRecord = records.maxByOrNull { it.fecha }
 
+                        // Si solo hay año seleccionado (sin mes), usar el mes actual para cálculos internos
+                        // pero las estadísticas mensuales solo se mostrarán si hay mes seleccionado
                         val currentMonth = _selectedMonth.value ?: LocalDate.now().monthValue
                         val currentYear = _selectedYear.value ?: LocalDate.now().year
                         
-                        // Estadísticas mensuales (o del período seleccionado)
+                        // Estadísticas mensuales (solo si hay mes seleccionado, o del mes actual si no hay selección)
                         val monthlyRecords = records.filter {
                             try {
                                 val recordDate = LocalDate.parse(it.fecha)
-                                recordDate.monthValue == currentMonth && recordDate.year == currentYear
+                                // Si hay mes seleccionado, usar ese mes; si no, usar el mes actual
+                                val targetMonth = _selectedMonth.value ?: LocalDate.now().monthValue
+                                recordDate.monthValue == targetMonth && recordDate.year == currentYear
                             } catch (e: Exception) {
                                 false
                             }
@@ -329,7 +337,9 @@ class StatisticsViewModel @Inject constructor(
 ⛽ Gasolina ahorrada: $gasSaved Litros
 
 🏆 Top Vehículos:
-${scooterTexts.joinToString("\n")}""".trimIndent()
+${scooterTexts.joinToString("\n")}
+
+#ZipStats""".trimIndent()
     }
 
     fun getMonthlyShareText(stats: StatisticsUiState.Success): String {
@@ -346,7 +356,8 @@ ${scooterTexts.joinToString("\n")}""".trimIndent()
 
 🌱 CO₂ ahorrado: $co2Saved kg (≈ $treesEquivalent árboles que están ahí, aplaudiendo mi eco-héroe anónimo 🌳👏)
 ⛽ Gasolina ahorrada: $gasSaved Litros 
-""".trimIndent()
+
+#ZipStats""".trimIndent()
     }
 
     fun getYearlyShareText(stats: StatisticsUiState.Success): String {
@@ -363,7 +374,8 @@ ${scooterTexts.joinToString("\n")}""".trimIndent()
 
 🌱 CO₂ ahorrado: $co2Saved kg (≈ $treesEquivalent árboles que están ahí, aplaudiendo mi eco-héroe anónimo 🌳👏)
 ⛽ Gasolina ahorrada: $gasSaved Litros 
-""".trimIndent()
+
+#ZipStats""".trimIndent()
     }
 
     private fun calculateMonthlyChartData(records: List<com.zipstats.app.model.Record>): List<ChartDataPoint> {

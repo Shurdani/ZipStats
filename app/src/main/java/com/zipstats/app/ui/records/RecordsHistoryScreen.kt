@@ -1,6 +1,8 @@
 package com.zipstats.app.ui.records
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
+import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,6 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -141,17 +144,27 @@ fun RecordsHistoryScreen(
             title = { Text("Confirmar eliminación") },
             text = { Text("¿Estás seguro de que quieres eliminar este registro?") },
             confirmButton = {
-                TextButton(
+                Button(
                     onClick = {
                         viewModel.deleteRecord(record.id)
                         recordToDelete = null
-                    }
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error,
+                        contentColor = MaterialTheme.colorScheme.onError
+                    )
                 ) {
                     Text("Eliminar")
                 }
             },
             dismissButton = {
-                TextButton(onClick = { recordToDelete = null }) {
+                Button(
+                    onClick = { recordToDelete = null },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                ) {
                     Text("Cancelar")
                 }
             }
@@ -166,12 +179,6 @@ fun RecordsHistoryScreen(
                 // No volverá a aparecer hasta que se cierre y vuelva a abrir la aplicación
                 showOnboardingDialog = false
                 viewModel.markOnboardingDismissed()
-            },
-            onGoToProfile = {
-                // Cerrar el diálogo, marcar como descartado y navegar
-                showOnboardingDialog = false
-                viewModel.markOnboardingDismissed()
-                navController.navigate(Screen.Profile.route)
             },
             onRegisterVehicle = {
                 // Cerrar el diálogo, marcar como descartado y navegar
@@ -292,52 +299,49 @@ fun RecordsHistoryScreen(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = if (isSmallScreen) 8.dp else 16.dp, vertical = 8.dp),
+                    .padding(horizontal = if (isSmallScreen) 8.dp else 16.dp, vertical = 12.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = if (isSmallScreen) "Veh." else "Vehículo",
-                    modifier = Modifier.weight(if (isSmallScreen) 1.0f else 1.2f),
-                    style = MaterialTheme.typography.titleSmall.copy(
-                        fontSize = if (isSmallScreen) 11.sp else MaterialTheme.typography.titleSmall.fontSize
+                    text = "Vehículo",
+                    modifier = Modifier.weight(1.4f),
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontSize = 14.sp
                     ),
                     fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.87f),
+                    
                 )
                 Text(
                     text = "Fecha",
-                    modifier = Modifier.weight(if (isSmallScreen) 0.9f else 0.8f),
-                    style = MaterialTheme.typography.titleSmall.copy(
-                        fontSize = if (isSmallScreen) 11.sp else MaterialTheme.typography.titleSmall.fontSize
+                    modifier = Modifier.weight(0.8f),
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontSize = 14.sp
                     ),
                     fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.87f),
                     textAlign = TextAlign.Center,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
                 )
                 Text(
-                    text = if (isSmallScreen) "T. KM" else if (isMediumScreen) "T. KM" else "Total KM",
-                    modifier = Modifier.weight(if (isSmallScreen) 0.9f else 0.8f),
-                    style = MaterialTheme.typography.titleSmall.copy(
-                        fontSize = if (isSmallScreen) 11.sp else MaterialTheme.typography.titleSmall.fontSize
+                    text = "Total",
+                    modifier = Modifier.weight(1.0f),
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontSize = 14.sp
                     ),
                     fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.87f),
                     textAlign = TextAlign.End,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
                 )
                 Text(
-                    text = if (isSmallScreen) "V. KM" else if (isMediumScreen) "V. KM" else "Viaje KM",
-                    modifier = Modifier.weight(if (isSmallScreen) 0.9f else 0.8f),
-                    style = MaterialTheme.typography.titleSmall.copy(
-                        fontSize = if (isSmallScreen) 11.sp else MaterialTheme.typography.titleSmall.fontSize
+                    text = "Δ",
+                    modifier = Modifier.weight(0.8f),
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontSize = 14.sp
                     ),
                     fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.87f),
                     textAlign = TextAlign.End,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
                 )
             }
 
@@ -354,35 +358,43 @@ fun RecordsHistoryScreen(
                     .fillMaxWidth()
                     .weight(1f)
             ) {
-                items(
+                itemsIndexed(
                     items = filteredRecords,
-                    key = { it.id }
-                ) { record ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { recordToEdit = record }
-                            .padding(
-                                horizontal = if (screenWidthDp < 360) 8.dp else 16.dp,
-                                vertical = 8.dp
-                            ),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
+                    key = { _, record -> record.id }
+                ) { index, record ->
+                    Column {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { recordToEdit = record }
+                                .background(
+                                    color = if (index % 2 == 0) {
+                                        Color.Transparent
+                                    } else {
+                                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                                    }
+                                )
+                                .padding(
+                                    horizontal = if (screenWidthDp < 360) 8.dp else 16.dp,
+                                    vertical = 14.dp
+                                ),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
                         Text(
                             text = userScooters.find { it.nombre == record.patinete }?.modelo ?: record.patinete,
-                            modifier = Modifier.weight(if (isSmallScreen) 1.0f else 1.2f),
+                            modifier = Modifier.weight(1.4f),
                             style = MaterialTheme.typography.bodyMedium.copy(
-                                fontSize = if (isSmallScreen) 12.sp else MaterialTheme.typography.bodyMedium.fontSize
+                                fontSize = 14.sp
                             ),
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
                         Text(
                             text = DateUtils.formatForDisplay(DateUtils.parseApiDate(record.fecha)),
-                            modifier = Modifier.weight(if (isSmallScreen) 0.9f else 0.8f),
+                            modifier = Modifier.weight(0.8f),
                             style = MaterialTheme.typography.bodyMedium.copy(
-                                fontSize = if (isSmallScreen) 12.sp else MaterialTheme.typography.bodyMedium.fontSize
+                                fontSize = 14.sp
                             ),
                             textAlign = TextAlign.Center,
                             maxLines = 1,
@@ -390,9 +402,9 @@ fun RecordsHistoryScreen(
                         )
                         Text(
                             text = String.format("%.1f", record.kilometraje),
-                            modifier = Modifier.weight(if (isSmallScreen) 0.9f else 0.8f),
+                            modifier = Modifier.weight(1.0f),
                             style = MaterialTheme.typography.bodyMedium.copy(
-                                fontSize = if (isSmallScreen) 12.sp else MaterialTheme.typography.bodyMedium.fontSize
+                                fontSize = 14.sp
                             ),
                             textAlign = TextAlign.End,
                             maxLines = 1,
@@ -400,9 +412,9 @@ fun RecordsHistoryScreen(
                         )
                         Text(
                             text = String.format("+%.1f", record.diferencia),
-                            modifier = Modifier.weight(if (isSmallScreen) 0.9f else 0.8f),
+                            modifier = Modifier.weight(0.8f),
                             style = MaterialTheme.typography.bodyMedium.copy(
-                                fontSize = if (isSmallScreen) 12.sp else MaterialTheme.typography.bodyMedium.fontSize
+                                fontSize = 14.sp
                             ),
                             textAlign = TextAlign.End,
                             color = MaterialTheme.colorScheme.primary,
@@ -420,7 +432,7 @@ fun RecordsHistoryScreen(
         }
     }
 }
-
+}
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NewRecordDialog(
@@ -535,7 +547,7 @@ fun NewRecordDialog(
             }
         },
         confirmButton = {
-            TextButton(
+            Button(
                 onClick = {
                     if (selectedScooter.isEmpty() || kilometraje.isEmpty()) {
                         errorMessage = "Por favor, complete todos los campos"
@@ -552,7 +564,13 @@ fun NewRecordDialog(
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
+            Button(
+                onClick = onDismiss,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            ) {
                 Text("Cancelar")
             }
         }
@@ -668,7 +686,7 @@ fun EditRecordDialog(
             }
         },
         confirmButton = {
-            TextButton(
+            Button(
                 onClick = {
                     if (selectedScooter.isEmpty() || kilometraje.isEmpty()) {
                         errorMessage = "Por favor, complete todos los campos"
@@ -688,15 +706,22 @@ fun EditRecordDialog(
             Row(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                TextButton(
+                Button(
                     onClick = onDelete,
-                    colors = ButtonDefaults.textButtonColors(
-                        contentColor = MaterialTheme.colorScheme.error
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error,
+                        contentColor = MaterialTheme.colorScheme.onError
                     )
                 ) {
                     Text("Eliminar")
                 }
-                TextButton(onClick = onDismiss) {
+                Button(
+                    onClick = onDismiss,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                ) {
                     Text("Cancelar")
                 }
             }

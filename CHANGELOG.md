@@ -5,94 +5,148 @@ Todos los cambios notables en este proyecto serán documentados en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
-## [3.0.0] - 2024-12-XX
+## [3.2] - 2025-01-06
 
-### 🎉 Versión Mayor - Mejoras Significativas
+### ✨ Nuevas Características
 
-#### ✨ Nuevas Características
+- **Sistema de Permisos Centralizado**
+  - ✅ Diálogo de permisos al inicio de la app con explicaciones
+  - ✅ Sección de permisos en Ajustes con switches informativos
+  - ✅ Gestión centralizada de todos los permisos de la app
 
-- **Pantalla siempre encendida durante tracking**: Nueva opción en ajustes para mantener la pantalla encendida automáticamente durante la grabación de rutas. Esto mejora la experiencia de uso al evitar que la pantalla se apague durante el seguimiento GPS.
-- **Sistema de onboarding mejorado**: 
-  - Dialog de bienvenida que aparece automáticamente cuando no hay vehículos registrados
-  - Gestión inteligente de sesión: el diálogo solo aparece una vez por sesión si el usuario lo descarta
-  - Opciones directas para registrar vehículo o ir a perfil desde el diálogo
+- **Sincronización de Logros con Firebase**
+  - ✅ Logros asociados al usuario en Firebase
+  - ✅ Sincronización automática al iniciar sesión
+  - ✅ Prevención de notificaciones duplicadas al cambiar de dispositivo
 
-#### 🚀 Actualizaciones de Dependencias
+- **Notificaciones de Logros**
+  - ✅ Reemplazo de Snackbars por notificaciones del sistema
+  - ✅ Notificaciones anidadas para múltiples logros desbloqueados
+  - ✅ Canal de notificaciones dedicado para logros
 
-- **Google Services**: Actualizado de `4.4.2` a `4.4.4`
-- **Google Play Services Base**: Actualizado de `18.2.0` a `18.9.0`
-- **Hilt (Dagger)**: Actualizado de `2.55` a `2.57.2`
-- **Navigation Compose**: Actualizado de `2.7.6` a `2.9.5`
-- **Espresso Core**: Actualizado de `3.5.1` a `3.7.0`
-- **compileSdk**: Actualizado de `34` a `35` para soportar las nuevas dependencias
+- **Mejoras en Estadísticas**
+  - ✅ Selección de período (mes específico o año completo)
+  - ✅ Visualización de estadísticas por mes o año seleccionado
+  - ✅ Actualización automática de pestañas según selección
+  - ✅ Eliminación de métrica "Máximo" en pestañas "Este Mes" y "Este Año"
 
-#### 🎨 Mejoras de Interfaz de Usuario
+### 🎨 Mejoras de Interfaz
 
-- **Diseño responsive mejorado**: 
-  - Adaptación automática de textos, tamaños de fuente y espaciados según el tamaño de pantalla
-  - Textos abreviados en pantallas pequeñas ("Patinete" → "Pat.", "Distancia" → "Dist.")
-  - Prevención de solapamiento de encabezados en tablas
-  - Ajustes dinámicos de padding y márgenes
+- **Unificación de Botones**
+  - ✅ Todos los botones de diálogos y formularios ahora son `Button` (no `TextButton`)
+  - ✅ Botón principal con estilo sombreado/elevated
+  - ✅ Botón secundario con estilo más sutil (`surfaceVariant`)
+  - ✅ Consistencia visual en toda la app
 
-- **Mejoras visuales**:
-  - Icono actualizado para vehículo tipo "Monociclo" (de nave espacial a icono de rueda)
+- **Mejoras de Legibilidad**
+  - ✅ Filas alternadas (striping) en tablas de rutas y registros
+  - ✅ Mayor padding vertical en filas de tablas
+  - ✅ Encabezados de columnas más distinguibles con mayor tamaño y contraste
 
-#### 🔧 Refactorización y Organización
+- **Formularios de Vehículos**
+  - ✅ Eliminación de placeholders específicos de patinetes
+  - ✅ Estilo unificado: formularios centrados como diálogos
+  - ✅ Conversión de bottom sheet a diálogo en edición de vehículos
 
-- **Consolidación de carpetas de utilidades**:
-  - Unificación de `util/` y `utils/` en una sola carpeta `utils/`
-  - Movido `ScreenUtils` de `ui/utils/` a `utils/` para mejor organización
-  - Todos los archivos de utilidades ahora están centralizados
+- **Onboarding**
+  - ✅ Reducción a 2 botones: "Registrar vehículo ahora" y "Más tarde"
+  - ✅ Eliminación del botón "Ir a perfil"
 
-#### 🐛 Correcciones de Bugs
+- **Iconos y Navegación**
+  - ✅ Corrección de alineación del icono en Bottom Navigation
+  - ✅ Cambio de icono de navegación en tarjeta de Mantenimiento (flecha derecha en lugar de izquierda)
 
-- **Eliminación de vehículos**: Corregido el problema donde la pantalla no se refrescaba después de eliminar un vehículo
-  - Mejora en el manejo de excepciones de cancelación
-  - Implementación de espera activa para confirmar eliminación en Firestore antes de actualizar UI
+- **Textos de Ayuda**
+  - ✅ Texto explicativo en campo de kilometraje de reparaciones
+  - ✅ Información sobre comportamiento automático cuando el campo está vacío
 
-- **Onboarding**: 
-  - Corregido el problema donde el diálogo aparecía incluso cuando ya había vehículos registrados
-  - Mejorada la lógica de detección de estado de carga
+### 🔧 Mejoras y Correcciones
 
-- **Google Sign-In**: Mejoras en el manejo de fusión de cuentas cuando se usa el mismo email con diferentes métodos de autenticación
+- **Workflows de CI/CD**
+  - ✅ Corrección del workflow de CodeQL para análisis de seguridad
+  - ✅ Mejora del workflow de tests para ejecución correcta
+  - ✅ Corrección del auto-labeling de Pull Requests
+  - ✅ Configuración mejorada de GitHub Actions
+  - ✅ Desactivación de publicación automática de releases (publicación manual)
 
-#### 📝 Mejoras Internas
+- **Seguridad**
+  - ✅ Configuración de CodeQL para escaneo de código
+  - ✅ Mejoras en la gestión de archivos sensibles en workflows
 
-- **Gestión de estado mejorada**: 
-  - Mejor manejo de `CancellationException` en coroutines
-  - Optimización de actualizaciones de UI después de operaciones asíncronas
+- **Infraestructura**
+  - ✅ Actualización de dependencias de GitHub Actions
+  - ✅ Mejoras en la configuración de Gradle wrapper
+  - ✅ Optimización de procesos de build
+  - ✅ APK disponible como artifact en lugar de publicación automática
 
-- **Código más limpio**: 
-  - Eliminación de código duplicado
-  - Mejor organización de utilidades
-  - Actualización de APIs deprecadas
+### 📝 Notas
 
-### 🔄 Migración desde v2.9
-
-Esta versión es compatible con datos de versiones anteriores. No se requieren acciones especiales de migración.
-
-Los usuarios simplemente necesitan actualizar la aplicación normalmente. Todas las preferencias y datos existentes se mantendrán intactos.
+- Esta versión incluye mejoras significativas en la experiencia de usuario
+- Sistema de permisos más transparente y fácil de gestionar
+- Logros sincronizados entre dispositivos
+- Interfaz más consistente y profesional
 
 ---
 
-## [2.9.0] - Versión Anterior
+## [3.0] - 2024-XX-XX
 
-Versión base con las siguientes características principales:
+### ✨ Nuevas Características
+
+- **Autenticación**
+  - ✅ Inicio de sesión con cuenta de Google
+  - ✅ Fusión automática de cuentas (email/password + Google)
+  - ✅ Eliminación de verificación de email (siempre va a spam)
+
+- **Interfaz de Usuario**
+  - ✅ Diseño completamente responsive que se adapta a todos los tamaños de pantalla
+  - ✅ Mejoras en la visualización de tablas en pantallas pequeñas
+  - ✅ Texto adaptativo según el tamaño de la pantalla
+
+- **Tracking**
+  - ✅ Opción para mantener la pantalla encendida durante la grabación de rutas
+  - ✅ Configuración en pantalla de ajustes
+
+- **Onboarding**
+  - ✅ Diálogo de bienvenida mejorado
+  - ✅ Aparece solo si no hay vehículos registrados
+  - ✅ Se muestra una vez por sesión si se descarta
+
+### 🚀 Actualizaciones
+
+- **Dependencias**
+  - ✅ `com.google.gms.google-services`: 4.4.2 → 4.4.4
+  - ✅ `com.google.android.gms:play-services-base`: 18.2.0 → 18.9.0
+  - ✅ `com.google.dagger:hilt-compiler`: 2.55 → 2.57.2
+  - ✅ `androidx.test.espresso:espresso-core`: 3.5.1 → 3.7.0
+  - ✅ `androidx.navigation:navigation-compose`: 2.7.6 → 2.9.5
+  - ✅ `compileSdk`: 34 → 35
+
+### 🎨 Mejoras de UI
+
+- ✅ Diseño responsive en todas las pantallas
+- ✅ Adaptación automática de texto y espaciado según tamaño de pantalla
+- ✅ Mejoras en la visualización de tablas en dispositivos pequeños
+
+### 🔧 Refactorización
+
+- ✅ Consolidación de carpetas de utilidades (`util`, `utils`, `ui/utils` → `utils`)
+- ✅ Mejora en la organización del código
+
+### 🐛 Correcciones
+
+- ✅ Corrección del refresco de pantalla al eliminar vehículos
+- ✅ Mejora en el manejo de excepciones durante la eliminación
+- ✅ Corrección de problemas de cancelación de coroutines
+
+---
+
+## [2.9] - Versión anterior
+
+### Características principales
+
 - Tracking GPS en tiempo real
 - Gestión de múltiples vehículos
-- Estadísticas y visualización de rutas
+- Estadísticas y registros detallados
 - Exportación a Excel
-- Autenticación con Firebase
-- Interfaz Material Design 3
-
----
-
-## Tipos de Cambios
-
-- **✨ Añadido**: Para nuevas características
-- **🔄 Cambiado**: Para cambios en funcionalidades existentes
-- **⚠️ Deprecado**: Para funcionalidades que serán removidas en futuras versiones
-- **🗑️ Eliminado**: Para funcionalidades removidas
-- **🐛 Corregido**: Para correcciones de bugs
-- **🔒 Seguridad**: Para vulnerabilidades de seguridad
+- Visualización de rutas en Google Maps
 

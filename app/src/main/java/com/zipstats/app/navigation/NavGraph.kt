@@ -4,7 +4,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
@@ -53,10 +55,9 @@ fun NavGraph(
         authState is com.zipstats.app.ui.auth.AuthState.Initial
     }
     
-    val shouldNavigateToRecords = remember(authState) {
-        authState is com.zipstats.app.ui.auth.AuthState.Success
-    }
-    
+    // Recordar el estado anterior para detectar transiciones
+    var previousAuthState by remember { mutableStateOf<com.zipstats.app.ui.auth.AuthState?>(null) }
+
     // Navegar automáticamente según el estado de autenticación
     LaunchedEffect(shouldNavigateToLogin) {
         if (shouldNavigateToLogin) {
@@ -66,8 +67,11 @@ fun NavGraph(
         }
     }
     
-    LaunchedEffect(shouldNavigateToRecords) {
-        if (shouldNavigateToRecords) {
+    LaunchedEffect(authState) {
+        val previous = previousAuthState
+        previousAuthState = authState
+
+        if (authState is com.zipstats.app.ui.auth.AuthState.Success && previous !is com.zipstats.app.ui.auth.AuthState.Success) {
             if (navController.currentDestination?.route != Screen.Records.route) {
                 navController.navigate(Screen.Records.route) {
                     popUpTo(0) { inclusive = true }

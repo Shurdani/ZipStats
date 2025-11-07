@@ -93,7 +93,7 @@ class AchievementsService @Inject constructor(
             level = AchievementLevel.NOVATO,
             emoji = "👶🛴",
             hashtag = "#RodandoAndo",
-            shareMessage = "¡Lo hice! 50 km recorridos y mi VMP y yo ya somos mejores amigos. ¡Que empiece el juego! #RodandoAndo",
+            shareMessage = "¡Lo hice! 50 km recorridos y mi VMP y yo ya somos mejores amigos. ¡Que empiece el juego! #RodandoAndo #ZipStats",
             requiredDistance = 50.0,
             requirementType = AchievementRequirementType.DISTANCE
         ),
@@ -104,7 +104,7 @@ class AchievementsService @Inject constructor(
             level = AchievementLevel.NOVATO,
             emoji = "📋✅",
             hashtag = "#DataGeek",
-            shareMessage = "¡No solo ruedo, también registro! Mis primeros 10 viajes ya están en la base de datos. ¡La organización es la clave! #DataGeek",
+            shareMessage = "¡No solo ruedo, también registro! Mis primeros 10 viajes ya están en la base de datos. ¡La organización es la clave! #DataGeek #ZipStats",
             requiredTrips = 10,
             requirementType = AchievementRequirementType.TRIPS
         ),
@@ -115,7 +115,7 @@ class AchievementsService @Inject constructor(
             level = AchievementLevel.NOVATO,
             emoji = "📅🗓️",
             hashtag = "#HábitoVerde",
-            shareMessage = "Soy más consistente que la alarma de las 6 AM. ¡Tres semanas seguidas de movilidad sostenible! ¿Quién dijo rutina? #HábitoVerde",
+            shareMessage = "Soy más consistente que la alarma de las 6 AM. ¡Tres semanas seguidas de movilidad sostenible! ¿Quién dijo rutina? #HábitoVerde #ZipStats",
             requiredUniqueWeeks = 3,
             requirementType = AchievementRequirementType.UNIQUE_WEEKS
         ),
@@ -126,7 +126,7 @@ class AchievementsService @Inject constructor(
             level = AchievementLevel.NOVATO,
             emoji = "⏱️🔥",
             hashtag = "#NoFaltes",
-            shareMessage = "El asfalto me llama, y yo respondo. ¡Una semana completa sin fallar! Mi VMP y yo somos imparables. #NoFaltes",
+            shareMessage = "El asfalto me llama, y yo respondo. ¡Una semana completa sin fallar! Mi VMP y yo somos imparables. #NoFaltes #ZipStats",
             requiredConsecutiveDays = 7,
             requirementType = AchievementRequirementType.CONSECUTIVE_DAYS
         ),
@@ -137,7 +137,7 @@ class AchievementsService @Inject constructor(
             level = AchievementLevel.NOVATO,
             emoji = "🗺️📍",
             hashtag = "#AsfaltoConquistado",
-            shareMessage = "¡250 km! Ya conozco mi barrio mejor que el repartidor de pizza. Ahora a conquistar la ciudad entera. #AsfaltoConquistado",
+            shareMessage = "¡250 km! Ya conozco mi barrio mejor que el repartidor de pizza. Ahora a conquistar la ciudad entera. #AsfaltoConquistado #ZipStats",
             requiredDistance = 250.0,
             requirementType = AchievementRequirementType.DISTANCE
         ),
@@ -148,7 +148,7 @@ class AchievementsService @Inject constructor(
             level = AchievementLevel.NOVATO,
             emoji = "🏅🥉",
             hashtag = "#LeyendaLocal",
-            shareMessage = "¡Medio millar de kilómetros! ¡Casi un centenario y no me he cansado! A este paso, me hacen un monumento. #LeyendaLocal",
+            shareMessage = "¡Medio millar de kilómetros! ¡Casi un centenario y no me he cansado! A este paso, me hacen un monumento. #LeyendaLocal #ZipStats",
             requiredDistance = 500.0,
             requirementType = AchievementRequirementType.DISTANCE
         ),
@@ -161,7 +161,7 @@ class AchievementsService @Inject constructor(
             level = AchievementLevel.EXPLORADOR,
             emoji = "🦸‍♂️🌟",
             hashtag = "#MilYContando",
-            shareMessage = "¡Héroe de los 1.000! Si esto fuera un juego de rol, acabo de subir de nivel. ¡A por los 2.000! #MilYContando",
+            shareMessage = "¡Héroe de los 1.000! Si esto fuera un juego de rol, acabo de subir de nivel. ¡A por los 2.000! #MilYContando #ZipStats",
             requiredDistance = 1000.0,
             requirementType = AchievementRequirementType.DISTANCE
         ),
@@ -172,7 +172,7 @@ class AchievementsService @Inject constructor(
             level = AchievementLevel.EXPLORADOR,
             emoji = "🛣️💨",
             hashtag = "#KilómetrosSinFin",
-            shareMessage = "2.500 km, y contando. Parece que mi VMP tiene más vida social que yo. ¡El movimiento constante es la clave! #KilómetrosSinFin",
+            shareMessage = "2.500 km, y contando. Parece que mi VMP tiene más vida social que yo. ¡El movimiento constante es la clave! #KilómetrosSinFin #ZipStats",
             requiredDistance = 2500.0,
             requirementType = AchievementRequirementType.DISTANCE
         ),
@@ -183,7 +183,7 @@ class AchievementsService @Inject constructor(
             level = AchievementLevel.EXPLORADOR,
             emoji = "🗃️🔎",
             hashtag = "#TrackingPro",
-            shareMessage = "50 registros y mi historial es más largo que un libro de fantasía. ¡Me encanta tener mis datos bajo control! #TrackingPro",
+            shareMessage = "50 registros y mi historial es más largo que un libro de fantasía. ¡Me encanta tener mis datos bajo control! #TrackingPro #ZipStats",
             requiredTrips = 50,
             requirementType = AchievementRequirementType.TRIPS
         ),
@@ -194,7 +194,7 @@ class AchievementsService @Inject constructor(
             level = AchievementLevel.EXPLORADOR,
             emoji = "🔧⚙️",
             hashtag = "#Mantenimiento",
-            shareMessage = "Cinco veces en el 'taller' (mi garaje). Un VMP bien cuidado es un VMP feliz. ¡Siempre revisando los detalles! #Mantenimiento",
+            shareMessage = "Cinco veces en el 'taller' (mi garaje). Un VMP bien cuidado es un VMP feliz. ¡Siempre revisando los detalles! #Mantenimiento #ZipStats",
             requiredMaintenanceCount = 5,
             requirementType = AchievementRequirementType.MAINTENANCE_COUNT
         ),
@@ -205,7 +205,7 @@ class AchievementsService @Inject constructor(
             level = AchievementLevel.EXPLORADOR,
             emoji = "🧭🏛️",
             hashtag = "#ViajeroÉpico",
-            shareMessage = "¡5.000 km! Mi épica odisea urbana no ha hecho más que empezar. Ulises lo hizo en barco, yo en ruedas. #ViajeroÉpico",
+            shareMessage = "¡5.000 km! Mi épica odisea urbana no ha hecho más que empezar. Ulises lo hizo en barco, yo en ruedas. #ViajeroÉpico #ZipStats",
             requiredDistance = 5000.0,
             requirementType = AchievementRequirementType.DISTANCE
         ),
@@ -216,7 +216,7 @@ class AchievementsService @Inject constructor(
             level = AchievementLevel.EXPLORADOR,
             emoji = "🌳🌍",
             hashtag = "#PlanetaVerde",
-            shareMessage = "¡50 kg de CO2 que no fueron al ambiente! Mi contribución al planeta hoy es ir rodando. ¡Soy un Eco-Amigo de verdad! #PlanetaVerde",
+            shareMessage = "¡50 kg de CO2 que no fueron al ambiente! Mi contribución al planeta hoy es ir rodando. ¡Soy un Eco-Amigo de verdad! #PlanetaVerde #ZipStats",
             requiredCO2Saved = 50.0,
             requirementType = AchievementRequirementType.CO2_SAVED
         ),
@@ -227,7 +227,7 @@ class AchievementsService @Inject constructor(
             level = AchievementLevel.EXPLORADOR,
             emoji = "🗓️🔟",
             hashtag = "#Explorador",
-            shareMessage = "Llevo 10 meses explorando la ciudad sin importar el clima. ¡Ni la lluvia ni el sol me detienen! #Explorador",
+            shareMessage = "Llevo 10 meses explorando la ciudad sin importar el clima. ¡Ni la lluvia ni el sol me detienen! #Explorador #ZipStats",
             requiredUniqueMonths = 10,
             requirementType = AchievementRequirementType.UNIQUE_MONTHS
         ),
@@ -238,7 +238,7 @@ class AchievementsService @Inject constructor(
             level = AchievementLevel.EXPLORADOR,
             emoji = "🏃💨",
             hashtag = "#Correcaminos",
-            shareMessage = "7.500 km, casi un viaje transcontinental. Mis ruedas están echando humo (figurativamente, claro). #Correcaminos",
+            shareMessage = "7.500 km, casi un viaje transcontinental. Mis ruedas están echando humo (figurativamente, claro). #Correcaminos #ZipStats",
             requiredDistance = 7500.0,
             requirementType = AchievementRequirementType.DISTANCE
         ),
@@ -249,7 +249,7 @@ class AchievementsService @Inject constructor(
             level = AchievementLevel.EXPLORADOR,
             emoji = "🚀🔟",
             hashtag = "#DobleCifra",
-            shareMessage = "¡10.000 km! El primer gran hito de cinco cifras. Gracias a mi VMP por ser mi fiel compañero de fatigas. #DobleCifra",
+            shareMessage = "¡10.000 km! El primer gran hito de cinco cifras. Gracias a mi VMP por ser mi fiel compañero de fatigas. #DobleCifra #ZipStats",
             requiredDistance = 10000.0,
             requirementType = AchievementRequirementType.DISTANCE
         ),
@@ -260,7 +260,7 @@ class AchievementsService @Inject constructor(
             level = AchievementLevel.EXPLORADOR,
             emoji = "🎚️📈",
             hashtag = "#MidPoint",
-            shareMessage = "12.500 km. Justo en el punto medio de la leyenda. ¡La inercia me impulsa hacia la meta final! #MidPoint",
+            shareMessage = "12.500 km. Justo en el punto medio de la leyenda. ¡La inercia me impulsa hacia la meta final! #MidPoint #ZipStats",
             requiredDistance = 12500.0,
             requirementType = AchievementRequirementType.DISTANCE
         ),
@@ -273,7 +273,7 @@ class AchievementsService @Inject constructor(
             level = AchievementLevel.MAESTRO,
             emoji = "🗺️🌐",
             hashtag = "#RodandoSiempre",
-            shareMessage = "15.000 km. Más vueltas que una noria en hora punta. ¡Mi VMP y yo somos un equipo imparable! #RodandoSiempre",
+            shareMessage = "15.000 km. Más vueltas que una noria en hora punta. ¡Mi VMP y yo somos un equipo imparable! #RodandoSiempre #ZipStats",
             requiredDistance = 15000.0,
             requirementType = AchievementRequirementType.DISTANCE
         ),
@@ -284,7 +284,7 @@ class AchievementsService @Inject constructor(
             level = AchievementLevel.MAESTRO,
             emoji = "🛡️♻️",
             hashtag = "#GuardiánVerde",
-            shareMessage = "¡100 kg de CO2 evitados! No soy un superhéroe, solo un ciudadano rodante. ¡Salvando el planeta de a poco! #GuardiánVerde",
+            shareMessage = "¡100 kg de CO2 evitados! No soy un superhéroe, solo un ciudadano rodante. ¡Salvando el planeta de a poco! #GuardiánVerde #ZipStats",
             requiredCO2Saved = 100.0,
             requirementType = AchievementRequirementType.CO2_SAVED
         ),
@@ -295,7 +295,7 @@ class AchievementsService @Inject constructor(
             level = AchievementLevel.MAESTRO,
             emoji = "👑👴",
             hashtag = "#Veterano",
-            shareMessage = "¡20.000 km! Ya soy un veterano del asfalto. Tengo más historias de ruedas que un libro de mecánica. ¡A seguir sumando! #Veterano",
+            shareMessage = "¡20.000 km! Ya soy un veterano del asfalto. Tengo más historias de ruedas que un libro de mecánica. ¡A seguir sumando! #Veterano #ZipStats",
             requiredDistance = 20000.0,
             requirementType = AchievementRequirementType.DISTANCE
         ),
@@ -306,7 +306,7 @@ class AchievementsService @Inject constructor(
             level = AchievementLevel.MAESTRO,
             emoji = "💯📊",
             hashtag = "#Titán",
-            shareMessage = "¡100 registros en la app! Mi historial es tan limpio como mi conciencia ecológica. ¡El orden de los datos es un arte! #Titán",
+            shareMessage = "¡100 registros en la app! Mi historial es tan limpio como mi conciencia ecológica. ¡El orden de los datos es un arte! #Titán #ZipStats",
             requiredTrips = 100,
             requirementType = AchievementRequirementType.TRIPS
         ),
@@ -317,7 +317,7 @@ class AchievementsService @Inject constructor(
             level = AchievementLevel.MAESTRO,
             emoji = "🔥🔋",
             hashtag = "#Incombustible",
-            shareMessage = "¡25.000 km! Sigo rodando como si fuera el primer día. Mi energía es inagotable, ¡o al menos mi batería lo es! #Incombustible",
+            shareMessage = "¡25.000 km! Sigo rodando como si fuera el primer día. Mi energía es inagotable, ¡o al menos mi batería lo es! #Incombustible #ZipStats",
             requiredDistance = 25000.0,
             requirementType = AchievementRequirementType.DISTANCE
         ),
@@ -328,7 +328,7 @@ class AchievementsService @Inject constructor(
             level = AchievementLevel.MAESTRO,
             emoji = "🏆🥇",
             hashtag = "#MiTerritorio",
-            shareMessage = "¡30.000 km! He conquistado tres veces la distancia del ecuador. Soy el dueño absoluto de mi camino. #MiTerritorio",
+            shareMessage = "¡30.000 km! He conquistado tres veces la distancia del ecuador. Soy el dueño absoluto de mi camino. #MiTerritorio #ZipStats",
             requiredDistance = 30000.0,
             requirementType = AchievementRequirementType.DISTANCE
         ),
@@ -339,7 +339,7 @@ class AchievementsService @Inject constructor(
             level = AchievementLevel.MAESTRO,
             emoji = "🌎💫",
             hashtag = "#Trotamundos",
-            shareMessage = "¡40.000 km! Técnicamente acabo de darle una vuelta entera a la Tierra. ¿Próximo destino? La luna. #Trotamundos",
+            shareMessage = "¡40.000 km! Técnicamente acabo de darle una vuelta entera a la Tierra. ¿Próximo destino? La luna. #Trotamundos #ZipStats",
             requiredDistance = 40000.0,
             requirementType = AchievementRequirementType.DISTANCE
         ),
@@ -350,7 +350,7 @@ class AchievementsService @Inject constructor(
             level = AchievementLevel.MAESTRO,
             emoji = "🔄📅",
             hashtag = "#CicloCompleto",
-            shareMessage = "¡Un año entero sin parar! El movimiento es vida, y yo no pienso detenerme. Gracias por acompañarme. #CicloCompleto",
+            shareMessage = "¡Un año entero sin parar! El movimiento es vida, y yo no pienso detenerme. Gracias por acompañarme. #CicloCompleto #ZipStats",
             requiredConsecutiveMonths = 12,
             requirementType = AchievementRequirementType.CONSECUTIVE_MONTHS
         ),
@@ -361,7 +361,7 @@ class AchievementsService @Inject constructor(
             level = AchievementLevel.MAESTRO,
             emoji = "🌟✨",
             hashtag = "#Leyenda",
-            shareMessage = "¡La Leyenda! ¡50.000 km alcanzados! Si me vieran en el museo, sería la estrella. ¡El hito más grande de mi vida sobre ruedas! #Leyenda",
+            shareMessage = "¡La Leyenda! ¡50.000 km alcanzados! Si me vieran en el museo, sería la estrella. ¡El hito más grande de mi vida sobre ruedas! #Leyenda #ZipStats",
             requiredDistance = 50000.0,
             requirementType = AchievementRequirementType.DISTANCE
         ),
@@ -372,7 +372,7 @@ class AchievementsService @Inject constructor(
             level = AchievementLevel.MAESTRO,
             emoji = "🤖👑",
             hashtag = "#MaestroTotal",
-            shareMessage = "¡Lo hice! No queda ni un logro por desbloquear. Soy el Maestro Absoluto de la Movilidad Personal. ¡A esperar el siguiente parche! #MaestroTotal",
+            shareMessage = "¡Lo hice! No queda ni un logro por desbloquear. Soy el Maestro Absoluto de la Movilidad Personal. ¡A esperar el siguiente parche! #MaestroTotal #ZipStats",
             requirementType = AchievementRequirementType.ALL_OTHERS
         ),
 
@@ -384,7 +384,7 @@ class AchievementsService @Inject constructor(
             level = AchievementLevel.SECRETO,
             emoji = "🥉🎯",
             hashtag = "#Triplete",
-            shareMessage = "¡Lo logré! Mi odómetro marcó la cifra mágica: 555 km exactos. No fue suerte, fue precisión milimétrica. ¡A rodar con estilo! #Triplete",
+            shareMessage = "¡Lo logré! Mi odómetro marcó la cifra mágica: 555 km exactos. No fue suerte, fue precisión milimétrica. ¡A rodar con estilo! #Triplete #ZipStats",
             requiredDistance = 555.0,
             requirementType = AchievementRequirementType.DISTANCE
         ),
@@ -395,7 +395,7 @@ class AchievementsService @Inject constructor(
             level = AchievementLevel.SECRETO,
             emoji = "🔄🪞",
             hashtag = "#Capicúa",
-            shareMessage = "¡Mi kilometraje es un espejo! Alcanzar el hito capicúa fue un reflejo de mi dedicación. ¡Esto es arte numérico! #Capicúa",
+            shareMessage = "¡Mi kilometraje es un espejo! Alcanzar el hito capicúa fue un reflejo de mi dedicación. ¡Esto es arte numérico! #Capicúa #ZipStats",
             requiredDistance = 2552.0,
             requirementType = AchievementRequirementType.DISTANCE
         ),
@@ -406,7 +406,7 @@ class AchievementsService @Inject constructor(
             level = AchievementLevel.SECRETO,
             emoji = "🔢🚀",
             hashtag = "#Perfecto",
-            shareMessage = "¡Secuencia Maestra desbloqueada! Mis kilómetros van en orden perfecto. Esta cifra es un regalo para cualquier ingeniero. #Perfecto",
+            shareMessage = "¡Secuencia Maestra desbloqueada! Mis kilómetros van en orden perfecto. Esta cifra es un regalo para cualquier ingeniero. #Perfecto #ZipStats",
             requiredDistance = 12345.0,
             requirementType = AchievementRequirementType.DISTANCE
         ),
@@ -417,7 +417,7 @@ class AchievementsService @Inject constructor(
             level = AchievementLevel.SECRETO,
             emoji = "🧱✖️",
             hashtag = "#Muro",
-            shareMessage = "¡Derribé el Muro de los Dos! 22.222 km de pura constancia. No hay obstáculo que se interponga entre yo y el asfalto. #Muro",
+            shareMessage = "¡Derribé el Muro de los Dos! 22.222 km de pura constancia. No hay obstáculo que se interponga entre yo y el asfalto. #Muro #ZipStats",
             requiredDistance = 22222.0,
             requirementType = AchievementRequirementType.DISTANCE
         )

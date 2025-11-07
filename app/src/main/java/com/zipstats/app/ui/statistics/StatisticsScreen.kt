@@ -60,8 +60,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.res.painterResource
+import androidx.compose.foundation.Image
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import com.zipstats.app.R
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -523,11 +528,11 @@ fun SummaryStatsCard(
                     icon = Icons.AutoMirrored.Filled.TrendingUp,
                     modifier = Modifier.weight(1f)
                 )
-                StatMetric(
+                StatMetricWithDrawable(
                     value = String.format("%.1f", periodData.averageDistance),
                     unit = "km",
                     label = "Promedio",
-                    icon = Icons.Filled.Speed,
+                    iconPainter = painterResource(id = R.drawable.distancia),
                     modifier = Modifier.weight(1f)
                 )
                 if (showMaxDistance) {
@@ -588,6 +593,42 @@ fun StatMetric(
 }
 
 @Composable
+fun StatMetricWithDrawable(
+    value: String,
+    unit: String,
+    label: String,
+    iconPainter: Painter,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier,
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        Image(
+            painter = iconPainter,
+            contentDescription = null,
+            colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.primary),
+            modifier = Modifier.size(24.dp)
+        )
+        Text(
+            text = value + (if (unit.isNotEmpty()) " $unit" else ""),
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f), // Mejor contraste
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+@Composable
 fun ComparisonCard(
     horizontalPadding: androidx.compose.ui.unit.Dp = 16.dp,
     comparison: ComparisonData
@@ -605,13 +646,28 @@ fun ComparisonCard(
         "el año ${comparison.comparisonYear}"
     }
     
+    val colorScheme = MaterialTheme.colorScheme
+    val containerColor = if (comparison.isPositive) {
+        colorScheme.tertiaryContainer
+    } else {
+        colorScheme.errorContainer
+    }
+    val primaryContentColor = if (comparison.isPositive) {
+        colorScheme.onTertiaryContainer
+    } else {
+        colorScheme.onErrorContainer
+    }
+    val accentColor = if (comparison.isPositive) {
+        colorScheme.tertiary
+    } else {
+        colorScheme.error
+    }
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
-            containerColor = if (comparison.isPositive) 
-                MaterialTheme.colorScheme.tertiaryContainer 
-            else 
-                MaterialTheme.colorScheme.errorContainer
+            containerColor = containerColor,
+            contentColor = primaryContentColor
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
@@ -626,7 +682,8 @@ fun ComparisonCard(
             Text(
                     text = "Comparación con $comparisonText",
                     style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
+                fontWeight = FontWeight.Bold,
+                color = primaryContentColor
             )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
@@ -635,7 +692,8 @@ fun ComparisonCard(
                     } else {
                         "${comparison.percentageChange.roundToInt()}% menos que $comparisonText"
                     },
-                    style = MaterialTheme.typography.bodyMedium
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = primaryContentColor.copy(alpha = 0.9f)
                 )
             }
             
@@ -646,20 +704,14 @@ fun ComparisonCard(
                     else 
                         Icons.AutoMirrored.Filled.TrendingDown,
                     contentDescription = null,
-                    tint = if (comparison.isPositive) 
-                        MaterialTheme.colorScheme.tertiary 
-                    else 
-                        MaterialTheme.colorScheme.error,
+                    tint = accentColor,
                     modifier = Modifier.size(40.dp)
                 )
                 Text(
                     text = "${if (comparison.isPositive) "+" else ""}${comparison.percentageChange.roundToInt()}%",
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Bold,
-                    color = if (comparison.isPositive) 
-                        MaterialTheme.colorScheme.tertiary 
-                    else 
-                        MaterialTheme.colorScheme.error
+                    color = accentColor
                 )
             }
         }

@@ -304,51 +304,44 @@ fun RecordsHistoryScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = if (isSmallScreen) "Veh." else "Vehículo",
-                    modifier = Modifier.weight(if (isSmallScreen) 1.0f else 1.2f),
-                    style = MaterialTheme.typography.titleMedium.copy(
-                        fontSize = if (isSmallScreen) 12.sp else MaterialTheme.typography.titleMedium.fontSize
+                    text = "Vehículo",
+                    modifier = Modifier.weight(1.4f),
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontSize = 14.sp
                     ),
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.87f),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    
                 )
                 Text(
                     text = "Fecha",
-                    modifier = Modifier.weight(if (isSmallScreen) 0.9f else 0.8f),
-                    style = MaterialTheme.typography.titleMedium.copy(
-                        fontSize = if (isSmallScreen) 12.sp else MaterialTheme.typography.titleMedium.fontSize
+                    modifier = Modifier.weight(0.8f),
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontSize = 14.sp
                     ),
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.87f),
                     textAlign = TextAlign.Center,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
                 )
                 Text(
-                    text = if (isSmallScreen) "T. KM" else if (isMediumScreen) "T. KM" else "Total KM",
-                    modifier = Modifier.weight(if (isSmallScreen) 0.9f else 0.8f),
-                    style = MaterialTheme.typography.titleMedium.copy(
-                        fontSize = if (isSmallScreen) 12.sp else MaterialTheme.typography.titleMedium.fontSize
+                    text = "Total",
+                    modifier = Modifier.weight(1.0f),
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontSize = 14.sp
                     ),
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.87f),
                     textAlign = TextAlign.End,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
                 )
                 Text(
-                    text = if (isSmallScreen) "V. KM" else if (isMediumScreen) "V. KM" else "Viaje KM",
-                    modifier = Modifier.weight(if (isSmallScreen) 0.9f else 0.8f),
-                    style = MaterialTheme.typography.titleMedium.copy(
-                        fontSize = if (isSmallScreen) 12.sp else MaterialTheme.typography.titleMedium.fontSize
+                    text = "Δ",
+                    modifier = Modifier.weight(0.8f),
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontSize = 14.sp
                     ),
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.87f),
                     textAlign = TextAlign.End,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
                 )
             }
 
@@ -390,18 +383,18 @@ fun RecordsHistoryScreen(
                         ) {
                         Text(
                             text = userScooters.find { it.nombre == record.patinete }?.modelo ?: record.patinete,
-                            modifier = Modifier.weight(if (isSmallScreen) 1.0f else 1.2f),
+                            modifier = Modifier.weight(1.4f),
                             style = MaterialTheme.typography.bodyMedium.copy(
-                                fontSize = if (isSmallScreen) 12.sp else MaterialTheme.typography.bodyMedium.fontSize
+                                fontSize = 14.sp
                             ),
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
                         Text(
                             text = DateUtils.formatForDisplay(DateUtils.parseApiDate(record.fecha)),
-                            modifier = Modifier.weight(if (isSmallScreen) 0.9f else 0.8f),
+                            modifier = Modifier.weight(0.8f),
                             style = MaterialTheme.typography.bodyMedium.copy(
-                                fontSize = if (isSmallScreen) 12.sp else MaterialTheme.typography.bodyMedium.fontSize
+                                fontSize = 14.sp
                             ),
                             textAlign = TextAlign.Center,
                             maxLines = 1,
@@ -409,9 +402,9 @@ fun RecordsHistoryScreen(
                         )
                         Text(
                             text = String.format("%.1f", record.kilometraje),
-                            modifier = Modifier.weight(if (isSmallScreen) 0.9f else 0.8f),
+                            modifier = Modifier.weight(1.0f),
                             style = MaterialTheme.typography.bodyMedium.copy(
-                                fontSize = if (isSmallScreen) 12.sp else MaterialTheme.typography.bodyMedium.fontSize
+                                fontSize = 14.sp
                             ),
                             textAlign = TextAlign.End,
                             maxLines = 1,
@@ -419,9 +412,9 @@ fun RecordsHistoryScreen(
                         )
                         Text(
                             text = String.format("+%.1f", record.diferencia),
-                            modifier = Modifier.weight(if (isSmallScreen) 0.9f else 0.8f),
+                            modifier = Modifier.weight(0.8f),
                             style = MaterialTheme.typography.bodyMedium.copy(
-                                fontSize = if (isSmallScreen) 12.sp else MaterialTheme.typography.bodyMedium.fontSize
+                                fontSize = 14.sp
                             ),
                             textAlign = TextAlign.End,
                             color = MaterialTheme.colorScheme.primary,

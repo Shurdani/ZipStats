@@ -28,6 +28,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.Image
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.runtime.Composable
@@ -732,7 +733,7 @@ fun SummaryCard(
                 SummaryMetric(
                     value = String.format("%.1f", totalKm),
                     label = "KM Totales",
-                    icon = Icons.Default.Speed,
+                    icon = Icons.AutoMirrored.Filled.TrendingUp,
                     modifier = Modifier.weight(1f)
                 )
                 SummaryMetric(

@@ -107,7 +107,7 @@ fun RepairsScreen(
     if (showAddDialog) {
         AlertDialog(
             onDismissRequest = { showAddDialog = false },
-            title = { Text("Agregar reparación") },
+            title = { Text("Añadir reparación") },
             text = {
                 Column {
                     Text(
@@ -163,7 +163,7 @@ fun RepairsScreen(
                     },
                     enabled = newRepairDescription.isNotBlank()
                 ) {
-                    Text("Agregar")
+                    Text("Guardar")
                 }
             },
             dismissButton = {

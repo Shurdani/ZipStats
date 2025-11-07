@@ -275,51 +275,44 @@ fun RoutesScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = if (isSmallScreen) "Vel." else "Vehiculo",
-                    modifier = Modifier.weight(if (isSmallScreen) 1.0f else 1.2f),
-                    style = MaterialTheme.typography.titleMedium.copy(
-                        fontSize = if (isSmallScreen) 12.sp else MaterialTheme.typography.titleMedium.fontSize
+                    text = "Vehículo",
+                    modifier = Modifier.weight(1.4f),
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontSize = 14.sp
                     ),
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.87f),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    
                 )
                 Text(
                     text = "Fecha",
-                    modifier = Modifier.weight(if (isSmallScreen) 0.9f else 0.8f),
-                    style = MaterialTheme.typography.titleMedium.copy(
-                        fontSize = if (isSmallScreen) 12.sp else MaterialTheme.typography.titleMedium.fontSize
+                    modifier = Modifier.weight(0.8f),
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontSize = 14.sp
                     ),
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.87f),
                     textAlign = TextAlign.Center,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
                 )
                 Text(
-                    text = if (isSmallScreen) "Dist." else if (isMediumScreen) "Dist." else "Distancia",
-                    modifier = Modifier.weight(if (isSmallScreen) 0.9f else 0.8f),
-                    style = MaterialTheme.typography.titleMedium.copy(
-                        fontSize = if (isSmallScreen) 12.sp else MaterialTheme.typography.titleMedium.fontSize
+                    text = "Km",
+                    modifier = Modifier.weight(1.0f),
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontSize = 14.sp
                     ),
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.87f),
                     textAlign = TextAlign.End,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
                 )
                 Text(
-                    text = if (isSmallScreen) "Dur." else if (isMediumScreen) "Dur." else "Duración",
-                    modifier = Modifier.weight(if (isSmallScreen) 0.9f else 0.8f),
-                    style = MaterialTheme.typography.titleMedium.copy(
-                        fontSize = if (isSmallScreen) 12.sp else MaterialTheme.typography.titleMedium.fontSize
+                    text = "Lapso",
+                    modifier = Modifier.weight(0.8f),
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontSize = 14.sp
                     ),
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.87f),
                     textAlign = TextAlign.End,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
                 )
             }
 
@@ -371,9 +364,9 @@ fun RoutesScreen(
                             ) {
                             Text(
                                 text = userScooters.find { it.id == route.scooterId }?.modelo ?: route.scooterName,
-                                modifier = Modifier.weight(if (isSmallScreen) 1.0f else 1.2f),
+                                modifier = Modifier.weight(1.4f),
                                 style = MaterialTheme.typography.bodyMedium.copy(
-                                    fontSize = if (isSmallScreen) 12.sp else MaterialTheme.typography.bodyMedium.fontSize
+                                    fontSize = 14.sp
                                 ),
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
@@ -384,9 +377,9 @@ fun RoutesScreen(
                                         .atZone(ZoneId.systemDefault())
                                         .toLocalDate()
                                 ),
-                                modifier = Modifier.weight(if (isSmallScreen) 0.9f else 0.8f),
+                                modifier = Modifier.weight(0.8f),
                                 style = MaterialTheme.typography.bodyMedium.copy(
-                                    fontSize = if (isSmallScreen) 12.sp else MaterialTheme.typography.bodyMedium.fontSize
+                                    fontSize = 14.sp
                                 ),
                                 textAlign = TextAlign.Center,
                                 maxLines = 1,
@@ -394,9 +387,9 @@ fun RoutesScreen(
                             )
                             Text(
                                 text = String.format("%.1f km", route.totalDistance),
-                                modifier = Modifier.weight(if (isSmallScreen) 0.9f else 0.8f),
+                                modifier = Modifier.weight(1.0f),
                                 style = MaterialTheme.typography.bodyMedium.copy(
-                                    fontSize = if (isSmallScreen) 12.sp else MaterialTheme.typography.bodyMedium.fontSize
+                                    fontSize = 14.sp
                                 ),
                                 textAlign = TextAlign.End,
                                 maxLines = 1,
@@ -404,9 +397,9 @@ fun RoutesScreen(
                             )
                             Text(
                                 text = route.durationFormatted,
-                                modifier = Modifier.weight(if (isSmallScreen) 0.9f else 0.8f),
+                                modifier = Modifier.weight(0.8f),
                                 style = MaterialTheme.typography.bodyMedium.copy(
-                                    fontSize = if (isSmallScreen) 12.sp else MaterialTheme.typography.bodyMedium.fontSize
+                                    fontSize = 14.sp
                                 ),
                                 textAlign = TextAlign.End,
                                 color = MaterialTheme.colorScheme.primary,

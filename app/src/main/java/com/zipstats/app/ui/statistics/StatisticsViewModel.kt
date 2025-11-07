@@ -337,7 +337,9 @@ class StatisticsViewModel @Inject constructor(
 ⛽ Gasolina ahorrada: $gasSaved Litros
 
 🏆 Top Vehículos:
-${scooterTexts.joinToString("\n")}""".trimIndent()
+${scooterTexts.joinToString("\n")}
+
+#ZipStats""".trimIndent()
     }
 
     fun getMonthlyShareText(stats: StatisticsUiState.Success): String {
@@ -354,7 +356,8 @@ ${scooterTexts.joinToString("\n")}""".trimIndent()
 
 🌱 CO₂ ahorrado: $co2Saved kg (≈ $treesEquivalent árboles que están ahí, aplaudiendo mi eco-héroe anónimo 🌳👏)
 ⛽ Gasolina ahorrada: $gasSaved Litros 
-""".trimIndent()
+
+#ZipStats""".trimIndent()
     }
 
     fun getYearlyShareText(stats: StatisticsUiState.Success): String {
@@ -371,7 +374,8 @@ ${scooterTexts.joinToString("\n")}""".trimIndent()
 
 🌱 CO₂ ahorrado: $co2Saved kg (≈ $treesEquivalent árboles que están ahí, aplaudiendo mi eco-héroe anónimo 🌳👏)
 ⛽ Gasolina ahorrada: $gasSaved Litros 
-""".trimIndent()
+
+#ZipStats""".trimIndent()
     }
 
     private fun calculateMonthlyChartData(records: List<com.zipstats.app.model.Record>): List<ChartDataPoint> {

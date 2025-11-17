@@ -2,7 +2,6 @@ package com.zipstats.app.repository
 
 import android.util.Log
 import androidx.annotation.DrawableRes
-import com.zipstats.app.BuildConfig
 import com.zipstats.app.R
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -13,138 +12,147 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Datos del clima obtenidos de OpenWeather API
+ * Datos del clima (Refactorizado para Open-Meteo, pero mantiene la estructura)
  */
 data class WeatherData(
     val temperature: Double,      // Temperatura en °C
     val feelsLike: Double,         // Sensación térmica
     val description: String,       // Descripción del clima
-    val icon: String,              // Código del icono (01d, 02n, etc.)
+    val icon: String,              // Código (ahora será el numérico, ej: "3")
     val humidity: Int,             // Humedad %
     val windSpeed: Double,         // Velocidad del viento m/s
-    val weatherEmoji: String       // Emoji representativo
+    val weatherEmoji: String,      // Emoji representativo (¡ARREGLADO!)
+    val weatherCode: Int,
+    val isDay: Boolean
 )
 
 @Singleton
 class WeatherRepository @Inject constructor() {
-    
+
     companion object {
         private const val TAG = "WeatherRepository"
-        private const val BASE_URL = "https://api.openweathermap.org/data/2.5"
-        
-        // Mapeo de códigos de icono de OpenWeather a emojis
-        private val WEATHER_EMOJI_MAP = mapOf(
-            "01d" to "☀️",  // Despejado día
-            "01n" to "🌙",  // Despejado noche
-            "02d" to "🌤️",  // Pocas nubes día
-            "02n" to "☁️",  // Pocas nubes noche
-            "03d" to "☁️",  // Nubes dispersas
-            "03n" to "☁️",  // Nubes dispersas noche
-            "04d" to "☁️",  // Nubes
-            "04n" to "☁️",  // Nubes noche
-            "09d" to "🌧️",  // Lluvia
-            "09n" to "🌧️",  // Lluvia noche
-            "10d" to "🌦️",  // Lluvia día
-            "10n" to "🌧️",  // Lluvia noche
-            "11d" to "⛈️",  // Tormenta
-            "11n" to "⛈️",  // Tormenta noche
-            "13d" to "❄️",  // Nieve
-            "13n" to "❄️",  // Nieve noche
-            "50d" to "🌫️",  // Niebla
-            "50n" to "🌫️"   // Niebla noche
-        )
-        
+        // 1. CAMBIO: URL de Open-Meteo
+        private const val BASE_URL = "https://api.open-meteo.com/v1"
+
+        // 2. ELIMINADO: El WEATHER_EMOJI_MAP antiguo
+
         /**
-         * Convierte un código de icono de OpenWeather (ej: "01d", "02n") en un ID de Recurso de Drawable.
-         * @param iconCode Código de icono de OpenWeather (ej: "01d", "02n", "03d", etc.)
-         * @return ID del recurso drawable correspondiente
+         * 3. CORREGIDO: Función de Emojis para Open-Meteo (con "☁️🌙")
+         * Esto arregla tu problema de "siempre nublado" por la noche.
+         */
+        fun getEmojiForWeather(weatherCode: Int, isDay: Int): String {
+            val isDayTime = (isDay == 1)
+
+            return when (weatherCode) {
+                0 -> if (isDayTime) "☀️" else "🌙" // Cielo despejado
+                1 -> if (isDayTime) "🌤️" else "☁️🌙" // Principalmente despejado (noche)
+                2 -> if (isDayTime) "🌥️" else "☁️🌙" // Parcialmente nublado (noche)
+                3 -> "☁️" // Nublado
+                45, 48 -> "🌫️" // Niebla
+                51, 53, 55, 61, 63, 65 -> "🌧️" // Lluvia / Llovizna
+                80, 81, 82 -> if (isDayTime) "🌦️" else "🌧️" // Chubascos
+                71, 73, 75, 77, 85, 86 -> "❄️" // Nieve
+                95, 96, 99 -> "⛈️" // Tormenta
+                else -> "🤷" // Desconocido
+            }
+        }
+
+        /**
+         * 4. AÑADIDO: Descripción local (Open-Meteo no la da traducida)
+         */
+        fun getDescriptionForWeather(weatherCode: Int, isDay: Int): String {
+            val isDayTime = (isDay == 1)
+            return when (weatherCode) {
+                0 -> if (isDayTime) "Despejado" else "Despejado (noche)"
+                1 -> "Principalmente despejado"
+                2 -> "Parcialmente nublado"
+                3 -> "Nublado"
+                45 -> "Niebla"
+                48 -> "Niebla escarchada"
+                51, 53, 55 -> "Llovizna"
+                61, 63, 65 -> "Lluvia"
+                80, 81, 82 -> "Chubascos"
+                71, 73, 75, 77 -> "Nieve"
+                85, 86 -> "Chubascos de nieve"
+                95, 96, 99 -> "Tormenta"
+                else -> "Condiciones desconocidas"
+            }
+        }
+
+        /**
+         * 5. CAMBIADO: Esta función ahora usa los códigos de Open-Meteo (Int, Int)
+         * Mantenemos el nombre para que tu UI (si la llama) se actualice fácil.
          */
         @DrawableRes
-        fun getIconResIdForWeather(iconCode: String): Int {
-            return when (iconCode) {
+        fun getIconResIdForWeather(weatherCode: Int, isDay: Int): Int {
+            val isDayTime = (isDay == 1)
+
+            return when (weatherCode) {
                 // Cielo Despejado
-                "01d" -> R.drawable.wb_sunny
-                "01n" -> R.drawable.nightlight
+                0 -> if (isDayTime) R.drawable.wb_sunny else R.drawable.nightlight
 
-                // Pocas nubes / Parcialmente nublado
-                "02d" -> R.drawable.partly_cloudy_day
-                "02n" -> R.drawable.partly_cloudy_night
-
-                // Nubes dispersas / Nublado
-                "03d", "03n", "04d", "04n" -> R.drawable.cloud
-
-                // Lluvia / Llovizna / Chubascos
-                "09d", "09n", "10d", "10n" -> R.drawable.rainy
-
-                // Tormenta
-                "11d", "11n" -> R.drawable.thunderstorm
-
-                // Nieve
-                "13d", "13n" -> R.drawable.snowing
+                // Nubes
+                1, 2 -> if (isDayTime) R.drawable.partly_cloudy_day else R.drawable.partly_cloudy_night
+                3 -> R.drawable.cloud
 
                 // Niebla
-                "50d", "50n" -> R.drawable.foggy
+                45, 48 -> R.drawable.foggy
+
+                // Lluvia / Llovizna / Chubascos
+                51, 53, 55, 61, 63, 65, 80, 81, 82 -> R.drawable.rainy
+
+                // Nieve
+                71, 73, 75, 77, 85, 86 -> R.drawable.snowing
+
+                // Tormenta
+                95, 96, 99 -> R.drawable.thunderstorm
 
                 // Icono por defecto
                 else -> R.drawable.help_outline
             }
         }
     }
-    
+
     /**
-     * Obtiene el clima actual para una ubicación específica
+     * CAMBIADO: Obtiene el clima actual de Open-Meteo
      */
     suspend fun getCurrentWeather(latitude: Double, longitude: Double): Result<WeatherData> {
         return withContext(Dispatchers.IO) {
             try {
-                Log.d(TAG, "=== Iniciando llamada a OpenWeather API ===")
-                val apiKey = BuildConfig.OPENWEATHER_API_KEY
-                Log.d(TAG, "API Key length: ${apiKey.length} chars")
-                
-                // Validar que la API key esté configurada
-                if (apiKey == "YOUR_OPENWEATHER_API_KEY" || apiKey.isBlank()) {
-                    Log.e(TAG, "❌ API key de OpenWeather no configurada correctamente")
-                    Log.e(TAG, "Por favor, añade tu API key en local.properties:")
-                    Log.e(TAG, "openweather.api.key=TU_API_KEY_AQUI")
-                    return@withContext Result.failure(
-                        Exception("API key de OpenWeather no configurada en local.properties")
-                    )
-                }
-                
-                val urlString = "$BASE_URL/weather?lat=$latitude&lon=$longitude&appid=$apiKey&units=metric&lang=es"
-                Log.d(TAG, "URL (sin API key): $BASE_URL/weather?lat=$latitude&lon=$longitude&units=metric&lang=es")
-                
+                Log.d(TAG, "=== Iniciando llamada a Open-Meteo API ===")
+
+                // ¡Ya no necesitamos API Key!
+
+                val params = "current=temperature_2m,apparent_temperature,relative_humidity_2m,is_day,weather_code,wind_speed_10m"
+                val units = "temperature_unit=celsius&wind_speed_unit=ms&timezone=auto"
+                val urlString = "$BASE_URL/forecast?latitude=$latitude&longitude=$longitude&$params&$units"
+
+                Log.d(TAG, "URL: $urlString")
+
                 val url = URL(urlString)
                 val connection = url.openConnection() as HttpURLConnection
-                
+
                 try {
                     connection.requestMethod = "GET"
                     connection.connectTimeout = 10000
                     connection.readTimeout = 10000
-                    
+
                     Log.d(TAG, "Realizando petición HTTP...")
                     val responseCode = connection.responseCode
                     Log.d(TAG, "Código de respuesta: $responseCode")
-                    
+
                     if (responseCode == HttpURLConnection.HTTP_OK) {
                         val response = connection.inputStream.bufferedReader().use { it.readText() }
                         Log.d(TAG, "Respuesta recibida: ${response.take(200)}...")
-                        
-                        val weatherData = parseWeatherResponse(response)
-                        Log.d(TAG, "✅ Clima parseado correctamente: ${weatherData.temperature}°C, ${weatherData.description}")
-                        
+
+                        val weatherData = parseOpenMeteoResponse(response) // Llamamos al nuevo parser
+                        Log.d(TAG, "✅ Clima parseado correctamente (Open-Meteo): ${weatherData.temperature}°C, ${weatherData.description}")
+
                         Result.success(weatherData)
                     } else {
                         val errorMessage = connection.errorStream?.bufferedReader()?.use { it.readText() } ?: "Sin mensaje de error"
                         Log.e(TAG, "❌ Error HTTP $responseCode")
                         Log.e(TAG, "Mensaje de error: $errorMessage")
-                        
-                        when (responseCode) {
-                            401 -> Log.e(TAG, "API key inválida. Verifica tu key en local.properties")
-                            429 -> Log.e(TAG, "Límite de llamadas excedido (60/min o 1000/día)")
-                            else -> Log.e(TAG, "Error desconocido del servidor")
-                        }
-                        
                         Result.failure(Exception("Error al obtener clima: HTTP $responseCode - $errorMessage"))
                     }
                 } finally {
@@ -157,51 +165,47 @@ class WeatherRepository @Inject constructor() {
             }
         }
     }
-    
+
     /**
-     * Obtiene el clima histórico para una fecha y ubicación específicas
-     * Nota: Requiere suscripción de pago en OpenWeather para datos históricos
-     * Por ahora, devolvemos el clima actual como aproximación
+     * Obtiene el clima histórico (sigue usando el actual como aproximación)
      */
     suspend fun getHistoricalWeather(
         latitude: Double,
         longitude: Double,
         timestamp: Long
     ): Result<WeatherData> {
-        // Por ahora, usar el clima actual como aproximación
-        // En el futuro, se puede implementar con la API histórica de OpenWeather
         Log.d(TAG, "Obteniendo clima histórico (usando actual como aproximación)")
-        return getCurrentWeather(latitude, longitude)
+        return getCurrentWeather(latitude, longitude) // Ahora llama a la nueva función
     }
-    
+
     /**
-     * Parsea la respuesta JSON de OpenWeather
+     * CAMBIADO: Parsea la respuesta JSON de Open-Meteo
      */
-    private fun parseWeatherResponse(jsonString: String): WeatherData {
+    private fun parseOpenMeteoResponse(jsonString: String): WeatherData {
         val json = JSONObject(jsonString)
-        
-        val main = json.getJSONObject("main")
-        val weather = json.getJSONArray("weather").getJSONObject(0)
-        val wind = json.getJSONObject("wind")
-        
-        val temperature = main.getDouble("temp")
-        val feelsLike = main.getDouble("feels_like")
-        val description = weather.getString("description")
-        val icon = weather.getString("icon")
-        val humidity = main.getInt("humidity")
-        val windSpeed = wind.getDouble("speed")
-        
-        val emoji = WEATHER_EMOJI_MAP[icon] ?: "☁️"
-        
+        val current = json.getJSONObject("current")
+
+        val temperature = current.getDouble("temperature_2m")
+        val feelsLike = current.getDouble("apparent_temperature")
+        val humidity = current.getInt("relative_humidity_2m")
+        val windSpeed = current.getDouble("wind_speed_10m")
+        val weatherCode = current.getInt("weather_code")
+        val isDay = current.getInt("is_day")
+
+        // Usamos nuestras nuevas funciones del companion object
+        val description = getDescriptionForWeather(weatherCode, isDay)
+        val emoji = getEmojiForWeather(weatherCode, isDay) // <-- Aquí se usa la función corregida
+
         return WeatherData(
             temperature = temperature,
             feelsLike = feelsLike,
             description = description,
-            icon = icon,
+            icon = weatherCode.toString(),
             humidity = humidity,
             windSpeed = windSpeed,
-            weatherEmoji = emoji
+            weatherEmoji = emoji,
+            weatherCode = weatherCode,
+            isDay = isDay == 1
         )
     }
 }
-

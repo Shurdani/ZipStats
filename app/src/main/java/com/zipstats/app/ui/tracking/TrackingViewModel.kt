@@ -50,7 +50,11 @@ sealed class TrackingState {
 sealed class WeatherStatus {
     object Idle : WeatherStatus()
     object Loading : WeatherStatus()
-    data class Success(val temperature: Double, val emoji: String) : WeatherStatus()
+    data class Success(
+        val temperature: Double,
+        val emoji: String,
+        val isDay: Boolean  // <--- Agrega esta línea
+    ) : WeatherStatus()
     data class Error(val message: String) : WeatherStatus()
     object NotAvailable : WeatherStatus()
 }
@@ -137,6 +141,7 @@ class TrackingViewModel @Inject constructor(
     private var _startWeatherTemperature: Double? = null
     private var _startWeatherEmoji: String? = null
     private var _startWeatherDescription: String? = null
+    private var _startWeatherIsDay: Boolean? = null
     
     // Estado del clima
     private val _weatherStatus = MutableStateFlow<WeatherStatus>(WeatherStatus.Idle)
@@ -566,7 +571,8 @@ class TrackingViewModel @Inject constructor(
                         _startWeatherTemperature = weather.temperature
                         _startWeatherEmoji = weather.weatherEmoji
                         _startWeatherDescription = weather.description
-                        _weatherStatus.value = WeatherStatus.Success(weather.temperature, weather.weatherEmoji)
+                        _startWeatherIsDay = weather.isDay
+                        _weatherStatus.value = WeatherStatus.Success(weather.temperature, weather.weatherEmoji ,weather.isDay)
                         success = true
                         
                         val elapsedMs = System.currentTimeMillis() - startApiTime
@@ -666,7 +672,8 @@ class TrackingViewModel @Inject constructor(
                     _startWeatherTemperature = weather.temperature
                     _startWeatherEmoji = weather.weatherEmoji
                     _startWeatherDescription = weather.description
-                    _weatherStatus.value = WeatherStatus.Success(weather.temperature, weather.weatherEmoji)
+                    _startWeatherIsDay = weather.isDay
+                    _weatherStatus.value = WeatherStatus.Success(weather.temperature, weather.weatherEmoji, weather.isDay)
                     
                     Log.d(TAG, "✅ Clima obtenido manualmente: ${weather.temperature}°C ${weather.weatherEmoji}")
                     _message.value = "Clima obtenido: ${String.format("%.0f", weather.temperature)}°C ${weather.weatherEmoji}"
@@ -759,6 +766,7 @@ class TrackingViewModel @Inject constructor(
                 var savedWeatherTemp = _startWeatherTemperature
                 var savedWeatherEmoji = _startWeatherEmoji
                 var savedWeatherDesc = _startWeatherDescription
+                var savedIsDay = _startWeatherIsDay ?: true
                 
                 // Validar que el clima sea real y no valores por defecto
                 // Aceptar cualquier emoji válido (incluido ☁️) pero temperatura debe ser válida
@@ -798,6 +806,7 @@ class TrackingViewModel @Inject constructor(
                                     savedWeatherTemp = weather.temperature
                                     savedWeatherEmoji = weather.weatherEmoji
                                     savedWeatherDesc = weather.description
+                                    savedIsDay = weather.isDay
                                     hasValidWeather = true
                                     
                                     Log.d(TAG, "✅ Clima obtenido al finalizar: ${savedWeatherTemp}°C ${savedWeatherEmoji}")
@@ -825,14 +834,15 @@ class TrackingViewModel @Inject constructor(
                     timeInMotion = _timeInMotion.value,
                     vehicleType = scooter.vehicleType
                 )
-                
+
                 // Usar el clima capturado al INICIO de la ruta SOLO si es válido
                 val route = if (hasValidWeather) {
                     Log.d(TAG, "✅ Usando clima válido del INICIO de la ruta: ${savedWeatherTemp}°C ${savedWeatherEmoji}")
                     baseRoute.copy(
                         weatherTemperature = savedWeatherTemp,
                         weatherEmoji = savedWeatherEmoji,
-                        weatherDescription = savedWeatherDesc
+                        weatherDescription = savedWeatherDesc,
+                        weatherIsDay = savedIsDay
                     )
                 } else {
                     Log.w(TAG, "⚠️ No se capturó clima válido al inicio, guardando ruta SIN clima (temp=$savedWeatherTemp, emoji=$savedWeatherEmoji)")

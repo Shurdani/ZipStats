@@ -401,34 +401,45 @@ private fun RouteTitle(route: Route) {
 
 /**
  * Obtiene el ID del recurso drawable del icono del clima desde el emoji guardado.
- * Mapea el emoji a un código de OpenWeather aproximado y luego al drawable.
+ * Mapea el emoji DIRECTAMENTE al drawable.
+ * ESTA ES LA VERSIÓN CORREGIDA
  */
 @DrawableRes
 private fun getWeatherIconResId(emoji: String?, startTime: Long): Int {
     if (emoji == null) return R.drawable.help_outline
-    
+
     // Determinar si es de día basándose en la hora (6 AM - 8 PM aproximadamente)
+    // (Esta parte de tu código estaba bien)
     val hour = java.util.Calendar.getInstance().apply {
         timeInMillis = startTime
     }.get(java.util.Calendar.HOUR_OF_DAY)
     val isDayTime = hour >= 6 && hour < 20
-    
-    // Mapear emoji a código de OpenWeather aproximado y luego a drawable
-    val iconCode = when (emoji) {
-        "☀️" -> if (isDayTime) "01d" else "01n"
-        "🌙" -> "01n"
-        "🌤️", "🌥️" -> if (isDayTime) "02d" else "02n"
-        "☁️" -> if (isDayTime) "04d" else "04n"
-        "🌫️" -> if (isDayTime) "50d" else "50n"
-        "🌧️", "🌦️" -> if (isDayTime) "10d" else "10n"
-        "❄️" -> if (isDayTime) "13d" else "13n"
-        "⛈️" -> if (isDayTime) "11d" else "11n"
-        else -> "01d" // Por defecto
+
+    // Mapear emoji a icono drawable
+    return when (emoji) {
+        "☀️" -> R.drawable.wb_sunny
+        "🌙" -> R.drawable.nightlight
+
+        // --- ¡AQUÍ ESTÁ EL ARREGLO! ---
+        // Ahora SÍ entiende el nuevo emoji "☁️🌙"
+        "🌤️", "🌥️", "☁️🌙" -> if (isDayTime) R.drawable.partly_cloudy_day else R.drawable.partly_cloudy_night
+
+        // Esto ahora solo se activará si el tiempo era "Nublado" (código 3)
+        "☁️" -> R.drawable.cloud
+
+        "🌫️" -> R.drawable.foggy
+        "🌧️", "🌦️" -> R.drawable.rainy
+        "❄️" -> R.drawable.snowing
+        "⛈️" -> R.drawable.thunderstorm
+
+        // "🤷" o cualquier otro emoji desconocido
+        else -> R.drawable.help_outline
     }
-    
-    return WeatherRepository.getIconResIdForWeather(iconCode)
 }
 
+/**
+ * Estadísticas en chips: Distancia, Duración y Clima
+ */
 /**
  * Estadísticas en chips: Distancia, Duración y Clima
  */
@@ -436,10 +447,10 @@ private fun getWeatherIconResId(emoji: String?, startTime: Long): Int {
 private fun StatsChips(route: Route) {
     // Usar el clima guardado si existe, sino valores por defecto
     // IMPORTANTE: usar remember(route.id) para reinicializar el estado cuando cambia la ruta
-    var weatherIconRes by remember(route.id) { 
+    var weatherIconRes by remember(route.id) {
         mutableStateOf(getWeatherIconResId(route.weatherEmoji, route.startTime))
     }
-    var weatherTemp by remember(route.id) { 
+    var weatherTemp by remember(route.id) {
         mutableStateOf(
             if (route.weatherTemperature != null) {
                 String.format("%.0f°C", route.weatherTemperature)
@@ -450,7 +461,7 @@ private fun StatsChips(route: Route) {
     }
     var isLoadingWeather by remember(route.id) { mutableStateOf(false) }
     val context = LocalContext.current
-    
+
     // Actualizar valores cuando cambia la ruta y tiene clima guardado
     // Solo cargar clima si NO está guardado (para rutas antiguas)
     LaunchedEffect(route.id, route.weatherTemperature, route.weatherEmoji) {
@@ -462,30 +473,42 @@ private fun StatsChips(route: Route) {
             android.util.Log.d("StatsChips", "Usando clima guardado para ruta ${route.id}: ${route.weatherTemperature}°C, ${route.weatherEmoji}")
             return@LaunchedEffect
         }
-        
+
         // Si no hay clima guardado, intentar obtenerlo (solo para rutas antiguas)
         if (route.points.isNotEmpty()) {
             isLoadingWeather = true
             android.util.Log.d("StatsChips", "Clima no guardado, obteniendo clima actual para ruta ${route.id}")
-            
+
             try {
+                // NOTA: Si usas Hilt/Dagger, deberías injectar el repositorio en lugar de crearlo así.
                 val weatherRepository = WeatherRepository()
                 val firstPoint = route.points.first()
-                
+
                 android.util.Log.d("StatsChips", "Obteniendo clima para lat=${firstPoint.latitude}, lon=${firstPoint.longitude}")
-                
+
                 val result = weatherRepository.getCurrentWeather(
                     latitude = firstPoint.latitude,
                     longitude = firstPoint.longitude
                 )
-                
+
                 result.onSuccess { weather ->
-                    android.util.Log.d("StatsChips", "Clima obtenido para ruta ${route.id}: ${weather.temperature}°C, icon=${weather.icon}")
-                    weatherIconRes = WeatherRepository.getIconResIdForWeather(weather.icon)
+                    // 'weather' es ahora la nueva data class WeatherData
+                    android.util.Log.d("StatsChips", "Clima obtenido para ruta ${route.id}: ${weather.temperature}°C, code=${weather.weatherCode}, isDay=${weather.isDay}")
+
+                    // --- ¡ESTA ES LA CORRECCIÓN CLAVE! ---
+                    // Ahora llamamos a la función local 'getWeatherIconResId'
+                    // con el emoji que el repositorio ha generado
+                    weatherIconRes = getWeatherIconResId(
+                        emoji = weather.weatherEmoji,
+                        startTime = System.currentTimeMillis() // Usamos la hora actual para el icono
+                    )
+                    // --- FIN DE LA CORRECCIÓN ---
+
                     weatherTemp = String.format("%.0f°C", weather.temperature)
                 }.onFailure { error ->
                     // Mantener valores por defecto en caso de error
                     android.util.Log.e("StatsChips", "Error obteniendo clima: ${error.message}", error)
+                    // (weatherIconRes y weatherTemp ya tienen valores por defecto)
                 }
             } catch (e: Exception) {
                 android.util.Log.e("StatsChips", "Excepción al cargar clima: ${e.message}", e)
@@ -495,11 +518,11 @@ private fun StatsChips(route: Route) {
             }
         }
     }
-    
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
-            ) {
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceEvenly
+    ) {
         // Distancia
         StatChip(
             value = String.format("%.1f km", route.totalDistance),

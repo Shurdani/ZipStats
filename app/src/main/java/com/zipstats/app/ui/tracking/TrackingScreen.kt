@@ -1032,30 +1032,37 @@ private fun getSignalColor(signalStrength: Float): Color {
  * Obtiene el ID del recurso drawable del icono del clima desde el emoji.
  * Usa la hora actual para determinar si es de día o noche.
  */
+/**
+ * ESTA ES LA FUNCIÓN CORREGIDA
+ * Convierte el Emoji (guardado en Firebase) directamente en un Icono de Google
+ */
 @DrawableRes
-private fun getWeatherIconResIdFromEmoji(emoji: String): Int {
-    // Determinar si es de día basándose en la hora actual (6 AM - 8 PM aproximadamente)
-    val hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
-    val isDayTime = hour >= 6 && hour < 20
-    
-    // Mapear emoji a código de OpenWeather aproximado y luego a drawable
-    val iconCode = when (emoji) {
-        "☀️" -> if (isDayTime) "01d" else "01n"
-        "🌙" -> "01n"
-        "🌤️", "🌥️" -> if (isDayTime) "02d" else "02n"
-        "☁️" -> if (isDayTime) "04d" else "04n"
-        "🌫️" -> if (isDayTime) "50d" else "50n"
-        "🌧️", "🌦️" -> if (isDayTime) "10d" else "10n"
-        "❄️" -> if (isDayTime) "13d" else "13n"
-        "⛈️" -> if (isDayTime) "11d" else "11n"
-        else -> "01d" // Por defecto
+private fun getWeatherIconResIdFromEmoji(emoji: String, isDay: Boolean): Int {
+// --- CAMBIO: Ya no calculamos la hora aquí. Usamos el dato de la API. ---
+
+    // Mapear emoji DIRECTAMENTE a icono drawable
+    return when (emoji) {
+        "☀️" -> R.drawable.wb_sunny
+        "🌙" -> R.drawable.nightlight
+
+        // Aquí es donde ocurre la magia:
+        "🌤️", "🌥️", "☁️🌙" -> if (isDay) R.drawable.partly_cloudy_day else R.drawable.partly_cloudy_night
+        // Esto ahora solo se activará si el tiempo era "Nublado" (código 3)
+        "☁️" -> R.drawable.cloud
+
+        "🌫️" -> R.drawable.foggy
+        "🌧️", "🌦️" -> R.drawable.rainy
+        "❄️" -> R.drawable.snowing
+        "⛈️" -> R.drawable.thunderstorm
+
+        // "🤷" o cualquier otro emoji desconocido
+        else -> R.drawable.help_outline
     }
-    
-    return WeatherRepository.getIconResIdForWeather(iconCode)
 }
 
 /**
  * Indicador del estado de captura del clima
+ * (Este código ya era correcto, solo dependía de la función de arriba)
  */
 @Composable
 fun WeatherStatusIndicator(
@@ -1067,9 +1074,9 @@ fun WeatherStatusIndicator(
         enter = androidx.compose.animation.fadeIn() + androidx.compose.animation.expandVertically(),
         exit = androidx.compose.animation.fadeOut() + androidx.compose.animation.shrinkVertically()
     ) {
-        val isClickable = weatherStatus is WeatherStatus.NotAvailable || 
-                          weatherStatus is WeatherStatus.Error
-        
+        val isClickable = weatherStatus is WeatherStatus.NotAvailable ||
+                weatherStatus is WeatherStatus.Error
+
         Card(
             modifier = Modifier
                 .fillMaxWidth()
@@ -1110,7 +1117,11 @@ fun WeatherStatusIndicator(
                         )
                     }
                     is WeatherStatus.Success -> {
-                        val weatherIconRes = getWeatherIconResIdFromEmoji(weatherStatus.emoji)
+                        // Esta llamada AHORA funciona porque la función de arriba está arreglada
+                        val weatherIconRes = getWeatherIconResIdFromEmoji(
+                            emoji = weatherStatus.emoji,
+                            isDay = weatherStatus.isDay // <--- Pasamos el dato real
+                        )
                         Image(
                             painter = painterResource(id = weatherIconRes),
                             contentDescription = "Icono del clima",
@@ -1184,4 +1195,3 @@ fun WeatherStatusIndicator(
         }
     }
 }
-

@@ -29,14 +29,15 @@ data class Route(
     // Datos del clima al momento de la ruta
     val weatherTemperature: Double? = null, // temperatura en °C
     val weatherEmoji: String? = null, // emoji del clima (☀️, ☁️, etc.)
-    val weatherDescription: String? = null // descripción del clima
+    val weatherDescription: String? = null, // descripción del clima
+    val weatherIsDay: Boolean = true // <-- NUEVO CAMPO (Por defecto 'true' para rutas antiguas)
 ) {
     /**
      * Calcula la duración en minutos
      */
     val durationInMinutes: Long
         get() = totalDuration / (1000 * 60)
-    
+
     /**
      * Calcula la duración en formato legible (HH:MM:SS)
      */
@@ -52,7 +53,7 @@ data class Route(
                 String.format("%02d:%02d", minutes, secs)
             }
         }
-    
+
     /**
      * Convierte a Map para guardar en Firebase
      */
@@ -76,9 +77,10 @@ data class Route(
         "movingPercentage" to movingPercentage,
         "weatherTemperature" to weatherTemperature,
         "weatherEmoji" to weatherEmoji,
-        "weatherDescription" to weatherDescription
+        "weatherDescription" to weatherDescription,
+        "weatherIsDay" to weatherIsDay // <-- NUEVO CAMPO (Para escribir)
     )
-    
+
     companion object {
         /**
          * Crea una Route desde un Map de Firebase
@@ -94,7 +96,7 @@ data class Route(
                     }
                 }
             } ?: emptyList()
-            
+
             return Route(
                 id = id,
                 userId = map["userId"] as? String ?: "",
@@ -114,14 +116,15 @@ data class Route(
                 averageMovingSpeed = map["averageMovingSpeed"] as? Double ?: 0.0,
                 pauseCount = map["pauseCount"] as? Int ?: 0,
                 movingPercentage = (map["movingPercentage"] as? Number)?.toFloat() ?: 0f,
-                // Validar clima al parsear: solo aceptar valores válidos
-                weatherTemperature = (map["weatherTemperature"] as? Number)?.toDouble()?.takeIf { 
-                    !it.isNaN() && !it.isInfinite() && it >= -50 && it <= 60 && it != 0.0 
+                // Validar clima al parsear
+                weatherTemperature = (map["weatherTemperature"] as? Number)?.toDouble()?.takeIf {
+                    !it.isNaN() && !it.isInfinite() && it >= -50 && it <= 60 && it != 0.0
                 },
                 weatherEmoji = (map["weatherEmoji"] as? String)?.takeIf { it.isNotBlank() },
-                weatherDescription = map["weatherDescription"] as? String
+                weatherDescription = map["weatherDescription"] as? String,
+                // <-- NUEVO CAMPO (Para leer). Si no existe (ruta antigua), usa 'true'
+                weatherIsDay = map["weatherIsDay"] as? Boolean ?: true
             )
         }
     }
 }
-

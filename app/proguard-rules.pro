@@ -360,3 +360,6 @@
 -keep class * extends org.apache.commons.compress.archivers.zip.ZipExtraField { *; }
 -keep class org.apache.commons.compress.archivers.zip.ExtraFieldUtils { *; }
 -keep class org.apache.commons.compress.archivers.zip.ExtraFieldUtils$UnparseableExtraField { *; }
+
+# Arregla el warning de R8 para ILicensingService
+-keep public class com.google.vending.licensing.ILicensingService { void <init>(); }

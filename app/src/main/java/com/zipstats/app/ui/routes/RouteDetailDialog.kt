@@ -1,5 +1,7 @@
 package com.zipstats.app.ui.routes
 
+import androidx.annotation.DrawableRes
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -19,14 +21,21 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.filled.Air
 import androidx.compose.material.icons.filled.Analytics
 import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Cyclone
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Fullscreen
+import androidx.compose.material.icons.filled.Grain
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Thermostat
+import androidx.compose.material.icons.filled.WaterDrop
+import androidx.compose.material.icons.filled.WbSunny
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FloatingActionButton
@@ -45,12 +54,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.graphics.ColorFilter
-import androidx.annotation.DrawableRes
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
@@ -64,6 +73,7 @@ import com.zipstats.app.utils.DateUtils
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+
 
 @Composable
 fun RouteDetailDialog(
@@ -81,7 +91,20 @@ fun RouteDetailDialog(
     var isCapturingForShare by remember { mutableStateOf(false) }
     var vehicleIconRes by remember { mutableStateOf(R.drawable.ic_electric_scooter_adaptive) }
     var vehicleModel by remember { mutableStateOf(route.scooterName) }
-    
+
+    // --- LÓGICA DEL DIÁLOGO DE CLIMA ---
+    // 1. El "interruptor" para saber si el diálogo está abierto o cerrado
+    var showWeatherDialog by remember(route.id) { mutableStateOf(false) }
+
+    // 2. La regla: "Si el interruptor está encendido, muestra el diálogo DE INFORMACIÓN"
+    if (showWeatherDialog) {
+        // Llamamos al nuevo diálogo (definido al final)
+        WeatherInfoDialog(
+            route = route,
+            onDismiss = { showWeatherDialog = false } // Si se cierra, apaga el interruptor
+        )
+    }
+
     // Obtener el icono y modelo del vehículo
     LaunchedEffect(route.scooterId) {
         try {
@@ -214,7 +237,12 @@ fun RouteDetailDialog(
                         Spacer(modifier = Modifier.height(12.dp))
                         
                         // Estadísticas en chips: Distancia, Duración, Clima
-                        StatsChips(route = route)
+                        StatsChips(
+                        route = route,
+                        // --- 3. LA CONEXIÓN ---
+                        // "Oye Chip, cuando te cliquen, pon showWeatherDialog = true"
+                        onWeatherClick = { showWeatherDialog = true }
+                        )
                         
                         Spacer(modifier = Modifier.height(12.dp))
                         
@@ -405,34 +433,25 @@ private fun RouteTitle(route: Route) {
  * ESTA ES LA VERSIÓN CORREGIDA
  */
 @DrawableRes
-private fun getWeatherIconResId(emoji: String?, startTime: Long): Int {
-    if (emoji == null) return R.drawable.help_outline
+private fun getWeatherIconResId(emoji: String?, isDay: Boolean): Int {
+    if (emoji.isNullOrBlank()) return R.drawable.help_outline
 
-    // Determinar si es de día basándose en la hora (6 AM - 8 PM aproximadamente)
-    // (Esta parte de tu código estaba bien)
-    val hour = java.util.Calendar.getInstance().apply {
-        timeInMillis = startTime
-    }.get(java.util.Calendar.HOUR_OF_DAY)
-    val isDayTime = hour >= 6 && hour < 20
+    // --- ¡ARREGLADO! ---
+    // Ya no usamos Calendar. Usamos el 'isDay' (true/false) que viene de Firebase.
 
     // Mapear emoji a icono drawable
     return when (emoji) {
         "☀️" -> R.drawable.wb_sunny
         "🌙" -> R.drawable.nightlight
 
-        // --- ¡AQUÍ ESTÁ EL ARREGLO! ---
-        // Ahora SÍ entiende el nuevo emoji "☁️🌙"
-        "🌤️", "🌥️", "☁️🌙" -> if (isDayTime) R.drawable.partly_cloudy_day else R.drawable.partly_cloudy_night
+        "🌤️", "🌥️", "☁️🌙" -> if (isDay) R.drawable.partly_cloudy_day else R.drawable.partly_cloudy_night
 
-        // Esto ahora solo se activará si el tiempo era "Nublado" (código 3)
         "☁️" -> R.drawable.cloud
-
         "🌫️" -> R.drawable.foggy
         "🌧️", "🌦️" -> R.drawable.rainy
         "❄️" -> R.drawable.snowing
         "⛈️" -> R.drawable.thunderstorm
 
-        // "🤷" o cualquier otro emoji desconocido
         else -> R.drawable.help_outline
     }
 }
@@ -444,11 +463,17 @@ private fun getWeatherIconResId(emoji: String?, startTime: Long): Int {
  * Estadísticas en chips: Distancia, Duración y Clima
  */
 @Composable
-private fun StatsChips(route: Route) {
+private fun StatsChips(
+    route: Route,
+    onWeatherClick: () -> Unit // <-- NUEVO: Lambda para abrir el diálogo
+) {
     // Usar el clima guardado si existe, sino valores por defecto
-    // IMPORTANTE: usar remember(route.id) para reinicializar el estado cuando cambia la ruta
     var weatherIconRes by remember(route.id) {
-        mutableStateOf(getWeatherIconResId(route.weatherEmoji, route.startTime))
+        mutableStateOf(
+            // --- ¡CORRECCIÓN 1! ---
+            // Usamos 'weatherIsDay' de Firebase, no 'startTime'
+            getWeatherIconResId(route.weatherEmoji, route.weatherIsDay)
+        )
     }
     var weatherTemp by remember(route.id) {
         mutableStateOf(
@@ -467,10 +492,12 @@ private fun StatsChips(route: Route) {
     LaunchedEffect(route.id, route.weatherTemperature, route.weatherEmoji) {
         // Primero, siempre inicializar con los valores guardados de la ruta actual
         if (route.weatherTemperature != null) {
-            weatherIconRes = getWeatherIconResId(route.weatherEmoji, route.startTime)
+            // --- ¡CORRECCIÓN 2! ---
+            // Usamos 'weatherIsDay' de Firebase, no 'startTime'
+            weatherIconRes = getWeatherIconResId(route.weatherEmoji, route.weatherIsDay)
             weatherTemp = String.format("%.0f°C", route.weatherTemperature)
             isLoadingWeather = false
-            android.util.Log.d("StatsChips", "Usando clima guardado para ruta ${route.id}: ${route.weatherTemperature}°C, ${route.weatherEmoji}")
+            android.util.Log.d("StatsChips", "Usando clima guardado para ruta ${route.id}: ${route.weatherTemperature}°C, ${route.weatherEmoji}, isDay=${route.weatherIsDay}")
             return@LaunchedEffect
         }
 
@@ -480,35 +507,25 @@ private fun StatsChips(route: Route) {
             android.util.Log.d("StatsChips", "Clima no guardado, obteniendo clima actual para ruta ${route.id}")
 
             try {
-                // NOTA: Si usas Hilt/Dagger, deberías injectar el repositorio en lugar de crearlo así.
                 val weatherRepository = WeatherRepository()
                 val firstPoint = route.points.first()
-
-                android.util.Log.d("StatsChips", "Obteniendo clima para lat=${firstPoint.latitude}, lon=${firstPoint.longitude}")
-
                 val result = weatherRepository.getCurrentWeather(
                     latitude = firstPoint.latitude,
                     longitude = firstPoint.longitude
                 )
 
                 result.onSuccess { weather ->
-                    // 'weather' es ahora la nueva data class WeatherData
                     android.util.Log.d("StatsChips", "Clima obtenido para ruta ${route.id}: ${weather.temperature}°C, code=${weather.weatherCode}, isDay=${weather.isDay}")
 
-                    // --- ¡ESTA ES LA CORRECCIÓN CLAVE! ---
-                    // Ahora llamamos a la función local 'getWeatherIconResId'
-                    // con el emoji que el repositorio ha generado
+                    // --- ¡CORRECCIÓN 3! ---
+                    // Usamos 'weather.isDay' (Boolean) de la API, no System.currentTimeMillis()
                     weatherIconRes = getWeatherIconResId(
                         emoji = weather.weatherEmoji,
-                        startTime = System.currentTimeMillis() // Usamos la hora actual para el icono
+                        isDay = weather.isDay
                     )
-                    // --- FIN DE LA CORRECCIÓN ---
-
                     weatherTemp = String.format("%.0f°C", weather.temperature)
                 }.onFailure { error ->
-                    // Mantener valores por defecto en caso de error
                     android.util.Log.e("StatsChips", "Error obteniendo clima: ${error.message}", error)
-                    // (weatherIconRes y weatherTemp ya tienen valores por defecto)
                 }
             } catch (e: Exception) {
                 android.util.Log.e("StatsChips", "Excepción al cargar clima: ${e.message}", e)
@@ -542,7 +559,15 @@ private fun StatsChips(route: Route) {
             value = if (isLoadingWeather) "..." else weatherTemp,
             label = "Clima",
             iconRes = weatherIconRes,
-            modifier = Modifier.weight(1f)
+            modifier = Modifier
+                .weight(1f)
+                // --- ¡NUEVO! ---
+                .clickable(
+                    // Llama a la lambda que recibimos
+                    onClick = onWeatherClick,
+                    // Deshabilitar clic si no hay datos de clima
+                    enabled = route.weatherTemperature != null
+                )
         )
     }
 }
@@ -837,7 +862,9 @@ private fun FullscreenMapDialog(
                     
                     // Configurar clima si está disponible
                     if (route.weatherEmoji != null && route.weatherTemperature != null) {
-                        val weatherIconRes = getWeatherIconResId(route.weatherEmoji, route.startTime)
+                        // --- ¡CORRECCIÓN 4! ---
+                        // Usamos 'route.weatherIsDay' de Firebase, no 'route.startTime'
+                        val weatherIconRes = getWeatherIconResId(route.weatherEmoji, route.weatherIsDay)
                         cardView.findViewById<android.widget.ImageView>(R.id.weatherIcon).setImageResource(weatherIconRes)
                         cardView.findViewById<android.widget.ImageView>(R.id.weatherIcon).setColorFilter(android.graphics.Color.WHITE)
                         cardView.findViewById<android.widget.TextView>(R.id.weatherTemp).text = 
@@ -1033,7 +1060,7 @@ private suspend fun configurarTarjetaCompartir(
     
     // Configurar clima si está disponible
     if (route.weatherEmoji != null && route.weatherTemperature != null) {
-        val weatherIconRes = getWeatherIconResId(route.weatherEmoji, route.startTime)
+        val weatherIconRes = getWeatherIconResId(route.weatherEmoji, route.weatherIsDay)
         cardView.findViewById<android.widget.ImageView>(R.id.weatherIcon).setImageResource(weatherIconRes)
         cardView.findViewById<android.widget.ImageView>(R.id.weatherIcon).setColorFilter(android.graphics.Color.WHITE)
         cardView.findViewById<android.widget.TextView>(R.id.weatherTemp).text = 
@@ -1157,7 +1184,7 @@ private suspend fun createFinalRouteImage(route: Route, mapBitmap: android.graph
     
     // 4. Clima (si está disponible)
     if (route.weatherEmoji != null && route.weatherTemperature != null) {
-        val weatherIconRes = getWeatherIconResId(route.weatherEmoji, route.startTime)
+        val weatherIconRes = getWeatherIconResId(route.weatherEmoji, route.weatherIsDay)
         cardView.findViewById<android.widget.ImageView>(R.id.weatherIcon).setImageResource(weatherIconRes)
         cardView.findViewById<android.widget.ImageView>(R.id.weatherIcon).setColorFilter(android.graphics.Color.WHITE)
         cardView.findViewById<android.widget.TextView>(R.id.weatherTemp).text = 
@@ -1767,4 +1794,171 @@ private fun drawMapFrame(
     )
     
     canvas.drawRoundRect(frameRect, cornerRadius, cornerRadius, framePaint)
+}
+// 5. El Nuevo Diálogo Modal (para mostrar detalles del clima)
+@Composable
+private fun WeatherInfoDialog(
+    route: Route,
+    onDismiss: () -> Unit
+) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        // Usamos 'false' para que el diálogo sea más ancho
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Card(
+            shape = RoundedCornerShape(28.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                // Aumentamos el padding horizontal para que quepa "Sensación térmica"
+                .padding(horizontal = 24.dp),
+            elevation = CardDefaults.cardElevation(8.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+        ) {
+            Column(
+                modifier = Modifier
+                    .padding(vertical = 24.dp, horizontal = 20.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                // Título e Icono principal
+                Image(
+                    painter = painterResource(id = getWeatherIconResId(route.weatherEmoji, route.weatherIsDay)),
+                    contentDescription = "Icono del clima",
+                    modifier = Modifier.size(64.dp),
+                    colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.primary)
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Text(
+                    text = route.weatherDescription ?: "Detalles del Clima",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Temperatura Real
+                Text(
+                    text = "${String.format("%.1f", route.weatherTemperature)}°C",
+                    style = MaterialTheme.typography.displaySmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                // --- Fila de Detalles ---
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    // Sensación térmica
+                    route.weatherFeelsLike?.let {
+                        WeatherDetailRow(
+                            icon = Icons.Default.Thermostat,
+                            label = "Sensación térmica",
+                            value = "${String.format("%.1f", it)}°C"
+                        )
+                    }
+                    // Humedad
+                    route.weatherHumidity?.let {
+                        WeatherDetailRow(
+                            icon = Icons.Default.WaterDrop,
+                            label = "Humedad",
+                            value = "${it}%"
+                        )
+                    }
+                    // Viento (con dirección)
+                    route.weatherWindSpeed?.let { windSpeedKmh ->
+                        val direction = convertWindDirectionToText(route.weatherWindDirection)
+                        WeatherDetailRow(
+                            icon = Icons.Default.Air,
+                            label = "Viento",
+                            value = "${String.format("%.1f", windSpeedKmh)} km/h ($direction)"
+                        )
+                    }
+
+                    // --- NUEVO: Ráfagas de Viento ---
+                    route.weatherWindGusts?.let { windGustsKmh ->
+                        WeatherDetailRow(
+                            icon = Icons.Default.Cyclone, // Icono nuevo
+                            label = "Ráfagas",
+                            value = "${String.format("%.1f", windGustsKmh)} km/h"
+                        )
+                    }
+
+                    // --- NUEVO: Probabilidad de Lluvia ---
+                    route.weatherRainProbability?.let { probability ->
+                        WeatherDetailRow(
+                            icon = Icons.Default.Grain, // Icono nuevo
+                            label = "Prob. de lluvia",
+                            value = "$probability%"
+                        )
+                    }
+
+                    // Índice UV (Condicional)
+                    if (route.weatherIsDay && route.weatherUvIndex != null && route.weatherUvIndex > 0) {
+                        WeatherDetailRow(
+                            icon = Icons.Default.WbSunny,
+                            label = "Índice UV",
+                            value = String.format("%.0f", route.weatherUvIndex)
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                // Botón de Cerrar
+                Button(
+                    onClick = onDismiss,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Cerrar")
+                }
+            }
+        }
+    }
+}
+
+/**
+ * 6. Helper Composable para el diálogo de clima
+ */
+@Composable
+private fun WeatherDetailRow(icon: ImageVector, label: String, value: String) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = label,
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(24.dp)
+        )
+        Spacer(modifier = Modifier.width(16.dp))
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyLarge,
+            // El label toma el espacio flexible
+            modifier = Modifier.weight(1f)
+        )
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodyLarge,
+            fontWeight = FontWeight.Bold
+        )
+    }
+}
+
+/**
+ * 7. NUEVO HELPER: Convierte grados a puntos cardinales
+ */
+@Composable
+private fun convertWindDirectionToText(degrees: Int?): String {
+    if (degrees == null) return "-"
+    val directions = listOf("N", "NE", "E", "SE", "S", "SO", "O", "NO")
+    // Corrección para que 360/0 sea "N"
+    val index = ((degrees.toFloat() + 22.5f) % 360 / 45.0f).toInt()
+    return directions[index]
 }

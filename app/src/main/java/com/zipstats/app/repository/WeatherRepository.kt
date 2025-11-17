@@ -23,7 +23,11 @@ data class WeatherData(
     val windSpeed: Double,         // Velocidad del viento m/s
     val weatherEmoji: String,      // Emoji representativo (¡ARREGLADO!)
     val weatherCode: Int,
-    val isDay: Boolean
+    val isDay: Boolean,
+    val uvIndex: Double?,
+    val windDirection: Int?,
+    val windGusts: Double?,
+    val rainProbability: Int?
 )
 
 @Singleton
@@ -123,8 +127,8 @@ class WeatherRepository @Inject constructor() {
 
                 // ¡Ya no necesitamos API Key!
 
-                val params = "current=temperature_2m,apparent_temperature,relative_humidity_2m,is_day,weather_code,wind_speed_10m"
-                val units = "temperature_unit=celsius&wind_speed_unit=ms&timezone=auto"
+                val params = "current=temperature_2m,apparent_temperature,relative_humidity_2m,is_day,weather_code,wind_speed_10m,wind_direction_10m,wind_gusts_10m,uv_index,precipitation_probability"
+                val units = "temperature_unit=celsius&wind_speed_unit=kmh&timezone=auto&precipitation_unit=mm"
                 val urlString = "$BASE_URL/forecast?latitude=$latitude&longitude=$longitude&$params&$units"
 
                 Log.d(TAG, "URL: $urlString")
@@ -191,6 +195,10 @@ class WeatherRepository @Inject constructor() {
         val windSpeed = current.getDouble("wind_speed_10m")
         val weatherCode = current.getInt("weather_code")
         val isDay = current.getInt("is_day")
+        val uvIndex = current.getDouble("uv_index")
+        val windDirection = current.getInt("wind_direction_10m")
+        val windGusts = current.getDouble("wind_gusts_10m")
+        val rainProbability = current.getInt("precipitation_probability")
 
         // Usamos nuestras nuevas funciones del companion object
         val description = getDescriptionForWeather(weatherCode, isDay)
@@ -205,7 +213,11 @@ class WeatherRepository @Inject constructor() {
             windSpeed = windSpeed,
             weatherEmoji = emoji,
             weatherCode = weatherCode,
-            isDay = isDay == 1
+            isDay = isDay == 1,
+            uvIndex = uvIndex,
+            windDirection = windDirection,
+            windGusts = windGusts,
+            rainProbability = rainProbability
         )
     }
 }

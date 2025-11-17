@@ -30,7 +30,15 @@ data class Route(
     val weatherTemperature: Double? = null, // temperatura en °C
     val weatherEmoji: String? = null, // emoji del clima (☀️, ☁️, etc.)
     val weatherDescription: String? = null, // descripción del clima
-    val weatherIsDay: Boolean = true // <-- NUEVO CAMPO (Por defecto 'true' para rutas antiguas)
+    val weatherIsDay: Boolean = true, // <-- NUEVO CAMPO (Por defecto 'true' para rutas antiguas)
+    val weatherFeelsLike: Double? = null, // Sensación térmica en °C
+    val weatherHumidity: Int? = null, // Humedad en %
+    val weatherWindSpeed: Double? = null, // Velocidad del viento en km/h,
+    val weatherWindDirection: Int? = null, // Dirección del viento en grados (0-360),
+    val weatherRainProbability: Int? = null, // Probabilidad de lluvia en %
+    val weatherUvIndex: Double? = null,// Índice UV
+    val weatherWindGusts: Double? = null // La velocidad del viento en km/h
+
 ) {
     /**
      * Calcula la duración en minutos
@@ -78,7 +86,15 @@ data class Route(
         "weatherTemperature" to weatherTemperature,
         "weatherEmoji" to weatherEmoji,
         "weatherDescription" to weatherDescription,
-        "weatherIsDay" to weatherIsDay // <-- NUEVO CAMPO (Para escribir)
+        "weatherIsDay" to weatherIsDay,
+        "weatherFeelsLike" to weatherFeelsLike,
+        "weatherHumidity" to weatherHumidity,
+        "weatherWindSpeed" to weatherWindSpeed,// <-- NUEVO CAMPO (Para escribir)
+        "weatherWindDirection" to weatherWindDirection,
+        "weatherRainProbability" to weatherRainProbability,
+        "weatherUvIndex" to weatherUvIndex,
+        "weatherWindGusts" to weatherWindGusts
+
     )
 
     companion object {
@@ -118,12 +134,20 @@ data class Route(
                 movingPercentage = (map["movingPercentage"] as? Number)?.toFloat() ?: 0f,
                 // Validar clima al parsear
                 weatherTemperature = (map["weatherTemperature"] as? Number)?.toDouble()?.takeIf {
-                    !it.isNaN() && !it.isInfinite() && it >= -50 && it <= 60 && it != 0.0
+                    !it.isNaN() && !it.isInfinite() && it >= -50 && it <= 60
                 },
                 weatherEmoji = (map["weatherEmoji"] as? String)?.takeIf { it.isNotBlank() },
                 weatherDescription = map["weatherDescription"] as? String,
                 // <-- NUEVO CAMPO (Para leer). Si no existe (ruta antigua), usa 'true'
-                weatherIsDay = map["weatherIsDay"] as? Boolean ?: true
+                weatherIsDay = map["weatherIsDay"] as? Boolean ?: true,
+                weatherFeelsLike = (map["weatherFeelsLike"] as? Number)?.toDouble(),
+                weatherHumidity = (map["weatherHumidity"] as? Number)?.toInt(),
+                weatherWindSpeed = (map["weatherWindSpeed"] as? Number)?.toDouble(),
+                weatherWindDirection = (map["weatherWindDirection"] as? Number)?.toInt(),
+                weatherRainProbability = (map["weatherRainProbability"] as? Number)?.toInt(),
+                weatherUvIndex = (map["weatherUvIndex"] as? Number)?.toDouble(),
+                weatherWindGusts = (map["weatherWindGusts"] as? Number)?.toDouble()
+
             )
         }
     }

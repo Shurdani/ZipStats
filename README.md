@@ -176,8 +176,8 @@ app/src/main/java/com/zipstats/app/
 
 <p align="center">
   <img src=".github/assets/screenshots/screenshot7.png" width="200" alt="Pantalla 7"/>
-  <img src=".github/assets/screenshots/screenshot7.png" width="200" alt="Pantalla 8"/>
-  <img src=".github/assets/screenshots/screenshot7.png" width="200" alt="Pantalla 9"/>
+  <img src=".github/assets/screenshots/screenshot8.png" width="200" alt="Pantalla 8"/>
+  <img src=".github/assets/screenshots/screenshot9.png" width="200" alt="Pantalla 9"/>
 </p>
 
 ---

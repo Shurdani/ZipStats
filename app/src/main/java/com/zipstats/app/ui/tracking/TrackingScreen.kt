@@ -21,6 +21,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import kotlin.math.roundToInt
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -1117,31 +1118,71 @@ fun WeatherStatusIndicator(
                         )
                     }
                     is WeatherStatus.Success -> {
-                        // Esta llamada AHORA funciona porque la función de arriba está arreglada
                         val weatherIconRes = getWeatherIconResIdFromEmoji(
                             emoji = weatherStatus.emoji,
-                            isDay = weatherStatus.isDay // <--- Pasamos el dato real
+                            isDay = weatherStatus.isDay
                         )
                         Image(
                             painter = painterResource(id = weatherIconRes),
                             contentDescription = "Icono del clima",
-                            modifier = Modifier.size(32.dp),
+                            modifier = Modifier.size(32.dp), // <-- Tamaño de referencia (32.dp)
                             colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.onPrimaryContainer)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             text = "${String.format("%.0f", weatherStatus.temperature)}°C",
                             style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Bold,
+                            fontWeight = FontWeight.Bold, // <-- Estilo de referencia (Bold)
+                            fontSize = 20.sp, // <-- Tamaño de referencia (20.sp)
                             color = MaterialTheme.colorScheme.onPrimaryContainer
                         )
                         Spacer(modifier = Modifier.width(4.dp))
+
+
+                        Text(
+                            text = "|",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Light,
+                            fontSize = 20.sp,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.5f)
+                        )
+
+                        Spacer(modifier = Modifier.width(12.dp))
+
+                        // Icono de Viento
+                        Icon(
+                            imageVector = Icons.Default.Air,
+                            contentDescription = "Viento",
+                            // --- ¡CAMBIO 1! ---
+                            modifier = Modifier.size(32.dp), // <-- Igualado a 32.dp
+                            tint = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.9f)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+
+                        // Texto del Viento
+                        val direction = convertWindDirectionToText(weatherStatus.windDirection)
+                        Text(
+                            text = if (weatherStatus.windSpeed != null) {
+                                "${String.format("%.1f", weatherStatus.windSpeed)} km/h ($direction)"
+                            } else {
+                                "-- km/h"
+                            },
+                            style = MaterialTheme.typography.bodyMedium,
+                            // --- ¡CAMBIO 2! ---
+                            fontWeight = FontWeight.Bold, // <-- Igualado a Bold
+                            // --- ¡CAMBIO 3! ---
+                            fontSize = 20.sp, // <-- Igualado a 20.sp
+                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.9f)
+                            // (Modificador 'weight' ya quitado para centrar)
+                        )
                         Icon(
                             imageVector = Icons.Default.Check,
                             contentDescription = null,
-                            modifier = Modifier.size(16.dp),
+                            modifier = Modifier.size(24.dp),
                             tint = Color(0xFF4CAF50)
                         )
+
+                        Spacer(modifier = Modifier.width(12.dp))
                     }
                     is WeatherStatus.Error -> {
                         Icon(
@@ -1194,4 +1235,15 @@ fun WeatherStatusIndicator(
             }
         }
     }
+}
+/**
+ * Convierte grados a puntos cardinales (N, NE, E, SE, etc.)
+ */
+@Composable
+private fun convertWindDirectionToText(degrees: Int?): String {
+    if (degrees == null) return "-"
+    val directions = listOf("N", "NE", "E", "SE", "S", "SO", "O", "NO")
+    // Corrección para que 360/0 sea "N"
+    val index = ((degrees.toFloat() + 22.5f) % 360 / 45.0f).toInt()
+    return directions[index % 8] // Usar % 8 para asegurar que 360 (que da índice 8) vuelva a 0 (N)
 }

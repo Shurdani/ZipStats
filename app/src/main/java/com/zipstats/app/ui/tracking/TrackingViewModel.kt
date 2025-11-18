@@ -53,9 +53,12 @@ sealed class WeatherStatus {
     data class Success(
         val temperature: Double,
         val emoji: String,
-        val isDay: Boolean  // <--- Agrega esta línea
+        val isDay: Boolean,
+        val windSpeed: Double?, // Los cogemos de weather.windSpeed
+        val windDirection: Int?  // Los cogemos de weather.windDirection
     ) : WeatherStatus()
     data class Error(val message: String) : WeatherStatus()
+
     object NotAvailable : WeatherStatus()
 }
 
@@ -595,7 +598,13 @@ class TrackingViewModel @Inject constructor(
                         _startWeatherWindDirection = weather.windDirection
                         _startWeatherWindGusts = weather.windGusts
                         _startWeatherRainProbability = weather.rainProbability
-                        _weatherStatus.value = WeatherStatus.Success(weather.temperature, weather.weatherEmoji ,weather.isDay)
+                        _weatherStatus.value = WeatherStatus.Success(
+                            temperature = weather.temperature,
+                            emoji = weather.weatherEmoji,
+                            isDay = weather.isDay,
+                            windSpeed = weather.windSpeed,
+                            windDirection = weather.windDirection
+                        )
                         success = true
                         
                         val elapsedMs = System.currentTimeMillis() - startApiTime
@@ -703,8 +712,13 @@ class TrackingViewModel @Inject constructor(
                     _startWeatherWindDirection = weather.windDirection
                     _startWeatherWindGusts = weather.windGusts
                     _startWeatherRainProbability = weather.rainProbability
-                    _weatherStatus.value = WeatherStatus.Success(weather.temperature, weather.weatherEmoji, weather.isDay)
-                    
+                    _weatherStatus.value = WeatherStatus.Success(
+                        temperature = weather.temperature,
+                        emoji = weather.weatherEmoji,
+                        isDay = weather.isDay,
+                        windSpeed = weather.windSpeed,
+                        windDirection = weather.windDirection
+                    )
                     Log.d(TAG, "✅ Clima obtenido manualmente: ${weather.temperature}°C ${weather.weatherEmoji}")
                     _message.value = "Clima obtenido: ${String.format("%.0f", weather.temperature)}°C ${weather.weatherEmoji}"
                 }.onFailure { error ->
@@ -809,7 +823,6 @@ class TrackingViewModel @Inject constructor(
                 // Aceptar cualquier emoji válido (incluido ☁️) pero temperatura debe ser válida
                 var hasValidWeather = savedWeatherTemp != null && 
                                       savedWeatherTemp > -50 && savedWeatherTemp < 60 && // Rango válido de temperatura
-                                      savedWeatherTemp != 0.0 && // No permitir 0.0 como valor por defecto
                                       savedWeatherEmoji != null && 
                                       savedWeatherEmoji.isNotBlank()
                 

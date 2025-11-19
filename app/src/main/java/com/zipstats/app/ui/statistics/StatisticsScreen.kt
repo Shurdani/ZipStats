@@ -1,6 +1,7 @@
 package com.zipstats.app.ui.statistics
 
 import android.content.Intent
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -24,7 +25,6 @@ import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Park
 import androidx.compose.material.icons.filled.Share
-import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.outlined.Co2
 import androidx.compose.material.icons.outlined.Forest
 import androidx.compose.material.icons.outlined.OilBarrel
@@ -40,12 +40,10 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Tab
-import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.Button
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -59,23 +57,26 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.graphics.painter.Painter
-import androidx.compose.ui.res.painterResource
-import androidx.compose.foundation.Image
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
-import com.zipstats.app.R
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
+import com.zipstats.app.R
+import com.zipstats.app.ui.components.DialogApplyButton
+import com.zipstats.app.ui.components.DialogCancelButton
+import com.zipstats.app.ui.components.DialogConfirmButton
+import com.zipstats.app.ui.theme.DialogShape
 import java.time.LocalDate
 import kotlin.math.roundToInt
+
 
 enum class StatisticsPeriod {
     MONTHLY, ALL, YEARLY
@@ -837,20 +838,23 @@ fun MonthYearPickerDialog(
     onDismiss: () -> Unit,
     onConfirm: (month: Int, year: Int, isYearOnly: Boolean) -> Unit
 ) {
-    // Validar que hay períodos disponibles
+// Validar que hay períodos disponibles
     if (availableMonthYears.isEmpty()) {
         AlertDialog(
             onDismissRequest = onDismiss,
             title = { Text("Sin datos") },
             text = { Text("No hay registros disponibles para consultar.") },
             confirmButton = {
-                Button(onClick = onDismiss) {
-                    Text("Aceptar")
-                }
-            }
+                DialogConfirmButton(
+                    text = "Aceptar",
+                    onClick = onDismiss
+                )
+            },
+            shape = DialogShape
         )
         return
     }
+
     
     var selectedMode by remember { mutableStateOf<SelectionMode?>(null) } // null = no seleccionado, Month = mes, Year = año
     var selectedMonth by remember { mutableIntStateOf(currentMonth) }
@@ -882,7 +886,7 @@ fun MonthYearPickerDialog(
             selectedMonth = availableMonthsForYear.first()
         }
     }
-    
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Seleccionar Período") },
@@ -891,6 +895,7 @@ fun MonthYearPickerDialog(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
+
                 // Selector de modo (Mes o Año)
                 ExposedDropdownMenuBox(
                     expanded = showModeDropdown,
@@ -903,7 +908,7 @@ fun MonthYearPickerDialog(
                             null -> "Seleccionar tipo"
                             else -> "Seleccionar tipo"
                         },
-                        onValueChange = { },
+                        onValueChange = {},
                         readOnly = true,
                         label = { Text("Tipo de período") },
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = showModeDropdown) },
@@ -911,6 +916,7 @@ fun MonthYearPickerDialog(
                             .fillMaxWidth()
                             .menuAnchor()
                     )
+
                     ExposedDropdownMenu(
                         expanded = showModeDropdown,
                         onDismissRequest = { showModeDropdown = false }
@@ -931,8 +937,8 @@ fun MonthYearPickerDialog(
                         )
                     }
                 }
-                
-                // Selector de mes (solo si se selecciona modo "Mes")
+
+                // Selector de mes (solo si el modo es Mes)
                 if (selectedMode is SelectionMode.Month) {
                     ExposedDropdownMenuBox(
                         expanded = showMonthDropdown,
@@ -940,7 +946,7 @@ fun MonthYearPickerDialog(
                     ) {
                         OutlinedTextField(
                             value = monthNames[selectedMonth - 1],
-                            onValueChange = { },
+                            onValueChange = {},
                             readOnly = true,
                             label = { Text("Mes") },
                             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = showMonthDropdown) },
@@ -948,6 +954,7 @@ fun MonthYearPickerDialog(
                                 .fillMaxWidth()
                                 .menuAnchor()
                         )
+
                         ExposedDropdownMenu(
                             expanded = showMonthDropdown,
                             onDismissRequest = { showMonthDropdown = false }
@@ -964,7 +971,7 @@ fun MonthYearPickerDialog(
                         }
                     }
                 }
-                
+
                 // Selector de año
                 ExposedDropdownMenuBox(
                     expanded = showYearDropdown,
@@ -972,7 +979,7 @@ fun MonthYearPickerDialog(
                 ) {
                     OutlinedTextField(
                         value = selectedYear.toString(),
-                        onValueChange = { },
+                        onValueChange = {},
                         readOnly = true,
                         label = { Text("Año") },
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = showYearDropdown) },
@@ -980,6 +987,7 @@ fun MonthYearPickerDialog(
                             .fillMaxWidth()
                             .menuAnchor()
                     )
+
                     ExposedDropdownMenu(
                         expanded = showYearDropdown,
                         onDismissRequest = { showYearDropdown = false }
@@ -998,22 +1006,25 @@ fun MonthYearPickerDialog(
             }
         },
         confirmButton = {
-            com.zipstats.app.ui.components.DialogApplyButton(
-                onClick = { 
+            DialogApplyButton(
+                text = "Aplicar",
+                onClick = {
                     when (selectedMode) {
                         is SelectionMode.Month -> onConfirm(selectedMonth, selectedYear, false)
                         is SelectionMode.Year -> onConfirm(selectedMonth, selectedYear, true)
-                        null -> { /* No hacer nada si no se seleccionó modo */ }
+                        null -> {}
                     }
                 },
                 enabled = selectedMode != null
             )
         },
         dismissButton = {
-            com.zipstats.app.ui.components.DialogCancelButton(
+            DialogCancelButton(
                 text = "Cancelar",
                 onClick = onDismiss
             )
-        }
+        },
+        shape = DialogShape
     )
+
 }

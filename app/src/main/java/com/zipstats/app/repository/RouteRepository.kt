@@ -24,8 +24,28 @@ class RouteRepository @Inject constructor(
     private val firestore: FirebaseFirestore,
     private val auth: FirebaseAuth
 ) {
-    
+
     private val routeAnalyzer = RouteAnalyzer()
+
+    // --- MEMORIA TEMPORAL (CAJA FUERTE) PARA EL CLIMA ---
+    // Guardamos el clima aquí para que sobreviva si el usuario cambia de pantalla
+    // y el ViewModel se destruye.
+    private var _tempWeatherData: WeatherData? = null
+
+    fun saveTempWeather(weather: WeatherData) {
+        _tempWeatherData = weather
+        Log.d(TAG, "💾 Clima guardado temporalmente en repositorio para cambio de pantalla")
+    }
+
+    fun getTempWeather(): WeatherData? {
+        return _tempWeatherData
+    }
+
+    fun clearTempWeather() {
+        _tempWeatherData = null
+        Log.d(TAG, "🗑️ Clima temporal borrado del repositorio")
+    }
+    //
     
     companion object {
         private const val TAG = "RouteRepository"
@@ -521,7 +541,7 @@ class RouteRepository @Inject constructor(
             
             Result.success(totalKm)
         } catch (e: Exception) {
-            Log.e(TAG, "Error al calcular kilometraje del patinete", e)
+            Log.e(TAG, "Error al calcular kilometraje del vehículo", e)
             Result.failure(e)
         }
     }

@@ -12,7 +12,6 @@ import androidx.core.app.NotificationCompat
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.zipstats.app.MainActivity
-import com.zipstats.app.R
 import com.zipstats.app.model.Achievement
 import com.zipstats.app.model.AchievementLevel
 import com.zipstats.app.model.AchievementRequirementType

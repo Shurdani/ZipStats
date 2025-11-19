@@ -19,6 +19,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.zipstats.app.ui.components.*
+
 
 @Composable
 fun OnboardingDialog(
@@ -64,23 +66,16 @@ fun OnboardingDialog(
             }
         },
         confirmButton = {
-            Button(
-                onClick = onRegisterVehicle,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Registrar vehículo ahora")
-            }
+            DialogFullWidthButton(
+                text = "Registrar vehículo ahora",
+                onClick = onRegisterVehicle
+            )
         },
         dismissButton = {
-            Button(
-                onClick = onDismiss,
-                colors = androidx.compose.material3.ButtonDefaults.buttonColors(
-                    containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant,
-                    contentColor = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            ) {
-                Text("Más tarde")
-            }
+            DialogNeutralButton(
+                text = "Más tarde",
+                onClick = onDismiss
+            )
         }
     )
 }

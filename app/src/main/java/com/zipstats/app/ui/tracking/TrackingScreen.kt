@@ -1,61 +1,102 @@
 package com.zipstats.app.ui.tracking
 
-import android.Manifest
 import android.app.Activity
 import android.view.WindowManager
+import androidx.annotation.DrawableRes
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.*
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.filled.Air
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.CloudOff
+import androidx.compose.material.icons.filled.GpsFixed
+import androidx.compose.material.icons.filled.LocationOff
+import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.Place
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Route
+import androidx.compose.material.icons.filled.Speed
+import androidx.compose.material.icons.filled.Timer
+import androidx.compose.material.icons.filled.TwoWheeler
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import kotlin.math.roundToInt
-import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.foundation.clickable
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.zipstats.app.R
 import com.zipstats.app.model.Scooter
 import com.zipstats.app.model.VehicleType
 import com.zipstats.app.permission.PermissionManager
-import com.zipstats.app.service.TrackingStateManager
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.graphics.painter.Painter
-import androidx.compose.ui.res.painterResource
-import com.zipstats.app.R
-import com.zipstats.app.utils.LocationUtils
-import androidx.compose.ui.graphics.ColorFilter
-import androidx.annotation.DrawableRes
-import com.zipstats.app.repository.WeatherRepository
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.drawscope.DrawScope
-import java.text.SimpleDateFormat
-import java.util.*
-import kotlin.math.roundToInt
 import com.zipstats.app.repository.SettingsRepository
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
+import com.zipstats.app.service.TrackingStateManager
+import com.zipstats.app.ui.components.DialogCancelButton
+import com.zipstats.app.ui.components.DialogDeleteButton
+import com.zipstats.app.ui.theme.DialogShape
+import com.zipstats.app.utils.LocationUtils
+import kotlin.math.roundToInt
+
 
 /**
  * Pantalla principal para el seguimiento de rutas GPS
@@ -818,7 +859,9 @@ fun ScooterPickerDialog(
                                 painter = getVehicleIcon(scooter.vehicleType),
                                 contentDescription = "Icono del vehículo",
                                 modifier = Modifier.size(24.dp),
-                                colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(MaterialTheme.colorScheme.onSurface)
+                                colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(
+                                    MaterialTheme.colorScheme.onSurface
+                                )
                             )
                             Spacer(modifier = Modifier.width(16.dp))
                             Column {
@@ -837,10 +880,12 @@ fun ScooterPickerDialog(
             }
         },
         confirmButton = {
-            Button(onClick = onDismiss) {
-                Text("Cerrar")
-            }
-        }
+            DialogCancelButton(
+                text = "Cerrar",
+                onClick = onDismiss
+            )
+        },
+        shape = DialogShape
     )
 }
 
@@ -853,7 +898,7 @@ fun FinishRouteDialog(
 ) {
     var notes by remember { mutableStateOf("") }
     var addToRecords by remember { mutableStateOf(false) }
-    
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Finalizar ruta") },
@@ -861,6 +906,7 @@ fun FinishRouteDialog(
             Column {
                 Text("¿Deseas guardar esta ruta?")
                 Spacer(modifier = Modifier.height(16.dp))
+
                 Text(
                     text = "Distancia: ${LocationUtils.formatDistance(distance)}",
                     style = MaterialTheme.typography.bodyMedium
@@ -869,8 +915,9 @@ fun FinishRouteDialog(
                     text = "Duración: ${formatDuration(duration)}",
                     style = MaterialTheme.typography.bodyMedium
                 )
+
                 Spacer(modifier = Modifier.height(16.dp))
-                
+
                 // Checkbox para añadir a registros
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -886,8 +933,9 @@ fun FinishRouteDialog(
                         style = MaterialTheme.typography.bodyMedium
                     )
                 }
-                
+
                 Spacer(modifier = Modifier.height(16.dp))
+
                 OutlinedTextField(
                     value = notes,
                     onValueChange = { notes = it },
@@ -898,21 +946,18 @@ fun FinishRouteDialog(
             }
         },
         confirmButton = {
-            Button(onClick = { onConfirm(notes, addToRecords) }) {
-                Text("Guardar")
-            }
+            com.zipstats.app.ui.components.DialogConfirmButton(
+                text = "Guardar",
+                onClick = { onConfirm(notes, addToRecords) }
+            )
         },
         dismissButton = {
-            Button(
-                onClick = onDismiss,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            ) {
-                Text("Cancelar")
-            }
-        }
+            com.zipstats.app.ui.components.DialogCancelButton(
+                text = "Cancelar",
+                onClick = onDismiss
+            )
+        },
+        shape = com.zipstats.app.ui.theme.DialogShape
     )
 }
 
@@ -926,27 +971,18 @@ fun CancelRouteDialog(
         title = { Text("Cancelar seguimiento") },
         text = { Text("¿Estás seguro? Se perderán todos los datos de la ruta.") },
         confirmButton = {
-            Button(
-                onClick = onConfirm,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.error,
-                    contentColor = MaterialTheme.colorScheme.onError
-                )
-            ) {
-                Text("Cancelar ruta")
-            }
+            DialogDeleteButton(
+                text = "Cancelar ruta",
+                onClick = onConfirm
+            )
         },
         dismissButton = {
-            Button(
-                onClick = onDismiss,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            ) {
-                Text("Volver")
-            }
-        }
+            DialogCancelButton(
+                text = "Volver",
+                onClick = onDismiss
+            )
+        },
+        shape = DialogShape
     )
 }
 
@@ -1119,7 +1155,7 @@ fun WeatherStatusIndicator(
                     }
                     is WeatherStatus.Success -> {
                         val weatherIconRes = getWeatherIconResIdFromEmoji(
-                            emoji = weatherStatus.emoji,
+                            emoji = weatherStatus.weatherEmoji,
                             isDay = weatherStatus.isDay
                         )
                         Image(

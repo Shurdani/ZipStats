@@ -51,11 +51,19 @@ sealed class WeatherStatus {
     object Idle : WeatherStatus()
     object Loading : WeatherStatus()
     data class Success(
-        val temperature: Double,
-        val emoji: String,
+        val temperature: Double,      // Temperatura en °C
+        val feelsLike: Double,         // Sensación térmica
+        val description: String,       // Descripción del clima
+        val icon: String,              // Código (ahora será el numérico, ej: "3")
+        val humidity: Int,             // Humedad %
+        val windSpeed: Double,         // Velocidad del viento m/s
+        val weatherEmoji: String,      // Emoji representativo (¡ARREGLADO!)
+        val weatherCode: Int,
         val isDay: Boolean,
-        val windSpeed: Double?, // Los cogemos de weather.windSpeed
-        val windDirection: Int?  // Los cogemos de weather.windDirection
+        val uvIndex: Double?,
+        val windDirection: Int?,
+        val windGusts: Double?,
+        val rainProbability: Int?
     ) : WeatherStatus()
     data class Error(val message: String) : WeatherStatus()
 
@@ -204,6 +212,43 @@ class TrackingViewModel @Inject constructor(
         // Inicializar cliente de ubicación para GPS previo
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(context)
         locationTracker = LocationTracker(context)
+
+        // --- RECUPERAR CLIMA GUARDADO ---
+        // Comprobamos si hay un clima guardado en la "caja fuerte" del repositorio
+        val savedWeather = routeRepository.getTempWeather()
+        if (savedWeather != null) {
+            android.util.Log.d("TrackingViewModel", "♻️ Recuperando clima guardado tras cambio de pantalla")
+
+            // 1. Restauramos las variables privadas para el guardado final
+            _startWeatherTemperature = savedWeather.temperature
+            _startWeatherEmoji = savedWeather.weatherEmoji
+            _startWeatherDescription = savedWeather.description
+            _startWeatherIsDay = savedWeather.isDay
+            _startWeatherFeelsLike = savedWeather.feelsLike
+            _startWeatherHumidity = savedWeather.humidity
+            _startWeatherWindSpeed = savedWeather.windSpeed
+            _startWeatherUvIndex = savedWeather.uvIndex
+            _startWeatherWindDirection = savedWeather.windDirection
+            _startWeatherWindGusts = savedWeather.windGusts
+            _startWeatherRainProbability = savedWeather.rainProbability
+
+            // 2. Restauramos el estado de la UI para que aparezca la tarjeta
+            _weatherStatus.value = WeatherStatus.Success(
+                temperature = savedWeather.temperature,
+                feelsLike = savedWeather.feelsLike,
+                description = savedWeather.description,
+                icon = "", // You need to provide a value for icon, maybe from savedWeather if available
+                humidity = savedWeather.humidity,
+                windSpeed = savedWeather.windSpeed,
+                weatherEmoji = savedWeather.weatherEmoji, // CORRECTED PARAMETER NAME
+                weatherCode = 0, // You need to provide a value, maybe from savedWeather
+                isDay = savedWeather.isDay,
+                uvIndex = savedWeather.uvIndex,
+                windDirection = savedWeather.windDirection,
+                windGusts = savedWeather.windGusts,
+                rainProbability = savedWeather.rainProbability
+            )
+        }
     }
 
     /**
@@ -598,13 +643,25 @@ class TrackingViewModel @Inject constructor(
                         _startWeatherWindDirection = weather.windDirection
                         _startWeatherWindGusts = weather.windGusts
                         _startWeatherRainProbability = weather.rainProbability
+
+                        routeRepository.saveTempWeather(weather)
+
                         _weatherStatus.value = WeatherStatus.Success(
                             temperature = weather.temperature,
-                            emoji = weather.weatherEmoji,
-                            isDay = weather.isDay,
+                            feelsLike = weather.feelsLike,
+                            description = weather.description,
+                            icon = weather.icon,              // Obligatorio según tu clase
+                            humidity = weather.humidity,
                             windSpeed = weather.windSpeed,
-                            windDirection = weather.windDirection
+                            weatherEmoji = weather.weatherEmoji, // Aquí llegará el "🤷" si aplica
+                            weatherCode = weather.weatherCode,   // Obligatorio
+                            isDay = weather.isDay,
+                            uvIndex = weather.uvIndex,
+                            windDirection = weather.windDirection, // Es Int
+                            windGusts = weather.windGusts,
+                            rainProbability = weather.rainProbability
                         )
+
                         success = true
                         
                         val elapsedMs = System.currentTimeMillis() - startApiTime
@@ -712,12 +769,24 @@ class TrackingViewModel @Inject constructor(
                     _startWeatherWindDirection = weather.windDirection
                     _startWeatherWindGusts = weather.windGusts
                     _startWeatherRainProbability = weather.rainProbability
+
+                    routeRepository.saveTempWeather(weather)
+
+
                     _weatherStatus.value = WeatherStatus.Success(
                         temperature = weather.temperature,
-                        emoji = weather.weatherEmoji,
-                        isDay = weather.isDay,
+                        feelsLike = weather.feelsLike,
+                        description = weather.description,
+                        icon = weather.icon,              // Obligatorio según tu clase
+                        humidity = weather.humidity,
                         windSpeed = weather.windSpeed,
-                        windDirection = weather.windDirection
+                        weatherEmoji = weather.weatherEmoji, // Aquí llegará el "🤷" si aplica
+                        weatherCode = weather.weatherCode,   // Obligatorio
+                        isDay = weather.isDay,
+                        uvIndex = weather.uvIndex,
+                        windDirection = weather.windDirection, // Es Int
+                        windGusts = weather.windGusts,
+                        rainProbability = weather.rainProbability
                     )
                     Log.d(TAG, "✅ Clima obtenido manualmente: ${weather.temperature}°C ${weather.weatherEmoji}")
                     _message.value = "Clima obtenido: ${String.format("%.0f", weather.temperature)}°C ${weather.weatherEmoji}"
@@ -860,10 +929,10 @@ class TrackingViewModel @Inject constructor(
                                     savedFeelsLike = weather.feelsLike
                                     savedHumidity = weather.humidity
                                     savedWindSpeed = weather.windSpeed
-                                    var savedUvIndex = _startWeatherUvIndex
-                                    var savedWindDirection = _startWeatherWindDirection
-                                    var savedWindGusts = _startWeatherWindGusts
-                                    var savedRainProbability = _startWeatherRainProbability
+                                    savedUvIndex = _startWeatherUvIndex
+                                    savedWindDirection = _startWeatherWindDirection
+                                    savedWindGusts = _startWeatherWindGusts
+                                    savedRainProbability = _startWeatherRainProbability
                                     hasValidWeather = true
                                     
                                     Log.d(TAG, "✅ Clima obtenido al finalizar: ${savedWeatherTemp}°C ${savedWeatherEmoji}")
@@ -914,7 +983,15 @@ class TrackingViewModel @Inject constructor(
                     baseRoute.copy(
                         weatherTemperature = null,
                         weatherEmoji = null,
-                        weatherDescription = null
+                        weatherDescription = null,
+                        weatherIsDay = true,
+                        weatherFeelsLike = null,
+                        weatherHumidity = null,
+                        weatherWindSpeed = null,
+                        weatherUvIndex = null,
+                        weatherWindDirection = null,
+                        weatherWindGusts = null,
+                        weatherRainProbability = null
                     )
                 }
                 
@@ -943,6 +1020,8 @@ class TrackingViewModel @Inject constructor(
                     _startWeatherWindGusts = null
                     _startWeatherRainProbability = null
                     _weatherStatus.value = WeatherStatus.Idle
+
+                    routeRepository.clearTempWeather()
                     
                     var message = "Ruta guardada exitosamente: ${String.format("%.1f", route.totalDistance.roundToOneDecimal())} km"
                     
@@ -1028,6 +1107,11 @@ class TrackingViewModel @Inject constructor(
         _startWeatherFeelsLike = null
         _startWeatherHumidity = null
         _startWeatherWindSpeed = null
+        _startWeatherUvIndex = null
+        _startWeatherWindDirection = null
+        _startWeatherWindGusts = null
+        _startWeatherRainProbability = null
+
         _weatherStatus.value = WeatherStatus.Idle
         
         _message.value = "Ruta cancelada"

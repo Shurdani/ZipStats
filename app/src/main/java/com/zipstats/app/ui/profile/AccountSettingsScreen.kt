@@ -1,6 +1,15 @@
 package com.zipstats.app.ui.profile
 
+import android.content.Intent
+import android.net.Uri
+import android.provider.Settings
 import android.widget.Toast
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.ExperimentalAnimationApi
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -19,30 +28,22 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.ExperimentalAnimationApi
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.slideOutVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.Android
+import androidx.compose.material.icons.filled.Camera
 import androidx.compose.material.icons.filled.DarkMode
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.LightMode
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.ScreenLockPortrait
 import androidx.compose.material.icons.filled.Security
-import androidx.compose.material.icons.filled.LocationOn
-import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.Camera
-import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.outlined.AccountCircle
 import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material3.AlertDialog
@@ -57,9 +58,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -82,13 +80,13 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.zipstats.app.navigation.Screen
-import com.zipstats.app.repository.SettingsRepository
 import com.zipstats.app.permission.PermissionManager
+import com.zipstats.app.repository.SettingsRepository
+import com.zipstats.app.ui.components.DialogDeleteButton
+import com.zipstats.app.ui.components.DialogNeutralButton
+import com.zipstats.app.ui.components.DialogSaveButton
 import kotlinx.coroutines.launch
-import android.content.Intent
-import android.provider.Settings
-import android.net.Uri
-import android.Manifest
+
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalAnimationApi::class)
 @Composable
@@ -206,29 +204,19 @@ fun AccountSettingsScreen(
             title = { Text("Cerrar sesión") },
             text = { Text("¿Estás seguro de que quieres cerrar sesión?") },
             confirmButton = {
-                Button(
+                DialogDeleteButton(
+                    text = "Cerrar sesión",
                     onClick = {
                         authViewModel.logout()
                         showLogoutDialog = false
-                    },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.error,
-                        contentColor = MaterialTheme.colorScheme.onError
-                    )
-                ) {
-                    Text("Cerrar sesión")
-                }
+                    }
+                )
             },
             dismissButton = {
-                Button(
-                    onClick = { showLogoutDialog = false },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                        contentColor = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                ) {
-                    Text("Cancelar")
-                }
+                DialogNeutralButton(
+                    text = "Cancelar",
+                    onClick = { showLogoutDialog = false }
+                )
             }
         )
     }
@@ -646,7 +634,7 @@ private fun EditNameDialog(
     onSave: (String) -> Unit
 ) {
     var name by remember { mutableStateOf(currentName) }
-    
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Editar nombre") },
@@ -659,23 +647,17 @@ private fun EditNameDialog(
             )
         },
         confirmButton = {
-            Button(
-                onClick = { onSave(name) },
-                enabled = name.isNotEmpty()
-            ) {
-                Text("Guardar")
-            }
+            DialogSaveButton(
+                text = "Guardar",
+                enabled = name.isNotEmpty(),
+                onClick = { onSave(name) }
+            )
         },
         dismissButton = {
-            Button(
-                onClick = onDismiss,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            ) {
-                Text("Cancelar")
-            }
+            DialogNeutralButton(
+                text = "Cancelar",
+                onClick = onDismiss
+            )
         }
     )
 }
@@ -688,7 +670,7 @@ private fun ChangePasswordDialog(
     var currentPassword by remember { mutableStateOf("") }
     var newPassword by remember { mutableStateOf("") }
     var confirmPassword by remember { mutableStateOf("") }
-    
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Cambiar contraseña") },
@@ -720,25 +702,21 @@ private fun ChangePasswordDialog(
             }
         },
         confirmButton = {
-            Button(
-                onClick = { onSave(currentPassword, newPassword, confirmPassword) },
-                enabled = currentPassword.isNotEmpty() && 
-                         newPassword.isNotEmpty() && 
-                         confirmPassword.isNotEmpty()
-            ) {
-                Text("Guardar")
-            }
+            DialogSaveButton(
+                text = "Guardar",
+                enabled = currentPassword.isNotEmpty() &&
+                        newPassword.isNotEmpty() &&
+                        confirmPassword.isNotEmpty(),
+                onClick = {
+                    onSave(currentPassword, newPassword, confirmPassword)
+                }
+            )
         },
         dismissButton = {
-            Button(
-                onClick = onDismiss,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            ) {
-                Text("Cancelar")
-            }
+            DialogNeutralButton(
+                text = "Cancelar",
+                onClick = onDismiss
+            )
         }
     )
 }
@@ -751,28 +729,22 @@ fun DeleteAccountDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Eliminar cuenta") },
-        text = { Text("¿Estás seguro de que quieres eliminar tu cuenta? Esta acción no se puede deshacer y se eliminarán todos tus datos permanentemente.") },
+        text = {
+            Text(
+                "¿Estás seguro de que quieres eliminar tu cuenta? Esta acción no se puede deshacer y se eliminarán todos tus datos permanentemente."
+            )
+        },
         confirmButton = {
-            Button(
-                onClick = onConfirm,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.error,
-                    contentColor = MaterialTheme.colorScheme.onError
-                )
-            ) {
-                Text("Eliminar")
-            }
+            DialogDeleteButton(
+                text = "Eliminar",
+                onClick = onConfirm
+            )
         },
         dismissButton = {
-            Button(
-                onClick = onDismiss,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            ) {
-                Text("Cancelar")
-            }
+            DialogNeutralButton(
+                text = "Cancelar",
+                onClick = onDismiss
+            )
         }
     )
 }

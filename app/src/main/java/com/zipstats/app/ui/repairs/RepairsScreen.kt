@@ -1,6 +1,5 @@
 package com.zipstats.app.ui.repairs
 
-import android.app.Activity
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -11,57 +10,47 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.zipstats.app.model.Repair
 import com.zipstats.app.model.Scooter
+import com.zipstats.app.ui.components.DialogDeleteButton
+import com.zipstats.app.ui.components.DialogNeutralButton
+import com.zipstats.app.ui.components.DialogSaveButton
 import com.zipstats.app.ui.components.StandardDatePickerDialog
+import com.zipstats.app.ui.theme.DialogShape
 import java.time.Instant
-import java.time.LocalDate
 import java.time.ZoneId
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -71,261 +60,258 @@ fun RepairsScreen(
     scooterId: String,
     viewModel: RepairsViewModel = hiltViewModel()
 ) {
+
     val uiState by viewModel.uiState.collectAsState()
     var scooter by remember { mutableStateOf<Scooter?>(null) }
-    var showAddDialog by remember { mutableStateOf(false) }
-    var showDatePicker by remember { mutableStateOf(false) }
+
+// Estados UI
+    var showAddDialog by rememberSaveable { mutableStateOf(false) }
+    var showEditDialog by rememberSaveable { mutableStateOf(false) }
+    var showDeleteDialog by rememberSaveable { mutableStateOf(false) }
     var selectedRepair by remember { mutableStateOf<Repair?>(null) }
-    
-    // Inicializar la fecha seleccionada con la fecha real del sistema
-    val millis = System.currentTimeMillis()
-    val today = Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()).toLocalDate()
-    var newRepairDate by remember { mutableStateOf(today) }
-    
-    var newRepairDescription by remember { mutableStateOf("") }
-    var newRepairMileage by remember { mutableStateOf("") }
+
+// Fecha actual
+    val today = Instant.ofEpochMilli(System.currentTimeMillis())
+        .atZone(ZoneId.systemDefault())
+        .toLocalDate()
+
+// Campos para añadir
+    var newDate by remember { mutableStateOf(today) }
+    var newDesc by remember { mutableStateOf("") }
+    var newMileage by remember { mutableStateOf("") }
+    var showDatePicker by remember { mutableStateOf(false) }
+
+// Campos para editar
     var editDate by remember { mutableStateOf(today) }
-    var editDescription by remember { mutableStateOf("") }
+    var editDesc by remember { mutableStateOf("") }
     var editMileage by remember { mutableStateOf("") }
     var showEditDatePicker by remember { mutableStateOf(false) }
-    var showDeleteConfirmDialog by remember { mutableStateOf(false) }
 
-    // Obtener el vehículo completo y cargar reparaciones
+// Cargar datos
     LaunchedEffect(scooterId) {
         viewModel.loadScooterAndRepairs(scooterId)
     }
-    
-    // Observar el scooter cargado
+
     val loadedScooter by viewModel.scooterState.collectAsState()
     LaunchedEffect(loadedScooter) {
-        loadedScooter?.let {
-            scooter = it
-        }
+        scooter = loadedScooter
     }
 
-    // Diálogo de agregar reparación
+// ============================================================
+// DIÁLOGOS
+// ============================================================
+
+// --- Añadir reparación
     if (showAddDialog) {
         AlertDialog(
             onDismissRequest = { showAddDialog = false },
             title = { Text("Añadir reparación") },
             text = {
                 Column {
-                    Text(
-                        text = "Fecha: ${newRepairDate.toString()}",
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.padding(bottom = 8.dp)
-                    )
+                    Text("Fecha: $newDate")
+
                     Button(
                         onClick = { showDatePicker = true },
                         modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text("Seleccionar fecha")
-                    }
-                    Spacer(modifier = Modifier.height(16.dp))
+                    ) { Text("Seleccionar fecha") }
+
+                    Spacer(Modifier.height(16.dp))
+
                     OutlinedTextField(
-                        value = newRepairDescription,
-                        onValueChange = { newRepairDescription = it },
-                        label = { Text("Descripción de la reparación") },
+                        value = newDesc,
+                        onValueChange = { newDesc = it },
+                        label = { Text("Descripción") },
                         modifier = Modifier.fillMaxWidth(),
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                         minLines = 3
                     )
-                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Spacer(Modifier.height(16.dp))
+
                     OutlinedTextField(
-                        value = newRepairMileage,
-                        onValueChange = { newRepairMileage = it.filter { ch -> ch.isDigit() || ch == '.' || ch == ',' }.replace(',', '.') },
+                        value = newMileage,
+                        onValueChange = {
+                            newMileage = it.filter { ch -> ch.isDigit() || ch == '.' || ch == ',' }
+                                .replace(',', '.')
+                        },
                         label = { Text("Kilometraje (opcional)") },
                         modifier = Modifier.fillMaxWidth(),
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done)
                     )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "Si se deja en blanco, se usará el kilometraje del último viaje antes de esta fecha.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-                        modifier = Modifier.padding(start = 16.dp, end = 16.dp)
-                    )
                 }
             },
             confirmButton = {
-                TextButton(
+                DialogSaveButton(
+                    text = "Guardar",
+                    enabled = newDesc.isNotBlank(),
                     onClick = {
-                        if (newRepairDescription.isNotBlank()) {
-                            val mileage = newRepairMileage.toDoubleOrNull()
-                            scooter?.let { loadedScooter ->
-                                viewModel.addRepair(newRepairDate, newRepairDescription, mileage, loadedScooter.nombre, loadedScooter.id)
-                            }
-                            newRepairDescription = ""
-                            newRepairDate = today
-                            newRepairMileage = ""
-                            showAddDialog = false
+                        val mileage = newMileage.toDoubleOrNull()
+                        scooter?.let { loaded ->
+                            viewModel.addRepair(
+                                newDate,
+                                newDesc,
+                                mileage,
+                                loaded.nombre,
+                                loaded.id
+                            )
                         }
-                    },
-                    enabled = newRepairDescription.isNotBlank()
-                ) {
-                    Text("Guardar")
-                }
+                        showAddDialog = false
+                        newDesc = ""
+                        newMileage = ""
+                        newDate = today
+                    }
+                )
             },
             dismissButton = {
-                TextButton(
+                DialogNeutralButton(
+                    text = "Cancelar",
                     onClick = {
                         showAddDialog = false
-                        newRepairDescription = ""
-                        newRepairDate = LocalDate.now()
-                        newRepairMileage = ""
+                        newDesc = ""
+                        newMileage = ""
+                        newDate = today
                     }
-                ) {
-                    Text("Cancelar")
-                }
-            }
+                )
+            },
+            shape = DialogShape
         )
     }
 
-    // DatePicker
+// DatePicker nuevo
     if (showDatePicker) {
         StandardDatePickerDialog(
-            selectedDate = newRepairDate,
-            onDateSelected = { newRepairDate = it },
+            selectedDate = newDate,
+            onDateSelected = {
+                newDate = it
+                showDatePicker = false
+            },
             onDismiss = { showDatePicker = false },
-            title = "Seleccionar fecha de reparación"
+            title = "Seleccionar fecha"
         )
     }
 
-    // DatePicker para edición
-    if (showEditDatePicker) {
-        StandardDatePickerDialog(
-            selectedDate = editDate,
-            onDateSelected = { editDate = it },
-            onDismiss = { showEditDatePicker = false },
-            title = "Seleccionar fecha de reparación"
-        )
-    }
-    
-    // Diálogo de editar reparación
+// --- Editar reparación
     if (selectedRepair != null) {
-        LaunchedEffect(selectedRepair!!.id) {
-            editDate = selectedRepair!!.date
-            editDescription = selectedRepair!!.description
-            editMileage = selectedRepair!!.mileage?.toString() ?: ""
-        }
+
         AlertDialog(
             onDismissRequest = { selectedRepair = null },
             title = { Text("Editar reparación") },
             text = {
                 Column {
-                    Text(
-                        text = "Fecha: ${editDate.toString()}",
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.padding(bottom = 8.dp)
-                    )
+
+                    Text("Fecha: $editDate")
                     Button(
                         onClick = { showEditDatePicker = true },
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Text("Seleccionar fecha")
                     }
-                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Spacer(Modifier.height(16.dp))
+
                     OutlinedTextField(
-                        value = editDescription,
-                        onValueChange = { editDescription = it },
-                        label = { Text("Descripción de la reparación") },
+                        value = editDesc,
+                        onValueChange = { editDesc = it },
+                        label = { Text("Descripción") },
                         modifier = Modifier.fillMaxWidth(),
-                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                        minLines = 3
+                        minLines = 3,
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done)
                     )
-                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Spacer(Modifier.height(16.dp))
+
                     OutlinedTextField(
                         value = editMileage,
-                        onValueChange = { editMileage = it.filter { ch -> ch.isDigit() || ch == '.' || ch == ',' }.replace(',', '.') },
+                        onValueChange = {
+                            editMileage = it.filter { ch -> ch.isDigit() || ch == '.' || ch == ',' }
+                                .replace(',', '.')
+                        },
                         label = { Text("Kilometraje (opcional)") },
                         modifier = Modifier.fillMaxWidth(),
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done)
                     )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "Si se deja en blanco, se usará el kilometraje del último viaje antes de esta fecha.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-                        modifier = Modifier.padding(start = 16.dp, end = 16.dp)
-                    )
                 }
             },
             confirmButton = {
-                Button(
+                DialogSaveButton(
+                    text = "Guardar",
+                    enabled = editDesc.isNotBlank(),
                     onClick = {
                         val mileage = editMileage.toDoubleOrNull()
                         viewModel.updateRepair(
                             selectedRepair!!.copy(
                                 date = editDate,
-                                description = editDescription,
+                                description = editDesc,
                                 mileage = mileage
                             )
                         )
                         selectedRepair = null
-                    },
-                    enabled = editDescription.isNotBlank()
-                ) {
-                    Text("Guardar")
-                }
+                    }
+                )
             },
             dismissButton = {
-                Row {
-                    TextButton(
-                        onClick = {
-                            showDeleteConfirmDialog = true
-                        }
-                    ) {
-                        Text("Eliminar", color = MaterialTheme.colorScheme.error)
-                    }
-                    TextButton(
-                        onClick = {
-                            selectedRepair = null
-                        }
-                    ) {
-                        Text("Cancelar")
-                    }
-                }
-            }
-        )
-    }
-    
-    // Diálogo de confirmación de eliminación
-    if (showDeleteConfirmDialog && selectedRepair != null) {
-        AlertDialog(
-            onDismissRequest = { showDeleteConfirmDialog = false },
-            title = { Text("Eliminar reparación") },
-            text = { Text("¿Estás seguro de que deseas eliminar esta reparación?") },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        viewModel.deleteRepair(selectedRepair!!.id)
-                        showDeleteConfirmDialog = false
-                        selectedRepair = null
-                    },
-                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.error
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    DialogDeleteButton(
+                        text = "Eliminar",
+                        onClick = { showDeleteDialog = true }
                     )
-                ) {
-                    Text("Eliminar")
+                    DialogNeutralButton(
+                        text = "Cancelar",
+                        onClick = { selectedRepair = null }
+                    )
                 }
             },
-            dismissButton = {
-                TextButton(
-                    onClick = {
-                        showDeleteConfirmDialog = false
-                    }
-                ) {
-                    Text("Cancelar")
-                }
-            }
+            shape = DialogShape
         )
     }
 
+// Edit DatePicker
+    if (showEditDatePicker) {
+        StandardDatePickerDialog(
+            selectedDate = editDate,
+            onDateSelected = {
+                editDate = it
+                showEditDatePicker = false
+            },
+            onDismiss = { showEditDatePicker = false },
+            title = "Seleccionar fecha"
+        )
+    }
+
+// Eliminar
+    if (showDeleteDialog && selectedRepair != null) {
+        AlertDialog(
+            onDismissRequest = { showDeleteDialog = false },
+            title = { Text("Eliminar reparación") },
+            text = { Text("¿Confirmas eliminar esta reparación?") },
+            confirmButton = {
+                DialogDeleteButton(
+                    text = "Eliminar",
+                    onClick = {
+                        viewModel.deleteRepair(selectedRepair!!.id)
+                        selectedRepair = null
+                        showDeleteDialog = false
+                    }
+                )
+            },
+            dismissButton = {
+                DialogNeutralButton(
+                    text = "Cancelar",
+                    onClick = { showDeleteDialog = false }
+                )
+            },
+            shape = DialogShape
+        )
+    }
+
+// ============================================================
+// SCAFFOLD – SIEMPRE SE PINTA
+// ============================================================
+
     Scaffold(
-        modifier = Modifier.fillMaxSize(),
         topBar = {
             TopAppBar(
-                title = { Text("Reparaciones - ${scooter?.modelo ?: "Cargando..."}") },
+                title = { Text("Reparaciones - ${scooter?.modelo ?: ""}") },
                 navigationIcon = {
                     IconButton(onClick = { navController.navigateUp() }) {
                         Icon(
@@ -333,119 +319,84 @@ fun RepairsScreen(
                             contentDescription = "Volver"
                         )
                     }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimary
-                )
+                }
             )
         },
         floatingActionButton = {
-            FloatingActionButton(
-                onClick = { showAddDialog = true }
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Add,
-                    contentDescription = "Agregar reparación"
-                )
+            FloatingActionButton(onClick = { showAddDialog = true }) {
+                Icon(Icons.Filled.Add, contentDescription = "Añadir")
             }
         }
     ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-        ) {
-            when (uiState) {
-                is RepairsUiState.Loading -> {
+
+        when (uiState) {
+
+            is RepairsUiState.Loading -> {
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .padding(padding),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator()
+                }
+            }
+
+            is RepairsUiState.Success -> {
+                val repairs = (uiState as RepairsUiState.Success).repairs
+                if (repairs.isEmpty()) {
                     Box(
-                        modifier = Modifier.fillMaxSize(),
+                        Modifier
+                            .fillMaxSize()
+                            .padding(padding),
                         contentAlignment = Alignment.Center
                     ) {
-                        CircularProgressIndicator()
+                        Text("No hay reparaciones registradas")
                     }
-                }
-                is RepairsUiState.Success -> {
-                    val repairs = (uiState as RepairsUiState.Success).repairs
-                    
-                    if (repairs.isEmpty()) {
-                        Box(
-                            modifier = Modifier.fillMaxSize(),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = "No hay reparaciones registradas",
-                                style = MaterialTheme.typography.bodyLarge,
-                                textAlign = TextAlign.Center
-                            )
-                        }
-                    } else {
-                        // Encabezados removidos a petición
-
-                        // Lista de reparaciones
-                        LazyColumn(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .weight(1f)
-                        ) {
-                            items(
-                                items = repairs,
-                                key = { it.id }
-                            ) { repair ->
-                                Card(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(horizontal = 16.dp, vertical = 8.dp)
-                                        .clickable { selectedRepair = repair },
-                                    colors = CardDefaults.cardColors(
-                                        containerColor = MaterialTheme.colorScheme.surface
-                                    ),
-                                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-                                ) {
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(16.dp),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Text(
-                                            text = repair.getFormattedDate(),
-                                            modifier = Modifier.weight(1f),
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            fontWeight = FontWeight.Medium
-                                        )
-                                        Text(
-                                            text = buildString {
-                                                append(repair.description)
-                                                repair.mileage?.let { km ->
-                                                    append("\n")
-                                                    append("${String.format("%.0f", km)} km")
-                                                }
-                                            },
-                                            modifier = Modifier.weight(2f).padding(start = 12.dp),
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            maxLines = 2
-                                        )
+                } else {
+                    LazyColumn(
+                        Modifier
+                            .fillMaxSize()
+                            .padding(padding)
+                    ) {
+                        items(repairs, key = { it.id }) { repair ->
+                            Card(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                                    .clickable {
+                                        selectedRepair = repair
+                                        editDate = repair.date
+                                        editDesc = repair.description
+                                        editMileage = repair.mileage?.toString() ?: ""
+                                    }
+                            ) {
+                                Column(Modifier.padding(16.dp)) {
+                                    Text(repair.getFormattedDate())
+                                    Text(repair.description)
+                                    repair.mileage?.let {
+                                        Text("${"%.0f".format(it)} km")
                                     }
                                 }
                             }
                         }
                     }
                 }
-                is RepairsUiState.Error -> {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = (uiState as RepairsUiState.Error).message,
-                            style = MaterialTheme.typography.bodyLarge,
-                            textAlign = TextAlign.Center
-                        )
-                    }
+            }
+
+            is RepairsUiState.Error -> {
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .padding(padding),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        (uiState as RepairsUiState.Error).message,
+                        textAlign = TextAlign.Center
+                    )
                 }
             }
         }
     }
-} 
+}

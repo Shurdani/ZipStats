@@ -1,8 +1,7 @@
 package com.zipstats.app.ui.records
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
-import androidx.compose.ui.graphics.Color
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,19 +11,14 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CalendarMonth
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
@@ -35,11 +29,10 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.PrimaryScrollableTabRow
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -51,6 +44,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -62,13 +56,14 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.zipstats.app.model.Record
 import com.zipstats.app.navigation.Screen
+import com.zipstats.app.ui.components.DialogCancelButton
+import com.zipstats.app.ui.components.DialogDeleteButton
+import com.zipstats.app.ui.components.DialogSaveButton
 import com.zipstats.app.ui.components.StandardDatePickerDialogWithValidation
 import com.zipstats.app.ui.onboarding.OnboardingDialog
-import com.zipstats.app.ui.records.OnboardingViewModel
+import com.zipstats.app.ui.theme.DialogShape
 import com.zipstats.app.utils.DateUtils
-import javax.inject.Inject
 import java.time.Instant
-import java.time.LocalDate
 import java.time.ZoneId
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -143,31 +138,25 @@ fun RecordsHistoryScreen(
             onDismissRequest = { recordToDelete = null },
             title = { Text("Confirmar eliminación") },
             text = { Text("¿Estás seguro de que quieres eliminar este registro?") },
+
             confirmButton = {
-                Button(
+                DialogDeleteButton(
+                    text = "Eliminar",
                     onClick = {
                         viewModel.deleteRecord(record.id)
                         recordToDelete = null
-                    },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.error,
-                        contentColor = MaterialTheme.colorScheme.onError
-                    )
-                ) {
-                    Text("Eliminar")
-                }
+                    }
+                )
             },
+
             dismissButton = {
-                Button(
-                    onClick = { recordToDelete = null },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                        contentColor = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                ) {
-                    Text("Cancelar")
-                }
-            }
+                DialogCancelButton(
+                    text = "Cancelar",
+                    onClick = { recordToDelete = null }
+                )
+            },
+
+            shape = DialogShape
         )
     }
 
@@ -482,8 +471,9 @@ fun NewRecordDialog(
                     onExpandedChange = { expanded = it }
                 ) {
                     OutlinedTextField(
-                        value = userScooters.find { it.nombre == selectedScooter }?.let { "${it.modelo} (${it.nombre})" } ?: "",
-                        onValueChange = { },
+                        value = userScooters.find { it.nombre == selectedScooter }
+                            ?.let { "${it.modelo} (${it.nombre})" } ?: "",
+                        onValueChange = {},
                         label = { Text("Vehículo") },
                         readOnly = true,
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
@@ -497,10 +487,8 @@ fun NewRecordDialog(
                     ) {
                         userScooters.forEach { scooter ->
                             DropdownMenuItem(
-                                text = { 
-                                    Text("${scooter.modelo} (${scooter.nombre})")
-                                },
-                                onClick = { 
+                                text = { Text("${scooter.modelo} (${scooter.nombre})") },
+                                onClick = {
                                     selectedScooter = scooter.nombre
                                     expanded = false
                                     errorMessage = null
@@ -513,7 +501,7 @@ fun NewRecordDialog(
                 // Campo de kilometraje
                 OutlinedTextField(
                     value = kilometraje,
-                    onValueChange = { 
+                    onValueChange = {
                         kilometraje = it
                         errorMessage = null
                     },
@@ -525,7 +513,7 @@ fun NewRecordDialog(
                 // Selector de fecha
                 OutlinedTextField(
                     value = DateUtils.formatForDisplay(selectedDate),
-                    onValueChange = { },
+                    onValueChange = {},
                     label = { Text("Fecha") },
                     readOnly = true,
                     trailingIcon = {
@@ -536,7 +524,7 @@ fun NewRecordDialog(
                     modifier = Modifier.fillMaxWidth()
                 )
 
-                // Mostrar error si existe
+                // Error
                 errorMessage?.let { error ->
                     Text(
                         text = error,
@@ -546,8 +534,10 @@ fun NewRecordDialog(
                 }
             }
         },
+
         confirmButton = {
-            Button(
+            DialogSaveButton(
+                text = "Guardar",
                 onClick = {
                     if (selectedScooter.isEmpty() || kilometraje.isEmpty()) {
                         errorMessage = "Por favor, complete todos los campos"
@@ -559,21 +549,17 @@ fun NewRecordDialog(
                         )
                     }
                 }
-            ) {
-                Text("Guardar")
-            }
+            )
         },
+
         dismissButton = {
-            Button(
-                onClick = onDismiss,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            ) {
-                Text("Cancelar")
-            }
-        }
+            DialogCancelButton(
+                text = "Cancelar",
+                onClick = onDismiss
+            )
+        },
+
+        shape = DialogShape
     )
 }
 
@@ -621,8 +607,9 @@ fun EditRecordDialog(
                     onExpandedChange = { expanded = it }
                 ) {
                     OutlinedTextField(
-                        value = userScooters.find { it.nombre == selectedScooter }?.let { "${it.modelo} (${it.nombre})" } ?: "",
-                        onValueChange = { },
+                        value = userScooters.find { it.nombre == selectedScooter }
+                            ?.let { "${it.modelo} (${it.nombre})" } ?: "",
+                        onValueChange = {},
                         label = { Text("Vehículo") },
                         readOnly = true,
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
@@ -636,10 +623,8 @@ fun EditRecordDialog(
                     ) {
                         userScooters.forEach { scooter ->
                             DropdownMenuItem(
-                                text = { 
-                                    Text("${scooter.modelo} (${scooter.nombre})")
-                                },
-                                onClick = { 
+                                text = { Text("${scooter.modelo} (${scooter.nombre})") },
+                                onClick = {
                                     selectedScooter = scooter.nombre
                                     expanded = false
                                     errorMessage = null
@@ -652,7 +637,7 @@ fun EditRecordDialog(
                 // Campo de kilometraje
                 OutlinedTextField(
                     value = kilometraje,
-                    onValueChange = { 
+                    onValueChange = {
                         kilometraje = it
                         errorMessage = null
                     },
@@ -664,7 +649,7 @@ fun EditRecordDialog(
                 // Selector de fecha
                 OutlinedTextField(
                     value = DateUtils.formatForDisplay(selectedDate),
-                    onValueChange = { },
+                    onValueChange = {},
                     label = { Text("Fecha") },
                     readOnly = true,
                     trailingIcon = {
@@ -675,7 +660,7 @@ fun EditRecordDialog(
                     modifier = Modifier.fillMaxWidth()
                 )
 
-                // Mostrar error si existe
+                // Mostrar error
                 errorMessage?.let { error ->
                     Text(
                         text = error,
@@ -685,8 +670,10 @@ fun EditRecordDialog(
                 }
             }
         },
+
         confirmButton = {
-            Button(
+            DialogSaveButton(
+                text = "Guardar",
                 onClick = {
                     if (selectedScooter.isEmpty() || kilometraje.isEmpty()) {
                         errorMessage = "Por favor, complete todos los campos"
@@ -698,34 +685,23 @@ fun EditRecordDialog(
                         )
                     }
                 }
-            ) {
-                Text("Guardar")
+            )
+        },
+
+        dismissButton = {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                DialogDeleteButton(
+                    text = "Eliminar",
+                    onClick = onDelete
+                )
+                DialogCancelButton(
+                    text = "Cancelar",
+                    onClick = onDismiss
+                )
             }
         },
-        dismissButton = {
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Button(
-                    onClick = onDelete,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.error,
-                        contentColor = MaterialTheme.colorScheme.onError
-                    )
-                ) {
-                    Text("Eliminar")
-                }
-                Button(
-                    onClick = onDismiss,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                        contentColor = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                ) {
-                    Text("Cancelar")
-                }
-            }
-        }
+
+        shape = DialogShape
     )
 }
 

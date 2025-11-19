@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.zipstats.app.model.Repair
 import com.zipstats.app.model.Scooter
+import com.zipstats.app.repository.RecordRepository
 import com.zipstats.app.repository.RepairRepository
 import com.zipstats.app.repository.VehicleRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -12,8 +13,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.time.LocalDate
-import kotlinx.coroutines.flow.first
-import com.zipstats.app.repository.RecordRepository
 import javax.inject.Inject
 
 sealed class RepairsUiState {

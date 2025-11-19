@@ -3,7 +3,6 @@ package com.zipstats.app.analysis
 import android.location.Location
 import com.zipstats.app.model.RoutePoint
 import com.zipstats.app.model.VehicleType
-import kotlin.math.abs
 
 /**
  * Detecta automáticamente pausas en la ruta

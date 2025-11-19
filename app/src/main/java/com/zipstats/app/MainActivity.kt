@@ -15,6 +15,7 @@ import android.os.Environment
 import android.provider.MediaStore
 import android.util.Log
 import android.widget.Toast
+import com.zipstats.app.ui.components.*
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -327,11 +328,13 @@ class MainActivity : ComponentActivity() {
                     title = { Text("Error en la importación") },
                     text = { Text(errorMessage) },
                     confirmButton = {
-                        Button(onClick = { showDialog = false }) {
-                            Text("Aceptar")
-                        }
+                        DialogNeutralButton(
+                            text = "Aceptar",
+                            onClick = { showDialog = false }
+                        )
                     }
                 )
+
             }
 
             Scaffold(

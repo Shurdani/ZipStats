@@ -32,7 +32,6 @@ import androidx.compose.material3.PrimaryScrollableTabRow
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -57,6 +56,8 @@ import com.zipstats.app.R
 import com.zipstats.app.model.Achievement
 import com.zipstats.app.model.AchievementLevel
 import com.zipstats.app.model.AchievementRequirementType
+import com.zipstats.app.ui.components.DialogNeutralButton
+import com.zipstats.app.ui.components.DialogSaveButton
 
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -359,11 +360,11 @@ private fun AchievementCard(
     
     if (showImageDialog) {
         AlertDialog(
-            onDismissRequest = { 
+            onDismissRequest = {
                 showImageDialog = false
                 imageLoadError = false
             },
-            title = { 
+            title = {
                 Text(
                     text = achievement.title,
                     style = MaterialTheme.typography.headlineSmall,
@@ -376,7 +377,6 @@ private fun AchievementCard(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    // Mostrar la imagen del logro
                     Box(
                         modifier = Modifier
                             .size(180.dp)
@@ -400,14 +400,18 @@ private fun AchievementCard(
                             )
                         }
                     }
+
                     Spacer(modifier = Modifier.height(20.dp))
+
                     Text(
                         text = achievement.description,
                         style = MaterialTheme.typography.bodyLarge,
                         textAlign = TextAlign.Center,
                         color = MaterialTheme.colorScheme.onSurface
                     )
+
                     Spacer(modifier = Modifier.height(16.dp))
+
                     Text(
                         text = achievement.shareMessage,
                         style = MaterialTheme.typography.bodyMedium,
@@ -417,32 +421,23 @@ private fun AchievementCard(
                 }
             },
             confirmButton = {
-                TextButton(
+                DialogSaveButton(
+                    text = "Compartir",
                     onClick = {
                         showImageDialog = false
                         imageLoadError = false
                         onShare()
                     }
-                ) {
-                    Text(
-                        text = "Compartir",
-                        color = MaterialTheme.colorScheme.primary,
-                        style = MaterialTheme.typography.labelLarge
-                    )
-                }
+                )
             },
             dismissButton = {
-                TextButton(
-                    onClick = { 
+                DialogNeutralButton(
+                    text = "Cerrar",
+                    onClick = {
                         showImageDialog = false
                         imageLoadError = false
                     }
-                ) {
-                    Text(
-                        text = "Cerrar",
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                    )
-                }
+                )
             }
         )
     }

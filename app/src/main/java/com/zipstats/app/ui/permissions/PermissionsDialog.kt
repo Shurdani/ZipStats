@@ -3,9 +3,7 @@ package com.zipstats.app.ui.permissions
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -17,19 +15,18 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.zipstats.app.permission.AppPermission
-import android.Manifest
+import com.zipstats.app.ui.components.DialogNeutralButton
+import com.zipstats.app.ui.components.DialogSaveButton
+
 
 @Composable
 fun PermissionsDialog(
@@ -68,7 +65,7 @@ fun PermissionsDialog(
                     style = MaterialTheme.typography.bodyMedium,
                     modifier = Modifier.padding(bottom = 16.dp)
                 )
-                
+
                 permissions.forEach { permission ->
                     Row(
                         modifier = Modifier
@@ -100,20 +97,16 @@ fun PermissionsDialog(
             }
         },
         confirmButton = {
-            Button(onClick = onConfirm) {
-                Text("Entendido")
-            }
+            DialogSaveButton(
+                text = "Entendido",
+                onClick = onConfirm
+            )
         },
         dismissButton = {
-            Button(
-                onClick = onDismiss,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            ) {
-                Text("Cancelar")
-            }
+            DialogNeutralButton(
+                text = "Cancelar",
+                onClick = onDismiss
+            )
         }
     )
 }

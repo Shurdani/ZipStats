@@ -7,12 +7,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import com.zipstats.app.ui.achievements.AchievementsScreen
-import com.zipstats.app.ui.auth.AuthViewModel
 import com.zipstats.app.ui.auth.EmailVerificationScreen
 import com.zipstats.app.ui.auth.LoginScreen
 import com.zipstats.app.ui.auth.RegisterScreen
@@ -27,7 +25,6 @@ import com.zipstats.app.ui.statistics.StatisticsScreen
 import com.zipstats.app.ui.theme.ColorTheme
 import com.zipstats.app.ui.theme.ThemeMode
 import com.zipstats.app.ui.tracking.TrackingScreen
-import com.zipstats.app.navigation.Screen
 
 @Composable
 fun NavGraph(

@@ -69,6 +69,8 @@ import com.zipstats.app.R
 import com.zipstats.app.model.VehicleType
 import com.zipstats.app.navigation.Screen
 import com.zipstats.app.utils.DateUtils
+import com.zipstats.app.ui.theme.DialogShape
+import com.zipstats.app.ui.components.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -105,44 +107,44 @@ fun ScooterDetailScreen(
         AlertDialog(
             onDismissRequest = { showDeleteDialog = false },
             title = { Text("Eliminar vehículo") },
-            text = { Text("¿Estás seguro de que quieres eliminar este vehículo? Esta acción también eliminará todos los registros asociados.") },
+            text = {
+                Text(
+                    "¿Estás seguro de que quieres eliminar este vehículo? " +
+                            "Esta acción también eliminará todos los registros asociados."
+                )
+            },
+
             confirmButton = {
-                Button(
+                DialogDeleteButton(
+                    text = "Eliminar",
                     onClick = {
                         showDeleteDialog = false
                         scope.launch {
                             try {
                                 // Ejecutar la eliminación y esperar a que termine
                                 viewModel.deleteScooter(scooterId)
-                                // Esperar un momento adicional para asegurar que todo se sincronice
+
+                                // Pequeño delay para garantizar sincronización
                                 kotlinx.coroutines.delay(300)
-                                // Navegar después de que la eliminación esté completa
+
+                                // Navegar al terminar
                                 navController.navigateUp()
                             } catch (e: Exception) {
-                                // Si hay un error, no navegar
                                 android.util.Log.e("ScooterDetailScreen", "Error durante eliminación", e)
                             }
                         }
-                    },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.error,
-                        contentColor = MaterialTheme.colorScheme.onError
-                    )
-                ) {
-                    Text("Eliminar")
-                }
+                    }
+                )
             },
+
             dismissButton = {
-                Button(
-                    onClick = { showDeleteDialog = false },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                        contentColor = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                ) {
-                    Text("Cancelar")
-                }
-            }
+                DialogCancelButton(
+                    text = "Cancelar",
+                    onClick = { showDeleteDialog = false }
+                )
+            },
+
+            shape = DialogShape
         )
     }
 
@@ -668,6 +670,7 @@ private fun EditScooterDialog(
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
+
                 OutlinedTextField(
                     value = marca,
                     onValueChange = { marca = it },
@@ -675,6 +678,7 @@ private fun EditScooterDialog(
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
+
                 OutlinedTextField(
                     value = modelo,
                     onValueChange = { modelo = it },
@@ -682,6 +686,7 @@ private fun EditScooterDialog(
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
+
                 OutlinedTextField(
                     value = fechaTexto,
                     onValueChange = { nuevoTexto ->
@@ -709,7 +714,7 @@ private fun EditScooterDialog(
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
-                
+
                 if (showError) {
                     Text(
                         text = "Por favor, complete todos los campos",
@@ -719,8 +724,9 @@ private fun EditScooterDialog(
                 }
             }
         },
+
         confirmButton = {
-            com.zipstats.app.ui.components.DialogConfirmButton(
+            DialogConfirmButton(
                 text = "Guardar",
                 onClick = {
                     if (nombre.isBlank() || marca.isBlank() || modelo.isBlank() || fechaError != null) {
@@ -730,16 +736,21 @@ private fun EditScooterDialog(
                         showError = false
                     }
                 },
-                enabled = nombre.isNotBlank() && marca.isNotBlank() && modelo.isNotBlank() && fechaError == null
+                enabled = nombre.isNotBlank() &&
+                        marca.isNotBlank() &&
+                        modelo.isNotBlank() &&
+                        fechaError == null
             )
         },
+
         dismissButton = {
-            com.zipstats.app.ui.components.DialogCancelButton(
+            DialogCancelButton(
                 text = "Cancelar",
                 onClick = onDismiss
             )
         },
-        shape = com.zipstats.app.ui.theme.DialogShape
+
+        shape = DialogShape
     )
 
     if (showDatePicker) {

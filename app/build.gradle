@@ -23,8 +23,8 @@ android {
         applicationId "com.zipstats.app"
         minSdk 31
         targetSdk 34
-        versionCode 17
-        versionName "3.6"
+        versionCode 18
+        versionName "3.6.1"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -159,10 +159,6 @@ dependencies {
     
     // --- Google Sign In ---
     implementation 'com.google.android.gms:play-services-auth:21.2.0'
-
-    // --- Cloudinary ---
-    implementation 'com.cloudinary:cloudinary-android:3.1.1'
-
     // --- Material Icons ---
     implementation 'androidx.compose.material:material-icons-core'
     implementation 'androidx.compose.material:material-icons-extended'

@@ -14,29 +14,25 @@ import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.zipstats.app.model.Achievement
-import com.zipstats.app.model.AchievementLevel
-import com.zipstats.app.model.AchievementRequirementType
-import com.zipstats.app.model.Avatar
-import com.zipstats.app.model.Scooter
-import com.zipstats.app.model.User
-import com.zipstats.app.model.Record
-import com.zipstats.app.model.Repair
-import com.zipstats.app.repository.RecordRepository
-import com.zipstats.app.repository.VehicleRepository
-import com.zipstats.app.repository.UserRepository
-import com.zipstats.app.repository.RepairRepository
-import com.zipstats.app.utils.ExcelExporter
-import com.zipstats.app.utils.DateUtils
 import com.google.firebase.auth.EmailAuthProvider
-import org.apache.poi.ss.usermodel.*
-import org.apache.poi.xssf.usermodel.XSSFWorkbook
-import java.io.FileOutputStream
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
 import com.google.firebase.auth.UserProfileChangeRequest
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.storage.FirebaseStorage
+import com.zipstats.app.model.AchievementRequirementType
+import com.zipstats.app.model.Avatar
+import com.zipstats.app.model.Record
+import com.zipstats.app.model.Repair
+import com.zipstats.app.model.Scooter
+import com.zipstats.app.model.User
+import com.zipstats.app.repository.RecordRepository
+import com.zipstats.app.repository.RepairRepository
+import com.zipstats.app.repository.UserRepository
+import com.zipstats.app.repository.VehicleRepository
+import com.zipstats.app.service.CloudinaryService
+import com.zipstats.app.utils.DateUtils
+import com.zipstats.app.utils.ExcelExporter
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
@@ -50,7 +46,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
 import java.io.File
-import com.zipstats.app.service.CloudinaryService
 import javax.inject.Inject
 
 data class UserProfile(
@@ -260,161 +255,110 @@ class ProfileViewModel @Inject constructor(
         }
     }
 
-    // Eliminado: método obsoleto que usaba startActivityForResult deprecado
 
+    // --- FUNCIÓN CLAVE ACTUALIZADA PARA CLOUDINARY REST ---
     fun uploadProfileImage(uri: Uri) {
         viewModelScope.launch {
             try {
                 _uiState.value = ProfileUiState.Loading
-                val currentUser = auth.currentUser
-                
-                if (currentUser == null) {
-                    throw Exception("Usuario no autenticado")
-                }
-                
+                val currentUser = auth.currentUser ?: throw Exception("Usuario no autenticado")
+
                 val userId = currentUser.uid
-                Log.d("ProfileVM", "=== SUBIENDO IMAGEN A CLOUDINARY ===")
-                Log.d("ProfileVM", "Usuario ID: $userId")
-                Log.d("ProfileVM", "URI de imagen: $uri")
-                
+                Log.d("ProfileVM", "=== SUBIENDO IMAGEN A CLOUDINARY (REST) ===")
+
                 // Crear ID único para la imagen
                 val timestamp = System.currentTimeMillis()
                 val publicId = "profile_${userId}_$timestamp"
-                
-                // Subir a Cloudinary
+
+                // 1. Subir a Cloudinary usando el nuevo servicio REST
+                // Esta llamada es suspendida y devuelve el String directo de la URL
                 val cloudinaryUrl = cloudinaryService.uploadImage(uri, publicId)
-                
-                Log.d("ProfileVM", "✅ Imagen subida a Cloudinary: $cloudinaryUrl")
-                
-                // Guardar también localmente como respaldo
+
+                Log.d("ProfileVM", "✅ Imagen subida exitosamente: $cloudinaryUrl")
+
+                // 2. Guardar copia local
                 val localImagePath = saveImageLocally(uri, userId)
-                Log.d("ProfileVM", "✅ Imagen guardada localmente: $localImagePath")
-                
-                // Actualizar en Firestore con la URL de Cloudinary
-                Log.d("ProfileVM", "Actualizando perfil en Firestore...")
+
+                // 3. Actualizar Firestore con la URL de la nube
                 userRepository.updateUserPhoto(cloudinaryUrl)
-                
-                Log.d("ProfileVM", "✅ Perfil actualizado en Firestore")
-                
-                // Limpiar archivos temporales después de la subida exitosa
+
                 cleanupTempFiles()
-                
-                // Recargar el perfil
                 loadUserProfile()
-                
-                Log.d("ProfileVM", "=== SUBIDA COMPLETADA EXITOSAMENTE ===")
-                
+
             } catch (e: Exception) {
-                Log.e("ProfileVM", "❌ ERROR AL SUBIR IMAGEN", e)
-                Log.e("ProfileVM", "Tipo de error: ${e.javaClass.simpleName}")
-                Log.e("ProfileVM", "Mensaje: ${e.message}")
-                
-                // Fallback: intentar guardar localmente si falla Cloudinary
+                Log.e("ProfileVM", "❌ ERROR EN SUBIDA REST", e)
+
+                // Fallback a local si falla la red
                 try {
-                    Log.d("ProfileVM", "Intentando fallback a almacenamiento local...")
-                    val currentUser = auth.currentUser ?: throw Exception("Usuario no autenticado")
-                    val localImagePath = saveImageLocally(uri, currentUser.uid)
+                    Log.d("ProfileVM", "Intentando fallback local...")
+                    val userId = auth.currentUser?.uid ?: ""
+                    val localImagePath = saveImageLocally(uri, userId)
                     userRepository.updateUserPhoto(localImagePath)
-                    
-                    // Limpiar archivos temporales después del fallback exitoso
+
                     cleanupTempFiles()
-                    
                     loadUserProfile()
-                    Log.d("ProfileVM", "✅ Fallback exitoso: imagen guardada localmente")
+                    Log.d("ProfileVM", "✅ Fallback local exitoso")
                 } catch (fallbackError: Exception) {
-                    Log.e("ProfileVM", "❌ Fallback también falló", fallbackError)
-                    _uiState.value = ProfileUiState.Error("Error al guardar la imagen: ${e.message}")
+                    _uiState.value = ProfileUiState.Error("Error al guardar imagen: ${e.message}")
                 }
             }
         }
     }
-    
+
     private suspend fun saveImageLocally(uri: Uri, userId: String): String {
         return withContext(Dispatchers.IO) {
             try {
-                // Crear directorio para imágenes de perfil
                 val imagesDir = File(context.filesDir, "profile_images")
-                if (!imagesDir.exists()) {
-                    imagesDir.mkdirs()
-                }
-                
-                // Crear archivo con nombre único
+                if (!imagesDir.exists()) imagesDir.mkdirs()
+
                 val timestamp = System.currentTimeMillis()
                 val imageFile = File(imagesDir, "profile_${userId}_$timestamp.jpg")
-                
-                Log.d("ProfileVM", "Guardando imagen en: ${imageFile.absolutePath}")
-                
-                // Copiar la imagen al almacenamiento interno
+
                 context.contentResolver.openInputStream(uri)?.use { inputStream ->
                     imageFile.outputStream().use { outputStream ->
                         inputStream.copyTo(outputStream)
                     }
                 }
-                
-                // Comprimir la imagen si es muy grande
+
                 val compressedFile = compressImageIfNeeded(imageFile)
-                
-                Log.d("ProfileVM", "Imagen guardada: ${compressedFile.absolutePath}")
-                Log.d("ProfileVM", "Tamaño: ${compressedFile.length()} bytes")
-                
-                // Retornar la ruta relativa para almacenar en Firestore
                 "local://${compressedFile.name}"
-                
+
             } catch (e: Exception) {
-                Log.e("ProfileVM", "Error al guardar imagen localmente", e)
-                throw Exception("Error al guardar la imagen: ${e.message}")
+                Log.e("ProfileVM", "Error guardado local", e)
+                throw e
             }
         }
     }
-    
+
     private suspend fun compressImageIfNeeded(imageFile: File): File {
         return withContext(Dispatchers.IO) {
             try {
-                // Si la imagen es menor a 500KB, no comprimir
-                if (imageFile.length() < 500 * 1024) {
-                    return@withContext imageFile
-                }
-                
-                Log.d("ProfileVM", "Comprimiendo imagen (${imageFile.length()} bytes)...")
-                
-                // Crear archivo comprimido
+                if (imageFile.length() < 500 * 1024) return@withContext imageFile
+
                 val compressedFile = File(imageFile.parent, "compressed_${imageFile.name}")
-                
-                // Usar BitmapFactory para comprimir
-                val options = android.graphics.BitmapFactory.Options().apply {
-                    inJustDecodeBounds = true
-                }
+                val options = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
                 android.graphics.BitmapFactory.decodeFile(imageFile.absolutePath, options)
-                
-                // Calcular factor de escala
+
                 val scale = when {
                     options.outWidth > 1024 || options.outHeight > 1024 -> 4
                     options.outWidth > 512 || options.outHeight > 512 -> 2
                     else -> 1
                 }
-                
+
                 options.inJustDecodeBounds = false
                 options.inSampleSize = scale
-                
                 val bitmap = android.graphics.BitmapFactory.decodeFile(imageFile.absolutePath, options)
-                
-                // Guardar comprimida
+
                 compressedFile.outputStream().use { outputStream ->
                     bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 80, outputStream)
                 }
-                
+
                 bitmap.recycle()
-                
-                // Eliminar archivo original y renombrar el comprimido
                 imageFile.delete()
                 compressedFile.renameTo(imageFile)
-                
-                Log.d("ProfileVM", "Imagen comprimida: ${imageFile.length()} bytes")
                 imageFile
-                
+
             } catch (e: Exception) {
-                Log.e("ProfileVM", "Error al comprimir imagen", e)
-                // Si falla la compresión, retornar el archivo original
                 imageFile
             }
         }
@@ -424,12 +368,10 @@ class ProfileViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 val userId = auth.currentUser?.uid ?: throw Exception("Usuario no autenticado")
-                firestore.collection("users").document(userId)
-                    .update("name", newName)
-                    .await()
+                firestore.collection("users").document(userId).update("name", newName).await()
                 loadUserProfile()
             } catch (e: Exception) {
-                _uiState.value = ProfileUiState.Error(e.message ?: "Error al actualizar el perfil")
+                _uiState.value = ProfileUiState.Error(e.message ?: "Error al actualizar")
             }
         }
     }
@@ -821,30 +763,19 @@ class ProfileViewModel @Inject constructor(
             Log.e("ProfileVM", "Error al limpiar archivos temporales", e)
         }
     }
-    
+
+    // Helper para UI
     fun getImageUri(photoUrl: String?): Uri? {
         return when {
-            // Imagen local
             photoUrl?.startsWith("local://") == true -> {
                 val fileName = photoUrl.removePrefix("local://")
                 val imageFile = File(context.filesDir, "profile_images/$fileName")
-                if (imageFile.exists()) {
-                    FileProvider.getUriForFile(
-                        context,
-                        "${context.packageName}.provider",
-                        imageFile
-                    )
-                } else {
-                    null
-                }
+                if (imageFile.exists()) FileProvider.getUriForFile(context, "${context.packageName}.provider", imageFile) else null
             }
-            // URL de Cloudinary o cualquier URL HTTP
-            photoUrl?.startsWith("http") == true -> {
-                Uri.parse(photoUrl)
-            }
-            // Otros casos
+            photoUrl?.startsWith("http") == true -> Uri.parse(photoUrl)
             else -> photoUrl?.let { Uri.parse(it) }
         }
+
     }
 
     fun handleEvent(event: ProfileEvent, context: Context? = null) {

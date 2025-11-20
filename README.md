@@ -2,7 +2,7 @@
 
 **Aplicación Android para tracking GPS de patinetes, bicicletas y otros vehículos personales.**
 
-[![Version](https://img.shields.io/badge/Version-3.6-brightgreen.svg)](https://github.com/Shurdani/ZipStats/releases)
+[![Version](https://img.shields.io/badge/Version-3.7-brightgreen.svg)](https://github.com/shurdani/Patinetatrack/releases)
 [![Kotlin](https://img.shields.io/badge/Kotlin-2.0.0-blue.svg)](https://kotlinlang.org)
 [![Android](https://img.shields.io/badge/Android-API%2031%2B-green.svg)](https://developer.android.com)
 [![Jetpack Compose](https://img.shields.io/badge/Jetpack%20Compose-2024.02.00-blue.svg)](https://developer.android.com/jetpack/compose)
@@ -59,10 +59,10 @@
 ### **APIs y Servicios**
 - **Google Maps SDK:** Visualización de mapas y rutas
 - **Firebase:**
-  - Authentication (Email/Password/Google)
+  - Authentication (Email/Password)
   - Firestore Database (Almacenamiento de datos)
   - Storage (Imágenes de perfil)
-- **Cloudinary:** Gestión de imágenes de usuarios
+- **Cloudinary:** Gestión de imágenes de vehículos
 - **Location Services:** GPS tracking en tiempo real
 
 ### **Otras Librerías**
@@ -88,8 +88,8 @@
 ### **1. Clonar el Repositorio**
 
 ```bash
-git clone https://github.com/shurdani/ZipStats.git
-cd ZipStats
+git clone https://github.com/shurdani/Patinetatrack.git
+cd Patinetatrack
 ```
 
 ### **2. Configurar Credenciales**
@@ -176,8 +176,6 @@ app/src/main/java/com/zipstats/app/
 
 <p align="center">
   <img src=".github/assets/screenshots/screenshot7.png" width="200" alt="Pantalla 7"/>
-  <img src=".github/assets/screenshots/screenshot8.png" width="200" alt="Pantalla 8"/>
-  <img src=".github/assets/screenshots/screenshot9.png" width="200" alt="Pantalla 9"/>
 </p>
 
 ---
@@ -235,7 +233,7 @@ El nombre "ZipStats", su logotipo y elementos visuales están protegidos como id
 ¿Preguntas? ¿Sugerencias? ¿Encontraste un bug?
 
 - 📧 Email: zipstatsapp@gmail.com
-- 🐛 Issues: [GitHub Issues](https://github.com/shurdani/ZipStats/issues)
+- 🐛 Issues: [GitHub Issues](https://github.com/shurdani/Patinetatrack/issues)
 
 ---
 

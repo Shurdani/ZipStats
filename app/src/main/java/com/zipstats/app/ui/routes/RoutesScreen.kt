@@ -62,11 +62,10 @@ fun RoutesScreen(
     val routes by viewModel.routes.collectAsState()
     val userScooters by viewModel.userScooters.collectAsState()
     val selectedScooter by viewModel.selectedScooter.collectAsState()
-    val isLoading by viewModel.isLoading.collectAsState()
     val errorMessage by viewModel.errorMessage.collectAsState()
-    val message by viewModel.message.collectAsState()
     val uiState by viewModel.uiState.collectAsState()
-    
+    val isLoading = uiState is RoutesUiState.Loading
+
     var routeToDelete by remember { mutableStateOf<Route?>(null) }
     var routeToView by remember { mutableStateOf<Route?>(null) }
     var routeAddedToRecords by remember { mutableStateOf<Map<String, Boolean>>(emptyMap()) }
@@ -104,15 +103,15 @@ fun RoutesScreen(
     }
     
     // Mostrar mensaje si existe
-    message?.let { msg ->
+    errorMessage?.let { msg ->
         AlertDialog(
-            onDismissRequest = { viewModel.clearMessage() },
+            onDismissRequest = { viewModel.clearError() },
             title = { Text("Información") },
             text = { Text(msg) },
             confirmButton = {
                 com.zipstats.app.ui.components.DialogConfirmButton(
                     text = "Aceptar",
-                    onClick = { viewModel.clearMessage() }
+                    onClick = { viewModel.clearError() }
                 )
             },
             shape = com.zipstats.app.ui.theme.DialogShape
@@ -259,11 +258,20 @@ fun RoutesScreen(
 
             Spacer(modifier = Modifier.height(8.dp))
 
+            // --- ESTADO DE LA LISTA Y EFECTO DE SCROLL ---
+            val listState = rememberLazyListState()
+
+            // Cuando cambia el filtro (selectedScooter), volvemos arriba
+            LaunchedEffect(selectedScooter) {
+                listState.scrollToItem(0)
+            }
+
             // Encabezados de la tabla - Adaptativo según el tamaño de pantalla
             val configuration = LocalConfiguration.current
             val screenWidthDp = configuration.screenWidthDp
             val isSmallScreen = screenWidthDp < 360 // Pantallas muy pequeñas (< 360dp)
             val isMediumScreen = screenWidthDp < 420 // Pantallas medianas (360-420dp)
+
             
             Row(
                 modifier = Modifier

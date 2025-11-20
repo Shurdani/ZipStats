@@ -4,6 +4,7 @@ import android.os.Build
 import android.util.Log
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -115,7 +116,7 @@ fun ProfileScreen(
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
-    
+
     val uiState by viewModel.uiState.collectAsState()
 
     // Mostrar mensajes en el Snackbar
@@ -138,16 +139,16 @@ fun ProfileScreen(
         }
         viewModel.clearCameraReady()
     }
-    
+
     val galleryLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
+        contract = ActivityResultContracts.PickVisualMedia()
     ) { uri ->
         uri?.let { viewModel.handleEvent(ProfileEvent.UpdatePhoto(it)) }
     }
-    
+
     // PermissionManager para verificar permisos (solo verificación, no solicitud)
     val permissionManager = remember { com.zipstats.app.permission.PermissionManager(context) }
-    
+
     // Función para abrir configuración de permisos
     fun openAppSettings() {
         val intent = android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
@@ -155,8 +156,8 @@ fun ProfileScreen(
         }
         context.startActivity(intent)
     }
-    
-    
+
+
     // Observar cuando la cámara está lista y lanzarla
     val cameraReady by viewModel.cameraReady.collectAsState()
     LaunchedEffect(cameraReady) {
@@ -176,7 +177,7 @@ fun ProfileScreen(
     LaunchedEffect(Unit) {
         viewModel.handleEvent(ProfileEvent.LoadUserProfile)
     }
-    
+
     // Abrir diálogo de vehículo si viene el parámetro
     LaunchedEffect(openAddVehicleDialog) {
         if (openAddVehicleDialog) {
@@ -205,16 +206,12 @@ fun ProfileScreen(
                         icon = Icons.Default.Image,
                         onClick = {
                             showPhotoOptionsDialog = false
-                            if (permissionManager.hasStoragePermission()) {
-                                galleryLauncher.launch("image/*")
-                            } else {
-                                Toast.makeText(
-                                    context,
-                                    "Permiso de almacenamiento requerido. Ve a Configuración > Aplicaciones > ZipStats > Permisos.",
-                                    Toast.LENGTH_LONG
-                                ).show()
-                                openAppSettings()
-                            }
+                            // CORRECCIÓN 2: Usar PickVisualMediaRequest. Se elimina la comprobación de permiso
+                            // de almacenamiento porque PickVisualMedia es la forma recomendada y sin permisos.
+                            // CORRECCIÓN 3: Se envuelve el tipo de medio en PickVisualMediaRequest para corregir el error de tipo.
+                            galleryLauncher.launch(
+                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                            )
                         }
                     )
 
@@ -367,7 +364,7 @@ fun ProfileScreen(
         val screenWidthDp = configuration.screenWidthDp
         val isSmallScreen = screenWidthDp < 360
         val cardPadding = if (isSmallScreen) 8.dp else 16.dp
-        
+
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -452,7 +449,7 @@ fun ProfileScreen(
                                             tint = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                     }
-                                    
+
                                     // Botón de cambiar foto
                                     Box(
                                         modifier = Modifier
@@ -490,40 +487,17 @@ fun ProfileScreen(
                                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f) // Mejor contraste
                                     )
                                 }
-                                
-                                // Botón Exportar
+
+// Botón Exportar
                                 Column(
                                     horizontalAlignment = Alignment.CenterHorizontally
                                 ) {
                                     IconButton(onClick = {
-                                        android.util.Log.d("ProfileScreen", "Botón Exportar presionado desde tarjeta de usuario")
-                                        android.util.Log.d("ProfileScreen", "Android SDK: ${Build.VERSION.SDK_INT}")
-                                        
-                                        // Para Android 10+ no necesitamos permisos explícitos para MediaStore
-                                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                                            android.util.Log.d("ProfileScreen", "Android 10+: Exportando directamente con MediaStore")
-                                            viewModel.exportAllRecords(context)
-                                        } else {
-                                            // Android 9 y anteriores - verificar permiso de almacenamiento
-                                            val hasPermission = viewModel.checkStoragePermission(context)
-                                            android.util.Log.d("ProfileScreen", "Tiene permiso: $hasPermission")
-                                            
-                                            if (hasPermission) {
-                                                android.util.Log.d("ProfileScreen", "Exportando directamente...")
-                                                viewModel.exportAllRecords(context)
-                                            } else {
-                                                android.util.Log.d("ProfileScreen", "Verificando permiso de almacenamiento...")
-                                                // Solo verificar, no solicitar
-                                                if (permissionManager.hasStoragePermission()) {
-                                                    android.util.Log.d("ProfileScreen", "Permiso concedido, exportando...")
-                                                    viewModel.exportAllRecords(context)
-                                                } else {
-                                                    android.util.Log.d("ProfileScreen", "Permiso denegado")
-                                                    Toast.makeText(context, "Permiso de almacenamiento requerido. Ve a Configuración > Aplicaciones > ZipStats > Permisos.", Toast.LENGTH_LONG).show()
-                                                    openAppSettings()
-                                                }
-                                            }
-                                        }
+                                        Log.d("ProfileScreen", "Botón Exportar presionado desde tarjeta de usuario")
+                                        Log.d("ProfileScreen", "Android SDK: ${Build.VERSION.SDK_INT}")
+
+                                        // Exportación directa
+                                        viewModel.exportAllRecords(context)
                                     }) {
                                         Icon(
                                             imageVector = Icons.Default.FileDownload,
@@ -531,12 +505,14 @@ fun ProfileScreen(
                                             tint = MaterialTheme.colorScheme.primary
                                         )
                                     }
+
                                     Text(
                                         text = "Exportar",
                                         style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f) // Mejor contraste
+                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f)
                                     )
                                 }
+
                             }
                         }
 
@@ -812,7 +788,7 @@ fun ScooterCardItem(
                         colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(MaterialTheme.colorScheme.onPrimaryContainer)
                     )
                 }
-                
+
                     Column(
                     verticalArrangement = Arrangement.spacedBy(2.dp)
                     ) {
@@ -839,7 +815,7 @@ fun ScooterCardItem(
                     )
                 }
             }
-            
+
             Icon(
                 imageVector = Icons.Default.ChevronRight,
                 contentDescription = "Ver detalles",
@@ -864,7 +840,7 @@ fun AddScooterDialog(
     var selectedDate by remember { mutableStateOf(LocalDate.now()) }
     var fechaTexto by remember { mutableStateOf(DateUtils.formatForDisplay(selectedDate)) }
     var fechaError by remember { mutableStateOf<String?>(null) }
-    
+
     // Validar que la fecha no sea futura
     LaunchedEffect(selectedDate) {
         fechaTexto = DateUtils.formatForDisplay(selectedDate)
@@ -1030,7 +1006,7 @@ fun AddScooterDialog(
     if (showDatePicker) {
         StandardDatePickerDialogWithValidation(
             selectedDate = selectedDate,
-            onDateSelected = { 
+            onDateSelected = {
                 selectedDate = it
                 fechaError = null
             },

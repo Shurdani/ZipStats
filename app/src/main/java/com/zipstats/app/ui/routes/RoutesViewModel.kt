@@ -24,9 +24,14 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -45,107 +50,118 @@ class RoutesViewModel @Inject constructor(
     private val recordRepository: RecordRepository,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
-    
-    private val _routes = MutableStateFlow<List<Route>>(emptyList())
-    val routes: StateFlow<List<Route>> = _routes.asStateFlow()
-    
-    private val _userScooters = MutableStateFlow<List<Scooter>>(emptyList())
-    val userScooters: StateFlow<List<Scooter>> = _userScooters.asStateFlow()
-    
+
+    // 1. INPUTS (Lo que el usuario o la red cambian)
     private val _selectedScooter = MutableStateFlow<String?>(null)
     val selectedScooter: StateFlow<String?> = _selectedScooter.asStateFlow()
-    
-    private val _isLoading = MutableStateFlow(false)
-    val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
-    
+
+    // Cargamos los patinetes del usuario (esto está bien como estaba)
+    private val _userScooters = MutableStateFlow<List<Scooter>>(emptyList())
+    val userScooters: StateFlow<List<Scooter>> = _userScooters.asStateFlow()
+
+    // Mensajes de error
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
-    
-    private val _uiState = MutableStateFlow<RoutesUiState>(RoutesUiState.Loading)
-    val uiState: StateFlow<RoutesUiState> = _uiState.asStateFlow()
-    
+
+    // 2. LÓGICA REACTIVA (El corazón de la optimización)
+
+    // Obtenemos el flujo "Maestro" del repositorio.
+    // Suponemos que getUserRoutesFlow() retorna un Flow<List<Route>> que se mantiene actualizado.
+    private val allRoutesFlow = routeRepository.getUserRoutesFlow()
+        .catch { e ->
+            _errorMessage.value = e.message
+            emit(emptyList())
+        }
+        .flowOn(Dispatchers.IO) // OPTIMIZACIÓN 1: La recolección del repo va en hilo IO
+
+    // 3. OUTPUTS (Lo que ve la UI)
+
+    val uiState: StateFlow<RoutesUiState> = combine(
+        allRoutesFlow,
+        _selectedScooter
+    ) { allRoutes: List<Route>, selectedId: String? ->
+
+        // ESTE BLOQUE AHORA SE EJECUTARÁ EN BACKGROUND
+        // No bloqueará la UI aunque haya 10,000 rutas
+        val filteredList = if (selectedId == null) {
+            allRoutes
+        } else {
+            allRoutes.filter { it.scooterId == selectedId }
+        }
+
+        if (filteredList.isEmpty() && allRoutes.isEmpty()) {
+            RoutesUiState.Success
+        } else {
+            RoutesUiState.Success
+        }
+
+    }
+        .flowOn(Dispatchers.Default) // OPTIMIZACIÓN 2: Mueve el cálculo de arriba a CPU Background
+        .stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = RoutesUiState.Loading
+    )
+
+    // Esta es la lista que tu UI (RecyclerView) debe observar
+    val routes: StateFlow<List<Route>> = combine(
+        allRoutesFlow,
+        _selectedScooter
+    ) { allRoutes, selectedId ->
+        if (selectedId == null) allRoutes
+        else allRoutes.filter { it.scooterId == selectedId } // O it.vehicle == selectedId
+    }
+        .flowOn(Dispatchers.Default) // OPTIMIZACIÓN 2: Mueve el cálculo de arriba a CPU Background
+        .stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = emptyList()
+    )
+
     init {
         loadUserScooters()
-        loadRoutes()
+        // Ya no hace falta llamar a loadRoutes() explícitamente porque
+        // 'val routes' usa stateIn, lo que inicia la suscripción automáticamente.
     }
-    
-    private fun loadRoutes() {
-        viewModelScope.launch {
-            try {
-                routeRepository.getUserRoutesFlow().collect { allRoutes ->
-                    _routes.value = allRoutes
-                    _uiState.value = RoutesUiState.Success
-                }
-            } catch (e: Exception) {
-                _errorMessage.value = e.message ?: "Error inesperado"
-                _uiState.value = RoutesUiState.Error(e.message ?: "Error inesperado")
-            }
-        }
+
+    // --- ACCIONES DEL USUARIO ---
+
+    fun setSelectedScooter(scooterId: String?) {
+        // ¡Súper simple! Solo actualizamos el ID.
+        // La magia del 'combine' arriba se encarga de filtrar y actualizar 'routes'.
+        _selectedScooter.value = scooterId
     }
-    
+
     fun loadUserScooters() {
         viewModelScope.launch {
             try {
                 val scooters = scooterRepository.getUserScooters()
                 _userScooters.value = scooters
             } catch (e: Exception) {
-                // Error silencioso para scooters
+                // Error silencioso
             }
         }
     }
-    
-    fun setSelectedScooter(scooterId: String?) {
-        _selectedScooter.value = scooterId
-        
-        if (scooterId == null) {
-            // El Flow ya está activo, no necesitamos recargar
-        } else {
-            loadScooterRoutes(scooterId)
-        }
-    }
-    
-    private fun loadScooterRoutes(scooterId: String) {
-        viewModelScope.launch {
-            _isLoading.value = true
-            _errorMessage.value = null
-            
-            try {
-                val result = routeRepository.getScooterRoutes(scooterId)
-                if (result.isSuccess) {
-                    _routes.value = result.getOrNull() ?: emptyList()
-                    _uiState.value = RoutesUiState.Success
-                } else {
-                    _errorMessage.value = result.exceptionOrNull()?.message ?: "Error al cargar rutas"
-                    _uiState.value = RoutesUiState.Error(result.exceptionOrNull()?.message ?: "Error al cargar rutas")
-                }
-            } catch (e: Exception) {
-                _errorMessage.value = e.message ?: "Error inesperado"
-                _uiState.value = RoutesUiState.Error(e.message ?: "Error inesperado")
-            } finally {
-                _isLoading.value = false
-            }
-        }
-    }
-    
+
     fun deleteRoute(routeId: String) {
         viewModelScope.launch {
             try {
+                // Al borrar en el repositorio, si Firebase emite cambios,
+                // 'allRoutesFlow' se actualizará solo, y 'routes' se recalculará solo.
                 val result = routeRepository.deleteRoute(routeId)
-                if (result.isSuccess) {
-                    // Ruta eliminada exitosamente, sin mensaje
-                } else {
-                    _errorMessage.value = result.exceptionOrNull()?.message ?: "Error al eliminar ruta"
+                if (!result.isSuccess) {
+                    _errorMessage.value = result.exceptionOrNull()?.message
                 }
             } catch (e: Exception) {
-                _errorMessage.value = e.message ?: "Error inesperado"
+                _errorMessage.value = e.message
             }
         }
     }
-    
+
     fun clearError() {
         _errorMessage.value = null
     }
-    
+
     /**
      * Verifica si una ruta ya fue añadida a los registros
      */

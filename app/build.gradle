@@ -23,8 +23,8 @@ android {
         applicationId "com.zipstats.app"
         minSdk 31
         targetSdk 34
-        versionCode 17
-        versionName "3.6"
+        versionCode 18
+        versionName "v3.7"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -36,7 +36,7 @@ android {
         buildConfigField "String", "CLOUDINARY_API_KEY", "\"${localProperties.getProperty('cloudinary.api_key', 'YOUR_API_KEY')}\""
         buildConfigField "String", "CLOUDINARY_API_SECRET", "\"${localProperties.getProperty('cloudinary.api_secret', 'YOUR_API_SECRET')}\""
         buildConfigField "String", "OPENWEATHER_API_KEY", "\"${localProperties.getProperty('openweather.api.key', 'YOUR_OPENWEATHER_API_KEY')}\""
-        
+
         // Google Maps API Key
         manifestPlaceholders = [
             googleMapsApiKey: localProperties.getProperty('google.maps.api.key', 'YOUR_GOOGLE_MAPS_API_KEY')
@@ -48,7 +48,7 @@ android {
             // Leer configuración de signing desde variables de entorno o local.properties
             def keystorePropertiesFile = rootProject.file("keystore.properties")
             def keystoreProperties = new Properties()
-            
+
             // Intentar leer desde keystore.properties (para desarrollo local)
             if (keystorePropertiesFile.exists()) {
                 keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
@@ -156,13 +156,9 @@ dependencies {
     implementation 'com.google.firebase:firebase-firestore-ktx'
     implementation 'com.google.firebase:firebase-storage-ktx'
     implementation 'com.google.firebase:firebase-analytics-ktx'
-    
+
     // --- Google Sign In ---
     implementation 'com.google.android.gms:play-services-auth:21.2.0'
-
-    // --- Cloudinary ---
-    implementation 'com.cloudinary:cloudinary-android:3.1.1'
-
     // --- Material Icons ---
     implementation 'androidx.compose.material:material-icons-core'
     implementation 'androidx.compose.material:material-icons-extended'

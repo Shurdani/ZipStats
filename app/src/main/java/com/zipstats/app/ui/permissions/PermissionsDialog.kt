@@ -10,7 +10,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Camera
-import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Notifications
@@ -113,12 +112,12 @@ fun PermissionsDialog(
 
 @Composable
 private fun getPermissionIcon(permission: String): androidx.compose.ui.graphics.vector.ImageVector {
+    // Solo manejamos los permisos que realmente solicitamos
     return when {
         permission.contains("LOCATION") -> Icons.Default.LocationOn
         permission.contains("NOTIFICATION") || permission.contains("POST_NOTIFICATIONS") -> Icons.Default.Notifications
         permission.contains("CAMERA") -> Icons.Default.Camera
-        permission.contains("MEDIA") || permission.contains("IMAGE") -> Icons.Default.Image
-        else -> Icons.Default.Notifications
+        else -> Icons.Default.Info // Fallback
     }
 }
 
@@ -126,9 +125,8 @@ private fun getPermissionIcon(permission: String): androidx.compose.ui.graphics.
 private fun getPermissionIconColor(permission: String): androidx.compose.ui.graphics.Color {
     return when {
         permission.contains("LOCATION") -> MaterialTheme.colorScheme.error
-        permission.contains("NOTIFICATION") || permission.contains("POST_NOTIFICATIONS") -> androidx.compose.ui.graphics.Color(0xFFFFC107)
-        permission.contains("CAMERA") -> androidx.compose.ui.graphics.Color(0xFF2196F3)
-        permission.contains("MEDIA") || permission.contains("IMAGE") -> androidx.compose.ui.graphics.Color(0xFF4CAF50)
+        permission.contains("NOTIFICATION") || permission.contains("POST_NOTIFICATIONS") -> androidx.compose.ui.graphics.Color(0xFFFFC107) // Amarillo/Naranja para Notificaciones
+        permission.contains("CAMERA") -> androidx.compose.ui.graphics.Color(0xFF2196F3) // Azul para Cámara
         else -> MaterialTheme.colorScheme.primary
     }
 }
@@ -138,10 +136,6 @@ private fun getPermissionShortName(permission: String): String {
         permission.contains("LOCATION") -> "Ubicación"
         permission.contains("NOTIFICATION") || permission.contains("POST_NOTIFICATIONS") -> "Notificaciones"
         permission.contains("CAMERA") -> "Cámara"
-        permission.contains("MEDIA_IMAGES") -> "Imágenes"
-        permission.contains("MEDIA_DOCUMENTS") -> "Documentos"
         else -> "Permiso"
     }
 }
-
-

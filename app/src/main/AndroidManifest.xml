@@ -5,19 +5,22 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
-    <!-- Permisos de almacenamiento para minSdk 31+ -->
-    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
-    <!-- READ_MEDIA_DOCUMENTS solo disponible en Android 14+ (API 34+) -->
-    <uses-permission android:name="android.permission.READ_MEDIA_DOCUMENTS" 
+
+    <!-- Permisos de Lectura/Escritura de Medios: Ya no son necesarios en minSdk 31+
+         porque las funciones usan MediaStore o PickVisualMedia. -->
+
+    <!-- READ_MEDIA_DOCUMENTS solo disponible en Android 14+ (API 34+). -->
+    <uses-permission android:name="android.permission.READ_MEDIA_DOCUMENTS"
         android:minSdkVersion="34" />
-    
+
     <!-- Permisos de ubicación para seguimiento GPS -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <!-- Estos permisos son cruciales para un minSdk 31+ -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
-    
+
     <!-- Permiso de internet para APIs (OpenWeather, etc.) -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
@@ -39,7 +42,7 @@
         <meta-data
             android:name="com.google.android.gms.version"
             android:value="@integer/google_play_services_version" />
-        
+
         <!-- Google Maps API Key -->
         <meta-data
             android:name="com.google.android.geo.API_KEY"

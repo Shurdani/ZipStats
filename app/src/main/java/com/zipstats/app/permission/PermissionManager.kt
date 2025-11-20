@@ -19,10 +19,13 @@ class PermissionManager @Inject constructor(
 ) {
     /**
      * Obtiene todos los permisos de la app con sus descripciones
+     * NOTA: Al tener minSdk 31+, los permisos de almacenamiento/galería ya no son necesarios
+     * para la selección de medios (PickVisualMedia) ni para la exportación de archivos (MediaStore).
+     * Solo la ubicación, cámara y notificaciones requieren manejo explícito en tiempo de ejecución.
      */
     fun getAllPermissions(): List<AppPermission> {
         val permissions = mutableListOf<AppPermission>()
-        
+
         // Permiso de ubicación (solo FINE_LOCATION, ya que incluye COARSE)
         permissions.add(
             AppPermission(
@@ -31,7 +34,7 @@ class PermissionManager @Inject constructor(
                 description = "Necesario para el seguimiento GPS de rutas y calcular distancias recorridas"
             )
         )
-        
+
         // Permiso de notificaciones
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             permissions.add(
@@ -42,7 +45,7 @@ class PermissionManager @Inject constructor(
                 )
             )
         }
-        
+
         // Permiso de cámara
         permissions.add(
             AppPermission(
@@ -51,21 +54,10 @@ class PermissionManager @Inject constructor(
                 description = "Necesario para tomar fotos de perfil"
             )
         )
-        
-        // Permisos de almacenamiento
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            permissions.add(
-                AppPermission(
-                    permission = Manifest.permission.READ_MEDIA_IMAGES,
-                    name = "Imágenes",
-                    description = "Necesario para seleccionar imágenes de la galería para el perfil"
-                )
-            )
-        }
-        
+
         return permissions
     }
-    
+
     /**
      * Obtiene todos los permisos que se deben solicitar al inicio
      */
@@ -74,16 +66,16 @@ class PermissionManager @Inject constructor(
             .filter { it.isRequired }
             .map { it.permission }
             .toMutableList()
-        
+
         // Asegurar que se incluyan ambos permisos de ubicación (aunque solo mostremos uno en el diálogo)
-        if (Manifest.permission.ACCESS_FINE_LOCATION in permissions && 
+        if (Manifest.permission.ACCESS_FINE_LOCATION in permissions &&
             Manifest.permission.ACCESS_COARSE_LOCATION !in permissions) {
             permissions.add(Manifest.permission.ACCESS_COARSE_LOCATION)
         }
-        
+
         return permissions.toTypedArray()
     }
-    
+
     /**
      * Verifica si todos los permisos requeridos están concedidos
      */
@@ -92,7 +84,7 @@ class PermissionManager @Inject constructor(
             .filter { it.isRequired }
             .all { hasPermission(it.permission) }
     }
-    
+
     /**
      * Verifica si un permiso específico está concedido
      */
@@ -102,42 +94,25 @@ class PermissionManager @Inject constructor(
             permission
         ) == PackageManager.PERMISSION_GRANTED
     }
-    
+
     /**
      * Obtiene el estado de todos los permisos
      */
     fun getPermissionStates(): Map<String, Boolean> {
         return getAllPermissions().associate { it.permission to hasPermission(it.permission) }
     }
-    
-    fun hasStoragePermission(): Boolean {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            hasPermission("android.permission.READ_MEDIA_DOCUMENTS")
-        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            hasPermission(Manifest.permission.READ_MEDIA_IMAGES)
-        } else {
-            true
-        }
-    }
 
-    fun getRequiredPermissions(): Array<String> {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            arrayOf("android.permission.READ_MEDIA_DOCUMENTS")
-        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            arrayOf(Manifest.permission.READ_MEDIA_IMAGES)
-        } else {
-            emptyArray()
-        }
-    }
-    
+    // Funciones de permisos de almacenamiento eliminadas ya que minSdk 31+ garantiza el uso de MediaStore
+    // y PickVisualMedia no requiere permiso de lectura en tiempo de ejecución.
+
     /**
      * Verifica si la app tiene permisos de ubicación
      */
     fun hasLocationPermissions(): Boolean {
         return hasPermission(Manifest.permission.ACCESS_FINE_LOCATION) &&
-               hasPermission(Manifest.permission.ACCESS_COARSE_LOCATION)
+                hasPermission(Manifest.permission.ACCESS_COARSE_LOCATION)
     }
-    
+
     /**
      * Obtiene los permisos de ubicación necesarios
      */
@@ -147,14 +122,14 @@ class PermissionManager @Inject constructor(
             Manifest.permission.ACCESS_COARSE_LOCATION
         )
     }
-    
+
     /**
      * Verifica si tiene permiso de cámara
      */
     fun hasCameraPermission(): Boolean {
         return hasPermission(Manifest.permission.CAMERA)
     }
-    
+
     /**
      * Verifica si tiene permiso de notificaciones (necesario para foreground service)
      */
@@ -165,4 +140,4 @@ class PermissionManager @Inject constructor(
             true // No se necesita en versiones anteriores
         }
     }
-} 
+}

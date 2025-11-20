@@ -279,6 +279,12 @@ fun RecordsHistoryScreen(
 
             Spacer(modifier = Modifier.height(8.dp))
 
+            val listState = rememberLazyListState()
+
+            LaunchedEffect(selectedModel) {
+                listState.scrollToItem(0)
+            }
+
             // Encabezados de la tabla - Adaptativo según el tamaño de pantalla
             val configuration = LocalConfiguration.current
             val screenWidthDp = configuration.screenWidthDp

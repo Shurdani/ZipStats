@@ -17,6 +17,7 @@ import androidx.lifecycle.viewModelScope
 import com.google.firebase.auth.EmailAuthProvider
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
+import com.google.firebase.auth.FirebaseAuthRecentLoginRequiredException
 import com.google.firebase.auth.UserProfileChangeRequest
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.storage.FirebaseStorage
@@ -26,6 +27,7 @@ import com.zipstats.app.model.Record
 import com.zipstats.app.model.Repair
 import com.zipstats.app.model.Scooter
 import com.zipstats.app.model.User
+import com.zipstats.app.repository.AuthRepository
 import com.zipstats.app.repository.RecordRepository
 import com.zipstats.app.repository.RepairRepository
 import com.zipstats.app.repository.UserRepository
@@ -36,6 +38,7 @@ import com.zipstats.app.utils.ExcelExporter
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -47,6 +50,8 @@ import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
 import java.io.File
 import javax.inject.Inject
+
+
 
 data class UserProfile(
     val name: String,
@@ -98,6 +103,7 @@ class ProfileViewModel @Inject constructor(
     private val achievementsService: com.zipstats.app.service.AchievementsService,
     private val cloudinaryService: CloudinaryService,
     private val auth: FirebaseAuth,
+    private val authRepository: AuthRepository,
     private val storage: FirebaseStorage,
     private val firestore: FirebaseFirestore,
     @ApplicationContext private val context: Context
@@ -496,37 +502,49 @@ class ProfileViewModel @Inject constructor(
         }
     }
 
+    // EN TU VIEWMODEL
     fun deleteAccount(onSuccess: () -> Unit, onError: (String) -> Unit) {
         viewModelScope.launch {
-            try {
-                val currentUser = auth.currentUser ?: throw Exception("Usuario no autenticado")
-                val userId = currentUser.uid
-                
-                // Eliminar registros del usuario
-                recordRepository.deleteAllUserRecords()
-                
-                // Eliminar rutas del usuario
-                routeRepository.deleteAllUserRoutes()
-                
-                // Eliminar patinetes del usuario
-                vehicleRepository.deleteAllUserScooters()
-                
-                // Eliminar foto de perfil
+            withContext(NonCancellable) {
                 try {
-                    storage.reference.child("profile_images/$userId.jpg").delete().await()
+                    val user = auth.currentUser ?: throw Exception("No user")
+                    val uid = user.uid
+
+                    // 1. Borrar datos (Firestore)
+                    recordRepository.deleteAllUserRecords()
+                    routeRepository.deleteAllUserRoutes()
+                    vehicleRepository.deleteAllUserScooters()
+                    userRepository.deleteUser(uid)
+
+                    // 2. Borrar foto (Storage) - Con try/catch por si acaso
+                    try {
+                        val photoRef = storage.reference.child("profile_images/$uid.jpg")
+                        photoRef.delete().await()
+                    } catch (e: Exception) { /* Ignorar */ }
+
+                    // 3. EL TRUCO: Obtener credenciales para re-autenticar si fuera necesario
+                    // (Opcional, pero recomendable si quieres ser muy pro)
+
+                    // 4. BORRAR USUARIO DE AUTH
+                    user.delete().await()
+
+                    // 5. LIMPIEZA FINAL
+                    // Importante: signOut() limpia la caché local y desconecta listeners
+                    auth.signOut()
+
+                    withContext(Dispatchers.Main) {
+                        onSuccess()
+                    }
+
+                } catch (e: FirebaseAuthRecentLoginRequiredException) {
+                    withContext(Dispatchers.Main) {
+                        onError("Por seguridad, cierra sesión y vuelve a entrar.")
+                    }
                 } catch (e: Exception) {
-                    // Ignorar error si no existe la imagen
+                    withContext(Dispatchers.Main) {
+                        onError(e.message ?: "Error al eliminar")
+                    }
                 }
-                
-                // Eliminar documento del usuario
-                userRepository.deleteUser(userId)
-                
-                // Eliminar cuenta de autenticación
-                currentUser.delete().await()
-                
-                onSuccess()
-            } catch (e: Exception) {
-                onError(e.message ?: "Error al eliminar la cuenta")
             }
         }
     }
@@ -632,43 +650,60 @@ class ProfileViewModel @Inject constructor(
     // Versión NO suspendida para llamar desde la UI (onClick)
     fun deleteScooter(scooterId: String) {
         viewModelScope.launch {
-            try {
-                // 1. Obtener datos antes de borrar para limpiar registros asociados
-                val scooters = vehicleRepository.getScooters().first()
-                val scooter = scooters.find { it.id == scooterId } ?: return@launch
-
-                // 2. Borrar registros asociados (opcional, según tu lógica de negocio)
+            // --- EL ESCUDO PROTECTOR ---
+            // Esto le dice a Coroutines: "Aunque el ViewModel muera,
+            // termina este bloque de código cueste lo que cueste".
+            withContext(NonCancellable) {
                 try {
-                    recordRepository.deleteScooterRecords(scooter.nombre)
+                    Log.d("ProfileVM", "Iniciando borrado atómico de $scooterId")
+
+                    // 1. Obtener datos antes de borrar
+                    // Usamos firstOrNull para evitar crashes si la lista está vacía
+                    val scooters = vehicleRepository.getScooters().first()
+                    val scooter = scooters.find { it.id == scooterId }
+
+                    if (scooter == null) {
+                        Log.e("ProfileVM", "Vehículo no encontrado, abortando.")
+                        return@withContext
+                    }
+
+                    // 2. Borrar registros asociados
+                    try {
+                        Log.d("ProfileVM", "Borrando registros de ${scooter.nombre}...")
+                        recordRepository.deleteScooterRecords(scooter.nombre)
+                    } catch (e: Exception) {
+                        Log.e("ProfileVM", "Error borrando registros: ${e.message}")
+                    }
+
+                    // 3. Borrar rutas asociadas
+                    try {
+                        Log.d("ProfileVM", "Borrando rutas...")
+                        routeRepository.deleteScooterRoutes(scooterId)
+                    } catch (e: Exception) {
+                        Log.e("ProfileVM", "Error borrando rutas: ${e.message}")
+                    }
+
+                    // 4. Borrar el vehículo (La parte más crítica)
+                    Log.d("ProfileVM", "Borrando vehículo en Firestore...")
+                    vehicleRepository.deleteScooter(scooterId)
+
+                    Log.d("ProfileVM", "✅ Borrado completo en la nube.")
+
+                    // 5. Feedback y recarga (Solo si el VM sigue vivo, pero no da error si no)
+                    try {
+                        _uiState.update { state ->
+                            if (state is ProfileUiState.Success) {
+                                state.copy(message = "Vehículo eliminado correctamente")
+                            } else state
+                        }
+                        loadUserProfile()
+                    } catch (e: Exception) {
+                        // Ignoramos errores de UI si la pantalla ya se cerró
+                    }
+
                 } catch (e: Exception) {
-                    Log.e("ProfileVM", "Error borrando registros: ${e.message}")
-                }
-
-                // 3. Borrar rutas asociadas
-                try {
-                    routeRepository.deleteScooterRoutes(scooterId)
-                } catch (e: Exception) {
-                    Log.e("ProfileVM", "Error borrando rutas: ${e.message}")
-                }
-
-                // 4. Borrar el vehículo
-                vehicleRepository.deleteScooter(scooterId)
-
-                // 5. Feedback y recarga
-                _uiState.update { state ->
-                    if (state is ProfileUiState.Success) {
-                        state.copy(message = "Vehículo eliminado correctamente")
-                    } else state
-                }
-
-                // Recargar perfil para limpiar la lista
-                loadUserProfile()
-
-            } catch (e: Exception) {
-                _uiState.update { state ->
-                    if (state is ProfileUiState.Success) {
-                        state.copy(message = "Error al eliminar: ${e.message}")
-                    } else ProfileUiState.Error(e.message ?: "Error desconocido")
+                    Log.e("ProfileVM", "❌ Error CRÍTICO al eliminar: ${e.message}")
+                    // Si falla aquí, al menos el log queda registrado
                 }
             }
         }
@@ -834,16 +869,37 @@ class ProfileViewModel @Inject constructor(
         }
     }
 
-    private fun logout() {
+    // En ProfileViewModel.kt
+
+    // Cambiamos a 'public' (o sin modificador) y añadimos el callback
+    // En ProfileViewModel.kt
+
+    // Añadimos " = {}" al final.
+// Esto significa: "Si no me pasan nada, ejecuta una función vacía".
+    fun logout(onLogoutSuccess: () -> Unit = {}) {
         viewModelScope.launch {
             try {
-                auth.signOut()
-                _uiState.value = ProfileUiState.Success(
-                    user = User(),
-                    message = "Sesión cerrada correctamente"
-                )
+                // Usar authRepository.logout() que limpia las credenciales guardadas
+                // ANTES de hacer signOut() para evitar autologin inmediato
+                authRepository.logout()
+
+                // Ejecutamos el callback (si venía de handleEvent, no hará nada extra aquí,
+                // pero cerrará sesión en Firebase que es lo importante).
+                withContext(Dispatchers.Main) {
+                    onLogoutSuccess()
+                }
             } catch (e: Exception) {
-                _uiState.value = ProfileUiState.Error("Error al cerrar sesión: ${e.message}")
+                // Manejo de errores básico
+                Log.e("ProfileVM", "Error al cerrar sesión", e)
+                // Intentar limpiar credenciales aunque haya un error
+                try {
+                    authRepository.logout()
+                } catch (e2: Exception) {
+                    Log.e("ProfileVM", "Error al limpiar credenciales", e2)
+                }
+                withContext(Dispatchers.Main) {
+                    onLogoutSuccess()
+                }
             }
         }
     }

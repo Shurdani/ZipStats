@@ -7,6 +7,7 @@ import com.zipstats.app.model.VehicleType
 import com.zipstats.app.utils.DateUtils
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.FirebaseFirestoreException
 import com.google.firebase.firestore.Query
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
@@ -31,8 +32,42 @@ class VehicleRepository @Inject constructor(
             val subscription = vehiclesCollection
                 .whereEqualTo("userId", userId)
                 .addSnapshotListener { snapshot, error ->
+                    // Verificar primero si el usuario sigue autenticado
+                    val currentUser = auth.currentUser
+                    if (currentUser == null) {
+                        try {
+                            trySend(emptyList())
+                        } catch (e: Exception) {
+                            // Ignorar errores al enviar datos si el canal está cerrado
+                        }
+                        try {
+                            close()
+                        } catch (e: Exception) {
+                            // Ignorar errores si el canal ya está cerrado
+                        }
+                        return@addSnapshotListener
+                    }
+                    
                     if (error != null) {
+                        // Manejar PERMISSION_DENIED silenciosamente (típico al cerrar sesión)
+                        val isPermissionError = error is FirebaseFirestoreException &&
+                                error.code == FirebaseFirestoreException.Code.PERMISSION_DENIED
+                        
+                        if (isPermissionError || auth.currentUser == null) {
+                            android.util.Log.w("VehicleRepository", "Permiso denegado o usuario no autenticado (probablemente durante logout). Cerrando listener silenciosamente.")
+                            try {
+                                trySend(emptyList())
+                            } catch (e: Exception) {
+                                // Ignorar errores al enviar datos si el canal está cerrado
+                            }
+                            try {
+                                close()
+                            } catch (e: Exception) {
+                                // Ignorar errores si el canal ya está cerrado
+                            }
+                        } else {
                         close(error)
+                        }
                         return@addSnapshotListener
                     }
 
@@ -53,7 +88,23 @@ class VehicleRepository @Inject constructor(
                         )
                     } ?: emptyList()
 
+                    // Verificar nuevamente antes de enviar datos
+                    if (auth.currentUser == null) {
+                        try {
+                            trySend(emptyList())
+                            close()
+                        } catch (e: Exception) {
+                            // Ignorar errores si el canal está cerrado
+                        }
+                        return@addSnapshotListener
+                    }
+                    
+                    try {
                     trySend(vehicles)
+                    } catch (e: Exception) {
+                        // Ignorar errores si el canal está cerrado (puede ocurrir durante logout)
+                        android.util.Log.w("VehicleRepository", "Error al enviar vehículos (probablemente durante logout)", e)
+                    }
                 }
 
             awaitClose { subscription.remove() }
@@ -74,8 +125,42 @@ class VehicleRepository @Inject constructor(
             .whereEqualTo("userId", userId)
             .orderBy("date", Query.Direction.DESCENDING)
             .addSnapshotListener { snapshot, error ->
+                // Verificar primero si el usuario sigue autenticado
+                val currentUser = auth.currentUser
+                if (currentUser == null) {
+                    try {
+                        trySend(emptyList())
+                    } catch (e: Exception) {
+                        // Ignorar errores al enviar datos si el canal está cerrado
+                    }
+                    try {
+                        close()
+                    } catch (e: Exception) {
+                        // Ignorar errores si el canal ya está cerrado
+                    }
+                    return@addSnapshotListener
+                }
+                
                 if (error != null) {
+                    // Manejar PERMISSION_DENIED silenciosamente (típico al cerrar sesión)
+                    val isPermissionError = error is FirebaseFirestoreException &&
+                            error.code == FirebaseFirestoreException.Code.PERMISSION_DENIED
+                    
+                    if (isPermissionError || auth.currentUser == null) {
+                        android.util.Log.w("VehicleRepository", "Permiso denegado en getRecords o usuario no autenticado (probablemente durante logout). Cerrando listener silenciosamente.")
+                        try {
+                            trySend(emptyList())
+                        } catch (e: Exception) {
+                            // Ignorar errores al enviar datos si el canal está cerrado
+                        }
+                        try {
+                            close()
+                        } catch (e: Exception) {
+                            // Ignorar errores si el canal ya está cerrado
+                        }
+                    } else {
                     close(error)
+                    }
                     return@addSnapshotListener
                 }
 
@@ -83,7 +168,23 @@ class VehicleRepository @Inject constructor(
                     doc.toObject(Record::class.java)?.copy(id = doc.id)
                 } ?: emptyList()
 
+                // Verificar nuevamente antes de enviar datos
+                if (auth.currentUser == null) {
+                    try {
+                        trySend(emptyList())
+                        close()
+                    } catch (e: Exception) {
+                        // Ignorar errores si el canal está cerrado
+                    }
+                    return@addSnapshotListener
+                }
+                
+                try {
                 trySend(records)
+                } catch (e: Exception) {
+                    // Ignorar errores si el canal está cerrado (puede ocurrir durante logout)
+                    android.util.Log.w("VehicleRepository", "Error al enviar registros (probablemente durante logout)", e)
+                }
             }
 
         awaitClose { subscription.remove() }

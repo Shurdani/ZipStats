@@ -8,6 +8,7 @@ import com.zipstats.app.utils.LocationUtils
 import com.zipstats.app.utils.RouteAnalyzer
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.FirebaseFirestoreException
 import com.google.firebase.firestore.Query
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
@@ -268,9 +269,43 @@ class RouteRepository @Inject constructor(
             .whereEqualTo("userId", userId)
             .orderBy("startTime", Query.Direction.DESCENDING)
             .addSnapshotListener { snapshot, error ->
+                // Verificar primero si el usuario sigue autenticado
+                val currentUser = auth.currentUser
+                if (currentUser == null) {
+                    try {
+                        trySend(emptyList())
+                    } catch (e: Exception) {
+                        // Ignorar errores al enviar datos si el canal está cerrado
+                    }
+                    try {
+                        close()
+                    } catch (e: Exception) {
+                        // Ignorar errores si el canal ya está cerrado
+                    }
+                    return@addSnapshotListener
+                }
+                
                 if (error != null) {
+                    // Manejar PERMISSION_DENIED silenciosamente (típico al cerrar sesión)
+                    val isPermissionError = error is FirebaseFirestoreException &&
+                            error.code == FirebaseFirestoreException.Code.PERMISSION_DENIED
+                    
+                    if (isPermissionError || auth.currentUser == null) {
+                        Log.w(TAG, "Permiso denegado o usuario no autenticado (probablemente durante logout). Cerrando listener silenciosamente.")
+                        try {
+                            trySend(emptyList())
+                        } catch (e: Exception) {
+                            // Ignorar errores al enviar datos si el canal está cerrado
+                        }
+                        try {
+                            close()
+                        } catch (e: Exception) {
+                            // Ignorar errores si el canal ya está cerrado
+                        }
+                    } else {
                     Log.e(TAG, "Error en listener de rutas", error)
                     close(error)
+                    }
                     return@addSnapshotListener
                 }
                 
@@ -285,7 +320,24 @@ class RouteRepository @Inject constructor(
                         }
                     }
                     Log.d(TAG, "Rutas obtenidas (Flow): ${routes.size}")
+                    
+                    // Verificar nuevamente antes de enviar datos
+                    if (auth.currentUser == null) {
+                        try {
+                            trySend(emptyList())
+                            close()
+                        } catch (e: Exception) {
+                            // Ignorar errores si el canal está cerrado
+                        }
+                        return@addSnapshotListener
+                    }
+                    
+                    try {
                     trySend(routes)
+                    } catch (e: Exception) {
+                        // Ignorar errores si el canal está cerrado (puede ocurrir durante logout)
+                        Log.w(TAG, "Error al enviar rutas (probablemente durante logout)", e)
+                    }
                 }
             }
         

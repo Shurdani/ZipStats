@@ -1,12 +1,10 @@
 package com.zipstats.app.navigation
 
+// IMPORTANTE: Usamos la navegación estándar de Compose, no Accompanist si ya estamos en 2.8.5+
+// Si usas 2.8.5, 'AnimatedNavHost' ya es parte de 'androidx.navigation.compose.NavHost'
+// Pero si tu proyecto aún depende de Accompanist para algo, mantenlo.
+// Voy a asumir que usas la librería oficial androidx.navigation.compose.NavHost
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -21,6 +19,7 @@ import com.zipstats.app.ui.profile.ScootersManagementScreen
 import com.zipstats.app.ui.records.RecordsHistoryScreen
 import com.zipstats.app.ui.repairs.RepairsScreen
 import com.zipstats.app.ui.routes.RoutesScreen
+import com.zipstats.app.ui.splash.SplashScreen
 import com.zipstats.app.ui.statistics.StatisticsScreen
 import com.zipstats.app.ui.theme.ColorTheme
 import com.zipstats.app.ui.theme.ThemeMode
@@ -37,54 +36,23 @@ fun NavGraph(
     onDynamicColorChange: (Boolean) -> Unit,
     pureBlackOledEnabled: Boolean,
     onPureBlackOledChange: (Boolean) -> Unit,
-    authViewModel: com.zipstats.app.ui.auth.AuthViewModel
+    // authViewModel: com.zipstats.app.ui.auth.AuthViewModel // No se usa en el código, se puede quitar si quieres
 ) {
-    val authState by authViewModel.authState.collectAsState()
-    
-    // Determinar la pantalla de inicio basada en el estado de autenticación
-    val startDestination = when (authState) {
-        is com.zipstats.app.ui.auth.AuthState.Success -> Screen.Records.route
-        else -> Screen.Login.route
-    }
-    
-    // Usar remember y derivedStateOf para la navegación
-    val shouldNavigateToLogin = remember(authState) {
-        authState is com.zipstats.app.ui.auth.AuthState.Initial
-    }
-    
-    // Recordar el estado anterior para detectar transiciones
-    var previousAuthState by remember { mutableStateOf<com.zipstats.app.ui.auth.AuthState?>(null) }
-
-    // Navegar automáticamente según el estado de autenticación
-    LaunchedEffect(shouldNavigateToLogin) {
-        if (shouldNavigateToLogin) {
-            navController.navigate(Screen.Login.route) {
-                popUpTo(0) { inclusive = true }
-            }
-        }
-    }
-    
-    LaunchedEffect(authState) {
-        val previous = previousAuthState
-        previousAuthState = authState
-
-        if (authState is com.zipstats.app.ui.auth.AuthState.Success && previous !is com.zipstats.app.ui.auth.AuthState.Success) {
-            if (navController.currentDestination?.route != Screen.Records.route) {
-                navController.navigate(Screen.Records.route) {
-                    popUpTo(0) { inclusive = true }
-                }
-            }
-        }
-    }
-
+    // Usamos NavHost estándar (que soporta animaciones desde la versión 2.7.0+)
     NavHost(
         navController = navController,
-        startDestination = startDestination
+        startDestination = Screen.Splash.route
     ) {
-        composable(Screen.Login.route) {
+        // 1. Splash
+        composable(Screen.Splash.route) {
+            SplashScreen(navController = navController)
+        }
+
+        // 2. Login
+        composable(route = Screen.Login.route) {
             LoginScreen(
                 onLoginSuccess = {
-                    navController.navigate(Screen.Records.route) {
+                    navController.navigate(Screen.Routes.route) {
                         popUpTo(Screen.Login.route) { inclusive = true }
                     }
                 },
@@ -94,18 +62,20 @@ fun NavGraph(
             )
         }
 
-        composable(Screen.Register.route) {
+        // 3. Register
+        composable(route = Screen.Register.route) {
             RegisterScreen(
                 navController = navController,
                 onRegisterSuccess = {
-                    navController.navigate(Screen.Records.route) {
+                    navController.navigate(Screen.Routes.route) {
                         popUpTo(Screen.Login.route) { inclusive = true }
                     }
                 }
             )
         }
 
-        composable(Screen.EmailVerification.route) {
+        // 4. Email Verification
+        composable(route = Screen.EmailVerification.route) {
             EmailVerificationScreen(
                 onNavigateToLogin = {
                     navController.navigate(Screen.Login.route) {
@@ -115,29 +85,33 @@ fun NavGraph(
             )
         }
 
-        composable(Screen.Records.route) {
+        // 5. Records (Home)
+        composable(route = Screen.Records.route) {
             RecordsHistoryScreen(navController = navController)
         }
 
-        composable(Screen.Statistics.route) {
+        // 6. Statistics
+        composable(route = Screen.Statistics.route) {
             StatisticsScreen(navController = navController)
         }
 
-        composable(Screen.Routes.route) {
+        // 7. Routes
+        composable(route = Screen.Routes.route) {
             RoutesScreen(navController = navController)
         }
 
-        composable(
-            route = Screen.Repairs.route + "/{scooterId}"
-        ) { backStackEntry ->
+        // 8. Repairs
+        composable(route = Screen.Repairs.route + "/{scooterId}") { backStackEntry ->
             val scooterId = backStackEntry.arguments?.getString("scooterId") ?: ""
             RepairsScreen(navController = navController, scooterId = scooterId)
         }
 
-        composable(Screen.Achievements.route) {
+        // 9. Achievements
+        composable(route = Screen.Achievements.route) {
             AchievementsScreen(navController = navController)
         }
 
+        // 10. Profile (con argumentos)
         composable(
             route = "${Screen.Profile.route}?openAddVehicle={openAddVehicle}",
             arguments = listOf(
@@ -157,9 +131,9 @@ fun NavGraph(
                 openAddVehicleDialog = openAddVehicle
             )
         }
-        
-        // Ruta sin parámetros para mantener compatibilidad
-        composable(Screen.Profile.route) {
+
+        // 11. Profile (sin argumentos - compatibilidad)
+        composable(route = Screen.Profile.route) {
             ProfileScreen(
                 navController = navController,
                 currentThemeMode = currentThemeMode,
@@ -170,7 +144,8 @@ fun NavGraph(
             )
         }
 
-        composable(Screen.AccountSettings.route) {
+        // 12. Account Settings
+        composable(route = Screen.AccountSettings.route) {
             AccountSettingsScreen(
                 navController = navController,
                 currentThemeMode = currentThemeMode,
@@ -184,13 +159,13 @@ fun NavGraph(
             )
         }
 
-        composable(Screen.ScootersManagement.route) {
+        // 13. Scooters Management
+        composable(route = Screen.ScootersManagement.route) {
             ScootersManagementScreen(navController = navController)
         }
 
-        composable(
-            route = Screen.ScooterDetail.route + "/{scooterId}"
-        ) { backStackEntry ->
+        // 14. Scooter Detail
+        composable(route = Screen.ScooterDetail.route + "/{scooterId}") { backStackEntry ->
             val scooterId = backStackEntry.arguments?.getString("scooterId") ?: ""
             ScooterDetailScreen(
                 navController = navController,
@@ -198,15 +173,20 @@ fun NavGraph(
             )
         }
 
-        composable(Screen.Tracking.route) {
+        // 15. Tracking
+        composable(route = Screen.Tracking.route) {
             TrackingScreen(
                 onNavigateBack = {
                     navController.popBackStack()
                 },
                 onNavigateToRoutes = {
                     navController.navigate(Screen.Routes.route) {
-                        // Limpiar el stack de navegación para evitar volver a Tracking
-                        popUpTo(Screen.Tracking.route) { inclusive = true }
+                        // Limpiar historial hasta Routes
+                        popUpTo(Screen.Routes.route) {
+                            inclusive = true
+                            saveState = false
+                        }
+                        launchSingleTop = true
                     }
                 }
             )

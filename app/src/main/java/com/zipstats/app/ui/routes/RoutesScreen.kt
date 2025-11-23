@@ -1,7 +1,5 @@
 package com.zipstats.app.ui.routes
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,7 +18,6 @@ import androidx.compose.material.icons.filled.GpsFixed
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -39,7 +36,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -48,8 +44,13 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.zipstats.app.model.Route
 import com.zipstats.app.navigation.Screen
+import com.zipstats.app.ui.components.AnimatedFloatingActionButton
 import com.zipstats.app.ui.components.DialogCancelButton
 import com.zipstats.app.ui.components.DialogConfirmButton
+import com.zipstats.app.ui.components.EmptyStateRoutes
+import com.zipstats.app.ui.components.ExpandableRow
+import com.zipstats.app.ui.onboarding.OnboardingDialog
+import com.zipstats.app.ui.records.OnboardingViewModel
 import com.zipstats.app.ui.theme.DialogShape
 import com.zipstats.app.utils.DateUtils
 import java.time.Instant
@@ -59,7 +60,8 @@ import java.time.ZoneId
 @Composable
 fun RoutesScreen(
     navController: NavController,
-    viewModel: RoutesViewModel = hiltViewModel()
+    viewModel: RoutesViewModel = hiltViewModel(),
+    onboardingViewModel: OnboardingViewModel = hiltViewModel()
 ) {
     val routes by viewModel.routes.collectAsState()
     val userScooters by viewModel.userScooters.collectAsState()
@@ -71,12 +73,15 @@ fun RoutesScreen(
     var routeToDelete by remember { mutableStateOf<Route?>(null) }
     var routeToView by remember { mutableStateOf<Route?>(null) }
     var routeAddedToRecords by remember { mutableStateOf<Map<String, Boolean>>(emptyMap()) }
+    var showOnboardingDialog by remember { mutableStateOf(false) }
 
     // Estado de scroll único
     val listState = rememberLazyListState()
 
     // Variable para detectar nuevos registros y hacer scroll
     var previousRoutesSize by remember { mutableStateOf(routes.size) }
+    var isFilterChanging by remember { mutableStateOf(false) }
+    var isInitialLoad by remember { mutableStateOf(true) }
 
     // Filtrar rutas según el patinete seleccionado
     val filteredRoutes = when (selectedScooter) {
@@ -86,19 +91,30 @@ fun RoutesScreen(
         }
     }
 
+    // Detectar la primera carga completada
+    LaunchedEffect(uiState) {
+        if (uiState is RoutesUiState.Success && isInitialLoad) {
+            kotlinx.coroutines.delay(100) // Pequeño delay para asegurar que los datos se rendericen
+            isInitialLoad = false
+        }
+    }
+
+    // Detectar cambio de filtro para evitar flash del EmptyStateView
+    LaunchedEffect(selectedScooter) {
+        isFilterChanging = true
+        kotlinx.coroutines.delay(150) // Pequeño delay para evitar el flash
+        isFilterChanging = false
+        if (filteredRoutes.isNotEmpty()) {
+            listState.scrollToItem(0)
+        }
+    }
+
     // Scroll automático al añadir
     LaunchedEffect(routes.size) {
         if (routes.size > previousRoutesSize && filteredRoutes.isNotEmpty()) {
             listState.animateScrollToItem(0)
         }
         previousRoutesSize = routes.size
-    }
-
-    // Scroll al cambiar de pestaña
-    LaunchedEffect(selectedScooter) {
-        if (filteredRoutes.isNotEmpty()) {
-            listState.scrollToItem(0)
-        }
     }
 
     // Verificar si las rutas ya fueron añadidas a registros
@@ -163,10 +179,19 @@ fun RoutesScreen(
     }
 
     routeToView?.let { clickedRoute ->
-        val currentRoute = routes.find { it.id == clickedRoute.id } ?: clickedRoute
+        // Buscar la ruta actual en filteredRoutes primero, luego en routes como fallback
+        val sortedFilteredRoutes = filteredRoutes.sortedByDescending { it.startTime }
+        val currentRoute = sortedFilteredRoutes.find { it.id == clickedRoute.id } 
+            ?: routes.find { it.id == clickedRoute.id } 
+            ?: clickedRoute
         val isAddedToRecords = routeAddedToRecords[currentRoute.id] ?: false
         RouteDetailDialog(
             route = currentRoute,
+            allRoutes = sortedFilteredRoutes, // Ordenar por fecha descendente
+            onRouteChange = { newRoute ->
+                // Actualizar routeToView con la nueva ruta
+                routeToView = newRoute
+            },
             onDismiss = { routeToView = null },
             onDelete = {
                 routeToDelete = currentRoute
@@ -181,6 +206,18 @@ fun RoutesScreen(
             onShare = {
                 viewModel.shareRouteWithMap(currentRoute)
                 routeToView = null
+            }
+        )
+    }
+
+    if (showOnboardingDialog) {
+        OnboardingDialog(
+            onDismiss = {
+                showOnboardingDialog = false
+            },
+            onRegisterVehicle = {
+                showOnboardingDialog = false
+                navController.navigate("${Screen.Profile.route}?openAddVehicle=true")
             }
         )
     }
@@ -205,8 +242,19 @@ fun RoutesScreen(
             )
         },
         floatingActionButton = {
-            FloatingActionButton(
-                onClick = { navController.navigate(Screen.Tracking.route) },
+            AnimatedFloatingActionButton(
+                onClick = {
+                    // Verificar si hay vehículos antes de permitir iniciar ruta
+                    if (userScooters.isEmpty()) {
+                        showOnboardingDialog = true
+                    } else {
+                        navController.navigate(Screen.Tracking.route) {
+                            // No necesitamos hacer popUpTo aquí porque queremos mantener RoutesScreen
+                            // en la pila para poder volver si el usuario cancela
+                            launchSingleTop = true
+                        }
+                    }
+                },
                 containerColor = MaterialTheme.colorScheme.tertiary
             ) {
                 Icon(
@@ -263,13 +311,28 @@ fun RoutesScreen(
             Spacer(modifier = Modifier.height(8.dp))
 
             // Lista de rutas (Diseño moderno de 2 columnas)
-            if (isLoading) {
+            if (isLoading || isInitialLoad) {
                 Box(
                     modifier = Modifier.fillMaxWidth().weight(1f),
                     contentAlignment = Alignment.Center
                 ) {
                     CircularProgressIndicator()
                 }
+            } else if (filteredRoutes.isEmpty() && (routes.isEmpty() || !isFilterChanging)) {
+                // Estado vacío
+                EmptyStateRoutes(
+                    onStartRoute = {
+                        // Verificar si hay vehículos antes de permitir iniciar ruta
+                        if (userScooters.isEmpty()) {
+                            showOnboardingDialog = true
+                        } else {
+                            navController.navigate(Screen.Tracking.route) {
+                                launchSingleTop = true
+                            }
+                        }
+                    },
+                    modifier = Modifier.weight(1f)
+                )
             } else {
                 LazyColumn(
                     state = listState,
@@ -282,18 +345,15 @@ fun RoutesScreen(
                         key = { _, route -> route.id }
                     ) { index, route ->
                         Column {
-                            Row(
+                            ExpandableRow(
+                                onClick = { routeToView = route },
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .clickable { routeToView = route }
-                                    .background(
-                                        color = if (index % 2 == 0) {
-                                            Color.Transparent
-                                        } else {
-                                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
-                                        }
-                                    )
                                     .padding(horizontal = 16.dp, vertical = 12.dp),
+                                backgroundAlpha = if (index % 2 == 0) 0f else 0.3f
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
@@ -344,6 +404,7 @@ fun RoutesScreen(
                                         fontFamily = FontFamily.Monospace,
                                         modifier = Modifier.padding(top = 4.dp)
                                     )
+                                }
                                 }
                             }
                             HorizontalDivider(

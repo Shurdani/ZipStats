@@ -1,8 +1,8 @@
 package com.zipstats.app.ui.profile
 
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
-import androidx.compose.material.icons.filled.ChevronRight
 import android.provider.Settings
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
@@ -14,7 +14,18 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -24,6 +35,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.Android
 import androidx.compose.material.icons.filled.Camera
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
@@ -37,8 +49,30 @@ import androidx.compose.material.icons.filled.ScreenLockPortrait
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.outlined.AccountCircle
 import androidx.compose.material.icons.outlined.DeleteOutline
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -74,8 +108,10 @@ fun AccountSettingsScreen(
     viewModel: ProfileViewModel = hiltViewModel(),
     authViewModel: com.zipstats.app.ui.auth.AuthViewModel = hiltViewModel()
 ) {
-    val uiState by viewModel.uiState.collectAsState()
+
     val context = LocalContext.current
+    val uiState by viewModel.uiState.collectAsState()
+
     val settingsRepository = remember { SettingsRepository(context) }
     val permissionManager = remember { PermissionManager(context) }
     val keepScreenOnDuringTracking by settingsRepository.keepScreenOnDuringTrackingFlow.collectAsState(initial = false)
@@ -90,6 +126,24 @@ fun AccountSettingsScreen(
         permissionStates = permissionManager.getPermissionStates()
     }
 
+    // En ProfileScreen.kt o AccountSettingsScreen.kt
+
+    fun restartApp(context: Context) {
+        val packageManager = context.packageManager
+        val intent = packageManager.getLaunchIntentForPackage(context.packageName)
+
+        if (intent != null) {
+            // Estos flags son la clave:
+            // NEW_TASK: Empieza una tarea nueva.
+            // CLEAR_TASK: Borra TODA la historia anterior (mata las activities viejas).
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+
+            context.startActivity(intent)
+
+            // ❌ ELIMINADO: Runtime.getRuntime().exit(0)
+            // No matamos el proceso a lo bruto, dejamos que el sistema limpie.
+        }
+    }
     fun openAppSettings() {
         val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
             data = Uri.fromParts("package", context.packageName, null)
@@ -103,14 +157,6 @@ fun AccountSettingsScreen(
     var showLogoutDialog by remember { mutableStateOf(false) }
 
     val authState by authViewModel.authState.collectAsState()
-
-    LaunchedEffect(authState) {
-        if (authState is com.zipstats.app.ui.auth.AuthState.Initial) {
-            navController.navigate(Screen.Login.route) {
-                popUpTo(0) { inclusive = true }
-            }
-        }
-    }
 
     // --- DIÁLOGOS ---
     if (showEditNameDialog) {
@@ -155,8 +201,17 @@ fun AccountSettingsScreen(
             onDismiss = { showDeleteAccountDialog = false },
             onConfirm = {
                 viewModel.deleteAccount(
-                    onSuccess = { authViewModel.logout() },
-                    onError = { error -> Toast.makeText(context, error, Toast.LENGTH_SHORT).show() }
+                    onSuccess = {
+                        // ¡ESTO ES VITAL! Igual que en el logout
+                        navController.navigate(Screen.Login.route) {
+                            popUpTo(navController.graph.id)
+                            { inclusive = true } // Limpieza nuclear
+                            launchSingleTop = true
+                        }
+                    },
+                    onError = { mensaje ->
+                        // Mostrar error
+                    }
                 )
             }
         )
@@ -171,8 +226,11 @@ fun AccountSettingsScreen(
                 DialogDeleteButton(
                     text = "Cerrar sesión",
                     onClick = {
-                        authViewModel.logout()
-                        showLogoutDialog = false
+                        // Llamamos al ViewModel para que cierre en Firebase
+                        viewModel.logout {
+                            // En vez de navegar, REINICIAMOS LA APP
+                            restartApp(context)
+                        }
                     }
                 )
             },
@@ -300,9 +358,14 @@ fun AccountSettingsScreen(
                         // Paleta de Colores (Expandible)
                         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
 
+                        val paletteClickInteractionSource = remember { MutableInteractionSource() }
                         Box(
                             modifier = Modifier
-                                .clickable { isPaletteExpanded = !isPaletteExpanded }
+                                .clickable(
+                                    interactionSource = paletteClickInteractionSource,
+                                    indication = null,
+                                    onClick = { isPaletteExpanded = !isPaletteExpanded }
+                                )
                         ) {
                             Column {
                                 ListItem(
@@ -366,6 +429,7 @@ fun AccountSettingsScreen(
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                     shape = RoundedCornerShape(16.dp)
                 ) {
+                    val permissionsClickInteractionSource = remember { MutableInteractionSource() }
                     Column {
                         ListItem(
                             headlineContent = { Text("Permisos de la app") },
@@ -377,7 +441,11 @@ fun AccountSettingsScreen(
                                     contentDescription = null
                                 )
                             },
-                            modifier = Modifier.clickable { isPermissionsExpanded = !isPermissionsExpanded },
+                            modifier = Modifier.clickable(
+                                interactionSource = permissionsClickInteractionSource,
+                                indication = null,
+                                onClick = { isPermissionsExpanded = !isPermissionsExpanded }
+                            ),
                             colors = ListItemDefaults.colors(containerColor = Color.Transparent)
                         )
 
@@ -388,6 +456,7 @@ fun AccountSettingsScreen(
                         ) {
                             Column {
                                 allPermissions.forEach { permission ->
+                                    val permissionItemClickInteractionSource = remember { MutableInteractionSource() }
                                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
                                     ListItem(
                                         headlineContent = { Text(getPermissionDisplayName(permission.permission)) },
@@ -410,7 +479,11 @@ fun AccountSettingsScreen(
                                                 onCheckedChange = { openAppSettings() }
                                             )
                                         },
-                                        modifier = Modifier.clickable { openAppSettings() },
+                                        modifier = Modifier.clickable(
+                                            interactionSource = permissionItemClickInteractionSource,
+                                            indication = null,
+                                            onClick = { openAppSettings() }
+                                        ),
                                         colors = ListItemDefaults.colors(containerColor = Color.Transparent)
                                     )
                                 }
@@ -549,7 +622,12 @@ fun SettingsSwitchItem(
             )
         },
         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-        modifier = Modifier.clickable(enabled = enabled) { onCheckedChange(!checked) }
+        modifier = Modifier.clickable(
+            interactionSource = remember { MutableInteractionSource() },
+            indication = null,
+            enabled = enabled,
+            onClick = { onCheckedChange(!checked) }
+        )
     )
 }
 
@@ -561,6 +639,7 @@ fun SettingsActionItem(
     iconTint: Color = MaterialTheme.colorScheme.primary,
     textColor: Color = MaterialTheme.colorScheme.onSurface
 ) {
+    val actionClickInteractionSource = remember { MutableInteractionSource() }
     ListItem(
         headlineContent = {
             Text(
@@ -583,7 +662,11 @@ fun SettingsActionItem(
                 tint = MaterialTheme.colorScheme.onSurfaceVariant
             )
         },
-        modifier = Modifier.clickable(onClick = onClick),
+        modifier = Modifier.clickable(
+            interactionSource = actionClickInteractionSource,
+            indication = null,
+            onClick = onClick
+        ),
         colors = ListItemDefaults.colors(containerColor = Color.Transparent)
     )
 }
@@ -703,9 +786,15 @@ private fun ColorPaletteCard(
     enabled: Boolean = true,
     modifier: Modifier = Modifier
 ) {
+    val paletteCardClickInteractionSource = remember { MutableInteractionSource() }
     Card(
         modifier = modifier
-            .clickable(onClick = onClick, enabled = enabled)
+            .clickable(
+                interactionSource = paletteCardClickInteractionSource,
+                indication = null,
+                enabled = enabled,
+                onClick = onClick
+            )
             .then(if (selected && enabled) Modifier.border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(12.dp)) else Modifier),
         colors = CardDefaults.cardColors(
             containerColor = if (enabled) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)

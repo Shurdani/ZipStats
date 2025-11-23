@@ -2,6 +2,7 @@ package com.zipstats.app.ui.profile
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,13 +21,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Label
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.ElectricScooter
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Label
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.outlined.Build
 import androidx.compose.material3.AlertDialog
@@ -52,6 +53,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableDoubleStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -73,6 +75,8 @@ import com.zipstats.app.ui.components.DialogConfirmButton
 import com.zipstats.app.ui.components.DialogDeleteButton
 import com.zipstats.app.ui.components.StandardDatePickerDialogWithValidation
 import com.zipstats.app.utils.DateUtils
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import java.time.LocalDate
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -90,8 +94,10 @@ fun ScooterDetailScreen(
 
     val uiState by viewModel.uiState.collectAsState()
 
-    // Buscar el scooter específico en el estado cargado
+    val scope = rememberCoroutineScope() // Para lanzar la corrutina
     val scooter = (uiState as? ProfileUiState.Success)?.scooters?.find { it.id == scooterId }
+
+    var isDeleting by remember { mutableStateOf(false) } // Para bloquear la UI
 
     // Cargar datos adicionales
     LaunchedEffect(scooterId, scooter) {
@@ -206,23 +212,43 @@ fun ScooterDetailScreen(
     }
 
     // Diálogo de ELIMINACIÓN
+// Diálogo de ELIMINACIÓN (Versión Corregida)
     if (showDeleteDialog) {
         AlertDialog(
-            onDismissRequest = { showDeleteDialog = false },
+            onDismissRequest = { if (!isDeleting) showDeleteDialog = false }, // Bloquear cierre si borra
             title = { Text("Eliminar vehículo") },
-            text = { Text("¿Estás seguro? Se eliminará el vehículo y todo su historial de mantenimiento. Los registros de viaje se conservarán pero quedarán desvinculados.") },
+            text = { Text("¿Estás seguro? Se eliminará el vehículo y todo su historial de mantenimiento. Esta acción no se puede deshacer.") },
             confirmButton = {
                 DialogDeleteButton(
-                    text = "Eliminar",
+                    text = if (isDeleting) "Borrando..." else "Eliminar",
+                    // Si tu botón no soporta 'enabled', quita la siguiente línea
+                    // enabled = !isDeleting,
                     onClick = {
-                        viewModel.deleteScooter(scooterId)
-                        showDeleteDialog = false
-                        navController.navigateUp()
+                        if (isDeleting) return@DialogDeleteButton
+
+                        isDeleting = true // 1. Bloquear UI
+
+                        // 2. LANZAR CORRUTINA (Esto soluciona el error del delay)
+                        scope.launch {
+                            try {
+                                viewModel.deleteScooter(scooterId)
+
+                                delay(500) // Ahora sí funciona porque está dentro de launch {}
+
+                                showDeleteDialog = false
+                                navController.navigateUp()
+                            } catch (e: Exception) {
+                                isDeleting = false
+                                e.printStackTrace()
+                            }
+                        }
                     }
                 )
             },
             dismissButton = {
-                DialogCancelButton(text = "Cancelar", onClick = { showDeleteDialog = false })
+                if (!isDeleting) {
+                    DialogCancelButton(text = "Cancelar", onClick = { showDeleteDialog = false })
+                }
             }
         )
     }
@@ -381,7 +407,7 @@ fun VehicleSpecsSection(scooter: Scooter) {
                     .padding(16.dp),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                SpecItem(Icons.Default.Label, "Marca", scooter.marca)
+                SpecItem(Icons.AutoMirrored.Filled.Label, "Marca", scooter.marca)
                 VerticalDivider()
                 SpecItem(Icons.Default.Info, "Modelo", scooter.modelo)
                 VerticalDivider()
@@ -456,10 +482,15 @@ fun MaintenanceSection(
 
         Spacer(modifier = Modifier.height(4.dp))
 
+        val historyClickInteractionSource = remember { MutableInteractionSource() }
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .clickable(onClick = onHistoryClick),
+                .clickable(
+                    interactionSource = historyClickInteractionSource,
+                    indication = null,
+                    onClick = onHistoryClick
+                ),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
             shape = RoundedCornerShape(16.dp),
             border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))

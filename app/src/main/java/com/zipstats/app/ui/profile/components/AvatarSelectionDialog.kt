@@ -2,6 +2,7 @@ package com.zipstats.app.ui.profile.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -271,11 +272,16 @@ private fun CategoryChip(
     isSelected: Boolean,
     onClick: () -> Unit
 ) {
+    val categoryClickInteractionSource = remember { MutableInteractionSource() }
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .height(54.dp)
-            .clickable { onClick() },
+            .clickable(
+                interactionSource = categoryClickInteractionSource,
+                indication = null,
+                onClick = { onClick() }
+            ),
         colors = if (isSelected) {
             CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary)
         } else {
@@ -316,10 +322,15 @@ private fun AvatarItem(
     isSelected: Boolean,
     onClick: () -> Unit
 ) {
+    val avatarClickInteractionSource = remember { MutableInteractionSource() }
     Card(
         modifier = Modifier
             .size(50.dp)
-            .clickable { onClick() },
+            .clickable(
+                interactionSource = avatarClickInteractionSource,
+                indication = null,
+                onClick = { onClick() }
+            ),
         colors = if (isSelected) {
             CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary)
         } else {

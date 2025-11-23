@@ -23,8 +23,8 @@ android {
         applicationId "com.zipstats.app"
         minSdk 31
         targetSdk 34
-        versionCode 20
-        versionName "4.0"
+        versionCode 21
+        versionName "4.1"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -135,11 +135,14 @@ dependencies {
     implementation 'androidx.compose.ui:ui-tooling-preview'
     implementation 'androidx.compose.material3:material3'
     implementation 'androidx.activity:activity-compose:1.8.2'
-    implementation 'androidx.navigation:navigation-compose:2.9.5'
+    implementation 'androidx.navigation:navigation-compose:2.8.5'
     implementation 'androidx.navigation:navigation-runtime-ktx:2.9.5'
+    // Accompanist Navigation Animation para transiciones suaves
+    implementation 'com.google.accompanist:accompanist-navigation-animation:0.34.0'
 
     // --- Hilt (actualizado y compatible con Kotlin 2.2.20) ---
     implementation "com.google.dagger:hilt-android:2.57.2"
+    implementation libs.androidx.compose.ui
     kapt "com.google.dagger:hilt-compiler:2.57.2"
     implementation 'androidx.hilt:hilt-navigation-compose:1.2.0'
 

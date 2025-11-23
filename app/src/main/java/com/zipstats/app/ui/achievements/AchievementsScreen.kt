@@ -483,32 +483,27 @@ fun AchievementDetailDialog(
                 Spacer(modifier = Modifier.height(24.dp))
 
                 // La Medalla Gigante
-                // Aquí es donde iría tu imagen circular grande (image_e1e6be.jpg)
                 Surface(
                     shape = CircleShape,
-                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f),
-                    modifier = Modifier.size(160.dp)
+                    color = if (achievement.isUnlocked) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f) else Color.Transparent,
+                    modifier = Modifier.size(200.dp)
                 ) {
                     Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            imageVector = Icons.Default.EmojiEvents,
+                        Image(
+                            painter = painterResource(id = imageResId),
                             contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(80.dp)
+                            modifier = Modifier.size(160.dp),
+                            contentScale = ContentScale.Fit,
+                            alpha = if (achievement.isUnlocked) 1f else 0.3f,
+                            colorFilter = if (!achievement.isUnlocked) ColorFilter.tint(Color.Gray) else null
                         )
-                        // Si está bloqueado, filtro B/N
+                        // Si está bloqueado, mostrar candado superpuesto
                         if (!achievement.isUnlocked) {
-                            // Simular filtro gris superpuesto
-                            Box(
-                                modifier = Modifier
-                                    .matchParentSize()
-                                    .background(Color.White.copy(alpha = 0.6f))
-                            )
                             Icon(
                                 imageVector = Icons.Default.Lock,
-                                contentDescription = null,
+                                contentDescription = "Bloqueado",
                                 modifier = Modifier.size(48.dp),
-                                tint = MaterialTheme.colorScheme.onSurface
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }

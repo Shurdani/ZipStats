@@ -4,14 +4,12 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Canvas
-import android.graphics.Color
-import android.graphics.Paint
-import android.graphics.RectF
 import android.widget.Toast
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -78,6 +76,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.zIndex
+import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import com.zipstats.app.R
 import com.zipstats.app.model.Route
@@ -102,7 +101,9 @@ fun RouteDetailDialog(
     onDismiss: () -> Unit,
     onDelete: () -> Unit,
     onAddToRecords: (() -> Unit)? = null,
-    onShare: () -> Unit
+    onShare: () -> Unit,
+    allRoutes: List<Route> = emptyList(),
+    onRouteChange: ((Route) -> Unit)? = null
 ) {
     val context = LocalContext.current
     var googleMapRef by remember { mutableStateOf<com.google.android.gms.maps.GoogleMap?>(null) }
@@ -141,14 +142,18 @@ fun RouteDetailDialog(
     }
 
     Dialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = {
+            onDismiss()
+        },
         properties = DialogProperties(
             dismissOnBackPress = true,
             dismissOnClickOutside = true,
             usePlatformDefaultWidth = false
         )
     ) {
-        Box(modifier = Modifier.fillMaxSize()) {
+        Box(
+            modifier = Modifier.fillMaxSize()
+        ) {
             Card(
                 modifier = Modifier
                     .fillMaxSize()
@@ -156,14 +161,12 @@ fun RouteDetailDialog(
                 elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
                 shape = com.zipstats.app.ui.theme.DialogShape
             ) {
-                // --- FIX: Envolvemos todo el contenido de la Card en un BOX ---
                 Box(modifier = Modifier.fillMaxSize()) {
 
-                    // 1. La Columna con el contenido (Header, Mapa, Stats)
                     Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(12.dp)
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(12.dp)
                     ) {
                         // Header minimalista
                         Row(
@@ -204,11 +207,16 @@ fun RouteDetailDialog(
                             Spacer(modifier = Modifier.height(12.dp))
 
                             // Mapa compacto
+                            val mapClickInteractionSource = remember { MutableInteractionSource() }
                             Box(modifier = Modifier.fillMaxWidth()) {
                                 Card(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .clickable { showFullscreenMap = true },
+                                        .clickable(
+                                            interactionSource = mapClickInteractionSource,
+                                            indication = null,
+                                            onClick = { showFullscreenMap = true }
+                                        ),
                                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                                     elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
                                     shape = com.zipstats.app.ui.theme.SmallCardShape
@@ -245,7 +253,6 @@ fun RouteDetailDialog(
 
                             Spacer(modifier = Modifier.height(12.dp))
 
-                            // Stats Chips
                             StatsChips(
                                 route = route,
                                 onWeatherClick = { showWeatherDialog = true }
@@ -253,7 +260,6 @@ fun RouteDetailDialog(
 
                             Spacer(modifier = Modifier.height(12.dp))
 
-                            // Detalles avanzados
                             if (route.movingTime > 0 || route.pauseCount > 0) {
                                 CollapsibleAdvancedDetails(
                                     route = route,
@@ -262,12 +268,11 @@ fun RouteDetailDialog(
                                 )
                             }
 
-                            // Espacio extra para que los botones flotantes no tapen el contenido final
                             Spacer(modifier = Modifier.height(80.dp))
                         }
                     }
 
-                    // 2. Botones flotantes
+                    // Botones flotantes
                     Row(
                         modifier = Modifier
                             .align(Alignment.BottomEnd)
@@ -309,7 +314,6 @@ fun RouteDetailDialog(
             onMapReady = { googleMap ->
                 fullscreenMapRef = googleMap
                 if (isCapturingForShare && googleMap != null) {
-                    // Esperar un poco a que el mapa cargue tiles
                     android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
                         shareRouteWithRealMapAndClose(
                             route = route,
@@ -346,23 +350,16 @@ private fun FullscreenMapDialog(
         )
     ) {
         Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-            // 1. EL MAPA (FONDO)
             CapturableMapView(
                 route = route,
                 modifier = Modifier.fillMaxSize(),
                 onMapReady = { googleMap ->
-                    // --- FIX: PADDING PARA EL MAPA ---
-                    // Esto empuja el logo de Google y el CENTRO de la cámara hacia arriba.
-                    // 600 es un valor aproximado en píxeles para la altura de la tarjeta.
-                    // Puedes ajustarlo (500, 600, 700) según la densidad de pantalla.
+                    // PADDING PARA EL MAPA: Centra la ruta más arriba para dejar sitio a la tarjeta
                     googleMap.setPadding(0, 0, 0, 700)
-
-                    // Llamamos al callback original
                     onMapReady?.invoke(googleMap)
                 }
             )
 
-            // 2. BOTÓN CERRAR (ARRIBA DERECHA)
             Surface(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
@@ -382,10 +379,6 @@ private fun FullscreenMapDialog(
                 }
             }
 
-            // 3. LA TARJETA FLOTANTE MODERNA (ABAJO)
-            // Reemplazamos el AndroidView antiguo por el nuevo Composable TripDetailsOverlay
-            // Solo mostrar si NO estamos capturando para compartir (para compartir usamos lógica canvas aparte)
-            // O si prefieres que se vea siempre, simplemente déjalo.
             TripDetailsOverlay(
                 route = route,
                 modifier = Modifier
@@ -408,7 +401,6 @@ fun TripDetailsOverlay(
 ) {
     val tituloRuta = remember(route) { getRouteTitleText(route) }
 
-    // Fecha formateada
     val fechaFormateada = remember(route.startTime) {
         val date = java.time.LocalDate.ofEpochDay(route.startTime / (1000 * 60 * 60 * 24))
         val formatter = java.time.format.DateTimeFormatter.ofPattern("d 'de' MMMM, yyyy", java.util.Locale("es", "ES"))
@@ -418,26 +410,21 @@ fun TripDetailsOverlay(
     Card(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp), // Márgenes laterales
+            .padding(horizontal = 16.dp),
         shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(
-            // Mantenemos el oscuro elegante (0xFF1E1E1E) que se ve en tu captura
-            // Si quieres que cambie con el tema, usa MaterialTheme.colorScheme.surface
             containerColor = androidx.compose.ui.graphics.Color(0xFF1E1E1E).copy(alpha = 0.98f)
         ),
         elevation = CardDefaults.cardElevation(12.dp)
     ) {
         Column(
-            // Reducimos padding vertical para hacerla más compacta
             modifier = Modifier.padding(top = 20.dp, start = 20.dp, end = 20.dp, bottom = 16.dp)
         ) {
-            // --- FILA 1: TÍTULO Y BRANDING ---
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Top // Alineados arriba
+                verticalAlignment = Alignment.Top
             ) {
-                // Título (Izquierda)
                 Text(
                     text = tituloRuta,
                     style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
@@ -447,40 +434,34 @@ fun TripDetailsOverlay(
                     overflow = TextOverflow.Ellipsis
                 )
 
-                // Branding (Derecha) - BLANCO Y GRANDE
                 Text(
                     text = "ZipStats",
                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                    color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.9f), // Casi blanco puro
-                    modifier = Modifier.padding(top = 2.dp) // Pequeño ajuste óptico
+                    color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.9f),
+                    modifier = Modifier.padding(top = 2.dp)
                 )
             }
 
-            // Subtítulo (Vehículo)
             Text(
                 text = "${route.scooterName} • $fechaFormateada",
                 style = MaterialTheme.typography.bodyMedium,
                 color = androidx.compose.ui.graphics.Color.LightGray
             )
 
-            Spacer(modifier = Modifier.height(16.dp)) // Espacio reducido
+            Spacer(modifier = Modifier.height(16.dp))
 
-            // --- FILA 2: ESTADÍSTICAS ---
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                // Usamos iconos grandes y texto compacto
                 StatItemModern(Icons.Default.Straighten, String.format("%.1f km", route.totalDistance), "Distancia")
                 StatItemModern(Icons.Default.Timer, formatDurationWithUnits(route.totalDuration), "Tiempo")
                 StatItemModern(Icons.Default.Speed, String.format("%.1f km/h", route.averageSpeed), "Vel. Media")
             }
 
-            // --- FILA 3: CLIMA COMPACTO ---
             if (route.weatherTemperature != null) {
-                Spacer(modifier = Modifier.height(16.dp)) // Espacio reducido
+                Spacer(modifier = Modifier.height(16.dp))
 
-                // Fondo semitransparente para el clima
                 Surface(
                     shape = RoundedCornerShape(12.dp),
                     color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.08f),
@@ -525,13 +506,13 @@ private fun StatItemModern(icon: ImageVector, value: String, label: String) {
         Icon(
             imageVector = icon,
             contentDescription = null,
-            tint = androidx.compose.ui.graphics.Color(0xFF90CAF9), // Un azul claro bonito para modo oscuro
+            tint = androidx.compose.ui.graphics.Color(0xFF90CAF9),
             modifier = Modifier.size(22.dp)
         )
         Spacer(modifier = Modifier.height(4.dp))
         Text(
-            text = value, // "7.9 km"
-            style = MaterialTheme.typography.titleLarge.copy( // Hacemos el número grande
+            text = value,
+            style = MaterialTheme.typography.titleLarge.copy(
                 fontWeight = FontWeight.Bold,
                 fontFeatureSettings = "tnum"
             ),
@@ -546,9 +527,9 @@ private fun StatItemModern(icon: ImageVector, value: String, label: String) {
 }
 
 // -------------------------------------------------------------------------
-// COMPONENTES UI AUXILIARES RESTANTES
+// COMPONENTES UI AUXILIARES RESTANTES (CompactHeader, RouteTitle, StatsChips, etc.)
+// (Se mantienen iguales que antes, omites para brevedad si ya están)
 // -------------------------------------------------------------------------
-
 @Composable
 private fun CompactHeader(route: Route, vehicleIconRes: Int, vehicleName: String) {
     Row(
@@ -607,6 +588,7 @@ private fun RouteTitle(route: Route) {
 
 @Composable
 private fun StatsChips(route: Route, onWeatherClick: () -> Unit) {
+    val weatherClickInteractionSource = remember { MutableInteractionSource() }
     var weatherIconRes by remember(route.id) { mutableStateOf(getWeatherIconResId(route.weatherEmoji, route.weatherIsDay)) }
     var weatherTemp by remember(route.id) { mutableStateOf(if (route.weatherTemperature != null) String.format("%.0f°C", route.weatherTemperature) else "--°C") }
     var isLoadingWeather by remember(route.id) { mutableStateOf(false) }
@@ -645,7 +627,12 @@ private fun StatsChips(route: Route, onWeatherClick: () -> Unit) {
             value = if (isLoadingWeather) "..." else weatherTemp,
             label = "Clima",
             iconRes = weatherIconRes,
-            modifier = Modifier.weight(1f).clickable(onClick = onWeatherClick, enabled = route.weatherTemperature != null)
+            modifier = Modifier.weight(1f).clickable(
+                interactionSource = weatherClickInteractionSource,
+                indication = null,
+                enabled = route.weatherTemperature != null,
+                onClick = onWeatherClick
+            )
         )
     }
 }
@@ -679,6 +666,7 @@ private fun StatChip(value: String, label: String, iconRes: Int? = null, modifie
 
 @Composable
 private fun CollapsibleAdvancedDetails(route: Route, expanded: Boolean, onToggle: () -> Unit) {
+    val toggleInteractionSource = remember { MutableInteractionSource() }
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
@@ -686,7 +674,11 @@ private fun CollapsibleAdvancedDetails(route: Route, expanded: Boolean, onToggle
     ) {
         Column {
             Row(
-                modifier = Modifier.fillMaxWidth().clickable { onToggle() }.padding(16.dp),
+                modifier = Modifier.fillMaxWidth().clickable(
+                    interactionSource = toggleInteractionSource,
+                    indication = null,
+                    onClick = { onToggle() }
+                ).padding(16.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -786,7 +778,7 @@ private fun WeatherDetailRow(icon: ImageVector, label: String, value: String) {
 }
 
 // -------------------------------------------------------------------------
-// LÓGICA DE GENERACIÓN DE IMAGEN (CANVAS MANUAL)
+// LÓGICA DE GENERACIÓN DE IMAGEN (CANVAS MANUAL - ESTILO MODERNO v2.0)
 // -------------------------------------------------------------------------
 
 private fun shareRouteWithRealMapAndClose(
@@ -795,31 +787,51 @@ private fun shareRouteWithRealMapAndClose(
     context: Context,
     onComplete: () -> Unit
 ) {
-    googleMap.snapshot { snapshotBitmap ->
-        if (snapshotBitmap == null) {
-            Toast.makeText(context, "Error al capturar mapa", Toast.LENGTH_SHORT).show()
-            onComplete()
-            return@snapshot
-        }
-        CoroutineScope(Dispatchers.Main).launch {
-            try {
-                // 1. Crear imagen final dibujando la tarjeta manualmente
-                val finalBitmap = withContext(Dispatchers.IO) {
-                    createFinalRouteImageFromFullscreenCanvas(route, snapshotBitmap)
-                }
+    try {
+        android.util.Log.d("RouteDetailDialog", "=== INICIO COMPARTIR ===")
+        Toast.makeText(context, "Generando imagen...", Toast.LENGTH_SHORT).show()
+        
+        android.util.Log.d("RouteDetailDialog", "Capturando snapshot del mapa...")
+        googleMap.snapshot { snapshotBitmap ->
+            android.util.Log.d("RouteDetailDialog", "Snapshot capturado: ${snapshotBitmap != null}, width=${snapshotBitmap?.width}, height=${snapshotBitmap?.height}")
+            
+            if (snapshotBitmap == null) {
+                Toast.makeText(context, "Error al capturar el mapa", Toast.LENGTH_SHORT).show()
+                onComplete()
+                return@snapshot
+            }
 
-                // 2. Guardar y compartir
-                shareBitmap(context, finalBitmap, route)
-                onComplete()
-            } catch (e: Exception) {
-                Toast.makeText(context, "Error: ${e.message}", Toast.LENGTH_SHORT).show()
-                onComplete()
+            CoroutineScope(Dispatchers.Main).launch {
+                try {
+                    android.util.Log.d("RouteDetailDialog", "Creando imagen final...")
+                    val finalBitmap = withContext(Dispatchers.IO) {
+                        createFinalRouteImageFromFullscreenCanvas(context, route, snapshotBitmap)
+                    }
+                    android.util.Log.d("RouteDetailDialog", "Imagen final creada: width=${finalBitmap.width}, height=${finalBitmap.height}")
+                    
+                    android.util.Log.d("RouteDetailDialog", "Compartiendo imagen...")
+                    shareBitmap(context, finalBitmap, route)
+                    android.util.Log.d("RouteDetailDialog", "=== FIN COMPARTIR ===")
+                    
+                    onComplete()
+                } catch (e: Exception) {
+                    android.util.Log.e("RouteDetailDialog", "Error al procesar imagen: ${e.message}", e)
+                    Toast.makeText(context, "Error al procesar imagen: ${e.message}", Toast.LENGTH_SHORT).show()
+                    e.printStackTrace()
+                    onComplete()
+                }
             }
         }
+    } catch (e: Exception) {
+        android.util.Log.e("RouteDetailDialog", "Error al compartir: ${e.message}", e)
+        Toast.makeText(context, "Error al compartir: ${e.message}", Toast.LENGTH_SHORT).show()
+        e.printStackTrace()
+        onComplete()
     }
 }
 
-private fun createFinalRouteImageFromFullscreenCanvas(
+private suspend fun createFinalRouteImageFromFullscreenCanvas(
+    context: Context,
     route: Route,
     mapBitmap: Bitmap
 ): Bitmap {
@@ -828,105 +840,90 @@ private fun createFinalRouteImageFromFullscreenCanvas(
     val finalBitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
     val canvas = Canvas(finalBitmap)
 
-    // 1. Dibujar mapa
+    // 1. Dibujar mapa de fondo
     canvas.drawBitmap(mapBitmap, 0f, 0f, null)
 
-    // 2. Dibujar Tarjeta Oscura (Overlay)
-    drawShareCardOnCanvas(canvas, route, width, height)
+    // 2. Inflar y configurar la tarjeta XML
+    val inflater = android.view.LayoutInflater.from(context)
+    val cardView = inflater.inflate(R.layout.share_route_stats_card, null) as androidx.cardview.widget.CardView
+    
+    // Configurar la tarjeta con los datos de la ruta
+    configurarTarjetaCompartir(cardView, route, context)
+    
+    // Medir y renderizar la tarjeta
+    val cardWidth = width - 64 // Márgenes de 32dp a cada lado
+    val measureSpec = android.view.View.MeasureSpec.makeMeasureSpec(cardWidth, android.view.View.MeasureSpec.EXACTLY)
+    cardView.measure(measureSpec, android.view.View.MeasureSpec.UNSPECIFIED)
+    
+    val cardHeight = cardView.measuredHeight
+    val cardX = 32
+    val cardY = height - cardHeight - 32 // Anclar al borde inferior
+    
+    cardView.layout(0, 0, cardView.measuredWidth, cardHeight)
+    
+    // Dibujar la tarjeta en el canvas
+    canvas.save()
+    canvas.translate(cardX.toFloat(), cardY.toFloat())
+    cardView.draw(canvas)
+    canvas.restore()
 
     return finalBitmap
 }
 
-private fun drawShareCardOnCanvas(canvas: Canvas, route: Route, width: Int, height: Int) {
-    // Configuración de dimensiones
-    val margin = 40f
-    val cardHeight = 450f // Altura aproximada de la tarjeta
-    val cardWidth = width - (margin * 2)
-    val cardX = margin
-    val cardY = height - cardHeight - margin * 2 // Margen inferior
-
-    // Paints
-    val bgPaint = Paint().apply {
-        color = Color.parseColor("#CC1E1E1E") // Gris oscuro casi negro con transparencia (CC = 80%)
-        style = Paint.Style.FILL
-        isAntiAlias = true
-    }
-
-    val titlePaint = Paint().apply {
-        color = Color.WHITE
-        textSize = 56f
-        isFakeBoldText = true
-        isAntiAlias = true
-    }
-
-    val subtitlePaint = Paint().apply {
-        color = Color.LTGRAY
-        textSize = 36f
-        isAntiAlias = true
-    }
-
-    val valuePaint = Paint().apply {
-        color = Color.WHITE
-        textSize = 64f // Grande para los números
-        isFakeBoldText = true
-        isAntiAlias = true
-    }
-
-    val labelPaint = Paint().apply {
-        color = Color.LTGRAY
-        textSize = 32f
-        isAntiAlias = true
-    }
-
-    val brandPaint = Paint().apply {
-        color = Color.GRAY
-        textSize = 30f
-        isAntiAlias = true
-        textAlign = Paint.Align.RIGHT
-    }
-
-    // Dibujar fondo tarjeta redondeada
-    val rect = RectF(cardX, cardY, cardX + cardWidth, cardY + cardHeight)
-    canvas.drawRoundRect(rect, 40f, 40f, bgPaint)
-
-    // --- CONTENIDO ---
-    var cursorY = cardY + 80f
-    val paddingX = cardX + 50f
-
-    // 1. Título (Origen -> Destino o Paseo)
+private suspend fun configurarTarjetaCompartir(
+    cardView: androidx.cardview.widget.CardView,
+    route: Route,
+    context: Context
+) {
+    // Configurar título de la ruta
     val routeTitle = getRouteTitleText(route)
-    canvas.drawText(routeTitle, paddingX, cursorY, titlePaint)
-
-    // Branding a la derecha
-    canvas.drawText("ZipStats", cardX + cardWidth - 50f, cursorY, brandPaint)
-
-    cursorY += 60f
-
-    // 2. Subtítulo (Vehículo | Fecha)
-    val dateStr = SimpleDateFormat("d MMMM yyyy", Locale.getDefault()).format(Date(route.startTime))
-    canvas.drawText("${route.scooterName} • $dateStr", paddingX, cursorY, subtitlePaint)
-
-    cursorY += 120f
-
-    // 3. Métricas (Columnas)
-    // Distancia
-    canvas.drawText(String.format("%.1f km", route.totalDistance), paddingX, cursorY, valuePaint)
-    canvas.drawText("Distancia", paddingX, cursorY + 50f, labelPaint)
-
-    // Tiempo
-    val col2X = paddingX + 350f
-    canvas.drawText(formatDurationShort(route.totalDuration), col2X, cursorY, valuePaint)
-    canvas.drawText("Duración", col2X, cursorY + 50f, labelPaint)
-
-    // Clima (si hay)
-    if (route.weatherTemperature != null) {
-        val col3X = paddingX + 700f
-        canvas.drawText("${String.format("%.0f", route.weatherTemperature)}°C", col3X, cursorY, valuePaint)
-        canvas.drawText("Clima", col3X, cursorY + 50f, labelPaint)
+    cardView.findViewById<android.widget.TextView>(R.id.routeTitle).text = routeTitle
+    
+    // Configurar métricas
+    cardView.findViewById<android.widget.TextView>(R.id.distanceValue).text = 
+        String.format("%.1f km", route.totalDistance)
+    cardView.findViewById<android.widget.TextView>(R.id.timeValue).text = 
+        formatDurationWithUnits(route.totalDuration)
+    cardView.findViewById<android.widget.TextView>(R.id.speedValue).text = 
+        String.format("%.1f km/h", route.averageSpeed)
+    
+    // Configurar clima si está disponible
+    if (route.weatherEmoji != null && route.weatherTemperature != null) {
+        val weatherIconRes = getWeatherIconResId(route.weatherEmoji, route.weatherIsDay)
+        cardView.findViewById<android.widget.ImageView>(R.id.weatherIcon).setImageResource(weatherIconRes)
+        cardView.findViewById<android.widget.ImageView>(R.id.weatherIcon).setColorFilter(android.graphics.Color.WHITE)
+        cardView.findViewById<android.widget.TextView>(R.id.weatherTemp).text = 
+            String.format("%.0f°C", route.weatherTemperature)
+        cardView.findViewById<android.widget.LinearLayout>(R.id.weatherContainer).visibility = android.view.View.VISIBLE
+    } else {
+        cardView.findViewById<android.widget.LinearLayout>(R.id.weatherContainer).visibility = android.view.View.GONE
+    }
+    
+    // Configurar icono del vehículo
+    val vehicle = getVehicleById(route.scooterId)
+    val vehicleIconRes = getVehicleIconResource(vehicle?.vehicleType)
+    cardView.findViewById<android.widget.ImageView>(R.id.vehicleIcon).setImageResource(vehicleIconRes)
+    
+    // Configurar información del vehículo y fecha
+    val vehicleInfoText = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+        val date = java.time.LocalDate.ofEpochDay(route.startTime / (1000 * 60 * 60 * 24))
+        val dateFormatter = java.time.format.DateTimeFormatter.ofPattern("d 'de' MMMM 'de' yyyy", java.util.Locale.forLanguageTag("es-ES"))
+        "${route.scooterName} | ${date.format(dateFormatter)}"
+    } else {
+        val simpleDateFormat = java.text.SimpleDateFormat("d 'de' MMMM 'de' yyyy", java.util.Locale.forLanguageTag("es-ES"))
+        "${route.scooterName} | ${simpleDateFormat.format(java.util.Date(route.startTime))}"
+    }
+    cardView.findViewById<android.widget.TextView>(R.id.vehicleInfo).text = vehicleInfoText
+    
+    // Eliminar el logo de ZipStats si existe
+    try {
+        cardView.findViewById<android.widget.TextView>(R.id.zipstatsBranding)?.setCompoundDrawables(null, null, null, null)
+    } catch (e: Exception) {
+        // Ignorar si no existe
     }
 }
 
-// Helper para título en canvas
+// Helper para título en canvas (ya no se usa pero lo mantengo por compatibilidad)
 private fun getRouteTitleText(route: Route): String {
     if (route.notes.isNotBlank()) return route.notes
     if (route.points.isEmpty()) return "Mi paseo"
@@ -943,9 +940,25 @@ private fun getRouteTitleText(route: Route): String {
     }
 }
 
-// -------------------------------------------------------------------------
-// HELPERS DE UTILIDAD
-// -------------------------------------------------------------------------
+// Función obsoleta eliminada - ahora usamos layout XML
+
+// Helper vital para convertir Vectores (XML) a Bitmaps que el Canvas entienda
+private fun getBitmapFromVectorDrawable(context: Context, drawableId: Int): Bitmap? {
+    val drawable = ContextCompat.getDrawable(context, drawableId) ?: return null
+
+    // Si es VectorDrawable, necesitamos envolverlo
+    val bitmap = Bitmap.createBitmap(
+        drawable.intrinsicWidth.takeIf { it > 0 } ?: 512,
+        drawable.intrinsicHeight.takeIf { it > 0 } ?: 512,
+        Bitmap.Config.ARGB_8888
+    )
+    val canvas = Canvas(bitmap)
+    drawable.setBounds(0, 0, canvas.width, canvas.height)
+    drawable.draw(canvas)
+    return bitmap
+}
+
+
 
 private fun shareBitmap(context: Context, bitmap: Bitmap, route: Route) {
     try {

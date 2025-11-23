@@ -33,7 +33,9 @@ class AuthRepository @Inject constructor(
         private const val KEY_USER_PASSWORD = "user_password"
         private const val KEY_IS_LOGGED_IN = "is_logged_in"
         private const val KEY_LAST_LOGIN = "last_login"
+        private const val KEY_LOGOUT_TIMESTAMP = "logout_timestamp"
         private const val DAYS_UNTIL_SESSION_EXPIRY = 30L
+        private const val LOGOUT_GRACE_PERIOD_MS = 5000L // 5 segundos después del logout, no hacer autologin
     }
 
     init {
@@ -64,6 +66,7 @@ class AuthRepository @Inject constructor(
                 putString(KEY_USER_PASSWORD, password)
                 putBoolean(KEY_IS_LOGGED_IN, true)
                 putLong(KEY_LAST_LOGIN, System.currentTimeMillis())
+                remove(KEY_LOGOUT_TIMESTAMP) // Limpiar timestamp de logout al hacer login
                 apply()
             }
             
@@ -94,6 +97,7 @@ class AuthRepository @Inject constructor(
                 putString(KEY_USER_PASSWORD, password)
                 putBoolean(KEY_IS_LOGGED_IN, true)
                 putLong(KEY_LAST_LOGIN, System.currentTimeMillis())
+                remove(KEY_LOGOUT_TIMESTAMP) // Limpiar timestamp de logout al registrarse
                 apply()
             }
             
@@ -111,6 +115,9 @@ class AuthRepository @Inject constructor(
     }
 
     fun logout() {
+        // Guardar timestamp del logout para prevenir autologin inmediato
+        val logoutTimestamp = System.currentTimeMillis()
+        
         auth.signOut()
         // Limpiar credenciales guardadas
         sharedPreferences.edit().apply {
@@ -118,11 +125,28 @@ class AuthRepository @Inject constructor(
             remove(KEY_USER_PASSWORD)
             putBoolean(KEY_IS_LOGGED_IN, false)
             remove(KEY_LAST_LOGIN)
+            putLong(KEY_LOGOUT_TIMESTAMP, logoutTimestamp)
             apply()
         }
     }
 
     suspend fun autoSignIn(): Result<FirebaseUser> {
+        // Verificar si se hizo logout recientemente (dentro del período de gracia)
+        val logoutTimestamp = sharedPreferences.getLong(KEY_LOGOUT_TIMESTAMP, 0)
+        val currentTime = System.currentTimeMillis()
+        val timeSinceLogout = currentTime - logoutTimestamp
+        
+        if (logoutTimestamp > 0 && timeSinceLogout < LOGOUT_GRACE_PERIOD_MS) {
+            // Se hizo logout recientemente, no intentar autologin
+            android.util.Log.d("AuthRepository", "Logout reciente detectado (${timeSinceLogout}ms). Evitando autologin.")
+            return Result.failure(Exception("Logout reciente"))
+        }
+        
+        // Limpiar el timestamp de logout si ha pasado el período de gracia
+        if (logoutTimestamp > 0 && timeSinceLogout >= LOGOUT_GRACE_PERIOD_MS) {
+            sharedPreferences.edit().remove(KEY_LOGOUT_TIMESTAMP).apply()
+        }
+        
         // Si ya hay un usuario autenticado y está marcado como logged in, retornarlo
         val currentUser = auth.currentUser
         if (isLoggedIn && currentUser != null) {
@@ -140,6 +164,7 @@ class AuthRepository @Inject constructor(
                 sharedPreferences.edit()
                     .putLong(KEY_LAST_LOGIN, currentTime)
                     .putBoolean(KEY_IS_LOGGED_IN, true)
+                    .remove(KEY_LOGOUT_TIMESTAMP) // Limpiar timestamp de logout
                     .apply()
                 return Result.success(currentUser)
             } else {
@@ -153,7 +178,6 @@ class AuthRepository @Inject constructor(
         val email = sharedPreferences.getString(KEY_USER_EMAIL, null)
         val password = sharedPreferences.getString(KEY_USER_PASSWORD, null)
         val lastLogin = sharedPreferences.getLong(KEY_LAST_LOGIN, 0)
-        val currentTime = System.currentTimeMillis()
         val isSessionValid = (currentTime - lastLogin) < DAYS_UNTIL_SESSION_EXPIRY * 24 * 60 * 60 * 1000
 
         return if (email != null && password != null && isSessionValid) {
@@ -163,6 +187,7 @@ class AuthRepository @Inject constructor(
                 sharedPreferences.edit()
                     .putLong(KEY_LAST_LOGIN, currentTime)
                     .putBoolean(KEY_IS_LOGGED_IN, true)
+                    .remove(KEY_LOGOUT_TIMESTAMP) // Limpiar timestamp de logout
                     .apply()
                 Result.success(result.user!!)
             } catch (e: Exception) {
@@ -242,6 +267,7 @@ class AuthRepository @Inject constructor(
             sharedPreferences.edit().apply {
                 putBoolean(KEY_IS_LOGGED_IN, true)
                 putLong(KEY_LAST_LOGIN, System.currentTimeMillis())
+                remove(KEY_LOGOUT_TIMESTAMP) // Limpiar timestamp de logout
                 // Guardar el email si existe para futuras referencias
                 result.user?.email?.let {
                     putString(KEY_USER_EMAIL, it)
@@ -285,6 +311,7 @@ class AuthRepository @Inject constructor(
                                 sharedPreferences.edit().apply {
                                     putBoolean(KEY_IS_LOGGED_IN, true)
                                     putLong(KEY_LAST_LOGIN, System.currentTimeMillis())
+                                    remove(KEY_LOGOUT_TIMESTAMP) // Limpiar timestamp de logout
                                     putString(KEY_USER_EMAIL, finalEmail)
                                     // Mantener password guardada para futuros logins
                                     apply()
@@ -341,6 +368,7 @@ class AuthRepository @Inject constructor(
             sharedPreferences.edit().apply {
                 putBoolean(KEY_IS_LOGGED_IN, true)
                 putLong(KEY_LAST_LOGIN, System.currentTimeMillis())
+                remove(KEY_LOGOUT_TIMESTAMP) // Limpiar timestamp de logout
                 // Mantener email y password guardados para que puedan usar ambos métodos
                 if (email != null) {
                     putString(KEY_USER_EMAIL, email)

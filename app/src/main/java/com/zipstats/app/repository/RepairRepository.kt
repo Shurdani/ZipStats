@@ -2,6 +2,7 @@ package com.zipstats.app.repository
 
 import com.zipstats.app.model.Repair
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.FirebaseFirestoreException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.tasks.await
@@ -21,7 +22,25 @@ class RepairRepository @Inject constructor(
             .whereEqualTo("vehicleId", vehicleId)
             .addSnapshotListener { snapshot, e ->
                 if (e != null) {
+                    // Manejar PERMISSION_DENIED silenciosamente (típico al cerrar sesión)
+                    val isPermissionError = e is FirebaseFirestoreException &&
+                            e.code == FirebaseFirestoreException.Code.PERMISSION_DENIED
+                    
+                    if (isPermissionError) {
+                        android.util.Log.w("RepairRepository", "Permiso denegado (probablemente durante logout). Cerrando listener silenciosamente.")
+                        try {
+                            trySend(emptyList())
+                        } catch (ex: Exception) {
+                            // Ignorar errores al enviar datos si el canal está cerrado
+                        }
+                        try {
+                            close()
+                        } catch (ex: Exception) {
+                            // Ignorar errores si el canal ya está cerrado
+                        }
+                    } else {
                     close(e)
+                    }
                     return@addSnapshotListener
                 }
                 
@@ -60,7 +79,12 @@ class RepairRepository @Inject constructor(
                     }
                     // Ordenar en memoria por fecha descendente para evitar índice compuesto
                     val sorted = repairs.sortedByDescending { it.date }
-                    trySend(sorted).isSuccess
+                    try {
+                        trySend(sorted)
+                    } catch (ex: Exception) {
+                        // Ignorar errores si el canal está cerrado (puede ocurrir durante logout)
+                        android.util.Log.w("RepairRepository", "Error al enviar reparaciones (probablemente durante logout)", ex)
+                    }
                 }
             }
         awaitClose { registration.remove() }

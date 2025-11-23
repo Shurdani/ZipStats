@@ -4,6 +4,7 @@ import com.zipstats.app.model.Avatar
 import com.zipstats.app.model.User
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.FirebaseFirestoreException
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
@@ -103,14 +104,53 @@ class UserRepository @Inject constructor(
         
         val subscription = usersCollection.document(userId)
             .addSnapshotListener { snapshot, error ->
+                // Verificar primero si el usuario sigue autenticado
+                val currentUser = auth.currentUser
+                if (currentUser == null) {
+                    try {
+                        close()
+                    } catch (e: Exception) {
+                        // Ignorar errores si el canal ya está cerrado
+                    }
+                    return@addSnapshotListener
+                }
+                
                 if (error != null) {
+                    // Manejar PERMISSION_DENIED silenciosamente (típico al cerrar sesión)
+                    val isPermissionError = error is FirebaseFirestoreException &&
+                            error.code == FirebaseFirestoreException.Code.PERMISSION_DENIED
+                    
+                    if (isPermissionError || auth.currentUser == null) {
+                        android.util.Log.w("UserRepository", "Permiso denegado o usuario no autenticado (probablemente durante logout). Cerrando listener silenciosamente.")
+                        try {
+                            close()
+                        } catch (e: Exception) {
+                            // Ignorar errores si el canal ya está cerrado
+                        }
+                    } else {
                     close(error)
+                    }
                     return@addSnapshotListener
                 }
 
                 val user = snapshot?.toObject(User::class.java)
                 if (user != null) {
+                    // Verificar nuevamente antes de enviar datos
+                    if (auth.currentUser == null) {
+                        try {
+                            close()
+                        } catch (e: Exception) {
+                            // Ignorar errores si el canal está cerrado
+                        }
+                        return@addSnapshotListener
+                    }
+                    
+                    try {
                     trySend(user)
+                    } catch (e: Exception) {
+                        // Ignorar errores si el canal está cerrado (puede ocurrir durante logout)
+                        android.util.Log.w("UserRepository", "Error al enviar perfil de usuario (probablemente durante logout)", e)
+                    }
                 }
             }
 

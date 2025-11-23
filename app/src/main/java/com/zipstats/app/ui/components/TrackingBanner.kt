@@ -12,6 +12,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -30,6 +31,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -80,6 +82,7 @@ private fun TrackingBannerContent(
     onBannerClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val bannerClickInteractionSource = remember { MutableInteractionSource() }
     // Animación del icono de GPS (pulsante cuando está grabando)
     val infiniteTransition = rememberInfiniteTransition(label = "gps_pulse")
     val alpha by infiniteTransition.animateFloat(
@@ -107,7 +110,11 @@ private fun TrackingBannerContent(
     Card(
         modifier = modifier
             .fillMaxWidth()
-            .clickable(onClick = onBannerClick),
+            .clickable(
+                interactionSource = bannerClickInteractionSource,
+                indication = null,
+                onClick = onBannerClick
+            ),
         colors = CardDefaults.cardColors(
             containerColor = backgroundColor
         ),

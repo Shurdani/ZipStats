@@ -32,6 +32,8 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.zipstats.app.model.Repair
 import com.zipstats.app.model.Scooter
+import com.zipstats.app.ui.components.AnimatedFloatingActionButton
+import com.zipstats.app.ui.components.EmptyStateRepairs
 import com.zipstats.app.ui.components.DialogDeleteButton
 import com.zipstats.app.ui.components.DialogNeutralButton
 import com.zipstats.app.ui.components.DialogSaveButton
@@ -120,7 +122,7 @@ fun RepairsScreen(
             )
         },
         floatingActionButton = {
-            FloatingActionButton(
+            AnimatedFloatingActionButton(
                 onClick = {
                     // Resetear campos para nueva entrada
                     tempDate = LocalDate.now()
@@ -128,8 +130,7 @@ fun RepairsScreen(
                     tempMileage = "" // Opcional: pre-cargar kilometraje actual del scooter
                     showAddDialog = true
                 },
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary
+                containerColor = MaterialTheme.colorScheme.primary
             ) {
                 Icon(Icons.Filled.Add, contentDescription = "Añadir reparación")
             }
@@ -155,7 +156,15 @@ fun RepairsScreen(
                     val repairs = (uiState as RepairsUiState.Success).repairs.sortedByDescending { it.date }
 
                     if (repairs.isEmpty()) {
-                        EmptyRepairsState()
+                        EmptyStateRepairs(
+                            onAddRepair = {
+                                // Resetear campos para nueva entrada
+                                tempDate = LocalDate.now()
+                                tempDesc = ""
+                                tempMileage = ""
+                                showAddDialog = true
+                            }
+                        )
                     } else {
                         LazyColumn(
                             contentPadding = PaddingValues(16.dp),
@@ -456,34 +465,5 @@ fun RepairItemCard(
                 modifier = Modifier.size(16.dp)
             )
         }
-    }
-}
-
-@Composable
-fun EmptyRepairsState() {
-    Column(
-        modifier = Modifier.fillMaxSize(),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        Icon(
-            imageVector = Icons.Filled.History,
-            contentDescription = null,
-            modifier = Modifier.size(80.dp),
-            tint = MaterialTheme.colorScheme.surfaceVariant
-        )
-        Spacer(modifier = Modifier.height(16.dp))
-        Text(
-            text = "Sin historial de mantenimiento",
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            text = "Añade reparaciones, cambios de piezas\no revisiones periódicas.",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-            textAlign = TextAlign.Center
-        )
     }
 }

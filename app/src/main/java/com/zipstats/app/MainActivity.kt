@@ -288,9 +288,6 @@ class MainActivity : ComponentActivity() {
             }
         }
         
-        // Obtener el AuthViewModel aquí
-        val authViewModel: com.zipstats.app.ui.auth.AuthViewModel = hiltViewModel()
-        
         PatinetatrackTheme(
             darkTheme = when (currentThemeMode) {
                 ThemeMode.LIGHT -> false
@@ -380,8 +377,7 @@ class MainActivity : ComponentActivity() {
                             composeScope.launch {
                                 settingsRepository.setPureBlackOled(enabled)
                             }
-                        },
-                        authViewModel = authViewModel
+                        }
                     )
                 }
             }

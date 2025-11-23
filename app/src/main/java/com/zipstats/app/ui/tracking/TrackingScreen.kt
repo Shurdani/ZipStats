@@ -16,6 +16,7 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -121,11 +122,23 @@ fun TrackingScreen(
 
     DisposableEffect(keepScreenOnEnabled, isTracking) {
         val window = (context as? Activity)?.window
+        var flagWasSet = false
         if (keepScreenOnEnabled && isTracking && window != null) {
-            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-            onDispose { window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) }
-        } else {
-            onDispose { }
+            try {
+                window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                flagWasSet = true
+            } catch (e: Exception) {
+                android.util.Log.e("TrackingScreen", "Error setting FLAG_KEEP_SCREEN_ON", e)
+            }
+        }
+        onDispose {
+            if (flagWasSet && window != null) {
+                try {
+                    window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                } catch (e: Exception) {
+                    android.util.Log.e("TrackingScreen", "Error clearing FLAG_KEEP_SCREEN_ON", e)
+                }
+            }
         }
     }
 
@@ -178,7 +191,9 @@ fun TrackingScreen(
     LaunchedEffect(message) {
         if (message?.contains("Ruta guardada exitosamente") == true) {
             routeSaved = true
-            onNavigateBack()
+            // Usar onNavigateToRoutes para navegar correctamente a Routes
+            // en lugar de onNavigateBack que puede mostrar la pantalla de pre-carga
+            onNavigateToRoutes()
             viewModel.clearMessage()
         }
     }
@@ -788,13 +803,18 @@ fun TrackingWeatherCard(
     weatherStatus: WeatherStatus,
     onFetchWeatherClick: () -> Unit
 ) {
+    val weatherClickInteractionSource = remember { MutableInteractionSource() }
     AnimatedVisibility(
         visible = weatherStatus !is WeatherStatus.Idle,
         enter = fadeIn() + expandVertically(),
         exit = fadeOut() + shrinkVertically()
     ) {
         Card(
-            modifier = Modifier.fillMaxWidth().clickable(onClick = onFetchWeatherClick),
+            modifier = Modifier.fillMaxWidth().clickable(
+                interactionSource = weatherClickInteractionSource,
+                indication = null,
+                onClick = onFetchWeatherClick
+            ),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
             shape = RoundedCornerShape(16.dp)
         ) {

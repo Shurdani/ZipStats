@@ -8,6 +8,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -53,7 +54,6 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -93,9 +93,12 @@ import com.zipstats.app.model.Avatar
 import com.zipstats.app.model.Avatars
 import com.zipstats.app.model.VehicleType
 import com.zipstats.app.navigation.Screen
+import com.zipstats.app.ui.components.AnimatedFloatingActionButton
+import com.zipstats.app.ui.components.AnimatedIconButton
 import com.zipstats.app.ui.components.DialogCancelButton
 import com.zipstats.app.ui.components.DialogConfirmButton
 import com.zipstats.app.ui.components.DialogOptionButton
+import com.zipstats.app.ui.components.ExpandableCard
 import com.zipstats.app.ui.components.StandardDatePickerDialogWithValidation
 import com.zipstats.app.ui.profile.components.AvatarSelectionDialog
 import com.zipstats.app.ui.theme.DialogShape
@@ -276,7 +279,7 @@ fun ProfileScreen(
             TopAppBar(
                 title = { Text("Perfil", fontWeight = FontWeight.Bold) },
                 actions = {
-                    IconButton(onClick = { navController.navigate(Screen.AccountSettings.route) }) {
+                    AnimatedIconButton(onClick = { navController.navigate(Screen.AccountSettings.route) }) {
                         Icon(imageVector = Icons.Default.Settings, contentDescription = "Ajustes")
                     }
                 },
@@ -288,7 +291,7 @@ fun ProfileScreen(
             )
         },
         floatingActionButton = {
-            FloatingActionButton(
+            AnimatedFloatingActionButton(
                 onClick = { showAddScooterDialog = true },
                 containerColor = MaterialTheme.colorScheme.primary
             ) {
@@ -400,6 +403,8 @@ fun UserProfileSection(
     onChangePhotoClick: () -> Unit,
     onExportClick: () -> Unit
 ) {
+    val photoClickInteractionSource = remember { MutableInteractionSource() }
+    val cameraClickInteractionSource = remember { MutableInteractionSource() }
     Column(
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally
@@ -411,7 +416,11 @@ fun UserProfileSection(
                     .size(120.dp)
                     .clip(CircleShape)
                     .background(MaterialTheme.colorScheme.surfaceVariant)
-                    .clickable { onChangePhotoClick() },
+                    .clickable(
+                        interactionSource = photoClickInteractionSource,
+                        indication = null,
+                        onClick = { onChangePhotoClick() }
+                    ),
                 contentAlignment = Alignment.Center
             ) {
                 if (user.photoUrl != null) {
@@ -445,7 +454,11 @@ fun UserProfileSection(
                     .size(36.dp)
                     .clip(CircleShape)
                     .background(MaterialTheme.colorScheme.primary)
-                    .clickable { onChangePhotoClick() },
+                    .clickable(
+                        interactionSource = cameraClickInteractionSource,
+                        indication = null,
+                        onClick = { onChangePhotoClick() }
+                    ),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
@@ -536,13 +549,9 @@ fun ScooterCardItem(
     scooter: com.zipstats.app.model.Scooter,
     onClick: () -> Unit
 ) {
-    Card(
+    ExpandableCard(
         onClick = onClick,
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-        shape = RoundedCornerShape(16.dp)
+        modifier = Modifier.fillMaxWidth()
     ) {
         Row(
             modifier = Modifier
@@ -651,6 +660,7 @@ fun AvatarSelectionDialog(
             ) {
                 items(Avatars.list) { avatar ->
                     val isSelected = avatar.emoji == currentAvatar?.emoji
+                    val avatarClickInteractionSource = remember { MutableInteractionSource() }
                     Box(
                         modifier = Modifier
                             .aspectRatio(1f)
@@ -659,7 +669,11 @@ fun AvatarSelectionDialog(
                                 if (isSelected) MaterialTheme.colorScheme.primaryContainer
                                 else MaterialTheme.colorScheme.surfaceVariant
                             )
-                            .clickable { onSelectAvatar(avatar) },
+                            .clickable(
+                                interactionSource = avatarClickInteractionSource,
+                                indication = null,
+                                onClick = { onSelectAvatar(avatar) }
+                            ),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(

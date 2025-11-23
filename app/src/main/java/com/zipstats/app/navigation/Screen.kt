@@ -15,6 +15,7 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.ui.graphics.vector.ImageVector
 
 sealed class Screen(val route: String, val title: String, val icon: ImageVector) {
+    object Splash : Screen("splash", "Splash", Icons.Default.Person) // Pantalla de carga - el icono no se usa
     object Records : Screen("records", "Historial de Viajes", Icons.Default.History)
     object Statistics : Screen("statistics", "Estadísticas", Icons.Default.BarChart)
     object Routes : Screen("routes", "Rutas", Icons.Default.Route)

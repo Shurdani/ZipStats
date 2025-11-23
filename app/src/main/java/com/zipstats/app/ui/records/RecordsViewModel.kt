@@ -10,6 +10,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestoreException
 import com.zipstats.app.model.Record
 import com.zipstats.app.model.Scooter
 import com.zipstats.app.repository.RecordRepository
@@ -73,7 +74,21 @@ class RecordsViewModel @Inject constructor(
 
     // A. Flujo de Patinetes (Cacheado)
     val userScooters: StateFlow<List<Scooter>> = scooterRepository.getScooters()
-        .catch { emit(emptyList()) }
+        .catch { e ->
+            // Mismo escudo que usamos en los registros
+            val isPermissionError = e.message?.contains("PERMISSION_DENIED") == true ||
+                    (e is com.google.firebase.firestore.FirebaseFirestoreException &&
+                            e.code == com.google.firebase.firestore.FirebaseFirestoreException.Code.PERMISSION_DENIED)
+
+            if (isPermissionError) {
+                Log.w("RecordsVM", "Listener de SCOOTERS detenido por logout. Ignorando crash.")
+                emit(emptyList()) // Devolvemos lista vacía y no explotamos
+            } else {
+                Log.e("RecordsVM", "Error cargando scooters", e)
+                emit(emptyList())
+            }
+        }
+        // --- FIN DEL CAMBIO ---
         .map { it.sortedBy { scooter -> scooter.nombre } }
         .flowOn(Dispatchers.IO)
         .stateIn(
@@ -85,9 +100,21 @@ class RecordsViewModel @Inject constructor(
     // B. Flujo Maestro de Registros (TODOS los registros, sin filtrar)
     private val allRecordsFlow = recordRepository.getRecords()
         .catch { e ->
-            Log.e("RecordsVM", "Error cargando registros", e)
-            _errorMessage.value = e.message
-            emit(emptyList())
+            // 🛡️ ESCUDO ANTI-CRASH 🛡️
+            // Verificamos si es un error de permisos (típico al cerrar sesión)
+            val isPermissionError = e.message?.contains("PERMISSION_DENIED") == true ||
+                    (e is FirebaseFirestoreException && e.code == FirebaseFirestoreException.Code.PERMISSION_DENIED)
+
+            if (isPermissionError) {
+                // Si es por logout, silencio total. No actualizamos _errorMessage para no despertar a la UI.
+                Log.w("RecordsVM", "Listener de registros detenido por logout (Permiso denegado). Ignorando crash.")
+                emit(emptyList())
+            } else {
+                // Si es otro error real, lo mostramos
+                Log.e("RecordsVM", "Error cargando registros", e)
+                _errorMessage.value = e.message
+                emit(emptyList())
+            }
         }
         .flowOn(Dispatchers.IO)
 
@@ -343,5 +370,17 @@ class RecordsViewModel @Inject constructor(
     companion object {
         const val STORAGE_PERMISSION_REQUEST_CODE = 1001
         const val EXPORT_EXCEL_REQUEST_CODE = 1003
+    }
+
+    // Al destruir el ViewModel, cancelamos todo para evitar fugas de memoria o crashes
+    override fun onCleared() {
+        super.onCleared()
+        // Esto fuerza la desconexión de los listeners de Firestore
+        // aunque Android suele hacerlo solo, esto es un seguro de vida.
+        try {
+            // Opcional: Si tienes alguna lógica de limpieza manual
+        } catch (e: Exception) {
+            // Ignorar
+        }
     }
 }

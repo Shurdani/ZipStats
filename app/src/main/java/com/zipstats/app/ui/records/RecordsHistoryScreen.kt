@@ -1,7 +1,5 @@
 package com.zipstats.app.ui.records
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,11 +17,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -44,7 +42,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
@@ -53,9 +50,12 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.zipstats.app.model.Record
 import com.zipstats.app.navigation.Screen
+import com.zipstats.app.ui.components.AnimatedFloatingActionButton
 import com.zipstats.app.ui.components.DialogCancelButton
 import com.zipstats.app.ui.components.DialogDeleteButton
 import com.zipstats.app.ui.components.DialogSaveButton
+import com.zipstats.app.ui.components.EmptyStateRecords
+import com.zipstats.app.ui.components.ExpandableRow
 import com.zipstats.app.ui.components.StandardDatePickerDialogWithValidation
 import com.zipstats.app.ui.onboarding.OnboardingDialog
 import com.zipstats.app.ui.theme.DialogShape
@@ -75,6 +75,7 @@ fun RecordsHistoryScreen(
     val userScooters by viewModel.userScooters.collectAsState()
     val selectedModel by viewModel.selectedModel.collectAsState()
     val uiState by viewModel.uiState.collectAsState()
+    val isLoading = uiState is RecordsUiState.Loading
 
     var recordToDelete by remember { mutableStateOf<Record?>(null) }
     var recordToEdit by remember { mutableStateOf<Record?>(null) }
@@ -89,6 +90,7 @@ fun RecordsHistoryScreen(
 
     // Variable para detectar cuando se añade un registro
     var previousRecordsSize by remember { mutableStateOf(records.size) }
+    var isFilterChanging by remember { mutableStateOf(false) }
 
     // Verificar si se debe mostrar el onboarding
     LaunchedEffect(userScooters.size, uiState, onboardingDismissedInSession) {
@@ -117,19 +119,22 @@ fun RecordsHistoryScreen(
         }
     }
 
+    // Detectar cambio de filtro para evitar flash del EmptyStateView
+    LaunchedEffect(selectedModel) {
+        isFilterChanging = true
+        kotlinx.coroutines.delay(150) // Pequeño delay para evitar el flash
+        isFilterChanging = false
+        if (filteredRecords.isNotEmpty()) {
+            listState.scrollToItem(0)
+        }
+    }
+
     // Scroll automático al principio cuando se añade un nuevo registro
     LaunchedEffect(records.size) {
         if (records.size > previousRecordsSize && filteredRecords.isNotEmpty()) {
             listState.animateScrollToItem(0)
         }
         previousRecordsSize = records.size
-    }
-
-    // Scroll al cambiar de filtro
-    LaunchedEffect(selectedModel) {
-        if (filteredRecords.isNotEmpty()) {
-            listState.scrollToItem(0)
-        }
     }
 
     // Lógica para determinar el patinete por defecto (el último usado)
@@ -224,8 +229,15 @@ fun RecordsHistoryScreen(
             )
         },
         floatingActionButton = {
-            FloatingActionButton(
-                onClick = { showBottomSheet = true },
+            AnimatedFloatingActionButton(
+                onClick = {
+                    // Verificar si hay vehículos antes de permitir añadir registro
+                    if (userScooters.isEmpty()) {
+                        showOnboardingDialog = true
+                    } else {
+                        showBottomSheet = true
+                    }
+                },
                 containerColor = MaterialTheme.colorScheme.primary
             ) {
                 Icon(
@@ -281,6 +293,26 @@ fun RecordsHistoryScreen(
             Spacer(modifier = Modifier.height(8.dp))
 
             // Lista de registros con nuevo diseño de tarjeta
+            if (isLoading) {
+                Box(
+                    modifier = Modifier.fillMaxWidth().weight(1f),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator()
+                }
+            } else if (filteredRecords.isEmpty() && (records.isEmpty() || !isFilterChanging)) {
+                // Estado vacío
+                EmptyStateRecords(
+                    onAddRecord = {
+                        if (userScooters.isEmpty()) {
+                            showOnboardingDialog = true
+                        } else {
+                            showBottomSheet = true
+                        }
+                    },
+                    modifier = Modifier.weight(1f)
+                )
+            } else {
             LazyColumn(
                 state = listState,
                 modifier = Modifier
@@ -292,18 +324,15 @@ fun RecordsHistoryScreen(
                     key = { _, record -> record.id }
                 ) { index, record ->
                     Column {
-                        Row(
+                        ExpandableRow(
+                            onClick = { recordToEdit = record },
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable { recordToEdit = record }
-                                .background(
-                                    color = if (index % 2 == 0) {
-                                        Color.Transparent
-                                    } else {
-                                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
-                                    }
-                                )
                                 .padding(horizontal = 16.dp, vertical = 12.dp),
+                            backgroundAlpha = if (index % 2 == 0) 0f else 0.3f
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
@@ -347,12 +376,14 @@ fun RecordsHistoryScreen(
                                     modifier = Modifier.padding(top = 4.dp)
                                 )
                             }
+                            }
                         }
                         HorizontalDivider(
                             modifier = Modifier.fillMaxWidth(),
                             thickness = 1.dp,
                             color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f)
                         )
+                    }
                     }
                 }
             }

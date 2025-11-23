@@ -1,5 +1,6 @@
 package com.zipstats.app.network
 
+import com.zipstats.app.network.model.CloudinaryResponse
 import okhttp3.MultipartBody
 import okhttp3.RequestBody
 import retrofit2.http.Multipart
@@ -18,7 +19,7 @@ interface CloudinaryApi {
         @Part("upload_preset") preset: RequestBody,
         @Part("public_id") publicId: RequestBody,
         @Part("folder") folder: RequestBody
-    ): CloudinaryResponse
+    ): CloudinaryResponse // <--- Cambia lo que tengas aquí por esto
 }
 
 data class CloudinaryResponse(

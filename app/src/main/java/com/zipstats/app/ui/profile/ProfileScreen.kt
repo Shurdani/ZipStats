@@ -1,6 +1,5 @@
 package com.zipstats.app.ui.profile
 
-import android.os.Build
 import android.util.Log
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -12,19 +11,24 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
@@ -42,7 +46,6 @@ import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -50,13 +53,16 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -74,11 +80,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
@@ -119,14 +125,11 @@ fun ProfileScreen(
 
     val uiState by viewModel.uiState.collectAsState()
 
-    // Mostrar mensajes en el Snackbar
     LaunchedEffect(uiState) {
         if (uiState is ProfileUiState.Success) {
             val message = (uiState as ProfileUiState.Success).message
             if (message.isNotEmpty()) {
-                scope.launch {
-                    snackbarHostState.showSnackbar(message)
-                }
+                scope.launch { snackbarHostState.showSnackbar(message) }
             }
         }
     }
@@ -146,10 +149,8 @@ fun ProfileScreen(
         uri?.let { viewModel.handleEvent(ProfileEvent.UpdatePhoto(it)) }
     }
 
-    // PermissionManager para verificar permisos (solo verificación, no solicitud)
     val permissionManager = remember { com.zipstats.app.permission.PermissionManager(context) }
 
-    // Función para abrir configuración de permisos
     fun openAppSettings() {
         val intent = android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
             data = android.net.Uri.fromParts("package", context.packageName, null)
@@ -157,8 +158,6 @@ fun ProfileScreen(
         context.startActivity(intent)
     }
 
-
-    // Observar cuando la cámara está lista y lanzarla
     val cameraReady by viewModel.cameraReady.collectAsState()
     LaunchedEffect(cameraReady) {
         cameraReady?.let { uri ->
@@ -178,44 +177,34 @@ fun ProfileScreen(
         viewModel.handleEvent(ProfileEvent.LoadUserProfile)
     }
 
-    // Abrir diálogo de vehículo si viene el parámetro
     LaunchedEffect(openAddVehicleDialog) {
         if (openAddVehicleDialog) {
             showAddScooterDialog = true
         }
     }
 
-    /// Diálogo de opciones de foto
+    // --- DIÁLOGOS ---
     if (showPhotoOptionsDialog) {
         val currentState = uiState as? ProfileUiState.Success
-
         AlertDialog(
             onDismissRequest = { showPhotoOptionsDialog = false },
             title = { Text("Cambiar foto de perfil") },
             shape = DialogShape,
-
             text = {
                 Column(
                     modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-
-                    // Seleccionar desde la galería
                     DialogOptionButton(
                         text = "Seleccionar de la galería",
                         icon = Icons.Default.Image,
                         onClick = {
                             showPhotoOptionsDialog = false
-                            // CORRECCIÓN 2: Usar PickVisualMediaRequest. Se elimina la comprobación de permiso
-                            // de almacenamiento porque PickVisualMedia es la forma recomendada y sin permisos.
-                            // CORRECCIÓN 3: Se envuelve el tipo de medio en PickVisualMediaRequest para corregir el error de tipo.
                             galleryLauncher.launch(
                                 PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
                             )
                         }
                     )
-
-                    // Tomar foto con la cámara
                     DialogOptionButton(
                         text = "Tomar foto con la cámara",
                         icon = Icons.Default.PhotoCamera,
@@ -224,17 +213,11 @@ fun ProfileScreen(
                             if (permissionManager.hasCameraPermission()) {
                                 viewModel.prepareCamera(context)
                             } else {
-                                Toast.makeText(
-                                    context,
-                                    "Permiso de cámara requerido. Ve a Configuración > Aplicaciones > ZipStats > Permisos.",
-                                    Toast.LENGTH_LONG
-                                ).show()
+                                Toast.makeText(context, "Permiso de cámara requerido.", Toast.LENGTH_LONG).show()
                                 openAppSettings()
                             }
                         }
                     )
-
-                    // Elegir avatar
                     DialogOptionButton(
                         text = "Elegir avatar",
                         icon = Icons.Default.Face,
@@ -243,8 +226,6 @@ fun ProfileScreen(
                             showPhotoOptionsDialog = false
                         }
                     )
-
-                    // Eliminar foto o avatar actual
                     currentState?.let { state ->
                         if (state.user.photoUrl != null || state.user.avatar != null) {
                             DialogOptionButton(
@@ -259,12 +240,8 @@ fun ProfileScreen(
                     }
                 }
             },
-
             confirmButton = {
-                DialogCancelButton(
-                    text = "Cancelar",
-                    onClick = { showPhotoOptionsDialog = false }
-                )
+                DialogCancelButton(text = "Cancelar", onClick = { showPhotoOptionsDialog = false })
             }
         )
     }
@@ -282,37 +259,6 @@ fun ProfileScreen(
         )
     }
 
-    if (showPermissionDialog) {
-        AlertDialog(
-            onDismissRequest = { showPermissionDialog = false },
-            title = { Text("Permiso necesario") },
-            text = {
-                Text("Para tomar fotos, necesitamos acceso a la cámara. ¿Deseas conceder el permiso?")
-            },
-
-            confirmButton = {
-                Button(
-                    onClick = {
-                        showPermissionDialog = false
-                        openAppSettings()
-                    }
-                ) {
-                    Text("Abrir configuración")
-                }
-            },
-
-            dismissButton = {
-                DialogCancelButton(
-                    text = "Cancelar",
-                    onClick = { showPermissionDialog = false }
-                )
-            },
-
-            shape = DialogShape
-        )
-
-    }
-
     if (showAddScooterDialog) {
         AddScooterDialog(
             onDismiss = { showAddScooterDialog = false },
@@ -323,279 +269,118 @@ fun ProfileScreen(
         )
     }
 
+    // --- CONTENIDO PRINCIPAL ---
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         topBar = {
             TopAppBar(
-                title = { Text("Perfil") },
+                title = { Text("Perfil", fontWeight = FontWeight.Bold) },
                 actions = {
-                    IconButton(
-                        onClick = {
-                            navController.navigate(Screen.AccountSettings.route)
-                        }
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Settings,
-                            contentDescription = "Ajustes"
-                        )
+                    IconButton(onClick = { navController.navigate(Screen.AccountSettings.route) }) {
+                        Icon(imageVector = Icons.Default.Settings, contentDescription = "Ajustes")
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimary,
-                    actionIconContentColor = MaterialTheme.colorScheme.onPrimary
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    titleContentColor = MaterialTheme.colorScheme.onSurface,
+                    actionIconContentColor = MaterialTheme.colorScheme.onSurface
                 )
             )
         },
         floatingActionButton = {
-            androidx.compose.material3.FloatingActionButton(
+            FloatingActionButton(
                 onClick = { showAddScooterDialog = true },
                 containerColor = MaterialTheme.colorScheme.primary
             ) {
-                Icon(
-                    imageVector = Icons.Default.Add,
-                    contentDescription = "Añadir vehículo"
-                )
+                Icon(imageVector = Icons.Default.Add, contentDescription = "Añadir vehículo")
             }
         },
         snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { padding ->
-        val configuration = LocalConfiguration.current
-        val screenWidthDp = configuration.screenWidthDp
-        val isSmallScreen = screenWidthDp < 360
-        val cardPadding = if (isSmallScreen) 8.dp else 16.dp
-
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-            ) {
-                when (val state = uiState) {
-                    is ProfileUiState.Loading -> {
-                        Box(
-                            modifier = Modifier.fillMaxSize(),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            CircularProgressIndicator()
-                        }
+        Box(modifier = Modifier.fillMaxSize().padding(padding)) {
+            when (val state = uiState) {
+                is ProfileUiState.Loading -> {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator()
                     }
-                    is ProfileUiState.Success -> {
+                }
+                is ProfileUiState.Success -> {
                     Column(
                         modifier = Modifier
                             .fillMaxSize()
                             .verticalScroll(rememberScrollState())
+                            .padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(24.dp)
                     ) {
-                        // Header con foto de perfil
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(cardPadding),
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.surface
-                            ),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 3.dp), // Sombra más sutil pero presente
-                            shape = com.zipstats.app.ui.theme.CardShape
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(cardPadding),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(16.dp)
-                            ) {
-                                // Foto de perfil
-                                Box(
-                                    modifier = Modifier
-                                        .size(80.dp)
-                                        .clip(CircleShape)
-                                        .background(MaterialTheme.colorScheme.surfaceVariant)
-                                        .clickable { onChangePhotoClick() }
-                                ) {
-                                    if (state.user.photoUrl != null) {
-                                        val imageUri = viewModel.getImageUri(state.user.photoUrl)
-                                        if (imageUri != null) {
-                                            AsyncImage(
-                                                model = imageUri,
-                                                contentDescription = "Foto de perfil",
-                                                modifier = Modifier.fillMaxSize(),
-                                                contentScale = ContentScale.Crop
-                                            )
-                                        } else {
-                                            // Fallback si la imagen local no existe
-                                            Icon(
-                                                imageVector = Icons.Default.Person,
-                                                contentDescription = "Foto de perfil no encontrada",
-                                                modifier = Modifier
-                                                    .fillMaxSize()
-                                                    .padding(cardPadding),
-                                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
-                                        }
-                                    } else if (state.user.avatar != null) {
-                                        Text(
-                                            text = state.user.avatar,
-                                            style = MaterialTheme.typography.headlineLarge,
-                                            modifier = Modifier
-                                                .fillMaxSize()
-                                                .wrapContentSize(Alignment.Center)
-                                        )
-                                    } else {
-                                        Icon(
-                                            imageVector = Icons.Default.Person,
-                                            contentDescription = "Foto de perfil por defecto",
-                                            modifier = Modifier
-                                                .fillMaxSize()
-                                                .padding(cardPadding),
-                                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
-
-                                    // Botón de cambiar foto
-                                    Box(
-                                        modifier = Modifier
-                                            .align(Alignment.BottomEnd)
-                                            .padding(4.dp)
-                                            .size(24.dp)
-                                            .clip(CircleShape)
-                                            .background(MaterialTheme.colorScheme.primary)
-                                            .clickable { onChangePhotoClick() }
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.CameraAlt,
-                                            contentDescription = "Cambiar foto",
-                                            tint = MaterialTheme.colorScheme.onPrimary,
-                                            modifier = Modifier
-                                                .align(Alignment.Center)
-                                                .size(14.dp)
-                                        )
-                                    }
-                                }
-
-                                // Información del usuario
-                                Column(
-                                    modifier = Modifier.weight(1f),
-                                    verticalArrangement = Arrangement.spacedBy(4.dp)
-                                ) {
-                                    Text(
-                                        text = state.user.name,
-                                        style = MaterialTheme.typography.headlineSmall,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                    Text(
-                                        text = state.user.email,
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f) // Mejor contraste
-                                    )
-                                }
-
-// Botón Exportar
-                                Column(
-                                    horizontalAlignment = Alignment.CenterHorizontally
-                                ) {
-                                    IconButton(onClick = {
-                                        Log.d("ProfileScreen", "Botón Exportar presionado desde tarjeta de usuario")
-                                        Log.d("ProfileScreen", "Android SDK: ${Build.VERSION.SDK_INT}")
-
-                                        // Exportación directa
-                                        viewModel.exportAllRecords(context)
-                                    }) {
-                                        Icon(
-                                            imageVector = Icons.Default.FileDownload,
-                                            contentDescription = "Exportar registros",
-                                            tint = MaterialTheme.colorScheme.primary
-                                        )
-                                    }
-
-                                    Text(
-                                        text = "Exportar",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f)
-                                    )
-                                }
-
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        // Tarjeta de Resumen
-                        SummaryCard(
-                            totalKm = state.scooters.sumOf { it.kilometrajeActual ?: 0.0 },
-                            unlockedAchievements = state.unlockedAchievements,
-                            totalAchievements = state.totalAchievements
+                        // 1. SECCIÓN DE USUARIO (Perfil Rediseñado)
+                        UserProfileSection(
+                            user = state.user,
+                            onChangePhotoClick = { onChangePhotoClick() },
+                            onExportClick = { viewModel.exportAllRecords(context) }
                         )
 
-        Spacer(modifier = Modifier.height(16.dp))
-
-                        // Sección: Gestión de Mis Vehículos
-                        Column(
-                            modifier = Modifier.padding(horizontal = 16.dp)
+                        // 2. TARJETAS DE RESUMEN (KMs y Logros)
+                        // Usamos Row para ponerlas lado a lado si hay espacio, o una debajo de otra
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            Text(
-                                text = "GESTIÓN DE MIS VEHÍCULOS",
-                                style = MaterialTheme.typography.labelLarge,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.primary
+                            // Tarjeta KM
+                            StatSummaryCard(
+                                title = "Distancia Total",
+                                value = String.format("%.1f", state.scooters.sumOf { it.kilometrajeActual ?: 0.0 }),
+                                unit = "km",
+                                icon = Icons.AutoMirrored.Filled.TrendingUp,
+                                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.weight(1f)
                             )
 
-                            Spacer(modifier = Modifier.height(8.dp))
+                            // Tarjeta Logros
+                            StatSummaryCard(
+                                title = "Logros",
+                                value = "${state.unlockedAchievements}/${state.totalAchievements}",
+                                unit = "desbloqueados",
+                                icon = Icons.Default.EmojiEvents,
+                                containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                                contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+
+                        // 3. SECCIÓN VEHÍCULOS
+                        Column {
+                            Text(
+                                text = "Mis Vehículos",
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Spacer(modifier = Modifier.height(12.dp))
 
                             if (state.scooters.isEmpty()) {
-                            Card(
-                                modifier = Modifier.fillMaxWidth(),
-                                colors = CardDefaults.cardColors(
-                                    containerColor = MaterialTheme.colorScheme.surface
-                                    ),
-                                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-                                    shape = com.zipstats.app.ui.theme.SmallCardShape
-                            ) {
-                                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                                            .padding(24.dp), // Reducir padding para mejor respiración
-                                        horizontalAlignment = Alignment.CenterHorizontally
-                                        ) {
-                                            Icon(
-                                            imageVector = Icons.Default.Speed,
-                                            contentDescription = null,
-                                            modifier = Modifier.size(48.dp),
-                                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = "No tienes vehículos registrados",
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f) // Mejor contraste
-                                        )
-                                    }
-                                }
-                                    } else {
-                                        Column(
-                                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                                        ) {
-                                            state.scooters.forEach { scooter ->
+                                EmptyStateVehicleCard()
+                            } else {
+                                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                    state.scooters.forEach { scooter ->
                                         ScooterCardItem(
-                                                    scooter = scooter,
-                                            onClick = {
-                                                navController.navigate("${Screen.ScooterDetail.route}/${scooter.id}")
-                                            }
+                                            scooter = scooter,
+                                            onClick = { navController.navigate("${Screen.ScooterDetail.route}/${scooter.id}") }
                                         )
                                     }
                                 }
                             }
                         }
 
-                        Spacer(modifier = Modifier.height(16.dp))
-                        }
+                        // Espacio extra para el FAB
+                        Spacer(modifier = Modifier.height(64.dp))
                     }
-                    is ProfileUiState.Error -> {
-                        Box(
-                            modifier = Modifier.fillMaxSize(),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = state.message,
-                                style = MaterialTheme.typography.bodyLarge,
+                }
+                is ProfileUiState.Error -> {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text(
+                            text = state.message,
+                            style = MaterialTheme.typography.bodyLarge,
                             color = MaterialTheme.colorScheme.error
                         )
                     }
@@ -605,31 +390,275 @@ fun ProfileScreen(
     }
 }
 
+// ----------------------------------------------------------------
+// COMPONENTES UI REDISEÑADOS
+// ----------------------------------------------------------------
+
+@Composable
+fun UserProfileSection(
+    user: com.zipstats.app.model.User,
+    onChangePhotoClick: () -> Unit,
+    onExportClick: () -> Unit
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        // Foto con borde y botón de edición
+        Box {
+            Box(
+                modifier = Modifier
+                    .size(120.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                    .clickable { onChangePhotoClick() },
+                contentAlignment = Alignment.Center
+            ) {
+                if (user.photoUrl != null) {
+                    AsyncImage(
+                        model = user.photoUrl, // Coil se encarga de cargar URIs locales o remotas
+                        contentDescription = "Foto de perfil",
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                } else if (user.avatar != null) {
+                    Text(
+                        text = user.avatar,
+                        style = MaterialTheme.typography.displayLarge,
+                        modifier = Modifier.wrapContentSize()
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.Default.Person,
+                        contentDescription = null,
+                        modifier = Modifier.size(64.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            // Botón mini de cámara
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .offset(x = (-4).dp, y = (-4).dp)
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.primary)
+                    .clickable { onChangePhotoClick() },
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.CameraAlt,
+                    contentDescription = "Editar foto",
+                    tint = MaterialTheme.colorScheme.onPrimary,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Text(
+            text = user.name,
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.Bold
+        )
+        Text(
+            text = user.email,
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Botón de Exportar Datos (Estilo Chip/Botón pequeño)
+        OutlinedButton(
+            onClick = onExportClick,
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.FileDownload,
+                contentDescription = null,
+                modifier = Modifier.size(18.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("Exportar Datos")
+        }
+    }
+}
+
+@Composable
+fun StatSummaryCard(
+    title: String,
+    value: String,
+    unit: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    containerColor: androidx.compose.ui.graphics.Color,
+    contentColor: androidx.compose.ui.graphics.Color,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier,
+        colors = CardDefaults.cardColors(containerColor = containerColor),
+        shape = RoundedCornerShape(24.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = contentColor,
+                modifier = Modifier.size(28.dp)
+            )
+            Column {
+                Text(
+                    text = value,
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = contentColor
+                )
+                Text(
+                    text = "$unit\n$title", // Salto de línea para ahorrar espacio horizontal
+                    style = MaterialTheme.typography.labelMedium,
+                    color = contentColor.copy(alpha = 0.8f),
+                    lineHeight = 14.sp
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun ScooterCardItem(
+    scooter: com.zipstats.app.model.Scooter,
+    onClick: () -> Unit
+) {
+    Card(
+        onClick = onClick,
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        shape = RoundedCornerShape(16.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Icono del vehículo en contenedor de color
+            Surface(
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.secondaryContainer,
+                modifier = Modifier.size(56.dp)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Image(
+                        painter = getVehicleIcon(scooter.vehicleType),
+                        contentDescription = null,
+                        modifier = Modifier.size(32.dp),
+                        colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.onSecondaryContainer)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.width(16.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = scooter.nombre,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = scooter.modelo,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            Column(horizontalAlignment = Alignment.End) {
+                Text(
+                    text = "${String.format("%.1f", scooter.kilometrajeActual ?: 0.0)} km",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Icon(
+                    imageVector = Icons.Default.ChevronRight,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun EmptyStateVehicleCard() {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+        ),
+        shape = RoundedCornerShape(16.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(32.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Icon(
+                imageVector = Icons.Default.Speed,
+                contentDescription = null,
+                modifier = Modifier.size(48.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "No tienes vehículos registrados",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+// --- COMPONENTES AUXILIARES (DIÁLOGOS) ---
+
 @Composable
 fun AvatarSelectionDialog(
     onDismiss: () -> Unit,
-    onSelectAvatar: (Avatar) -> Unit
+    onSelectAvatar: (Avatar) -> Unit,
+    currentAvatar: Avatar? = null
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Seleccionar avatar") },
         shape = DialogShape,
-
         text = {
             LazyVerticalGrid(
                 columns = GridCells.Fixed(4),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(300.dp)
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.height(300.dp)
             ) {
                 items(Avatars.list) { avatar ->
+                    val isSelected = avatar.emoji == currentAvatar?.emoji
                     Box(
                         modifier = Modifier
-                            .size(64.dp)
+                            .aspectRatio(1f)
                             .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                            .background(
+                                if (isSelected) MaterialTheme.colorScheme.primaryContainer
+                                else MaterialTheme.colorScheme.surfaceVariant
+                            )
                             .clickable { onSelectAvatar(avatar) },
                         contentAlignment = Alignment.Center
                     ) {
@@ -641,188 +670,10 @@ fun AvatarSelectionDialog(
                 }
             }
         },
-
         confirmButton = {
-            DialogCancelButton(
-                text = "Cancelar",
-                onClick = onDismiss
-            )
+            DialogCancelButton(text = "Cancelar", onClick = onDismiss)
         }
     )
-
-}
-
-@Composable
-fun SummaryCard(
-    totalKm: Double,
-    unlockedAchievements: Int,
-    totalAchievements: Int
-) {
-        Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.primaryContainer
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp), // Sombra más sutil pero presente
-        shape = com.zipstats.app.ui.theme.CardShape
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Text(
-                text = "Resumen",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onPrimaryContainer
-            )
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
-            ) {
-                SummaryMetric(
-                    value = String.format("%.1f", totalKm),
-                    label = "KM Totales",
-                    icon = Icons.AutoMirrored.Filled.TrendingUp,
-                    modifier = Modifier.weight(1f)
-                )
-                SummaryMetric(
-                    value = "$unlockedAchievements/$totalAchievements",
-                    label = "Logros",
-                    icon = Icons.Default.EmojiEvents,
-                    modifier = Modifier.weight(1f)
-                )
-            }
-        }
-    }
-}
-
-@Composable
-fun SummaryMetric(
-    value: String,
-    label: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    modifier: Modifier = Modifier
-        ) {
-            Column(
-        modifier = modifier,
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(4.dp)
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.onPrimaryContainer,
-            modifier = Modifier.size(48.dp)
-                )
-                Text(
-            text = value,
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onPrimaryContainer
-        )
-                Text(
-            text = label,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f) // Mejor contraste
-        )
-    }
-}
-
-/**
- * Obtiene el icono del vehículo según su tipo
- */
-@Composable
-fun getVehicleIcon(vehicleType: VehicleType): Painter {
-    return when (vehicleType) {
-        VehicleType.PATINETE -> painterResource(id = R.drawable.ic_electric_scooter_adaptive)
-        VehicleType.BICICLETA -> painterResource(id = R.drawable.ic_ciclismo_adaptive)
-        VehicleType.E_BIKE -> painterResource(id = R.drawable.ic_bicicleta_electrica_adaptive)
-        VehicleType.MONOCICLO -> painterResource(id = R.drawable.ic_unicycle_adaptive)
-    }
-}
-
-@Composable
-fun ScooterCardItem(
-    scooter: com.zipstats.app.model.Scooter,
-    onClick: () -> Unit
-) {
-        Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-        shape = com.zipstats.app.ui.theme.SmallCardShape
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier.weight(1f)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(48.dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.primaryContainer),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Image(
-                        painter = getVehicleIcon(scooter.vehicleType),
-                        contentDescription = "Icono del vehículo",
-                        modifier = Modifier.size(24.dp),
-                        colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(MaterialTheme.colorScheme.onPrimaryContainer)
-                    )
-                }
-
-                    Column(
-                    verticalArrangement = Arrangement.spacedBy(2.dp)
-                    ) {
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(4.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = scooter.nombre,
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                        Text(
-                        text = scooter.modelo,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f) // Mejor contraste
-                        )
-                        Text(
-                        text = "${String.format("%.1f", scooter.kilometrajeActual ?: 0.0)} km",
-                        style = MaterialTheme.typography.bodyLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                }
-            }
-
-            Icon(
-                imageVector = Icons.Default.ChevronRight,
-                contentDescription = "Ver detalles",
-                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
-            )
-        }
-    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -841,7 +692,6 @@ fun AddScooterDialog(
     var fechaTexto by remember { mutableStateOf(DateUtils.formatForDisplay(selectedDate)) }
     var fechaError by remember { mutableStateOf<String?>(null) }
 
-    // Validar que la fecha no sea futura
     LaunchedEffect(selectedDate) {
         fechaTexto = DateUtils.formatForDisplay(selectedDate)
     }
@@ -849,12 +699,8 @@ fun AddScooterDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Añadir vehículo") },
-
         text = {
-            Column(
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                // Selector de tipo de vehículo
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 ExposedDropdownMenuBox(
                     expanded = vehicleTypeExpanded,
                     onExpandedChange = { vehicleTypeExpanded = it }
@@ -872,12 +718,8 @@ fun AddScooterDialog(
                                 colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.onSurface)
                             )
                         },
-                        trailingIcon = {
-                            ExposedDropdownMenuDefaults.TrailingIcon(expanded = vehicleTypeExpanded)
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .menuAnchor()
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = vehicleTypeExpanded) },
+                        modifier = Modifier.fillMaxWidth().menuAnchor()
                     )
                     ExposedDropdownMenu(
                         expanded = vehicleTypeExpanded,
@@ -894,9 +736,7 @@ fun AddScooterDialog(
                                             painter = getVehicleIcon(type),
                                             contentDescription = null,
                                             modifier = Modifier.size(24.dp),
-                                            colorFilter = ColorFilter.tint(
-                                                MaterialTheme.colorScheme.onSurface
-                                            )
+                                            colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.onSurface)
                                         )
                                         Text(type.displayName)
                                     }
@@ -917,7 +757,6 @@ fun AddScooterDialog(
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
-
                 OutlinedTextField(
                     value = marca,
                     onValueChange = { marca = it },
@@ -925,7 +764,6 @@ fun AddScooterDialog(
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
-
                 OutlinedTextField(
                     value = modelo,
                     onValueChange = { modelo = it },
@@ -933,87 +771,56 @@ fun AddScooterDialog(
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
-
                 OutlinedTextField(
                     value = fechaTexto,
-                    onValueChange = { nuevoTexto ->
-                        fechaTexto = nuevoTexto
-                        try {
-                            val fecha = DateUtils.parseDisplayDate(nuevoTexto)
-                            if (fecha.isAfter(LocalDate.now())) {
-                                selectedDate = LocalDate.now()
-                                fechaTexto = DateUtils.formatForDisplay(selectedDate)
-                            } else {
-                                selectedDate = fecha
-                                fechaError = null
-                            }
-                        } catch (e: Exception) {
-                            fechaError = "Formato inválido. Use dd/MM/yyyy"
-                        }
-                    },
+                    onValueChange = { },
                     label = { Text("Fecha de compra") },
-                    supportingText = fechaError?.let { { Text(it) } },
-                    isError = fechaError != null,
+                    readOnly = true,
                     trailingIcon = {
                         IconButton(onClick = { showDatePicker = true }) {
-                            Icon(Icons.Default.CalendarMonth, contentDescription = "Seleccionar fecha")
+                            Icon(Icons.Default.CalendarMonth, contentDescription = null)
                         }
                     },
-                    singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
             }
         },
-
         confirmButton = {
             DialogConfirmButton(
                 text = "Guardar",
-                enabled = nombre.isNotBlank() &&
-                        marca.isNotBlank() &&
-                        modelo.isNotBlank() &&
-                        fechaError == null,
+                enabled = nombre.isNotBlank() && marca.isNotBlank() && modelo.isNotBlank(),
                 onClick = {
-                    if (
-                        nombre.isNotBlank() &&
-                        marca.isNotBlank() &&
-                        modelo.isNotBlank() &&
-                        fechaError == null
-                    ) {
-                        onConfirm(
-                            nombre,
-                            marca,
-                            modelo,
-                            fechaTexto,
-                            selectedVehicleType
-                        )
-                        onDismiss()   // opcional si quieres cerrar el diálogo tras guardar
-                    }
+                    onConfirm(nombre, marca, modelo, fechaTexto, selectedVehicleType)
                 }
             )
         },
-
         dismissButton = {
-            DialogCancelButton(
-                text = "Cancelar",
-                onClick = onDismiss
-            )
+            DialogCancelButton(text = "Cancelar", onClick = onDismiss)
         },
-
         shape = DialogShape
     )
-
 
     if (showDatePicker) {
         StandardDatePickerDialogWithValidation(
             selectedDate = selectedDate,
-            onDateSelected = {
-                selectedDate = it
-                fechaError = null
-            },
+            onDateSelected = { selectedDate = it },
             onDismiss = { showDatePicker = false },
-            title = "Seleccionar fecha de compra",
+            title = "Seleccionar fecha",
             maxDate = LocalDate.now(),
-            validateDate = { date -> !date.isAfter(LocalDate.now()) }
+            validateDate = { !it.isAfter(LocalDate.now()) }
         )
+    }
+}
+
+/**
+ * Helper para obtener icono de vehículo (reutilizado)
+ */
+@Composable
+fun getVehicleIcon(vehicleType: VehicleType): Painter {
+    return when (vehicleType) {
+        VehicleType.PATINETE -> painterResource(id = R.drawable.ic_electric_scooter_adaptive)
+        VehicleType.BICICLETA -> painterResource(id = R.drawable.ic_ciclismo_adaptive)
+        VehicleType.E_BIKE -> painterResource(id = R.drawable.ic_bicicleta_electrica_adaptive)
+        VehicleType.MONOCICLO -> painterResource(id = R.drawable.ic_unicycle_adaptive)
     }
 }

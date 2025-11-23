@@ -434,7 +434,7 @@ private fun getColorScheme(
             ColorTheme.SOLAR_FLARE -> SolarFlareOled
         }
     }
-    
+
     // De lo contrario, devolver el tema normal (claro u oscuro)
     return when (colorTheme) {
         ColorTheme.RIDE_BLUE -> if (darkTheme) RideBlueDark else RideBlueLight
@@ -455,7 +455,7 @@ fun PatinetatrackTheme(
     content: @Composable () -> Unit
 ) {
     val context = LocalContext.current
-    
+
     // Lógica de prioridad:
     // 1. Colores dinámicos (Material You) si están activados
     // 2. Paleta seleccionada si no hay colores dinámicos
@@ -468,19 +468,21 @@ fun PatinetatrackTheme(
         // Paleta personalizada seleccionada
         else -> getColorScheme(colorTheme, darkTheme, pureBlackOled)
     }
-    
+
     val view = LocalView.current
-    
+
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as Activity).window
-            
-            // Hacer que la barra de estado tenga el color primario
+
+            // MODIFICACIÓN CLAVE: Usamos 'surface' para la barra de estado
+            // en lugar de 'primary' para que coincida con la TopAppBar moderna
             @Suppress("DEPRECATION")
-            window.statusBarColor = colorScheme.primary.toArgb()
+            window.statusBarColor = colorScheme.surface.toArgb()
+
             @Suppress("DEPRECATION")
             window.navigationBarColor = Color.Transparent.toArgb()
-            
+
             // Configurar el sistema de barras para Android 10+
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 @Suppress("DEPRECATION")
@@ -491,9 +493,12 @@ fun PatinetatrackTheme(
 
             // Configurar el sistema para pantalla completa y edge-to-edge
             WindowCompat.setDecorFitsSystemWindows(window, true)
-            
+
             // Configurar el color de los iconos
             val controller = WindowInsetsControllerCompat(window, view)
+            // Lógica de iconos:
+            // Si el tema es oscuro -> Iconos Claros (isAppearanceLight = false)
+            // Si el tema es claro -> Iconos Oscuros (isAppearanceLight = true)
             controller.isAppearanceLightStatusBars = !darkTheme
             controller.isAppearanceLightNavigationBars = !darkTheme
 

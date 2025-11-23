@@ -1,5 +1,13 @@
 package com.zipstats.app.ui.routes
 
+import android.content.Context
+import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.Paint
+import android.graphics.RectF
+import android.widget.Toast
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -12,8 +20,10 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -32,7 +42,10 @@ import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.Grain
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Speed
+import androidx.compose.material.icons.filled.Straighten
 import androidx.compose.material.icons.filled.Thermostat
+import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.WaterDrop
 import androidx.compose.material.icons.filled.WbSunny
 import androidx.compose.material3.Button
@@ -65,15 +78,23 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.zIndex
+import androidx.core.content.FileProvider
 import com.zipstats.app.R
 import com.zipstats.app.model.Route
+import com.zipstats.app.model.VehicleType
+import com.zipstats.app.repository.VehicleRepository
 import com.zipstats.app.repository.WeatherRepository
 import com.zipstats.app.ui.components.CapturableMapView
 import com.zipstats.app.utils.DateUtils
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-
+import kotlinx.coroutines.withContext
+import java.io.File
+import java.io.FileOutputStream
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @Composable
 fun RouteDetailDialog(
@@ -92,40 +113,33 @@ fun RouteDetailDialog(
     var vehicleIconRes by remember { mutableStateOf(R.drawable.ic_electric_scooter_adaptive) }
     var vehicleModel by remember { mutableStateOf(route.scooterName) }
 
-    // --- LÓGICA DEL DIÁLOGO DE CLIMA ---
-    // 1. El "interruptor" para saber si el diálogo está abierto o cerrado
+    // Estado para el diálogo del clima
     var showWeatherDialog by remember(route.id) { mutableStateOf(false) }
 
-    // 2. La regla: "Si el interruptor está encendido, muestra el diálogo DE INFORMACIÓN"
     if (showWeatherDialog) {
-        // Llamamos al nuevo diálogo (definido al final)
         WeatherInfoDialog(
             route = route,
-            onDismiss = { showWeatherDialog = false } // Si se cierra, apaga el interruptor
+            onDismiss = { showWeatherDialog = false }
         )
     }
 
-    // Obtener el icono y modelo del vehículo
+    // Obtener info del vehículo
     LaunchedEffect(route.scooterId) {
         try {
             val vehicle = getVehicleById(route.scooterId)
             vehicleIconRes = getVehicleIconResource(vehicle?.vehicleType)
-            
-            // Obtener el modelo del vehículo
+
             if (vehicle != null && vehicle.modelo.isNotBlank()) {
                 vehicleModel = vehicle.modelo
-                android.util.Log.d("RouteDialog", "Usando modelo: '${vehicle.modelo}'")
             } else {
                 vehicleModel = route.scooterName
-                android.util.Log.d("RouteDialog", "Usando nombre: '${route.scooterName}'")
             }
         } catch (e: Exception) {
-            vehicleIconRes = R.drawable.ic_electric_scooter_adaptive // Fallback en caso de error
+            vehicleIconRes = R.drawable.ic_electric_scooter_adaptive
             vehicleModel = route.scooterName
-            android.util.Log.e("RouteDialog", "Error obteniendo vehículo: ${e.message}", e)
         }
     }
-    
+
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(
@@ -135,184 +149,168 @@ fun RouteDetailDialog(
         )
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
-        Card(
-            modifier = Modifier
-                .fillMaxSize()
-                    .padding(12.dp),
-            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
-            shape = com.zipstats.app.ui.theme.DialogShape
-        ) {
-            Column(
+            Card(
                 modifier = Modifier
                     .fillMaxSize()
-                        .padding(12.dp)
+                    .padding(12.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
+                shape = com.zipstats.app.ui.theme.DialogShape
             ) {
-                    // Header minimalista con botones
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        // Botón de añadir a registros (si está disponible)
-                        onAddToRecords?.let { addToRecords ->
-                            IconButton(onClick = addToRecords) {
-                                Icon(
-                                    imageVector = Icons.AutoMirrored.Filled.List,
-                                    contentDescription = "Añadir a registros",
-                                    tint = MaterialTheme.colorScheme.primary
-                                )
-                            }
-                        }
-                        Spacer(modifier = Modifier.weight(1f))
-                        // Botón de cerrar
-                        IconButton(onClick = onDismiss) {
-                            Icon(
-                                imageVector = Icons.Default.Close,
-                                contentDescription = "Cerrar"
-                            )
-                    }
-                }
-                
-                // Contenido scrolleable
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .verticalScroll(rememberScrollState())
-                ) {
-                        // Encabezado compacto: Icono + Vehículo + Fecha + Hora
-                        CompactHeader(route = route, vehicleIconRes = vehicleIconRes, vehicleName = vehicleModel)
-                        
-                        Spacer(modifier = Modifier.height(8.dp))
-                        
-                        // Título de la ruta (notas o automático)
-                        RouteTitle(route = route)
-                        
-                        Spacer(modifier = Modifier.height(12.dp))
-                        
-                        // Mapa compacto (formato panorámico) con botón de expandir
-                        Box(modifier = Modifier.fillMaxWidth()) {
-                    Card(
+                // --- FIX: Envolvemos todo el contenido de la Card en un BOX ---
+                Box(modifier = Modifier.fillMaxSize()) {
+
+                    // 1. La Columna con el contenido (Header, Mapa, Stats)
+                    Column(
                         modifier = Modifier
-                            .fillMaxWidth()
-                                    .clickable { showFullscreenMap = true },
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surface
-                        ),
-                                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-                                shape = com.zipstats.app.ui.theme.SmallCardShape
+                            .fillMaxSize()
+                            .padding(12.dp)
                     ) {
-                        CapturableMapView(
-                            route = route,
-                            onMapReady = { googleMap ->
-                                googleMapRef = googleMap
-                            },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                        .height(280.dp)
-                                )
-                            }
-                            
-                            // Icono de pantalla completa
-                            Surface(
-                                modifier = Modifier
-                                    .align(Alignment.TopEnd)
-                                    .padding(12.dp),
-                                shape = CircleShape,
-                                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
-                                shadowElevation = 4.dp
-                            ) {
-                                IconButton(
-                                    onClick = { showFullscreenMap = true },
-                                    modifier = Modifier.size(36.dp)
-                                ) {
+                        // Header minimalista
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            onAddToRecords?.let { addToRecords ->
+                                IconButton(onClick = addToRecords) {
                                     Icon(
-                                        imageVector = Icons.Default.Fullscreen,
-                                        contentDescription = "Ver en pantalla completa",
-                                        modifier = Modifier.size(20.dp)
+                                        imageVector = Icons.AutoMirrored.Filled.List,
+                                        contentDescription = "Añadir a registros",
+                                        tint = MaterialTheme.colorScheme.primary
                                     )
                                 }
                             }
+                            Spacer(modifier = Modifier.weight(1f))
+                            IconButton(onClick = onDismiss) {
+                                Icon(
+                                    imageVector = Icons.Default.Close,
+                                    contentDescription = "Cerrar"
+                                )
+                            }
                         }
-                        
-                        Spacer(modifier = Modifier.height(12.dp))
-                        
-                        // Estadísticas en chips: Distancia, Duración, Clima
-                        StatsChips(
-                        route = route,
-                        // --- 3. LA CONEXIÓN ---
-                        // "Oye Chip, cuando te cliquen, pon showWeatherDialog = true"
-                        onWeatherClick = { showWeatherDialog = true }
-                        )
-                        
-                        Spacer(modifier = Modifier.height(12.dp))
-                        
-                        // Detalles avanzados colapsables
-                    if (route.movingTime > 0 || route.pauseCount > 0) {
-                            CollapsibleAdvancedDetails(
+
+                        // Contenido scrolleable
+                        Column(
+                            modifier = Modifier
+                                .weight(1f)
+                                .verticalScroll(rememberScrollState())
+                        ) {
+                            CompactHeader(route = route, vehicleIconRes = vehicleIconRes, vehicleName = vehicleModel)
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            RouteTitle(route = route)
+
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            // Mapa compacto
+                            Box(modifier = Modifier.fillMaxWidth()) {
+                                Card(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable { showFullscreenMap = true },
+                                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                                    elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+                                    shape = com.zipstats.app.ui.theme.SmallCardShape
+                                ) {
+                                    CapturableMapView(
+                                        route = route,
+                                        onMapReady = { googleMap -> googleMapRef = googleMap },
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(280.dp)
+                                    )
+                                }
+
+                                Surface(
+                                    modifier = Modifier
+                                        .align(Alignment.TopEnd)
+                                        .padding(12.dp),
+                                    shape = CircleShape,
+                                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
+                                    shadowElevation = 4.dp
+                                ) {
+                                    IconButton(
+                                        onClick = { showFullscreenMap = true },
+                                        modifier = Modifier.size(36.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Fullscreen,
+                                            contentDescription = "Ver en pantalla completa",
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            // Stats Chips
+                            StatsChips(
                                 route = route,
-                                expanded = showAdvancedDetails,
-                                onToggle = { showAdvancedDetails = !showAdvancedDetails }
+                                onWeatherClick = { showWeatherDialog = true }
                             )
+
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            // Detalles avanzados
+                            if (route.movingTime > 0 || route.pauseCount > 0) {
+                                CollapsibleAdvancedDetails(
+                                    route = route,
+                                    expanded = showAdvancedDetails,
+                                    onToggle = { showAdvancedDetails = !showAdvancedDetails }
+                                )
+                            }
+
+                            // Espacio extra para que los botones flotantes no tapen el contenido final
+                            Spacer(modifier = Modifier.height(80.dp))
                         }
-                        
-                        // Espaciado para los botones flotantes
-                        Spacer(modifier = Modifier.height(72.dp))
                     }
-                }
-            }
-            
-            // Botones flotantes en esquina inferior derecha
-            Row(
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(24.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    // Botón de eliminar
-                SmallFloatingActionButton(
-                    onClick = onDelete,
-                    containerColor = MaterialTheme.colorScheme.errorContainer,
-                    contentColor = MaterialTheme.colorScheme.onErrorContainer
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Delete,
-                        contentDescription = "Eliminar"
-                        )
+
+                    // 2. Botones flotantes
+                    Row(
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .padding(24.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        SmallFloatingActionButton(
+                            onClick = onDelete,
+                            containerColor = MaterialTheme.colorScheme.errorContainer,
+                            contentColor = MaterialTheme.colorScheme.onErrorContainer
+                        ) {
+                            Icon(imageVector = Icons.Default.Delete, contentDescription = "Eliminar")
+                        }
+
+                        FloatingActionButton(
+                            onClick = {
+                                isCapturingForShare = true
+                                showFullscreenMap = true
+                            },
+                            containerColor = MaterialTheme.colorScheme.primaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                        ) {
+                            Icon(imageVector = Icons.Default.Share, contentDescription = "Compartir")
+                        }
                     }
-                    
-                    // Botón de compartir
-                FloatingActionButton(
-                        onClick = {
-                            // Abrir mapa fullscreen para captura
-                            isCapturingForShare = true
-                            showFullscreenMap = true
-                    },
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Share,
-                        contentDescription = "Compartir"
-                    )
                 }
             }
         }
     }
-    
-    // Modal de mapa en pantalla completa
+
+    // Modal Fullscreen para Captura
     if (showFullscreenMap) {
         FullscreenMapDialog(
             route = route,
-            onDismiss = { 
+            onDismiss = {
                 showFullscreenMap = false
                 isCapturingForShare = false
             },
             onMapReady = { googleMap ->
                 fullscreenMapRef = googleMap
-                // Si estamos capturando para compartir, hacerlo automáticamente
                 if (isCapturingForShare && googleMap != null) {
+                    // Esperar un poco a que el mapa cargue tiles
                     android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                        // Llamar a compartir pero con callback para cerrar después
                         shareRouteWithRealMapAndClose(
                             route = route,
                             googleMap = googleMap,
@@ -322,16 +320,235 @@ fun RouteDetailDialog(
                                 isCapturingForShare = false
                             }
                         )
-                    }, 500) // Esperar 500ms para que el mapa se renderice completamente
+                    }, 1000)
                 }
             }
         )
     }
 }
 
-/**
- * Encabezado compacto con icono vehículo, nombre, fecha y hora
- */
+// -------------------------------------------------------------------------
+// DIÁLOGOS MODALES (MAPA FULLSCREEN Y CLIMA)
+// -------------------------------------------------------------------------
+
+@Composable
+private fun FullscreenMapDialog(
+    route: Route,
+    onDismiss: () -> Unit,
+    onMapReady: ((com.google.android.gms.maps.GoogleMap?) -> Unit)? = null
+) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(
+            dismissOnBackPress = true,
+            dismissOnClickOutside = false,
+            usePlatformDefaultWidth = false
+        )
+    ) {
+        Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+            // 1. EL MAPA (FONDO)
+            CapturableMapView(
+                route = route,
+                modifier = Modifier.fillMaxSize(),
+                onMapReady = { googleMap ->
+                    // --- FIX: PADDING PARA EL MAPA ---
+                    // Esto empuja el logo de Google y el CENTRO de la cámara hacia arriba.
+                    // 600 es un valor aproximado en píxeles para la altura de la tarjeta.
+                    // Puedes ajustarlo (500, 600, 700) según la densidad de pantalla.
+                    googleMap.setPadding(0, 0, 0, 700)
+
+                    // Llamamos al callback original
+                    onMapReady?.invoke(googleMap)
+                }
+            )
+
+            // 2. BOTÓN CERRAR (ARRIBA DERECHA)
+            Surface(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .statusBarsPadding()
+                    .padding(16.dp)
+                    .zIndex(10f),
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
+                shadowElevation = 8.dp
+            ) {
+                IconButton(onClick = onDismiss, modifier = Modifier.size(48.dp)) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "Cerrar",
+                        modifier = Modifier.size(28.dp)
+                    )
+                }
+            }
+
+            // 3. LA TARJETA FLOTANTE MODERNA (ABAJO)
+            // Reemplazamos el AndroidView antiguo por el nuevo Composable TripDetailsOverlay
+            // Solo mostrar si NO estamos capturando para compartir (para compartir usamos lógica canvas aparte)
+            // O si prefieres que se vea siempre, simplemente déjalo.
+            TripDetailsOverlay(
+                route = route,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .navigationBarsPadding()
+                    .padding(bottom = 24.dp)
+            )
+        }
+    }
+}
+
+// -------------------------------------------------------------------------
+// NUEVA TARJETA DE DETALLES DEL VIAJE (MATERIAL 3 / MODERN UI)
+// -------------------------------------------------------------------------
+
+@Composable
+fun TripDetailsOverlay(
+    route: Route,
+    modifier: Modifier = Modifier
+) {
+    val tituloRuta = remember(route) { getRouteTitleText(route) }
+
+    // Fecha formateada
+    val fechaFormateada = remember(route.startTime) {
+        val date = java.time.LocalDate.ofEpochDay(route.startTime / (1000 * 60 * 60 * 24))
+        val formatter = java.time.format.DateTimeFormatter.ofPattern("d 'de' MMMM, yyyy", java.util.Locale("es", "ES"))
+        date.format(formatter)
+    }
+
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp), // Márgenes laterales
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(
+            // Mantenemos el oscuro elegante (0xFF1E1E1E) que se ve en tu captura
+            // Si quieres que cambie con el tema, usa MaterialTheme.colorScheme.surface
+            containerColor = androidx.compose.ui.graphics.Color(0xFF1E1E1E).copy(alpha = 0.98f)
+        ),
+        elevation = CardDefaults.cardElevation(12.dp)
+    ) {
+        Column(
+            // Reducimos padding vertical para hacerla más compacta
+            modifier = Modifier.padding(top = 20.dp, start = 20.dp, end = 20.dp, bottom = 16.dp)
+        ) {
+            // --- FILA 1: TÍTULO Y BRANDING ---
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Top // Alineados arriba
+            ) {
+                // Título (Izquierda)
+                Text(
+                    text = tituloRuta,
+                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                    color = androidx.compose.ui.graphics.Color.White,
+                    modifier = Modifier.weight(1f).padding(end = 8.dp),
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+
+                // Branding (Derecha) - BLANCO Y GRANDE
+                Text(
+                    text = "ZipStats",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.9f), // Casi blanco puro
+                    modifier = Modifier.padding(top = 2.dp) // Pequeño ajuste óptico
+                )
+            }
+
+            // Subtítulo (Vehículo)
+            Text(
+                text = "${route.scooterName} • $fechaFormateada",
+                style = MaterialTheme.typography.bodyMedium,
+                color = androidx.compose.ui.graphics.Color.LightGray
+            )
+
+            Spacer(modifier = Modifier.height(16.dp)) // Espacio reducido
+
+            // --- FILA 2: ESTADÍSTICAS ---
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                // Usamos iconos grandes y texto compacto
+                StatItemModern(Icons.Default.Straighten, String.format("%.1f km", route.totalDistance), "Distancia")
+                StatItemModern(Icons.Default.Timer, formatDurationWithUnits(route.totalDuration), "Tiempo")
+                StatItemModern(Icons.Default.Speed, String.format("%.1f km/h", route.averageSpeed), "Vel. Media")
+            }
+
+            // --- FILA 3: CLIMA COMPACTO ---
+            if (route.weatherTemperature != null) {
+                Spacer(modifier = Modifier.height(16.dp)) // Espacio reducido
+
+                // Fondo semitransparente para el clima
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.08f),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(vertical = 10.dp, horizontal = 16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        Image(
+                            painter = painterResource(id = getWeatherIconResId(route.weatherEmoji, route.weatherIsDay)),
+                            contentDescription = null,
+                            modifier = Modifier.size(24.dp),
+                            colorFilter = ColorFilter.tint(androidx.compose.ui.graphics.Color.White)
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+
+                        Text(
+                            text = "${String.format("%.0f", route.weatherTemperature)}°C",
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                            color = androidx.compose.ui.graphics.Color.White
+                        )
+
+                        Spacer(modifier = Modifier.width(8.dp))
+
+                        Text(
+                            text = (route.weatherDescription ?: "").substringBefore("(").trim(),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.9f)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun StatItemModern(icon: ImageVector, value: String, label: String) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = androidx.compose.ui.graphics.Color(0xFF90CAF9), // Un azul claro bonito para modo oscuro
+            modifier = Modifier.size(22.dp)
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = value, // "7.9 km"
+            style = MaterialTheme.typography.titleLarge.copy( // Hacemos el número grande
+                fontWeight = FontWeight.Bold,
+                fontFeatureSettings = "tnum"
+            ),
+            color = androidx.compose.ui.graphics.Color.White
+        )
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.9f)
+        )
+    }
+}
+
+// -------------------------------------------------------------------------
+// COMPONENTES UI AUXILIARES RESTANTES
+// -------------------------------------------------------------------------
+
 @Composable
 private fun CompactHeader(route: Route, vehicleIconRes: Int, vehicleName: String) {
     Row(
@@ -339,83 +556,44 @@ private fun CompactHeader(route: Route, vehicleIconRes: Int, vehicleName: String
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Icono del vehículo
         Icon(
             painter = painterResource(id = vehicleIconRes),
-            contentDescription = "Icono del vehículo",
+            contentDescription = null,
             tint = MaterialTheme.colorScheme.primary,
-            modifier = Modifier
-                .size(28.dp)
-                .padding(end = 6.dp)
+            modifier = Modifier.size(28.dp).padding(end = 6.dp)
         )
-        
-        // Nombre del vehículo (modelo preferentemente)
-                    Text(
-                        text = vehicleName,
+        Text(
+            text = vehicleName,
             style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.primary
-                    )
-                
-                    Text(
+        )
+        Text(
             text = " · ",
             style = MaterialTheme.typography.titleLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-        
-        // Fecha
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
         Icon(
             imageVector = Icons.Default.CalendarToday,
             contentDescription = null,
             modifier = Modifier.size(14.dp),
             tint = MaterialTheme.colorScheme.onSurfaceVariant
         )
-        
         Spacer(modifier = Modifier.width(4.dp))
-        
-                    Text(
-                        text = DateUtils.formatForDisplay(
-                            java.time.LocalDate.ofEpochDay(route.startTime / (1000 * 60 * 60 * 24))
-                        ),
+        Text(
+            text = DateUtils.formatForDisplay(
+                java.time.LocalDate.ofEpochDay(route.startTime / (1000 * 60 * 60 * 24))
+            ),
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
-        
     }
 }
 
-/**
- * Título de la ruta (notas del usuario o título automático)
- */
 @Composable
 private fun RouteTitle(route: Route) {
-    val title = if (route.notes.isNotBlank()) {
-        route.notes
-    } else {
-        // Generar título automático basado en puntos
-        if (route.points.isNotEmpty()) {
-            val startCity = getCityName(
-                route.points.firstOrNull()?.latitude, 
-                route.points.firstOrNull()?.longitude
-            )
-            val endCity = getCityName(
-                route.points.lastOrNull()?.latitude, 
-                route.points.lastOrNull()?.longitude
-            )
-            
-            when {
-                startCity != null && endCity != null && startCity != endCity -> 
-                    "$startCity → $endCity"
-                startCity != null -> 
-                    "Ruta por $startCity"
-                else -> 
-                    "Mi ruta"
-            }
-        } else {
-            "Mi ruta"
-        }
-    }
-    
+    val title = getRouteTitleText(route)
+
     Text(
         text = title,
         style = MaterialTheme.typography.bodyLarge,
@@ -427,111 +605,32 @@ private fun RouteTitle(route: Route) {
     )
 }
 
-/**
- * Obtiene el ID del recurso drawable del icono del clima desde el emoji guardado.
- * Mapea el emoji DIRECTAMENTE al drawable.
- * ESTA ES LA VERSIÓN CORREGIDA
- */
-@DrawableRes
-private fun getWeatherIconResId(emoji: String?, isDay: Boolean): Int {
-    if (emoji.isNullOrBlank()) return R.drawable.help_outline
-
-    // --- ¡ARREGLADO! ---
-    // Ya no usamos Calendar. Usamos el 'isDay' (true/false) que viene de Firebase.
-
-    // Mapear emoji a icono drawable
-    return when (emoji) {
-        "☀️" -> R.drawable.wb_sunny
-        "🌙" -> R.drawable.nightlight
-
-        "🌤️", "🌥️", "☁️🌙" -> if (isDay) R.drawable.partly_cloudy_day else R.drawable.partly_cloudy_night
-
-        "☁️" -> R.drawable.cloud
-        "🌫️" -> R.drawable.foggy
-        "🌧️", "🌦️" -> R.drawable.rainy
-        "❄️" -> R.drawable.snowing
-        "⛈️" -> R.drawable.thunderstorm
-
-        else -> R.drawable.help_outline
-    }
-}
-
-/**
- * Estadísticas en chips: Distancia, Duración y Clima
- */
-/**
- * Estadísticas en chips: Distancia, Duración y Clima
- */
 @Composable
-private fun StatsChips(
-    route: Route,
-    onWeatherClick: () -> Unit // <-- NUEVO: Lambda para abrir el diálogo
-) {
-    // Usar el clima guardado si existe, sino valores por defecto
-    var weatherIconRes by remember(route.id) {
-        mutableStateOf(
-            // --- ¡CORRECCIÓN 1! ---
-            // Usamos 'weatherIsDay' de Firebase, no 'startTime'
-            getWeatherIconResId(route.weatherEmoji, route.weatherIsDay)
-        )
-    }
-    var weatherTemp by remember(route.id) {
-        mutableStateOf(
-            if (route.weatherTemperature != null) {
-                String.format("%.0f°C", route.weatherTemperature)
-            } else {
-                "--°C"
-            }
-        )
-    }
+private fun StatsChips(route: Route, onWeatherClick: () -> Unit) {
+    var weatherIconRes by remember(route.id) { mutableStateOf(getWeatherIconResId(route.weatherEmoji, route.weatherIsDay)) }
+    var weatherTemp by remember(route.id) { mutableStateOf(if (route.weatherTemperature != null) String.format("%.0f°C", route.weatherTemperature) else "--°C") }
     var isLoadingWeather by remember(route.id) { mutableStateOf(false) }
-    val context = LocalContext.current
 
-    // Actualizar valores cuando cambia la ruta y tiene clima guardado
-    // Solo cargar clima si NO está guardado (para rutas antiguas)
-    LaunchedEffect(route.id, route.weatherTemperature, route.weatherEmoji) {
-        // Primero, siempre inicializar con los valores guardados de la ruta actual
+    LaunchedEffect(route.id) {
         if (route.weatherTemperature != null) {
-            // --- ¡CORRECCIÓN 2! ---
-            // Usamos 'weatherIsDay' de Firebase, no 'startTime'
             weatherIconRes = getWeatherIconResId(route.weatherEmoji, route.weatherIsDay)
             weatherTemp = String.format("%.0f°C", route.weatherTemperature)
-            isLoadingWeather = false
-            android.util.Log.d("StatsChips", "Usando clima guardado para ruta ${route.id}: ${route.weatherTemperature}°C, ${route.weatherEmoji}, isDay=${route.weatherIsDay}")
             return@LaunchedEffect
         }
-
-        // Si no hay clima guardado, intentar obtenerlo (solo para rutas antiguas)
         if (route.points.isNotEmpty()) {
             isLoadingWeather = true
-            android.util.Log.d("StatsChips", "Clima no guardado, obteniendo clima actual para ruta ${route.id}")
-
             try {
                 val weatherRepository = WeatherRepository()
                 val firstPoint = route.points.first()
-                val result = weatherRepository.getCurrentWeather(
-                    latitude = firstPoint.latitude,
-                    longitude = firstPoint.longitude
-                )
-
+                val result = weatherRepository.getCurrentWeather(firstPoint.latitude, firstPoint.longitude)
                 result.onSuccess { weather ->
-                    android.util.Log.d("StatsChips", "Clima obtenido para ruta ${route.id}: ${weather.temperature}°C, code=${weather.weatherCode}, isDay=${weather.isDay}")
-
-                    // --- ¡CORRECCIÓN 3! ---
-                    // Usamos 'weather.isDay' (Boolean) de la API, no System.currentTimeMillis()
-                    weatherIconRes = getWeatherIconResId(
-                        emoji = weather.weatherEmoji,
-                        isDay = weather.isDay
-                    )
+                    weatherIconRes = getWeatherIconResId(weather.weatherEmoji, weather.isDay)
                     weatherTemp = String.format("%.0f°C", weather.temperature)
-                }.onFailure { error ->
-                    android.util.Log.e("StatsChips", "Error obteniendo clima: ${error.message}", error)
                 }
             } catch (e: Exception) {
-                android.util.Log.e("StatsChips", "Excepción al cargar clima: ${e.message}", e)
+                // Ignorar
             } finally {
                 isLoadingWeather = false
-                android.util.Log.d("StatsChips", "Carga de clima finalizada")
             }
         }
     }
@@ -540,48 +639,19 @@ private fun StatsChips(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceEvenly
     ) {
-        // Distancia
-        StatChip(
-            value = String.format("%.1f km", route.totalDistance),
-            label = "Distancia",
-            modifier = Modifier.weight(1f)
-        )
-        
-        // Duración con unidades
-        StatChip(
-            value = formatDurationWithUnits(route.totalDuration),
-            label = "Duración",
-            modifier = Modifier.weight(1f)
-        )
-        
-        // Clima
+        StatChip(value = String.format("%.1f km", route.totalDistance), label = "Distancia", modifier = Modifier.weight(1f))
+        StatChip(value = formatDurationWithUnits(route.totalDuration), label = "Duración", modifier = Modifier.weight(1f))
         StatChip(
             value = if (isLoadingWeather) "..." else weatherTemp,
             label = "Clima",
             iconRes = weatherIconRes,
-            modifier = Modifier
-                .weight(1f)
-                // --- ¡NUEVO! ---
-                .clickable(
-                    // Llama a la lambda que recibimos
-                    onClick = onWeatherClick,
-                    // Deshabilitar clic si no hay datos de clima
-                    enabled = route.weatherTemperature != null
-                )
+            modifier = Modifier.weight(1f).clickable(onClick = onWeatherClick, enabled = route.weatherTemperature != null)
         )
     }
 }
 
-/**
- * Chip individual de estadística con icono opcional
- */
 @Composable
-private fun StatChip(
-    value: String, 
-    label: String, 
-    iconRes: Int? = null,
-    modifier: Modifier = Modifier
-) {
+private fun StatChip(value: String, label: String, iconRes: Int? = null, modifier: Modifier = Modifier) {
     Surface(
         shape = RoundedCornerShape(16.dp),
         color = MaterialTheme.colorScheme.primaryContainer,
@@ -591,164 +661,68 @@ private fun StatChip(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
         ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.Center
-            ) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
                 if (iconRes != null) {
-                    androidx.compose.foundation.Image(
+                    Image(
                         painter = painterResource(id = iconRes),
-                        contentDescription = "Icono del clima",
-                        modifier = Modifier
-                            .size(24.dp)
-                            .padding(end = 6.dp),
+                        contentDescription = null,
+                        modifier = Modifier.size(24.dp).padding(end = 6.dp),
                         colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.onPrimaryContainer)
                     )
                 }
-                Text(
-                    text = value,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                )
+                Text(text = value, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)
             }
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
-            )
+            Text(text = label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f))
         }
     }
 }
 
-/**
- * Sección colapsable de detalles avanzados
- */
 @Composable
-private fun CollapsibleAdvancedDetails(
-    route: Route,
-    expanded: Boolean,
-    onToggle: () -> Unit
-) {
+private fun CollapsibleAdvancedDetails(route: Route, expanded: Boolean, onToggle: () -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant
-        ),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
         shape = RoundedCornerShape(12.dp)
     ) {
         Column {
-            // Botón de expansión
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { onToggle() }
-                    .padding(16.dp),
+                modifier = Modifier.fillMaxWidth().clickable { onToggle() }.padding(16.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Analytics,
-                        contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(20.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                        text = "Ver más detalles",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(imageVector = Icons.Default.Analytics, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(text = "Ver más detalles", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 }
-                Icon(
-                    imageVector = if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                    contentDescription = if (expanded) "Contraer" else "Expandir"
-                )
+                Icon(imageVector = if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore, contentDescription = null)
             }
-            
-            // Contenido expandible
+
             if (expanded) {
                 HorizontalDivider()
-                
-                Column(
-                    modifier = Modifier.padding(16.dp)
-                ) {
-                    // Velocidad Real (destacada)
-                    AdvancedStatRow(
-                        label = "Velocidad Real",
-                        value = String.format("%.1f km/h", route.averageMovingSpeed),
-                        highlight = true
-                    )
-                    
+                Column(modifier = Modifier.padding(16.dp)) {
+                    AdvancedStatRow("Velocidad Real", String.format("%.1f km/h", route.averageMovingSpeed), true)
                     Spacer(modifier = Modifier.height(8.dp))
-                    
-                    // Velocidad Máxima
-                    AdvancedStatRow(
-                        label = "Velocidad Máxima",
-                        value = String.format("%.1f km/h", route.maxSpeed),
-                        highlight = false
-                    )
-                    
+                    AdvancedStatRow("Velocidad Máxima", String.format("%.1f km/h", route.maxSpeed), false)
                     Spacer(modifier = Modifier.height(8.dp))
-                    
-                    // Velocidad Media (movida desde chips)
-                    AdvancedStatRow(
-                        label = "Velocidad Media",
-                        value = String.format("%.1f km/h", route.averageSpeed),
-                        highlight = false
-                    )
-                    
+                    AdvancedStatRow("Velocidad Media", String.format("%.1f km/h", route.averageSpeed), false)
                     Spacer(modifier = Modifier.height(8.dp))
-                    
-                    // Tiempo en movimiento con porcentaje
-                    AdvancedStatRow(
-                        label = "Tiempo en Movimiento (${String.format("%.0f%%", route.movingPercentage)})",
-                        value = formatDuration(route.movingTime),
-                        highlight = false
-                    )
-                    
+                    AdvancedStatRow("Tiempo en Movimiento (${String.format("%.0f%%", route.movingPercentage)})", formatDuration(route.movingTime), false)
                     Spacer(modifier = Modifier.height(8.dp))
-                    
-                    // Hora de inicio
-                    AdvancedStatRow(
-                        label = "Hora de Inicio",
-                        value = formatTime(route.startTime),
-                        highlight = false
-                    )
-                    
+                    AdvancedStatRow("Hora de Inicio", formatTime(route.startTime), false)
                     Spacer(modifier = Modifier.height(8.dp))
-                    
-                    // Hora de fin
-                    AdvancedStatRow(
-                        label = "Hora de Fin",
-                        value = if (route.endTime != null) formatTime(route.endTime) else "--:--",
-                        highlight = false
-                    )
+                    AdvancedStatRow("Hora de Fin", if (route.endTime != null) formatTime(route.endTime) else "--:--", false)
                 }
             }
         }
     }
 }
 
-/**
- * Fila de estadística avanzada
- */
 @Composable
 private fun AdvancedStatRow(label: String, value: String, highlight: Boolean) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-            text = label,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+        Text(text = label, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(
             text = value,
             style = if (highlight) MaterialTheme.typography.titleLarge else MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
@@ -757,491 +731,338 @@ private fun AdvancedStatRow(label: String, value: String, highlight: Boolean) {
     }
 }
 
-
-/**
- * Modal de mapa en pantalla completa
- */
 @Composable
-private fun FullscreenMapDialog(
-    route: Route,
-    onDismiss: () -> Unit,
-    onMapReady: ((com.google.android.gms.maps.GoogleMap?) -> Unit)? = null
-) {
-    val context = LocalContext.current
-    var vehicleIconRes by remember { mutableStateOf(R.drawable.ic_electric_scooter_adaptive) }
-    
-    // Obtener el icono del vehículo
-    LaunchedEffect(route.scooterId) {
-        try {
-            val vehicle = getVehicleById(route.scooterId)
-            vehicleIconRes = getVehicleIconResource(vehicle?.vehicleType)
-        } catch (e: Exception) {
-            vehicleIconRes = R.drawable.ic_electric_scooter_adaptive
-        }
-    }
-    
+private fun WeatherInfoDialog(route: Route, onDismiss: () -> Unit) {
     Dialog(
         onDismissRequest = onDismiss,
-        properties = DialogProperties(
-            dismissOnBackPress = true,
-            dismissOnClickOutside = false,
-            usePlatformDefaultWidth = false
-        )
+        properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
-        // Box principal que capturaremos
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(MaterialTheme.colorScheme.background)
+        Card(
+            shape = RoundedCornerShape(28.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp),
+            elevation = CardDefaults.cardElevation(8.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
         ) {
-            // Mapa en pantalla completa usando CapturableMapView (misma polyline y marcadores)
-            CapturableMapView(
-                route = route,
-                modifier = Modifier.fillMaxSize(),
-                onMapReady = onMapReady
-            )
-            
-            // Botón de cerrar flotante
-            Surface(
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(16.dp)
-                    .zIndex(10f),
-                shape = CircleShape,
-                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
-                shadowElevation = 8.dp
+            Column(
+                modifier = Modifier.padding(vertical = 24.dp, horizontal = 20.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                IconButton(
-                    onClick = onDismiss,
-                    modifier = Modifier.size(48.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Close,
-                        contentDescription = "Cerrar",
-                        modifier = Modifier.size(28.dp)
-                    )
+                Image(
+                    painter = painterResource(id = getWeatherIconResId(route.weatherEmoji, route.weatherIsDay)),
+                    contentDescription = null,
+                    modifier = Modifier.size(64.dp),
+                    colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.primary)
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(text = route.weatherDescription?.substringBefore("(")?.trim() ?: "Detalles del Clima", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(text = "${String.format("%.1f", route.weatherTemperature)}°C", style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                Spacer(modifier = Modifier.height(24.dp))
+                Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    route.weatherFeelsLike?.let { WeatherDetailRow(Icons.Default.Thermostat, "Sensación térmica", "${String.format("%.1f", it)}°C") }
+                    route.weatherHumidity?.let { WeatherDetailRow(Icons.Default.WaterDrop, "Humedad", "${it}%") }
+                    route.weatherWindSpeed?.let { WeatherDetailRow(Icons.Default.Air, "Viento", "${String.format("%.1f", it)} km/h (${convertWindDirectionToText(route.weatherWindDirection)})") }
+                    route.weatherWindGusts?.let { WeatherDetailRow(Icons.Default.Cyclone, "Ráfagas", "${String.format("%.1f", it)} km/h") }
+                    route.weatherRainProbability?.let { WeatherDetailRow(Icons.Default.Grain, "Prob. de lluvia", "$it%") }
+                    if (route.weatherIsDay && route.weatherUvIndex != null && route.weatherUvIndex > 0) {
+                        WeatherDetailRow(Icons.Default.WbSunny, "Índice UV", String.format("%.0f", route.weatherUvIndex))
+                    }
                 }
+                Spacer(modifier = Modifier.height(24.dp))
+                Button(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) { Text("Cerrar") }
             }
-            
-            // Usar la misma tarjeta que se usa para compartir (usando AndroidView para inflar el layout XML)
-            androidx.compose.ui.viewinterop.AndroidView(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(32.dp)
-                    .fillMaxWidth(),
-                factory = { ctx ->
-                    val inflater = android.view.LayoutInflater.from(ctx)
-                    val cardView = inflater.inflate(R.layout.share_route_stats_card, null) as androidx.cardview.widget.CardView
-                    
-                    // Configurar título de la ruta
-                    val routeTitle = if (route.notes.isNotBlank()) {
-                        route.notes
-                    } else {
-                        if (route.points.isNotEmpty()) {
-                            val startCity = getCityName(route.points.firstOrNull()?.latitude, route.points.firstOrNull()?.longitude)
-                            val endCity = getCityName(route.points.lastOrNull()?.latitude, route.points.lastOrNull()?.longitude)
-                            
-                            when {
-                                startCity != null && endCity != null && startCity != endCity -> "$startCity → $endCity"
-                                startCity != null -> "Ruta por $startCity"
-                                else -> "Mi ruta"
-                            }
-                        } else {
-                            "Mi ruta"
-                        }
-                    }
-                    cardView.findViewById<android.widget.TextView>(R.id.routeTitle).text = routeTitle
-                    
-                    // Configurar métricas
-                    cardView.findViewById<android.widget.TextView>(R.id.distanceValue).text = 
-                        String.format("%.1f km", route.totalDistance)
-                    cardView.findViewById<android.widget.TextView>(R.id.timeValue).text = 
-                        formatDurationWithUnits(route.totalDuration)
-                    cardView.findViewById<android.widget.TextView>(R.id.speedValue).text = 
-                        String.format("%.1f km/h", route.averageMovingSpeed)
-                    
-                    // Configurar clima si está disponible
-                    if (route.weatherEmoji != null && route.weatherTemperature != null) {
-                        // --- ¡CORRECCIÓN 4! ---
-                        // Usamos 'route.weatherIsDay' de Firebase, no 'route.startTime'
-                        val weatherIconRes = getWeatherIconResId(route.weatherEmoji, route.weatherIsDay)
-                        cardView.findViewById<android.widget.ImageView>(R.id.weatherIcon).setImageResource(weatherIconRes)
-                        cardView.findViewById<android.widget.ImageView>(R.id.weatherIcon).setColorFilter(android.graphics.Color.WHITE)
-                        cardView.findViewById<android.widget.TextView>(R.id.weatherTemp).text = 
-                            String.format("%.0f°C", route.weatherTemperature)
-                        cardView.findViewById<android.widget.LinearLayout>(R.id.weatherContainer).visibility = android.view.View.VISIBLE
-                    } else {
-                        cardView.findViewById<android.widget.LinearLayout>(R.id.weatherContainer).visibility = android.view.View.GONE
-                    }
-                    
-                    // Configurar icono del vehículo
-                    cardView.findViewById<android.widget.ImageView>(R.id.vehicleIcon).setImageResource(vehicleIconRes)
-                    
-                    // Configurar información del vehículo y fecha
-                    val vehicleInfoText = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                        val date = java.time.LocalDate.ofEpochDay(route.startTime / (1000 * 60 * 60 * 24))
-                        val dateFormatter = java.time.format.DateTimeFormatter.ofPattern("d 'de' MMMM 'de' yyyy", java.util.Locale.forLanguageTag("es-ES"))
-                        "${route.scooterName} | ${date.format(dateFormatter)}"
-                    } else {
-                        val simpleDateFormat = java.text.SimpleDateFormat("d 'de' MMMM 'de' yyyy", java.util.Locale.forLanguageTag("es-ES"))
-                        "${route.scooterName} | ${simpleDateFormat.format(java.util.Date(route.startTime))}"
-                    }
-                    cardView.findViewById<android.widget.TextView>(R.id.vehicleInfo).text = vehicleInfoText
-                    
-                    // Eliminar el logo/icono de ZipStats (dejar solo el texto)
-                    cardView.findViewById<android.widget.TextView>(R.id.zipstatsBranding).setCompoundDrawables(null, null, null, null)
-                    
-                    cardView
-                }
-            )
         }
     }
 }
 
-/**
- * Formatea un timestamp a hora (HH:mm)
- */
-private fun formatTime(timestamp: Long): String {
-    val date = java.util.Date(timestamp)
-    val formatter = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault())
-    return formatter.format(date)
-}
-
-/**
- * Obtiene el recurso del icono del vehículo según su tipo
- */
-private fun getVehicleIconResource(vehicleType: com.zipstats.app.model.VehicleType?): Int {
-    return when (vehicleType) {
-        com.zipstats.app.model.VehicleType.PATINETE -> R.drawable.ic_electric_scooter_adaptive
-        com.zipstats.app.model.VehicleType.BICICLETA -> R.drawable.ic_ciclismo_adaptive
-        com.zipstats.app.model.VehicleType.E_BIKE -> R.drawable.ic_bicicleta_electrica_adaptive
-        com.zipstats.app.model.VehicleType.MONOCICLO -> R.drawable.ic_unicycle_adaptive
-        null -> R.drawable.ic_electric_scooter_adaptive // Fallback
+@Composable
+private fun WeatherDetailRow(icon: ImageVector, label: String, value: String) {
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+        Icon(imageVector = icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
+        Spacer(modifier = Modifier.width(16.dp))
+        Text(text = label, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+        Text(text = value, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold)
     }
 }
 
-/**
- * Comparte una ruta usando el mapa capturado y cierra el dialog al completar
- */
+// -------------------------------------------------------------------------
+// LÓGICA DE GENERACIÓN DE IMAGEN (CANVAS MANUAL)
+// -------------------------------------------------------------------------
+
 private fun shareRouteWithRealMapAndClose(
     route: Route,
     googleMap: com.google.android.gms.maps.GoogleMap,
-    context: android.content.Context,
+    context: Context,
     onComplete: () -> Unit
 ) {
-    try {
-        android.util.Log.d("RouteDetailDialog", "=== INICIO COMPARTIR ===")
-        // Mostrar indicador de carga
-        android.widget.Toast.makeText(context, "Generando imagen...", android.widget.Toast.LENGTH_SHORT).show()
-        
-        // Tomar snapshot del mapa fullscreen
-        android.util.Log.d("RouteDetailDialog", "Capturando snapshot del mapa...")
-        googleMap.snapshot(com.google.android.gms.maps.GoogleMap.SnapshotReadyCallback { snapshotBitmap ->
-            android.util.Log.d("RouteDetailDialog", "Snapshot capturado: ${snapshotBitmap != null}, width=${snapshotBitmap?.width}, height=${snapshotBitmap?.height}")
-            
-            if (snapshotBitmap == null) {
-                android.widget.Toast.makeText(context, "Error al capturar el mapa", android.widget.Toast.LENGTH_SHORT).show()
-                onComplete()
-                return@SnapshotReadyCallback
-            }
-
-            // Usar corrutina para combinar mapa + tarjeta
-            CoroutineScope(Dispatchers.Main).launch {
-                try {
-                    android.util.Log.d("RouteDetailDialog", "Creando imagen final...")
-                    // Crear la imagen final combinando mapa + tarjeta
-                    val finalBitmap = createFinalRouteImageFromFullscreen(route, snapshotBitmap, context)
-                    android.util.Log.d("RouteDetailDialog", "Imagen final creada: width=${finalBitmap.width}, height=${finalBitmap.height}")
-                    
-                    // Compartir la imagen
-                    android.util.Log.d("RouteDetailDialog", "Compartiendo imagen...")
-                    shareBitmap(context, finalBitmap, route)
-                    android.util.Log.d("RouteDetailDialog", "=== FIN COMPARTIR ===")
-                    
-                    // Cerrar el dialog después de compartir
-                    onComplete()
-                    
-                } catch (e: Exception) {
-                    android.util.Log.e("RouteDetailDialog", "Error al procesar imagen: ${e.message}", e)
-                    android.widget.Toast.makeText(context, "Error al procesar imagen: ${e.message}", android.widget.Toast.LENGTH_SHORT).show()
-                    e.printStackTrace()
-                    onComplete()
+    googleMap.snapshot { snapshotBitmap ->
+        if (snapshotBitmap == null) {
+            Toast.makeText(context, "Error al capturar mapa", Toast.LENGTH_SHORT).show()
+            onComplete()
+            return@snapshot
+        }
+        CoroutineScope(Dispatchers.Main).launch {
+            try {
+                // 1. Crear imagen final dibujando la tarjeta manualmente
+                val finalBitmap = withContext(Dispatchers.IO) {
+                    createFinalRouteImageFromFullscreenCanvas(route, snapshotBitmap)
                 }
+
+                // 2. Guardar y compartir
+                shareBitmap(context, finalBitmap, route)
+                onComplete()
+            } catch (e: Exception) {
+                Toast.makeText(context, "Error: ${e.message}", Toast.LENGTH_SHORT).show()
+                onComplete()
             }
-        })
-        
-    } catch (e: Exception) {
-        android.util.Log.e("RouteDetailDialog", "Error al compartir: ${e.message}", e)
-        android.widget.Toast.makeText(context, "Error al compartir: ${e.message}", android.widget.Toast.LENGTH_SHORT).show()
-        e.printStackTrace()
-        onComplete()
+        }
     }
 }
 
-/**
- * Crea la imagen final del mapa fullscreen con la tarjeta flotante encima
- */
-private suspend fun createFinalRouteImageFromFullscreen(
+private fun createFinalRouteImageFromFullscreenCanvas(
     route: Route,
-    mapBitmap: android.graphics.Bitmap,
-    context: android.content.Context
-): android.graphics.Bitmap {
-    // El mapa ya viene en pantalla completa, usamos sus dimensiones
+    mapBitmap: Bitmap
+): Bitmap {
     val width = mapBitmap.width
     val height = mapBitmap.height
-    
-    val finalBitmap = android.graphics.Bitmap.createBitmap(width, height, android.graphics.Bitmap.Config.ARGB_8888)
-    val canvas = android.graphics.Canvas(finalBitmap)
-    
-    // Dibujar el mapa como fondo
+    val finalBitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+    val canvas = Canvas(finalBitmap)
+
+    // 1. Dibujar mapa
     canvas.drawBitmap(mapBitmap, 0f, 0f, null)
-    
-    // Inflar la tarjeta
-    val inflater = android.view.LayoutInflater.from(context)
-    val cardView = inflater.inflate(R.layout.share_route_stats_card, null) as androidx.cardview.widget.CardView
-    
-    // Configurar la tarjeta con los datos de la ruta
-    configurarTarjetaCompartir(cardView, route, context)
-    
-    // Medir y renderizar la tarjeta
-    val cardWidth = width - 64 // Márgenes de 32dp a cada lado
-    val measureSpec = android.view.View.MeasureSpec.makeMeasureSpec(cardWidth, android.view.View.MeasureSpec.EXACTLY)
-    cardView.measure(measureSpec, android.view.View.MeasureSpec.UNSPECIFIED)
-    
-    val cardHeight = cardView.measuredHeight
-    val cardX = 32
-    val cardY = height - cardHeight - 32 // Anclar al borde inferior
-    
-    cardView.layout(0, 0, cardView.measuredWidth, cardHeight)
-    
-    // Dibujar la tarjeta en el canvas
-    canvas.save()
-    canvas.translate(cardX.toFloat(), cardY.toFloat())
-    cardView.draw(canvas)
-    canvas.restore()
-    
+
+    // 2. Dibujar Tarjeta Oscura (Overlay)
+    drawShareCardOnCanvas(canvas, route, width, height)
+
     return finalBitmap
 }
 
-/**
- * Configura la tarjeta con los datos de la ruta (función auxiliar reutilizable)
- */
-private suspend fun configurarTarjetaCompartir(
-    cardView: androidx.cardview.widget.CardView,
-    route: Route,
-    context: android.content.Context
-) {
-    // Configurar título de la ruta
-    val routeTitle = if (route.notes.isNotBlank()) {
-        route.notes
+private fun drawShareCardOnCanvas(canvas: Canvas, route: Route, width: Int, height: Int) {
+    // Configuración de dimensiones
+    val margin = 40f
+    val cardHeight = 450f // Altura aproximada de la tarjeta
+    val cardWidth = width - (margin * 2)
+    val cardX = margin
+    val cardY = height - cardHeight - margin * 2 // Margen inferior
+
+    // Paints
+    val bgPaint = Paint().apply {
+        color = Color.parseColor("#CC1E1E1E") // Gris oscuro casi negro con transparencia (CC = 80%)
+        style = Paint.Style.FILL
+        isAntiAlias = true
+    }
+
+    val titlePaint = Paint().apply {
+        color = Color.WHITE
+        textSize = 56f
+        isFakeBoldText = true
+        isAntiAlias = true
+    }
+
+    val subtitlePaint = Paint().apply {
+        color = Color.LTGRAY
+        textSize = 36f
+        isAntiAlias = true
+    }
+
+    val valuePaint = Paint().apply {
+        color = Color.WHITE
+        textSize = 64f // Grande para los números
+        isFakeBoldText = true
+        isAntiAlias = true
+    }
+
+    val labelPaint = Paint().apply {
+        color = Color.LTGRAY
+        textSize = 32f
+        isAntiAlias = true
+    }
+
+    val brandPaint = Paint().apply {
+        color = Color.GRAY
+        textSize = 30f
+        isAntiAlias = true
+        textAlign = Paint.Align.RIGHT
+    }
+
+    // Dibujar fondo tarjeta redondeada
+    val rect = RectF(cardX, cardY, cardX + cardWidth, cardY + cardHeight)
+    canvas.drawRoundRect(rect, 40f, 40f, bgPaint)
+
+    // --- CONTENIDO ---
+    var cursorY = cardY + 80f
+    val paddingX = cardX + 50f
+
+    // 1. Título (Origen -> Destino o Paseo)
+    val routeTitle = getRouteTitleText(route)
+    canvas.drawText(routeTitle, paddingX, cursorY, titlePaint)
+
+    // Branding a la derecha
+    canvas.drawText("ZipStats", cardX + cardWidth - 50f, cursorY, brandPaint)
+
+    cursorY += 60f
+
+    // 2. Subtítulo (Vehículo | Fecha)
+    val dateStr = SimpleDateFormat("d MMMM yyyy", Locale.getDefault()).format(Date(route.startTime))
+    canvas.drawText("${route.scooterName} • $dateStr", paddingX, cursorY, subtitlePaint)
+
+    cursorY += 120f
+
+    // 3. Métricas (Columnas)
+    // Distancia
+    canvas.drawText(String.format("%.1f km", route.totalDistance), paddingX, cursorY, valuePaint)
+    canvas.drawText("Distancia", paddingX, cursorY + 50f, labelPaint)
+
+    // Tiempo
+    val col2X = paddingX + 350f
+    canvas.drawText(formatDurationShort(route.totalDuration), col2X, cursorY, valuePaint)
+    canvas.drawText("Duración", col2X, cursorY + 50f, labelPaint)
+
+    // Clima (si hay)
+    if (route.weatherTemperature != null) {
+        val col3X = paddingX + 700f
+        canvas.drawText("${String.format("%.0f", route.weatherTemperature)}°C", col3X, cursorY, valuePaint)
+        canvas.drawText("Clima", col3X, cursorY + 50f, labelPaint)
+    }
+}
+
+// Helper para título en canvas
+private fun getRouteTitleText(route: Route): String {
+    if (route.notes.isNotBlank()) return route.notes
+    if (route.points.isEmpty()) return "Mi paseo"
+
+    val startCity = getCityName(route.points.first().latitude, route.points.first().longitude)
+    val endCity = getCityName(route.points.last().latitude, route.points.last().longitude)
+
+    return if (startCity != null && endCity != null && startCity != endCity) {
+        "$startCity → $endCity"
+    } else if (startCity != null) {
+        "Paseo en $startCity"
     } else {
-        if (route.points.isNotEmpty()) {
-            val startCity = getCityName(route.points.firstOrNull()?.latitude, route.points.firstOrNull()?.longitude)
-            val endCity = getCityName(route.points.lastOrNull()?.latitude, route.points.lastOrNull()?.longitude)
-            
-            when {
-                startCity != null && endCity != null && startCity != endCity -> "$startCity → $endCity"
-                startCity != null -> "Ruta por $startCity"
-                else -> "Mi ruta"
-            }
-        } else {
-            "Mi ruta"
+        "Mi paseo"
+    }
+}
+
+// -------------------------------------------------------------------------
+// HELPERS DE UTILIDAD
+// -------------------------------------------------------------------------
+
+private fun shareBitmap(context: Context, bitmap: Bitmap, route: Route) {
+    try {
+        val cacheDir = context.cacheDir
+        val shareDir = File(cacheDir, "shared_routes")
+        if (!shareDir.exists()) shareDir.mkdirs()
+        val imageFile = File(shareDir, "route_${route.id}.png")
+        FileOutputStream(imageFile).use { out -> bitmap.compress(Bitmap.CompressFormat.PNG, 100, out) }
+        val imageUri = FileProvider.getUriForFile(context, "${context.packageName}.provider", imageFile)
+
+        val intent = Intent(Intent.ACTION_SEND).apply {
+            type = "image/*"
+            putExtra(Intent.EXTRA_STREAM, imageUri)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
+        val chooser = Intent.createChooser(intent, "Compartir ruta")
+        chooser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        context.startActivity(chooser)
+    } catch (e: Exception) {
+        e.printStackTrace()
     }
-    cardView.findViewById<android.widget.TextView>(R.id.routeTitle).text = routeTitle
-    
-    // Configurar métricas
-    cardView.findViewById<android.widget.TextView>(R.id.distanceValue).text = 
-        String.format("%.1f km", route.totalDistance)
-    cardView.findViewById<android.widget.TextView>(R.id.timeValue).text = 
-        formatDurationWithUnits(route.totalDuration)
-    cardView.findViewById<android.widget.TextView>(R.id.speedValue).text = 
-        String.format("%.1f km/h", route.averageMovingSpeed)
-    
-    // Configurar clima si está disponible
-    if (route.weatherEmoji != null && route.weatherTemperature != null) {
-        val weatherIconRes = getWeatherIconResId(route.weatherEmoji, route.weatherIsDay)
-        cardView.findViewById<android.widget.ImageView>(R.id.weatherIcon).setImageResource(weatherIconRes)
-        cardView.findViewById<android.widget.ImageView>(R.id.weatherIcon).setColorFilter(android.graphics.Color.WHITE)
-        cardView.findViewById<android.widget.TextView>(R.id.weatherTemp).text = 
-            String.format("%.0f°C", route.weatherTemperature)
-        cardView.findViewById<android.widget.LinearLayout>(R.id.weatherContainer).visibility = android.view.View.VISIBLE
-    } else {
-        cardView.findViewById<android.widget.LinearLayout>(R.id.weatherContainer).visibility = android.view.View.GONE
-    }
-    
-    // Configurar icono del vehículo
-    val vehicle = getVehicleById(route.scooterId)
-    val vehicleIconRes = getVehicleIconResource(vehicle?.vehicleType)
-    cardView.findViewById<android.widget.ImageView>(R.id.vehicleIcon).setImageResource(vehicleIconRes)
-    
-    // Configurar información del vehículo y fecha
-    val vehicleInfoText = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-        val date = java.time.LocalDate.ofEpochDay(route.startTime / (1000 * 60 * 60 * 24))
-        val dateFormatter = java.time.format.DateTimeFormatter.ofPattern("d 'de' MMMM 'de' yyyy", java.util.Locale.forLanguageTag("es-ES"))
-        "${route.scooterName} | ${date.format(dateFormatter)}"
-    } else {
-        val simpleDateFormat = java.text.SimpleDateFormat("d 'de' MMMM 'de' yyyy", java.util.Locale.forLanguageTag("es-ES"))
-        "${route.scooterName} | ${simpleDateFormat.format(java.util.Date(route.startTime))}"
-    }
-    cardView.findViewById<android.widget.TextView>(R.id.vehicleInfo).text = vehicleInfoText
-    
-    // Eliminar el logo de ZipStats
-    cardView.findViewById<android.widget.TextView>(R.id.zipstatsBranding).setCompoundDrawables(null, null, null, null)
 }
 
-/**
- * Redimensiona un Bitmap para evitar problemas de memoria
- */
-private fun redimensionarBitmap(bitmapOriginal: android.graphics.Bitmap, tamanoMaximo: Int): android.graphics.Bitmap {
-    val anchoOriginal = bitmapOriginal.width
-    val altoOriginal = bitmapOriginal.height
-
-    if (anchoOriginal <= tamanoMaximo && altoOriginal <= tamanoMaximo) {
-        return bitmapOriginal
-    }
-
-    val ratio = minOf(
-        tamanoMaximo.toFloat() / anchoOriginal,
-        tamanoMaximo.toFloat() / altoOriginal
-    )
-
-    val nuevoAncho = (anchoOriginal * ratio).toInt()
-    val nuevoAlto = (altoOriginal * ratio).toInt()
-
-    return android.graphics.Bitmap.createScaledBitmap(bitmapOriginal, nuevoAncho, nuevoAlto, true)
+private suspend fun getVehicleById(vehicleId: String): com.zipstats.app.model.Vehicle? {
+    // Simulación simple para no complicar dependencias aquí
+    // En un caso real inyectarías el repositorio o lo pasarías
+    return try {
+        val repo = VehicleRepository(
+            com.google.firebase.firestore.FirebaseFirestore.getInstance(),
+            com.google.firebase.auth.FirebaseAuth.getInstance()
+        )
+        repo.getUserVehicles().find { it.id == vehicleId }
+    } catch (e: Exception) { null }
 }
 
-/**
- * Crea la imagen final combinando el mapa con las estadísticas
- */
-private suspend fun createFinalRouteImage(route: Route, mapBitmap: android.graphics.Bitmap, context: android.content.Context): android.graphics.Bitmap {
-    val width = 1080
-    val height = 1920
+@DrawableRes
+private fun getWeatherIconResId(emoji: String?, isDay: Boolean): Int {
+    if (emoji.isNullOrBlank()) return R.drawable.help_outline
 
-    val finalBitmap = android.graphics.Bitmap.createBitmap(width, height, android.graphics.Bitmap.Config.ARGB_8888)
-    val canvas = android.graphics.Canvas(finalBitmap)
-    
-    // El mapa ocupa TODA la imagen (100% de altura y ancho)
-    // Dibujar el mapa escalado para llenar toda la imagen
-    val mapWidth = mapBitmap.width
-    val mapHeightActual = mapBitmap.height
-    val scaleX = width.toFloat() / mapWidth
-    val scaleY = height.toFloat() / mapHeightActual
-    val scale = kotlin.math.max(scaleX, scaleY) // Usar max para llenar completamente
-    
-    val scaledWidth = (mapWidth * scale).toInt()
-    val scaledHeight = (mapHeightActual * scale).toInt()
-    val offsetX = (width - scaledWidth) / 2
-    val offsetY = (height - scaledHeight) / 2
-    
-    val scaledBitmap = android.graphics.Bitmap.createScaledBitmap(mapBitmap, scaledWidth, scaledHeight, true)
-    canvas.drawBitmap(scaledBitmap, offsetX.toFloat(), offsetY.toFloat(), null)
-    
-    // Inflar el layout de la tarjeta flotante
-    val inflater = android.view.LayoutInflater.from(context)
-    val cardView = inflater.inflate(R.layout.share_route_stats_card, null) as androidx.cardview.widget.CardView
-    
-    // Configurar título de la ruta (igual que en RouteTitle)
-    // Para la imagen compartida usamos el nombre completo del vehículo (hay espacio suficiente)
-    val vehicleModel = route.scooterName
-    
-    val routeTitle = if (route.notes.isNotBlank()) {
-        route.notes
-    } else {
-        // Generar título automático basado en las ciudades (misma lógica que RouteTitle)
-        if (route.points.isNotEmpty()) {
-        val startCity = getCityName(route.points.firstOrNull()?.latitude, route.points.firstOrNull()?.longitude)
-        val endCity = getCityName(route.points.lastOrNull()?.latitude, route.points.lastOrNull()?.longitude)
-        
-        when {
-            startCity != null && endCity != null && startCity != endCity -> 
-                    "$startCity → $endCity"
-            startCity != null -> 
-                    "Ruta por $startCity"
-            else -> 
-                    "Mi ruta en $vehicleModel"
-            }
-        } else {
-            "Mi ruta en $vehicleModel"
-        }
+    return when (emoji) {
+        // ☀️ Cielo Despejado
+        "☀️" -> R.drawable.wb_sunny
+        "🌙" -> R.drawable.nightlight
+
+        // ⛅ Nubes Parciales
+        "🌤️", "🌥️","☁️🌙" -> if (isDay) R.drawable.partly_cloudy_day else R.drawable.partly_cloudy_night
+
+        // ☁️ Nublado (A veces la API manda esto de noche también)
+        "☁️" -> R.drawable.cloud
+
+        // 🌫️ Niebla
+        "🌫️" -> R.drawable.foggy
+
+        // 🌦️ Lluvia Ligera / Chubascos leves (Sol con lluvia) -> Icono Normal
+        "🌦️" -> R.drawable.rainy
+
+        // 🌧️ Lluvia Fuerte / Densa (Solo nube) -> Icono HEAVY (Nuevo)
+        "🌧️" -> R.drawable.rainy_heavy
+
+        // 🥶 Aguanieve / Hielo (Cara de frío) -> Icono SNOWY RAINY (Nuevo)
+        "🥶" -> R.drawable.rainy_snow
+
+        // ❄️ Nieve
+        "❄️" -> R.drawable.snowing
+
+        // ⛈️ Tormenta / Granizo / Rayo
+        "⛈️", "⚡" -> R.drawable.thunderstorm
+        // Nota: Si tienes R.drawable.hail, puedes asignar "⛈️" a ese.
+
+        // 🤷 Default
+        else -> R.drawable.help_outline
     }
-    cardView.findViewById<android.widget.TextView>(R.id.routeTitle).text = routeTitle
-    
-    
-    // Configurar métricas con formato mejorado
-    // 1. Distancia
-    cardView.findViewById<android.widget.TextView>(R.id.distanceValue).text = 
-        String.format("%.1f km", route.totalDistance)
-    
-    // 2. Duración total (no tiempo en movimiento)
-    cardView.findViewById<android.widget.TextView>(R.id.timeValue).text = 
-        formatDurationWithUnits(route.totalDuration)
-    
-    // 3. Velocidad real (en movimiento)
-    cardView.findViewById<android.widget.TextView>(R.id.speedValue).text = 
-        String.format("%.1f km/h", route.averageMovingSpeed)
-    
-    // 4. Clima (si está disponible)
-    if (route.weatherEmoji != null && route.weatherTemperature != null) {
-        val weatherIconRes = getWeatherIconResId(route.weatherEmoji, route.weatherIsDay)
-        cardView.findViewById<android.widget.ImageView>(R.id.weatherIcon).setImageResource(weatherIconRes)
-        cardView.findViewById<android.widget.ImageView>(R.id.weatherIcon).setColorFilter(android.graphics.Color.WHITE)
-        cardView.findViewById<android.widget.TextView>(R.id.weatherTemp).text = 
-            String.format("%.0f°C", route.weatherTemperature)
-        cardView.findViewById<android.widget.LinearLayout>(R.id.weatherContainer).visibility = android.view.View.VISIBLE
-    } else {
-        // Ocultar el contenedor de clima si no hay datos
-        cardView.findViewById<android.widget.LinearLayout>(R.id.weatherContainer).visibility = android.view.View.GONE
-    }
-    
-    // Configurar icono del vehículo según el tipo
-    val vehicle = getVehicleById(route.scooterId)
-    val vehicleIconRes = getVehicleIconResource(vehicle?.vehicleType)
-    cardView.findViewById<android.widget.ImageView>(R.id.vehicleIcon).setImageResource(vehicleIconRes)
-    
-    // Configurar información del vehículo y fecha
-    val vehicleInfoText = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-        val date = java.time.LocalDate.ofEpochDay(route.startTime / (1000 * 60 * 60 * 24))
-        val dateFormatter = java.time.format.DateTimeFormatter.ofPattern("d 'de' MMMM 'de' yyyy", java.util.Locale.forLanguageTag("es-ES"))
-        "${route.scooterName} | ${date.format(dateFormatter)}"
-    } else {
-        val simpleDateFormat = java.text.SimpleDateFormat("d 'de' MMMM 'de' yyyy", java.util.Locale.forLanguageTag("es-ES"))
-        "${route.scooterName} | ${simpleDateFormat.format(java.util.Date(route.startTime))}"
-    }
-    cardView.findViewById<android.widget.TextView>(R.id.vehicleInfo).text = vehicleInfoText
-    
-    
-    // Medir y renderizar la tarjeta (más compacta)
-    val cardWidth = width - 64 // Márgenes de 32dp a cada lado
-    val measureSpec = android.view.View.MeasureSpec.makeMeasureSpec(cardWidth, android.view.View.MeasureSpec.EXACTLY)
-    cardView.measure(measureSpec, android.view.View.MeasureSpec.UNSPECIFIED)
-    
-    val cardHeight = cardView.measuredHeight
-    val cardX = 32
-    val cardY = height - cardHeight - 32 // Anclar al borde inferior con margen de 32dp
-    
-    cardView.layout(0, 0, cardView.measuredWidth, cardHeight)
-    
-    // Dibujar la tarjeta en el canvas (sin sombra oscura)
-    canvas.save()
-    canvas.translate(cardX.toFloat(), cardY.toFloat())
-    cardView.draw(canvas)
-    canvas.restore()
-    
-    return finalBitmap
 }
 
-/**
- * Representa un área de ciudad con sus coordenadas de límites
- */
+private fun getVehicleIconResource(vehicleType: VehicleType?): Int {
+    return when (vehicleType) {
+        VehicleType.PATINETE -> R.drawable.ic_electric_scooter_adaptive
+        VehicleType.BICICLETA -> R.drawable.ic_ciclismo_adaptive
+        VehicleType.E_BIKE -> R.drawable.ic_bicicleta_electrica_adaptive
+        VehicleType.MONOCICLO -> R.drawable.ic_unicycle_adaptive
+        null -> R.drawable.ic_electric_scooter_adaptive
+    }
+}
+
+private fun formatTime(timestamp: Long): String {
+    return SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(timestamp))
+}
+
+private fun formatDuration(durationMs: Long): String {
+    val seconds = durationMs / 1000
+    val minutes = seconds / 60
+    val hours = minutes / 60
+    return if (hours > 0) String.format("%dh %dm", hours, minutes % 60) else String.format("%dm %ds", minutes, seconds % 60)
+}
+
+private fun formatDurationShort(durationMs: Long): String {
+    val minutes = durationMs / 1000 / 60
+    val hours = minutes / 60
+    return if (hours > 0) String.format("%d:%02d", hours, minutes % 60) else String.format("%d min", minutes)
+}
+
+private fun formatDurationWithUnits(durationMs: Long): String {
+    val minutes = durationMs / 1000 / 60
+    val hours = minutes / 60
+    return if (hours > 0) String.format("%d h %d min", hours, minutes % 60) else String.format("%d min", minutes)
+}
+
+private fun convertWindDirectionToText(degrees: Int?): String {
+    if (degrees == null) return "-"
+    val directions = listOf("N", "NE", "E", "SE", "S", "SO", "O", "NO")
+    val index = ((degrees.toFloat() + 22.5f) % 360 / 45.0f).toInt()
+    return directions[index]
+}
+
+// --- Lógica de Ciudades ---
 data class CityArea(val name: String, val latMin: Double, val latMax: Double, val lonMin: Double, val lonMax: Double)
 
-/**
- * Lista completa de ciudades y áreas metropolitanas para la aplicación de VMP.
- * Incluye una cobertura exhaustiva de España (con especial detalle en Cataluña),
- * además de ciudades importantes de Europa, América y Asia.
- */
 private val cityAreas = listOf(
     // CAPITALES DE PROVINCIA Y CIUDADES IMPORTANTES DE ESPAÑA
     CityArea("A Coruña", 43.35, 43.40, -8.45, -8.35),
@@ -1512,453 +1333,14 @@ private val cityAreas = listOf(
     CityArea("Singapur", 1.25, 1.45, 103.75, 104.00),
     CityArea("Tokio", 35.60, 35.80, 139.60, 139.90)
 )
-/**
- * Obtiene el nombre de la ciudad basado en coordenadas GPS
- * Usa mapeo manual de ciudades españolas conocidas
- * Si múltiples ciudades contienen las coordenadas, devuelve la más específica (área más pequeña)
- */
 private fun getCityName(latitude: Double?, longitude: Double?): String? {
     if (latitude == null || longitude == null) return null
-    
-    // Encontrar todas las ciudades que contienen estas coordenadas
     val matchingCities = cityAreas.filter { city ->
         latitude >= city.latMin && latitude <= city.latMax &&
-        longitude >= city.lonMin && longitude <= city.lonMax
+                longitude >= city.lonMin && longitude <= city.lonMax
     }
-    
-    // Si no hay coincidencias, devolver null
     if (matchingCities.isEmpty()) return null
-    
-    // Si hay múltiples coincidencias, devolver la más específica (área más pequeña)
-    // Calcular área como: (latMax - latMin) * (lonMax - lonMin)
     return matchingCities.minByOrNull { city ->
         (city.latMax - city.latMin) * (city.lonMax - city.lonMin)
     }?.name
-}
-
-/**
- * Obtiene el nombre del tipo de vehículo basado en el ID del vehículo
- */
-private suspend fun getVehicleTypeName(scooterId: String): String {
-    return try {
-        val vehicle = getVehicleById(scooterId)
-        when (vehicle?.vehicleType) {
-            com.zipstats.app.model.VehicleType.PATINETE -> "paseo en patinete"
-            com.zipstats.app.model.VehicleType.BICICLETA -> "paseo en bicicleta"
-            com.zipstats.app.model.VehicleType.E_BIKE -> "paseo en e-bike"
-            com.zipstats.app.model.VehicleType.MONOCICLO -> "paseo en monociclo"
-            else -> "paseo"
-        }
-    } catch (e: Exception) {
-        "paseo"
-    }
-}
-
-/**
- * Obtiene un vehículo por su ID
- */
-private suspend fun getVehicleById(vehicleId: String): com.zipstats.app.model.Vehicle? {
-    return try {
-        // Obtener el repositorio de vehículos
-        val vehicleRepository = com.zipstats.app.repository.VehicleRepository(
-            com.google.firebase.firestore.FirebaseFirestore.getInstance(),
-            com.google.firebase.auth.FirebaseAuth.getInstance()
-        )
-        
-        // Buscar el vehículo en la lista de vehículos del usuario
-        val vehicles = vehicleRepository.getUserVehicles()
-        vehicles.find { it.id == vehicleId }
-    } catch (e: Exception) {
-        android.util.Log.e("RouteDialog", "Error obteniendo vehículo: ${e.message}", e)
-        null
-    }
-}
-
-/**
- * Dibuja la información de la ruta en la parte inferior
- */
-@Suppress("UNUSED_PARAMETER")
-private fun drawRouteInfo(canvas: android.graphics.Canvas, route: Route, width: Int, mapHeight: Int, infoHeight: Int) {
-    val titlePaint = android.graphics.Paint().apply {
-        color = android.graphics.Color.rgb(33, 33, 33)
-        textSize = 72f
-        isFakeBoldText = true
-        isAntiAlias = true
-        textAlign = android.graphics.Paint.Align.CENTER
-    }
-    val subtitlePaint = android.graphics.Paint().apply {
-        color = android.graphics.Color.rgb(100, 100, 100)
-        textSize = 42f
-        isAntiAlias = true
-        textAlign = android.graphics.Paint.Align.CENTER
-    }
-    val statPaint = android.graphics.Paint().apply {
-        color = android.graphics.Color.rgb(33, 150, 243)
-        textSize = 64f
-        isFakeBoldText = true
-        isAntiAlias = true
-        textAlign = android.graphics.Paint.Align.CENTER
-    }
-    val labelPaint = android.graphics.Paint().apply {
-        color = android.graphics.Color.rgb(120, 120, 120)
-        textSize = 36f
-        isAntiAlias = true
-        textAlign = android.graphics.Paint.Align.CENTER
-    }
-
-    // Calcular posición inicial basada en el área de información
-    val startY = mapHeight + (infoHeight * 0.15f)
-    var yPos = startY
-    
-    // Título del patinete
-    canvas.drawText("🛴 ${route.scooterName}", width / 2f, yPos, titlePaint)
-    yPos += 60f
-    
-    // Fecha
-    val dateFormat = java.text.SimpleDateFormat("dd/MM/yyyy HH:mm", java.util.Locale.getDefault())
-    val date = dateFormat.format(java.util.Date(route.startTime))
-    canvas.drawText(date, width / 2f, yPos, subtitlePaint)
-    yPos += 80f
-
-    // Estadísticas principales
-    val col1X = width * 0.25f
-    val col2X = width * 0.5f
-    val col3X = width * 0.75f
-    canvas.drawText(String.format("%.2f", route.totalDistance), col1X, yPos, statPaint)
-    canvas.drawText("km", col1X, yPos + 50f, labelPaint)
-    canvas.drawText(formatDurationShort(route.totalDuration), col2X, yPos, statPaint)
-    canvas.drawText("tiempo", col2X, yPos + 50f, labelPaint)
-    canvas.drawText(String.format("%.1f", route.averageSpeed), col3X, yPos, statPaint)
-    canvas.drawText("km/h media", col3X, yPos + 50f, labelPaint)
-
-    // Watermark centrado en la parte inferior
-    yPos = mapHeight + infoHeight - 40f
-    val watermarkPaint = android.graphics.Paint().apply {
-        color = android.graphics.Color.rgb(180, 180, 180)
-        textSize = 32f
-        isAntiAlias = true
-        textAlign = android.graphics.Paint.Align.CENTER
-    }
-    canvas.drawText("ZipStats", width / 2f, yPos, watermarkPaint)
-}
-
-/**
- * Formatea la duración en formato corto
- */
-private fun formatDurationShort(durationMs: Long): String {
-    val seconds = durationMs / 1000
-    val minutes = seconds / 60
-    val hours = minutes / 60
-    
-    return when {
-        hours > 0 -> String.format("%d:%02d", hours, minutes % 60)
-        else -> String.format("%d min", minutes)
-    }
-}
-
-/**
- * Formatea la duración en formato legible con unidades (para desplegable)
- */
-private fun formatDuration(durationMs: Long): String {
-    val seconds = durationMs / 1000
-    val minutes = seconds / 60
-    val hours = minutes / 60
-    
-    val s = seconds % 60
-    val m = minutes % 60
-    val h = hours
-    
-    return when {
-        h > 0 -> String.format("%d h %d min %d s", h, m, s)
-        m > 0 -> String.format("%d min %d s", m, s)
-        else -> String.format("%d s", s)
-    }
-}
-
-/**
- * Formatea la duración en formato compacto con unidades (para chips)
- */
-private fun formatDurationWithUnits(durationMs: Long): String {
-    val seconds = durationMs / 1000
-    val minutes = seconds / 60
-    val hours = minutes / 60
-    
-    val s = seconds % 60
-    val m = minutes % 60
-    val h = hours
-    
-    return when {
-        h > 0 -> String.format("%d h %d min", h, m)
-        m > 0 -> String.format("%d min", m)
-        else -> String.format("%d s", s)
-    }
-}
-
-/**
- * Comparte un Bitmap usando el sistema de compartir de Android
- */
-private fun shareBitmap(
-    context: android.content.Context,
-    bitmap: android.graphics.Bitmap,
-    route: Route
-) {
-    try {
-        // Crear archivo temporal
-        val cacheDir = context.cacheDir
-        val shareDir = java.io.File(cacheDir, "shared_routes")
-        if (!shareDir.exists()) {
-            shareDir.mkdirs()
-        }
-        
-        val imageFile = java.io.File(shareDir, "route_${route.id}.png")
-        
-        // Guardar bitmap como PNG
-        java.io.FileOutputStream(imageFile).use { out ->
-            bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, out)
-        }
-        
-        // Crear URI con FileProvider
-        val imageUri = androidx.core.content.FileProvider.getUriForFile(
-            context,
-            "${context.packageName}.provider",
-            imageFile
-        )
-        
-        // Crear intent para compartir solo la imagen
-        val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
-            type = "image/*"
-            putExtra(android.content.Intent.EXTRA_STREAM, imageUri)
-            addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            clipData = android.content.ClipData.newUri(
-                context.contentResolver,
-                "shared_route",
-                imageUri
-            )
-            addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-        }
-
-        // Conceder permisos de lectura a todas las apps objetivo
-        val resInfoList = context.packageManager.queryIntentActivities(intent, 0)
-        if (resInfoList.isEmpty()) {
-            android.widget.Toast.makeText(context, "No hay apps para compartir la imagen", android.widget.Toast.LENGTH_SHORT).show()
-            return
-        }
-        for (resolveInfo in resInfoList) {
-            val packageName = resolveInfo.activityInfo.packageName
-            context.grantUriPermission(
-                packageName,
-                imageUri,
-                android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
-            )
-        }
-
-        // Abrir chooser
-        val chooser = android.content.Intent.createChooser(intent, "Compartir ruta").apply {
-            addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-            addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        }
-        context.startActivity(chooser)
-        
-    } catch (e: Exception) {
-        android.widget.Toast.makeText(context, "Error al compartir: ${e.message}", android.widget.Toast.LENGTH_SHORT).show()
-        e.printStackTrace()
-    }
-}
-
-
-/**
- * Dibuja un marco negro con esquinas redondeadas alrededor del mapa
- */
-private fun drawMapFrame(
-    canvas: android.graphics.Canvas, 
-    width: Int, 
-    mapHeight: Int, 
-    offsetX: Int, 
-    offsetY: Int, 
-    scaledWidth: Int, 
-    scaledHeight: Int
-) {
-    val framePaint = android.graphics.Paint().apply {
-        color = android.graphics.Color.BLACK
-        strokeWidth = 8f
-        style = android.graphics.Paint.Style.STROKE
-        isAntiAlias = true
-    }
-    
-    val cornerRadius = 32f // Radio de las esquinas redondeadas
-    val frameRect = android.graphics.RectF(
-        offsetX.toFloat() - 4f,
-        offsetY.toFloat() - 4f,
-        (offsetX + scaledWidth).toFloat() + 4f,
-        (offsetY + scaledHeight).toFloat() + 4f
-    )
-    
-    canvas.drawRoundRect(frameRect, cornerRadius, cornerRadius, framePaint)
-}
-// 5. El Nuevo Diálogo Modal (para mostrar detalles del clima)
-@Composable
-private fun WeatherInfoDialog(
-    route: Route,
-    onDismiss: () -> Unit
-) {
-    Dialog(
-        onDismissRequest = onDismiss,
-        // Usamos 'false' para que el diálogo sea más ancho
-        properties = DialogProperties(usePlatformDefaultWidth = false)
-    ) {
-        Card(
-            shape = RoundedCornerShape(28.dp),
-            modifier = Modifier
-                .fillMaxWidth()
-                // Aumentamos el padding horizontal para que quepa "Sensación térmica"
-                .padding(horizontal = 24.dp),
-            elevation = CardDefaults.cardElevation(8.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-        ) {
-            Column(
-                modifier = Modifier
-                    .padding(vertical = 24.dp, horizontal = 20.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                // Título e Icono principal
-                Image(
-                    painter = painterResource(id = getWeatherIconResId(route.weatherEmoji, route.weatherIsDay)),
-                    contentDescription = "Icono del clima",
-                    modifier = Modifier.size(64.dp),
-                    colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.primary)
-                )
-                Spacer(modifier = Modifier.height(16.dp))
-
-                Text(
-                    text = route.weatherDescription ?: "Detalles del Clima",
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold,
-                    textAlign = TextAlign.Center
-                )
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // Temperatura Real
-                Text(
-                    text = "${String.format("%.1f", route.weatherTemperature)}°C",
-                    style = MaterialTheme.typography.displaySmall,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary
-                )
-
-                Spacer(modifier = Modifier.height(24.dp))
-
-                // --- Fila de Detalles ---
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    // Sensación térmica
-                    route.weatherFeelsLike?.let {
-                        WeatherDetailRow(
-                            icon = Icons.Default.Thermostat,
-                            label = "Sensación térmica",
-                            value = "${String.format("%.1f", it)}°C"
-                        )
-                    }
-                    // Humedad
-                    route.weatherHumidity?.let {
-                        WeatherDetailRow(
-                            icon = Icons.Default.WaterDrop,
-                            label = "Humedad",
-                            value = "${it}%"
-                        )
-                    }
-                    // Viento (con dirección)
-                    route.weatherWindSpeed?.let { windSpeedKmh ->
-                        val direction = convertWindDirectionToText(route.weatherWindDirection)
-                        WeatherDetailRow(
-                            icon = Icons.Default.Air,
-                            label = "Viento",
-                            value = "${String.format("%.1f", windSpeedKmh)} km/h ($direction)"
-                        )
-                    }
-
-                    // --- NUEVO: Ráfagas de Viento ---
-                    route.weatherWindGusts?.let { windGustsKmh ->
-                        WeatherDetailRow(
-                            icon = Icons.Default.Cyclone, // Icono nuevo
-                            label = "Ráfagas",
-                            value = "${String.format("%.1f", windGustsKmh)} km/h"
-                        )
-                    }
-
-                    // --- NUEVO: Probabilidad de Lluvia ---
-                    route.weatherRainProbability?.let { probability ->
-                        WeatherDetailRow(
-                            icon = Icons.Default.Grain, // Icono nuevo
-                            label = "Prob. de lluvia",
-                            value = "$probability%"
-                        )
-                    }
-
-                    // Índice UV (Condicional)
-                    if (route.weatherIsDay && route.weatherUvIndex != null && route.weatherUvIndex > 0) {
-                        WeatherDetailRow(
-                            icon = Icons.Default.WbSunny,
-                            label = "Índice UV",
-                            value = String.format("%.0f", route.weatherUvIndex)
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(24.dp))
-
-                // Botón de Cerrar
-                Button(
-                    onClick = onDismiss,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("Cerrar")
-                }
-            }
-        }
-    }
-}
-
-/**
- * 6. Helper Composable para el diálogo de clima
- */
-@Composable
-private fun WeatherDetailRow(icon: ImageVector, label: String, value: String) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = label,
-            tint = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.size(24.dp)
-        )
-        Spacer(modifier = Modifier.width(16.dp))
-        Text(
-            text = label,
-            style = MaterialTheme.typography.bodyLarge,
-            // El label toma el espacio flexible
-            modifier = Modifier.weight(1f)
-        )
-        Text(
-            text = value,
-            style = MaterialTheme.typography.bodyLarge,
-            fontWeight = FontWeight.Bold
-        )
-    }
-}
-
-/**
- * 7. NUEVO HELPER: Convierte grados a puntos cardinales
- */
-@Composable
-private fun convertWindDirectionToText(degrees: Int?): String {
-    if (degrees == null) return "-"
-    val directions = listOf("N", "NE", "E", "SE", "S", "SO", "O", "NO")
-    // Corrección para que 360/0 sea "N"
-    val index = ((degrees.toFloat() + 22.5f) % 360 / 45.0f).toInt()
-    return directions[index]
 }

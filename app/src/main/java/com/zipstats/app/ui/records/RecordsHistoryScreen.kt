@@ -45,13 +45,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.zipstats.app.model.Record
@@ -78,37 +75,33 @@ fun RecordsHistoryScreen(
     val userScooters by viewModel.userScooters.collectAsState()
     val selectedModel by viewModel.selectedModel.collectAsState()
     val uiState by viewModel.uiState.collectAsState()
+
     var recordToDelete by remember { mutableStateOf<Record?>(null) }
     var recordToEdit by remember { mutableStateOf<Record?>(null) }
     var showBottomSheet by remember { mutableStateOf(false) }
     var showOnboardingDialog by remember { mutableStateOf(false) }
     var hasCheckedVehicles by remember { mutableStateOf(false) }
-    
+
     val onboardingDismissedInSession by viewModel.onboardingDismissedInSession.collectAsState()
-    
-    // Estado para controlar el scroll de la lista
+
+    // Estado para controlar el scroll de la lista (Definido UNA sola vez)
     val listState = rememberLazyListState()
-    
+
     // Variable para detectar cuando se añade un registro
     var previousRecordsSize by remember { mutableStateOf(records.size) }
-    
+
     // Verificar si se debe mostrar el onboarding
-    // Solo mostrar al abrir la app por primera vez si no hay vehículos y no se ha descartado
     LaunchedEffect(userScooters.size, uiState, onboardingDismissedInSession) {
-        // Esperar a que los datos estén cargados (no esté en estado Loading)
         val isLoading = uiState is RecordsUiState.Loading
-        
+
         if (!isLoading && !hasCheckedVehicles && !onboardingDismissedInSession) {
             hasCheckedVehicles = true
             if (userScooters.isEmpty()) {
-                // Solo mostrar si no hay vehículos, es la primera vez y no se ha descartado
                 showOnboardingDialog = true
             } else {
-                // Ocultar si hay vehículos
                 showOnboardingDialog = false
             }
         } else {
-            // Si ya verificamos, se descartó, o hay vehículos, ocultar el diálogo
             showOnboardingDialog = false
         }
     }
@@ -123,7 +116,7 @@ fun RecordsHistoryScreen(
             }
         }
     }
-    
+
     // Scroll automático al principio cuando se añade un nuevo registro
     LaunchedEffect(records.size) {
         if (records.size > previousRecordsSize && filteredRecords.isNotEmpty()) {
@@ -132,13 +125,24 @@ fun RecordsHistoryScreen(
         previousRecordsSize = records.size
     }
 
-    // Diálogo de confirmación para borrar
+    // Scroll al cambiar de filtro
+    LaunchedEffect(selectedModel) {
+        if (filteredRecords.isNotEmpty()) {
+            listState.scrollToItem(0)
+        }
+    }
+
+    // Lógica para determinar el patinete por defecto (el último usado)
+    val lastUsedScooterName = remember(records) {
+        records.maxByOrNull { it.fecha }?.patinete
+    }
+
+    // Diálogos
     recordToDelete?.let { record ->
         AlertDialog(
             onDismissRequest = { recordToDelete = null },
             title = { Text("Confirmar eliminación") },
             text = { Text("¿Estás seguro de que quieres eliminar este registro?") },
-
             confirmButton = {
                 DialogDeleteButton(
                     text = "Eliminar",
@@ -148,42 +152,35 @@ fun RecordsHistoryScreen(
                     }
                 )
             },
-
             dismissButton = {
                 DialogCancelButton(
                     text = "Cancelar",
                     onClick = { recordToDelete = null }
                 )
             },
-
             shape = DialogShape
         )
     }
 
-    // Diálogo de onboarding
     if (showOnboardingDialog) {
         OnboardingDialog(
             onDismiss = {
-                // Cerrar el diálogo y marcar como descartado en esta sesión
-                // No volverá a aparecer hasta que se cierre y vuelva a abrir la aplicación
                 showOnboardingDialog = false
                 viewModel.markOnboardingDismissed()
             },
             onRegisterVehicle = {
-                // Cerrar el diálogo, marcar como descartado y navegar
-                // El onboarding se marcará como completado cuando se registre un vehículo en ProfileViewModel
                 showOnboardingDialog = false
                 viewModel.markOnboardingDismissed()
-                // Navegar a perfil con el parámetro para abrir el diálogo
                 navController.navigate("${Screen.Profile.route}?openAddVehicle=true")
             }
         )
     }
 
-    // Diálogo con formulario de nuevo registro
     if (showBottomSheet) {
         NewRecordDialog(
             userScooters = userScooters,
+            records = records, // Pasamos los registros para calcular el kilometraje anterior
+            defaultScooter = lastUsedScooterName, // Pasamos el último usado
             onDismiss = { showBottomSheet = false },
             onConfirm = { patinete, kilometraje, fecha ->
                 viewModel.addRecord(patinete, kilometraje, fecha)
@@ -192,7 +189,6 @@ fun RecordsHistoryScreen(
         )
     }
 
-    // Diálogo de edición de registro
     if (recordToEdit != null) {
         EditRecordDialog(
             record = recordToEdit!!,
@@ -202,7 +198,7 @@ fun RecordsHistoryScreen(
                 viewModel.updateRecord(recordToEdit!!.id, patinete, kilometraje, fecha)
                 recordToEdit = null
             },
-            onDelete = { 
+            onDelete = {
                 recordToDelete = recordToEdit
                 recordToEdit = null
             }
@@ -213,16 +209,21 @@ fun RecordsHistoryScreen(
         modifier = Modifier.fillMaxSize(),
         topBar = {
             TopAppBar(
-                title = { Text("Historial de Viajes") },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimary,
-                    actionIconContentColor = MaterialTheme.colorScheme.onPrimary
+                title = {
+                    Text(
+                        "Historial de Viajes",
+                        fontWeight = FontWeight.Bold
+                    )
+                },
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    titleContentColor = MaterialTheme.colorScheme.onSurface,
+                    actionIconContentColor = MaterialTheme.colorScheme.onSurface,
+                    scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainer
                 )
             )
         },
         floatingActionButton = {
-            // FAB para agregar registro manual
             FloatingActionButton(
                 onClick = { showBottomSheet = true },
                 containerColor = MaterialTheme.colorScheme.primary
@@ -279,74 +280,7 @@ fun RecordsHistoryScreen(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            val listState = rememberLazyListState()
-
-            LaunchedEffect(selectedModel) {
-                listState.scrollToItem(0)
-            }
-
-            // Encabezados de la tabla - Adaptativo según el tamaño de pantalla
-            val configuration = LocalConfiguration.current
-            val screenWidthDp = configuration.screenWidthDp
-            val isSmallScreen = screenWidthDp < 360 // Pantallas muy pequeñas (< 360dp)
-            val isMediumScreen = screenWidthDp < 420 // Pantallas medianas (360-420dp)
-            
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = if (isSmallScreen) 8.dp else 16.dp, vertical = 12.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "Vehículo",
-                    modifier = Modifier.weight(1.4f),
-                    style = MaterialTheme.typography.bodyMedium.copy(
-                        fontSize = 14.sp
-                    ),
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.87f),
-                    
-                )
-                Text(
-                    text = "Fecha",
-                    modifier = Modifier.weight(0.8f),
-                    style = MaterialTheme.typography.bodyMedium.copy(
-                        fontSize = 14.sp
-                    ),
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.87f),
-                    textAlign = TextAlign.Center,
-                )
-                Text(
-                    text = "Total",
-                    modifier = Modifier.weight(1.0f),
-                    style = MaterialTheme.typography.bodyMedium.copy(
-                        fontSize = 14.sp
-                    ),
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.87f),
-                    textAlign = TextAlign.End,
-                )
-                Text(
-                    text = "Δ",
-                    modifier = Modifier.weight(0.8f),
-                    style = MaterialTheme.typography.bodyMedium.copy(
-                        fontSize = 14.sp
-                    ),
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.87f),
-                    textAlign = TextAlign.End,
-                )
-            }
-
-            HorizontalDivider(
-                modifier = Modifier.fillMaxWidth(),
-                thickness = 1.dp,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)
-            )
-
-            // Lista de registros
+            // Lista de registros con nuevo diseño de tarjeta
             LazyColumn(
                 state = listState,
                 modifier = Modifier
@@ -369,88 +303,94 @@ fun RecordsHistoryScreen(
                                         MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
                                     }
                                 )
-                                .padding(
-                                    horizontal = if (screenWidthDp < 360) 8.dp else 16.dp,
-                                    vertical = 14.dp
-                                ),
+                                .padding(horizontal = 16.dp, vertical = 12.dp),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                        Text(
-                            text = userScooters.find { it.nombre == record.patinete }?.modelo ?: record.patinete,
-                            modifier = Modifier.weight(1.4f),
-                            style = MaterialTheme.typography.bodyMedium.copy(
-                                fontSize = 14.sp
-                            ),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        Text(
-                            text = DateUtils.formatForDisplay(DateUtils.parseApiDate(record.fecha)),
-                            modifier = Modifier.weight(0.8f),
-                            style = MaterialTheme.typography.bodyMedium.copy(
-                                fontSize = 14.sp
-                            ),
-                            textAlign = TextAlign.Center,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        Text(
-                            text = String.format("%.1f", record.kilometraje),
-                            modifier = Modifier.weight(1.0f),
-                            style = MaterialTheme.typography.bodyMedium.copy(
-                                fontSize = 14.sp
-                            ),
-                            textAlign = TextAlign.End,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        Text(
-                            text = String.format("+%.1f", record.diferencia),
-                            modifier = Modifier.weight(0.8f),
-                            style = MaterialTheme.typography.bodyMedium.copy(
-                                fontSize = 14.sp
-                            ),
-                            textAlign = TextAlign.End,
-                            color = MaterialTheme.colorScheme.primary,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
+                            // COLUMNA IZQUIERDA: Vehículo y Fecha
+                            Column(
+                                modifier = Modifier.weight(1f),
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                Text(
+                                    text = userScooters.find { it.nombre == record.patinete }?.modelo ?: record.patinete,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Text(
+                                    text = DateUtils.formatForDisplay(DateUtils.parseApiDate(record.fecha)),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(top = 4.dp)
+                                )
+                            }
+
+                            // COLUMNA DERECHA: Diferencia y Total
+                            Column(
+                                horizontalAlignment = Alignment.End,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                Text(
+                                    text = String.format("+%.1f km", record.diferencia),
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                                )
+                                Text(
+                                    text = String.format("%.1f total", record.kilometraje),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                                    modifier = Modifier.padding(top = 4.dp)
+                                )
+                            }
+                        }
+                        HorizontalDivider(
+                            modifier = Modifier.fillMaxWidth(),
+                            thickness = 1.dp,
+                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f)
                         )
                     }
-                    HorizontalDivider(
-                        modifier = Modifier.fillMaxWidth(),
-                        thickness = 1.dp,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)
-                    )
                 }
             }
         }
     }
 }
-}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NewRecordDialog(
     userScooters: List<com.zipstats.app.model.Scooter>,
+    records: List<Record>, // Nuevo parámetro para buscar historial
+    defaultScooter: String?, // Nuevo parámetro para selección por defecto
     onDismiss: () -> Unit,
     onConfirm: (String, String, String) -> Unit
 ) {
-    var selectedScooter by remember { mutableStateOf("") }
+    var selectedScooter by remember { mutableStateOf(defaultScooter ?: "") }
     var kilometraje by remember { mutableStateOf("") }
     var expanded by remember { mutableStateOf(false) }
     var showDatePicker by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
-    // Inicializar la fecha seleccionada con la fecha real del sistema
     val millis = System.currentTimeMillis()
     val today = Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()).toLocalDate()
     var selectedDate by remember { mutableStateOf(today) }
 
-    // Establecer patinete predeterminado
+    // Fallback: Si no hay default, seleccionamos el primer vehículo disponible
     LaunchedEffect(userScooters) {
         if (selectedScooter.isEmpty() && userScooters.isNotEmpty()) {
             selectedScooter = userScooters.first().nombre
         }
+    }
+
+    // UX: Calcular kilometraje anterior para mostrar como ayuda
+    val previousMileage = remember(selectedScooter, records) {
+        records
+            .filter { it.patinete == selectedScooter }
+            .maxByOrNull { it.fecha }?.kilometraje
     }
 
     if (showDatePicker) {
@@ -504,17 +444,28 @@ fun NewRecordDialog(
                     }
                 }
 
-                // Campo de kilometraje
-                OutlinedTextField(
-                    value = kilometraje,
-                    onValueChange = {
-                        kilometraje = it
-                        errorMessage = null
-                    },
-                    label = { Text("Kilometraje") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    modifier = Modifier.fillMaxWidth()
-                )
+                // Campo de kilometraje con ayuda visual
+                Column {
+                    OutlinedTextField(
+                        value = kilometraje,
+                        onValueChange = {
+                            kilometraje = it
+                            errorMessage = null
+                        },
+                        label = { Text("Kilometraje") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    // Chivato de kilometraje anterior
+                    if (previousMileage != null) {
+                        Text(
+                            text = "Anterior: $previousMileage km",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(start = 4.dp, top = 4.dp)
+                        )
+                    }
+                }
 
                 // Selector de fecha
                 OutlinedTextField(
@@ -530,7 +481,6 @@ fun NewRecordDialog(
                     modifier = Modifier.fillMaxWidth()
                 )
 
-                // Error
                 errorMessage?.let { error ->
                     Text(
                         text = error,
@@ -584,7 +534,6 @@ fun EditRecordDialog(
     var showDatePicker by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
-    // Inicializar la fecha seleccionada con la fecha del registro
     val recordDate = DateUtils.parseApiDate(record.fecha)
     var selectedDate by remember { mutableStateOf(recordDate) }
     val today = Instant.now().atZone(ZoneId.systemDefault()).toLocalDate()
@@ -648,7 +597,7 @@ fun EditRecordDialog(
                         errorMessage = null
                     },
                     label = { Text("Kilometraje") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     modifier = Modifier.fillMaxWidth()
                 )
 
@@ -666,7 +615,6 @@ fun EditRecordDialog(
                     modifier = Modifier.fillMaxWidth()
                 )
 
-                // Mostrar error
                 errorMessage?.let { error ->
                     Text(
                         text = error,
@@ -710,4 +658,3 @@ fun EditRecordDialog(
         shape = DialogShape
     )
 }
-

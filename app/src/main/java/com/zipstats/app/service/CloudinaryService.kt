@@ -17,6 +17,7 @@ import java.io.FileOutputStream
 import javax.inject.Inject
 import javax.inject.Singleton
 
+
 @Singleton
 class CloudinaryService @Inject constructor(
     @ApplicationContext private val context: Context,
@@ -37,20 +38,25 @@ class CloudinaryService @Inject constructor(
         Log.d("CloudinaryService", "✅ Cloudinary REST Service inicializado para nube: $CLOUD_NAME")
     }
 
-    suspend fun uploadImage(uri: Uri, publicId: String): String {
+    // En CloudinaryService.kt
+
+    // Función renombrada para coincidir con tu ViewModel
+// Y cambio de parámetro: Ahora recibe un File, no una Uri
+    suspend fun uploadImageFile(file: File, publicId: String): String {
         return withContext(Dispatchers.IO) {
             try {
-                Log.d("CloudinaryService", "=== INICIANDO SUBIDA REST A $CLOUD_NAME ===")
+                Log.d("CloudinaryService", "=== SUBIENDO ARCHIVO: ${file.name} ===")
 
-                val file = uriToFile(uri) ?: throw Exception("No se pudo crear archivo temporal")
-
-                val requestFile = file.asRequestBody("image/*".toMediaTypeOrNull())
+                // 1. Preparamos el cuerpo de la petición con el Archivo que nos llega del ViewModel
+                val requestFile = file.asRequestBody("image/jpeg".toMediaTypeOrNull()) // O "image/*"
                 val body = MultipartBody.Part.createFormData("file", file.name, requestFile)
 
+                // 2. Preparamos los parámetros extra
                 val preset = UPLOAD_PRESET.toRequestBody("text/plain".toMediaTypeOrNull())
                 val publicIdBody = publicId.toRequestBody("text/plain".toMediaTypeOrNull())
                 val folder = "zipstats/profiles".toRequestBody("text/plain".toMediaTypeOrNull())
 
+                // 3. Llamamos a la API (que ahora devuelve CloudinaryResponse)
                 val response = cloudinaryApi.uploadImage(
                     file = body,
                     preset = preset,
@@ -58,17 +64,16 @@ class CloudinaryService @Inject constructor(
                     folder = folder
                 )
 
-                file.delete()
-
-                Log.d("CloudinaryService", "✅ Subida exitosa: ${response.secure_url}")
-                response.secure_url
+                // 4. Devolvemos la URL limpia
+                Log.d("CloudinaryService", "✅ Subida exitosa: ${response.secureUrl}")
+                response.secureUrl
 
             } catch (e: retrofit2.HttpException) {
                 val errorBody = e.response()?.errorBody()?.string()
-                Log.e("CloudinaryService", "❌ Error HTTP Cloudinary: ${e.code()} - $errorBody")
+                Log.e("CloudinaryService", "❌ Error HTTP: ${e.code()} - $errorBody")
                 throw e
             } catch (e: Exception) {
-                Log.e("CloudinaryService", "❌ Error en subida REST", e)
+                Log.e("CloudinaryService", "❌ Error genérico en subida", e)
                 throw e
             }
         }

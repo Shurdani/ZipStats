@@ -171,97 +171,119 @@ object ExcelExporter {
         
         return sheet
     }
-    
+
     /**
      * Crea la hoja de estadísticas por vehículo
      */
     private fun createStatsSheet(workbook: Workbook, records: List<Record>, sheetName: String): Sheet {
         val sheet = workbook.createSheet(sheetName)
         val styles = createStyles(workbook)
-        
+
         // Agrupar registros por vehículo
         val recordsByVehicle = records.groupBy { it.patinete }
-        
-        // Encabezados
+
+        // Encabezados CORREGIDOS
         val headerRow = sheet.createRow(0)
-        val headers = arrayOf("Vehículo", "Total Registros", "Kilometraje Total", "Promedio por Día", "Última Fecha")
-        
+        val headers = arrayOf(
+            "Vehículo",
+            "Total Viajes",
+            "Distancia Recorrida (Km)", // Antes decía Kilometraje Total y confundía
+            "Promedio por Viaje",       // Antes Promedio por Día (pero divides por registros)
+            "Odómetro Actual",          // NUEVO: Para ver cuánto marca el patinete
+            "Última Fecha"
+        )
+
         headers.forEachIndexed { index, header ->
             val cell = headerRow.createCell(index)
             cell.setCellValue(header)
             cell.cellStyle = styles.headerStyle
         }
-        
+
         // Datos por vehículo
         var rowIndex = 1
         recordsByVehicle.forEach { (vehicle, vehicleRecords) ->
             val row = sheet.createRow(rowIndex)
-            
+
             val totalRecords = vehicleRecords.size
-            val totalKm = vehicleRecords.sumOf { it.kilometraje.toDouble() }
-            val avgPerDay = if (totalRecords > 0) totalKm / totalRecords else 0.0
+
+            // CORRECCIÓN 1: Sumamos la DIFERENCIA (lo que has andado), no el kilometraje absoluto
+            val distanceTraveled = vehicleRecords.sumOf { it.diferencia }
+
+            // CORRECCIÓN 2: Obtenemos el kilometraje MÁXIMO para saber el estado actual del patinete
+            val currentOdometer = vehicleRecords.maxOfOrNull { it.kilometraje } ?: 0.0
+
+            // Promedio real (Distancia total / número de viajes)
+            val avgPerTrip = if (totalRecords > 0) distanceTraveled / totalRecords else 0.0
+
             val lastDate = vehicleRecords.maxByOrNull { it.fecha }?.fecha ?: ""
-            
+
+            // Llenamos las celdas
             row.createCell(0).setCellValue(vehicle)
             row.createCell(1).setCellValue(totalRecords.toDouble())
-            row.createCell(2).setCellValue(totalKm)
-            row.createCell(3).setCellValue(avgPerDay)
-            row.createCell(4).setCellValue(lastDate)
-            
+            row.createCell(2).setCellValue(distanceTraveled) // Ahora muestra la suma real de km recorridos
+            row.createCell(3).setCellValue(avgPerTrip)
+            row.createCell(4).setCellValue(currentOdometer) // El odómetro real
+            row.createCell(5).setCellValue(lastDate)
+
             // Aplicar estilos
             row.getCell(0).cellStyle = styles.textStyle
             row.getCell(1).cellStyle = styles.numberStyle
             row.getCell(2).cellStyle = styles.numberStyle
             row.getCell(3).cellStyle = styles.numberStyle
-            row.getCell(4).cellStyle = styles.dateStyle
-            
+            row.getCell(4).cellStyle = styles.numberStyle
+            row.getCell(5).cellStyle = styles.dateStyle
+
             rowIndex++
         }
-        
+
         // Ajustar anchos
-        sheet.setColumnWidth(0, 25 * 256)
-        sheet.setColumnWidth(1, 15 * 256)
-        sheet.setColumnWidth(2, 15 * 256)
-        sheet.setColumnWidth(3, 15 * 256)
-        sheet.setColumnWidth(4, 15 * 256)
-        
+        for (i in 0..5) {
+            sheet.setColumnWidth(i, 20 * 256)
+        }
+
         return sheet
     }
-    
+
     /**
      * Crea la hoja de resumen general
      */
     private fun createSummarySheet(workbook: Workbook, records: List<Record>, sheetName: String): Sheet {
         val sheet = workbook.createSheet(sheetName)
         val styles = createStyles(workbook)
-        
+
         var rowIndex = 0
-        
+
         // Título
         val titleRow = sheet.createRow(rowIndex++)
         val titleCell = titleRow.createCell(0)
         titleCell.setCellValue("RESUMEN GENERAL DE REGISTROS")
         titleCell.cellStyle = styles.titleStyle
-        
+
         // Estadísticas generales
         val totalRecords = records.size
-        val totalKm = records.sumOf { it.kilometraje }
-        val totalDiff = records.sumOf { it.diferencia }
+
+        // CORRECCIÓN: Ya no sumamos 'it.kilometraje'.
+        // Calculamos la distancia real recorrida (suma de diferencias)
+        val totalDistanciaRecorrida = records.sumOf { it.diferencia }
+
+        // Opcional: El odómetro más alto registrado entre todos los patinetes (si tiene sentido)
+        // O simplemente lo quitamos para no confundir.
+
         val uniqueVehicles = records.map { it.patinete }.distinct().size
         val dateRange = if (records.isNotEmpty()) {
             val dates = records.map { it.fecha }.sorted()
             "${dates.first()} - ${dates.last()}"
         } else "N/A"
-        
+
         val stats = listOf(
-            "Total de Registros" to totalRecords.toString(),
-            "Total de Kilómetros" to String.format("%.2f", totalKm),
-            "Total de Diferencia" to String.format("%.2f", totalDiff),
+            "Total de Viajes Registrados" to totalRecords.toString(),
+            // Aquí estaba el error. Cambiamos la etiqueta y el valor:
+            "Distancia Total Recorrida (Km)" to String.format("%.2f", totalDistanciaRecorrida),
             "Vehículos Únicos" to uniqueVehicles.toString(),
             "Rango de Fechas" to dateRange,
             "Fecha de Exportación" to SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date())
         )
-        
+
         stats.forEach { (label, value) ->
             val row = sheet.createRow(rowIndex++)
             row.createCell(0).setCellValue(label)
@@ -269,11 +291,11 @@ object ExcelExporter {
             row.getCell(0).cellStyle = styles.labelStyle
             row.getCell(1).cellStyle = styles.valueStyle
         }
-        
+
         // Ajustar anchos
-        sheet.setColumnWidth(0, 25 * 256)
-        sheet.setColumnWidth(1, 20 * 256)
-        
+        sheet.setColumnWidth(0, 30 * 256)
+        sheet.setColumnWidth(1, 25 * 256)
+
         return sheet
     }
     

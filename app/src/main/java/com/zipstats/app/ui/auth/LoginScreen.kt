@@ -4,6 +4,8 @@ package com.zipstats.app.ui.auth
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,24 +16,34 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -41,12 +53,19 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.google.android.gms.auth.api.signin.GoogleSignIn
@@ -54,9 +73,9 @@ import com.google.android.gms.auth.api.signin.GoogleSignInAccount
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.google.android.gms.common.api.ApiException
 import com.google.android.gms.tasks.Task
-import kotlin.Suppress
+import com.zipstats.app.R
 
-// Web Client ID para Google Sign In (tipo 3 en google-services.json)
+// Web Client ID para Google Sign In
 private const val DEFAULT_WEB_CLIENT_ID = "811393382396-fi0s13vdo86gabespr7dmb559f202l7d.apps.googleusercontent.com"
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -72,6 +91,8 @@ fun LoginScreen(
     var showError by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
+
+    // Estados para diálogos
     var showResetDialog by remember { mutableStateOf(false) }
     var resetEmail by remember { mutableStateOf("") }
     var showResetConfirmation by remember { mutableStateOf(false) }
@@ -82,16 +103,13 @@ fun LoginScreen(
     var mergePasswordVisible by remember { mutableStateOf(false) }
     var mergeError by remember { mutableStateOf("") }
     var pendingGoogleIdToken by remember { mutableStateOf<String?>(null) }
-    
-    // Estados de validación
+
+    // Validación
     var emailError by remember { mutableStateOf("") }
 
     val authState by viewModel.authState.collectAsState()
 
-    // Configurar Google Sign In
-    // Nota: Las clases de Google Sign In están marcadas como deprecadas pero siguen siendo la API oficial
-    // y recomendada para autenticación con Firebase. La alternativa One Tap Sign In es más compleja.
-    @Suppress("DEPRECATION")
+    // Google Sign In
     val googleSignInOptions = remember {
         GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
             .requestIdToken(DEFAULT_WEB_CLIENT_ID)
@@ -99,46 +117,35 @@ fun LoginScreen(
             .build()
     }
 
-    @Suppress("DEPRECATION")
     val googleSignInClient = remember {
         GoogleSignIn.getClient(context, googleSignInOptions)
     }
 
-    // Launcher para Google Sign In
     val googleSignInLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
-        @Suppress("DEPRECATION")
         val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
         handleGoogleSignInResult(task, viewModel) { idToken ->
             pendingGoogleIdToken = idToken
         }
     }
 
-    // Personalizar colores de error
-    val customErrorColors = OutlinedTextFieldDefaults.colors(
-        cursorColor = MaterialTheme.colorScheme.primary
-    )
-
-    // Función de validación de email
     fun validateEmail(email: String): String {
         return when {
-            email.isEmpty() -> "El email es obligatorio"
+            email.isEmpty() -> ""
             !android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches() -> "Formato de email inválido"
             else -> ""
         }
     }
 
-    // Validar en tiempo real
     LaunchedEffect(email) {
-        emailError = validateEmail(email)
+        if (email.isNotEmpty()) emailError = validateEmail(email)
     }
 
     LaunchedEffect(authState) {
         when (val state = authState) {
             is AuthState.Success -> {
                 if (showMergeDialog) {
-                    // Si el merge fue exitoso, cerrar el diálogo y continuar
                     showMergeDialog = false
                     mergePassword = ""
                     mergeError = ""
@@ -148,7 +155,6 @@ fun LoginScreen(
             }
             is AuthState.Error -> {
                 if (showMergeDialog) {
-                    // Si hay un error mientras el diálogo de merge está abierto, mostrar el error en el diálogo
                     mergeError = state.message
                 } else {
                     showError = true
@@ -166,196 +172,280 @@ fun LoginScreen(
                 resetEmail = ""
             }
             else -> {
-                if (!showMergeDialog) {
-                    showError = false
+                if (!showMergeDialog) showError = false
+            }
+        }
+    }
+
+    Scaffold { padding ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .background(MaterialTheme.colorScheme.background)
+        ) {
+            // Fondo decorativo superior (Gradiente sutil)
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(220.dp)
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(
+                                MaterialTheme.colorScheme.primary.copy(alpha = 0.08f),
+                                Color.Transparent
+                            )
+                        )
+                    )
+            )
+
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+
+                // 1. LOGO PERSONALIZADO
+                Surface(
+                    shape = CircleShape,
+                    // CAMBIO CLAVE: Usamos Color.White para que se fusione con el fondo blanco de tu logo
+                    color = Color.White,
+                    modifier = Modifier.size(130.dp), // Un poco más grande
+                    shadowElevation = 8.dp
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Image(
+                            painter = painterResource(id = R.drawable.logo_app),
+                            contentDescription = "Logo ZipStats",
+                            modifier = Modifier.size(110.dp), // Logo ajustado
+                            contentScale = ContentScale.Fit
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                Text(
+                    text = "Bienvenido",
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onBackground
+                )
+
+                Text(
+                    text = "Inicia sesión para continuar",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                Spacer(modifier = Modifier.height(32.dp))
+
+                // 2. FORMULARIO
+                OutlinedTextField(
+                    value = email,
+                    onValueChange = { email = it },
+                    label = { Text("Correo electrónico") },
+                    leadingIcon = { Icon(Icons.Default.Email, null) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    isError = emailError.isNotEmpty() && email.isNotEmpty(),
+                    shape = RoundedCornerShape(12.dp),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Next),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outline
+                    )
+                )
+
+                if (emailError.isNotEmpty() && email.isNotEmpty()) {
+                    Text(
+                        text = emailError,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(start = 16.dp, top = 4.dp).align(Alignment.Start)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                OutlinedTextField(
+                    value = password,
+                    onValueChange = { password = it },
+                    label = { Text("Contraseña") },
+                    leadingIcon = { Icon(Icons.Default.Lock, null) },
+                    visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done),
+                    trailingIcon = {
+                        IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                            Icon(
+                                imageVector = if (passwordVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                contentDescription = if (passwordVisible) "Ocultar" else "Mostrar"
+                            )
+                        }
+                    }
+                )
+
+                if (showError) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = errorMessage,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodyMedium,
+                        textAlign = TextAlign.Center
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterEnd) {
+                    TextButton(onClick = { showResetDialog = true }) {
+                        Text("¿Olvidaste tu contraseña?")
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                // 3. BOTONES
+                Button(
+                    onClick = {
+                        if (email.isNotEmpty() && emailError.isEmpty()) {
+                            viewModel.login(email, password)
+                        } else {
+                            showError = true
+                            errorMessage = "Por favor, verifica los datos"
+                        }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(50.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    enabled = email.isNotEmpty() && password.isNotEmpty() && authState !is AuthState.Loading
+                ) {
+                    if (authState is AuthState.Loading) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(24.dp),
+                            color = MaterialTheme.colorScheme.onPrimary
+                        )
+                    } else {
+                        Text("Iniciar Sesión", fontSize = 16.sp)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    HorizontalDivider(modifier = Modifier.weight(1f))
+                    Text(
+                        text = "O continúa con",
+                        modifier = Modifier.padding(horizontal = 16.dp),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    HorizontalDivider(modifier = Modifier.weight(1f))
+                }
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                // Botón Google
+                OutlinedButton(
+                    onClick = {
+                        val signInIntent = googleSignInClient.signInIntent
+                        googleSignInLauncher.launch(signInIntent)
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(50.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    enabled = authState !is AuthState.Loading
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        // Icono "G" estilizado
+                        Text(
+                            text = "G",
+                            style = MaterialTheme.typography.titleLarge.copy(
+                                fontWeight = FontWeight.Black,
+                                color = MaterialTheme.colorScheme.primary
+                            ),
+                            modifier = Modifier.padding(end = 12.dp)
+                        )
+                        Text("Google", color = MaterialTheme.colorScheme.onSurface)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(32.dp))
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    Text(
+                        text = "¿No tienes cuenta?",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    TextButton(onClick = onRegisterClick) {
+                        Text(
+                            text = "Regístrate",
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                 }
             }
         }
     }
+
+    // --- DIÁLOGOS ---
 
     if (showResetDialog) {
         Dialog(onDismissRequest = { showResetDialog = false }) {
             Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
             ) {
                 Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
+                    modifier = Modifier.padding(24.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Text(
-                        text = "Recuperar Contraseña",
-                        style = MaterialTheme.typography.titleLarge
-                    )
-                    
+                    Text("Recuperar Contraseña", style = MaterialTheme.typography.headlineSmall)
                     Spacer(modifier = Modifier.height(16.dp))
-                    
                     Text(
-                        text = "Introduce tu correo electrónico y te enviaremos un enlace para restablecer tu contraseña.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        textAlign = TextAlign.Center
+                        "Introduce tu email para recibir un enlace de recuperación.",
+                        textAlign = TextAlign.Center,
+                        style = MaterialTheme.typography.bodyMedium
                     )
-                    
                     Spacer(modifier = Modifier.height(16.dp))
-                    
                     OutlinedTextField(
                         value = resetEmail,
-                        onValueChange = { 
-                            resetEmail = it
-                            resetError = ""
-                        },
-                        label = { Text("Correo electrónico") },
+                        onValueChange = { resetEmail = it; resetError = "" },
+                        label = { Text("Email") },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                         isError = resetError.isNotEmpty()
                     )
-                    
                     if (resetError.isNotEmpty()) {
-                        Text(
-                            text = resetError,
-                            color = MaterialTheme.colorScheme.error,
-                            style = MaterialTheme.typography.bodySmall,
-                            modifier = Modifier.padding(top = 4.dp)
-                        )
+                        Text(resetError, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                     }
-                    
                     Spacer(modifier = Modifier.height(24.dp))
-                    
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.End
-                    ) {
-                        TextButton(
-                            onClick = { showResetDialog = false }
-                        ) {
-                            Text("Cancelar")
-                        }
-                        
+                    Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
+                        TextButton(onClick = { showResetDialog = false }) { Text("Cancelar") }
                         Button(
                             onClick = {
-                                if (resetEmail.isEmpty()) {
-                                    resetError = "Por favor, introduce tu correo electrónico"
-                                } else {
-                                    viewModel.resetPassword(resetEmail)
-                                }
-                            },
-                            modifier = Modifier.padding(start = 8.dp)
-                        ) {
-                            Text("Enviar")
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    // Diálogo para fusionar cuentas
-    if (showMergeDialog) {
-        Dialog(onDismissRequest = { 
-            showMergeDialog = false
-            mergePassword = ""
-            mergeError = ""
-            pendingGoogleIdToken = null
-        }) {
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(
-                        text = "Vincular cuenta de Google",
-                        style = MaterialTheme.typography.titleLarge
-                    )
-                    
-                    Spacer(modifier = Modifier.height(16.dp))
-                    
-                    Text(
-                        text = "Ya existe una cuenta con el email $mergeEmail. Ingresa tu contraseña para vincular tu cuenta de Google.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        textAlign = TextAlign.Center
-                    )
-                    
-                    Spacer(modifier = Modifier.height(16.dp))
-                    
-                    OutlinedTextField(
-                        value = mergePassword,
-                        onValueChange = { 
-                            mergePassword = it
-                            mergeError = ""
-                        },
-                        label = { Text("Contraseña") },
-                        visualTransformation = if (mergePasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                        isError = mergeError.isNotEmpty(),
-                        trailingIcon = {
-                            IconButton(onClick = { mergePasswordVisible = !mergePasswordVisible }) {
-                                Icon(
-                                    imageVector = if (mergePasswordVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                                    contentDescription = if (mergePasswordVisible) "Ocultar contraseña" else "Mostrar contraseña",
-                                    tint = MaterialTheme.colorScheme.primary
-                                )
+                                if (resetEmail.isEmpty()) resetError = "Campo obligatorio"
+                                else viewModel.resetPassword(resetEmail)
                             }
-                        }
-                    )
-                    
-                    if (mergeError.isNotEmpty()) {
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = mergeError,
-                            color = MaterialTheme.colorScheme.error,
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                    }
-                    
-                    Spacer(modifier = Modifier.height(24.dp))
-                    
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.End
-                    ) {
-                        TextButton(
-                            onClick = { 
-                                showMergeDialog = false
-                                mergePassword = ""
-                                mergeError = ""
-                                pendingGoogleIdToken = null
-                            }
-                        ) {
-                            Text("Cancelar")
-                        }
-                        
-                        Button(
-                            onClick = {
-                                if (mergePassword.isEmpty()) {
-                                    mergeError = "Por favor, ingresa tu contraseña"
-                                } else if (pendingGoogleIdToken == null) {
-                                    mergeError = "Error: No se pudo obtener el token de Google. Por favor, intenta de nuevo."
-                                } else {
-                                    viewModel.linkGoogleAccount(pendingGoogleIdToken!!, mergeEmail, mergePassword)
-                                }
-                            },
-                            modifier = Modifier.padding(start = 8.dp),
-                            enabled = mergePassword.isNotEmpty() && authState !is AuthState.Loading
-                        ) {
-                            if (authState is AuthState.Loading) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(24.dp),
-                                    color = MaterialTheme.colorScheme.onPrimary
-                                )
-                            } else {
-                                Text("Vincular")
-                            }
-                        }
+                        ) { Text("Enviar") }
                     }
                 }
             }
@@ -363,220 +453,72 @@ fun LoginScreen(
     }
 
     if (showResetConfirmation) {
-        Dialog(onDismissRequest = { showResetConfirmation = false }) {
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Check,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(48.dp)
-                    )
-                    
-                    Spacer(modifier = Modifier.height(16.dp))
-                    
-                    Text(
-                        text = "Correo Enviado",
-                        style = MaterialTheme.typography.titleLarge
-                    )
-                    
-                    Spacer(modifier = Modifier.height(8.dp))
-                    
-                    Text(
-                        text = "Hemos enviado un enlace a tu correo electrónico para restablecer tu contraseña.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        textAlign = TextAlign.Center
-                    )
-                    
-                    Spacer(modifier = Modifier.height(24.dp))
-                    
-                    Button(
-                        onClick = { showResetConfirmation = false },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text("Entendido")
-                    }
-                }
+        AlertDialog(
+            onDismissRequest = { showResetConfirmation = false },
+            icon = { Icon(Icons.Default.Check, null, tint = MaterialTheme.colorScheme.primary) },
+            title = { Text("Correo Enviado") },
+            text = { Text("Revisa tu bandeja de entrada para restablecer tu contraseña.") },
+            confirmButton = {
+                Button(onClick = { showResetConfirmation = false }) { Text("Entendido") }
             }
-        }
+        )
     }
 
-    Scaffold { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(horizontal = 16.dp)
-                .padding(top = 80.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Top
-        ) {
-            Text(
-                text = "Iniciar Sesión",
-                style = MaterialTheme.typography.headlineMedium
-            )
-
-            Spacer(modifier = Modifier.height(32.dp))
-
-            OutlinedTextField(
-                value = email,
-                onValueChange = { email = it },
-                label = { Text("Correo electrónico") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-                isError = emailError.isNotEmpty(),
-                colors = customErrorColors
-            )
-
-            if (emailError.isNotEmpty()) {
-                Text(
-                    text = emailError,
-                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f),
-                    style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.padding(start = 16.dp)
-                )
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            OutlinedTextField(
-                value = password,
-                onValueChange = { password = it },
-                label = { Text("Contraseña") },
-                visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-                colors = customErrorColors,
-                trailingIcon = {
-                    IconButton(onClick = { passwordVisible = !passwordVisible }) {
-                        Icon(
-                            imageVector = if (passwordVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                            contentDescription = if (passwordVisible) "Ocultar contraseña" else "Mostrar contraseña",
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                    }
-                }
-            )
-
-            if (showError) {
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = errorMessage,
-                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
-                )
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            TextButton(
-                onClick = { showResetDialog = true },
-                modifier = Modifier.align(Alignment.End)
+    // Diálogo de Fusión de Cuentas
+    if (showMergeDialog) {
+        Dialog(onDismissRequest = { showMergeDialog = false }) {
+            Card(
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
             ) {
-                Text("¿Olvidaste tu contraseña?")
-            }
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            Button(
-                onClick = {
-                    if (emailError.isEmpty()) {
-                        viewModel.login(email, password)
-                    } else {
-                        showError = true
-                        errorMessage = "Por favor, corrige el formato del email"
-                    }
-                },
-                modifier = Modifier.fillMaxWidth(),
-                enabled = email.isNotEmpty() && password.isNotEmpty() && emailError.isEmpty() && authState !is AuthState.Loading
-            ) {
-                if (authState is AuthState.Loading) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(24.dp),
-                        color = MaterialTheme.colorScheme.onPrimary
-                    )
-                } else {
-                    Text("Iniciar Sesión")
-                }
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Separador
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.Center
-            ) {
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(horizontal = 8.dp)
+                Column(
+                    modifier = Modifier.padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    HorizontalDivider()
-                }
-                Text(
-                    text = "O",
-                    modifier = Modifier.padding(horizontal = 16.dp),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                )
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(horizontal = 8.dp)
-                ) {
-                    HorizontalDivider()
-                }
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Botón de Google Sign In
-            OutlinedButton(
-                onClick = {
-                    val signInIntent = googleSignInClient.signInIntent
-                    googleSignInLauncher.launch(signInIntent)
-                },
-                modifier = Modifier.fillMaxWidth(),
-                enabled = authState !is AuthState.Loading
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // Icono de Google (usando un emoji o un icono de Material)
+                    Text("Vincular cuenta", style = MaterialTheme.typography.headlineSmall)
+                    Spacer(modifier = Modifier.height(16.dp))
                     Text(
-                        text = "G",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(end = 8.dp)
+                        "El email $mergeEmail ya está registrado. Ingresa tu contraseña para vincular con Google.",
+                        textAlign = TextAlign.Center,
+                        style = MaterialTheme.typography.bodyMedium
                     )
-                    Text("Continuar con Google")
+                    Spacer(modifier = Modifier.height(16.dp))
+                    OutlinedTextField(
+                        value = mergePassword,
+                        onValueChange = { mergePassword = it; mergeError = "" },
+                        label = { Text("Contraseña") },
+                        visualTransformation = if (mergePasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                        trailingIcon = {
+                            IconButton(onClick = { mergePasswordVisible = !mergePasswordVisible }) {
+                                Icon(if (mergePasswordVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility, null)
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        isError = mergeError.isNotEmpty()
+                    )
+                    if (mergeError.isNotEmpty()) {
+                        Text(mergeError, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                    }
+                    Spacer(modifier = Modifier.height(24.dp))
+                    Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
+                        TextButton(onClick = { showMergeDialog = false }) { Text("Cancelar") }
+                        Button(
+                            onClick = {
+                                if (mergePassword.isEmpty()) mergeError = "Ingresa tu contraseña"
+                                else if (pendingGoogleIdToken != null) viewModel.linkGoogleAccount(pendingGoogleIdToken!!, mergeEmail, mergePassword)
+                            },
+                            enabled = authState !is AuthState.Loading
+                        ) {
+                            if (authState is AuthState.Loading) CircularProgressIndicator(modifier = Modifier.size(16.dp), color = Color.White)
+                            else Text("Vincular")
+                        }
+                    }
                 }
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            TextButton(
-                onClick = onRegisterClick
-            ) {
-                Text("¿No tienes cuenta? Regístrate")
             }
         }
     }
 }
 
-@Suppress("DEPRECATION")
 private fun handleGoogleSignInResult(
     completedTask: Task<GoogleSignInAccount>,
     viewModel: AuthViewModel,
@@ -592,6 +534,5 @@ private fun handleGoogleSignInResult(
         }
     } catch (e: ApiException) {
         android.util.Log.e("LoginScreen", "Error en Google Sign In", e)
-        // El error se manejará a través del AuthState en el ViewModel
     }
-} 
+}

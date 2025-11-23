@@ -22,6 +22,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.PrimaryScrollableTabRow
 import androidx.compose.material3.Scaffold
@@ -39,16 +40,17 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.zipstats.app.model.Route
 import com.zipstats.app.navigation.Screen
+import com.zipstats.app.ui.components.DialogCancelButton
+import com.zipstats.app.ui.components.DialogConfirmButton
+import com.zipstats.app.ui.theme.DialogShape
 import com.zipstats.app.utils.DateUtils
 import java.time.Instant
 import java.time.ZoneId
@@ -69,10 +71,13 @@ fun RoutesScreen(
     var routeToDelete by remember { mutableStateOf<Route?>(null) }
     var routeToView by remember { mutableStateOf<Route?>(null) }
     var routeAddedToRecords by remember { mutableStateOf<Map<String, Boolean>>(emptyMap()) }
-    
-    // Estado para controlar el scroll de la lista
+
+    // Estado de scroll único
     val listState = rememberLazyListState()
-    
+
+    // Variable para detectar nuevos registros y hacer scroll
+    var previousRoutesSize by remember { mutableStateOf(routes.size) }
+
     // Filtrar rutas según el patinete seleccionado
     val filteredRoutes = when (selectedScooter) {
         null -> routes
@@ -80,7 +85,22 @@ fun RoutesScreen(
             route.scooterId == selectedScooter
         }
     }
-    
+
+    // Scroll automático al añadir
+    LaunchedEffect(routes.size) {
+        if (routes.size > previousRoutesSize && filteredRoutes.isNotEmpty()) {
+            listState.animateScrollToItem(0)
+        }
+        previousRoutesSize = routes.size
+    }
+
+    // Scroll al cambiar de pestaña
+    LaunchedEffect(selectedScooter) {
+        if (filteredRoutes.isNotEmpty()) {
+            listState.scrollToItem(0)
+        }
+    }
+
     // Verificar si las rutas ya fueron añadidas a registros
     LaunchedEffect(routes) {
         routes.forEach { route ->
@@ -90,77 +110,71 @@ fun RoutesScreen(
             }
         }
     }
-    
-    // Recargar rutas cuando el uiState cambie a Success (después de eliminar)
+
+    // Recargar rutas tras eliminar
     LaunchedEffect(uiState) {
         if (uiState is RoutesUiState.Success) {
-            // Limpiar el estado local de rutas añadidas a registros para rutas que ya no existen
             val existingRouteIds = routes.map { it.id }.toSet()
             routeAddedToRecords = routeAddedToRecords.filterKeys { routeId ->
                 existingRouteIds.contains(routeId)
             }
         }
     }
-    
-    // Mostrar mensaje si existe
+
+    // Diálogos
     errorMessage?.let { msg ->
         AlertDialog(
             onDismissRequest = { viewModel.clearError() },
             title = { Text("Información") },
             text = { Text(msg) },
             confirmButton = {
-                com.zipstats.app.ui.components.DialogConfirmButton(
+                DialogConfirmButton(
                     text = "Aceptar",
                     onClick = { viewModel.clearError() }
                 )
             },
-            shape = com.zipstats.app.ui.theme.DialogShape
+            shape = DialogShape
         )
     }
-    
-    // Diálogo de confirmación para borrar
+
     routeToDelete?.let { route ->
         AlertDialog(
             onDismissRequest = { routeToDelete = null },
             title = { Text("Confirmar eliminación") },
             text = { Text("¿Estás seguro de que quieres eliminar esta ruta?") },
             confirmButton = {
-                com.zipstats.app.ui.components.DialogConfirmButton(
+                DialogConfirmButton(
                     text = "Eliminar",
                     onClick = {
                         viewModel.deleteRoute(route.id)
-                        // Limpiar el estado local de la ruta eliminada
                         routeAddedToRecords = routeAddedToRecords - route.id
                         routeToDelete = null
                     }
                 )
             },
             dismissButton = {
-                com.zipstats.app.ui.components.DialogCancelButton(
+                DialogCancelButton(
                     text = "Cancelar",
                     onClick = { routeToDelete = null }
                 )
             },
-            shape = com.zipstats.app.ui.theme.DialogShape
+            shape = DialogShape
         )
     }
-    
-    // Diálogo de detalles de ruta
+
     routeToView?.let { clickedRoute ->
-        // Siempre obtener la ruta más reciente de la lista para asegurar datos actualizados
         val currentRoute = routes.find { it.id == clickedRoute.id } ?: clickedRoute
         val isAddedToRecords = routeAddedToRecords[currentRoute.id] ?: false
         RouteDetailDialog(
             route = currentRoute,
             onDismiss = { routeToView = null },
-            onDelete = { 
+            onDelete = {
                 routeToDelete = currentRoute
                 routeToView = null
             },
             onAddToRecords = if (!isAddedToRecords) {
                 {
                     viewModel.addRouteToRecords(currentRoute)
-                    // Actualizar el estado local
                     routeAddedToRecords = routeAddedToRecords + (currentRoute.id to true)
                 }
             } else null,
@@ -170,42 +184,32 @@ fun RoutesScreen(
             }
         )
     }
-    
-    // Mostrar error si existe
-    errorMessage?.let { error ->
-        AlertDialog(
-            onDismissRequest = { viewModel.clearError() },
-            title = { Text("Error") },
-            text = { Text(error) },
-            confirmButton = {
-                com.zipstats.app.ui.components.DialogConfirmButton(
-                    text = "Aceptar",
-                    onClick = { viewModel.clearError() }
-                )
-            },
-            shape = com.zipstats.app.ui.theme.DialogShape
-        )
-    }
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         topBar = {
             TopAppBar(
-                title = { Text("Rutas") },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimary,
-                    actionIconContentColor = MaterialTheme.colorScheme.onPrimary
+                title = {
+                    Text(
+                        "Historial de Rutas",
+                        fontWeight = FontWeight.Bold
+                    )
+                },
+                // Estilo moderno 'Surface' igual que Historial de Registros
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    titleContentColor = MaterialTheme.colorScheme.onSurface,
+                    actionIconContentColor = MaterialTheme.colorScheme.onSurface,
+                    scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainer
                 )
             )
         },
         floatingActionButton = {
-            // FAB para seguimiento GPS
             FloatingActionButton(
                 onClick = { navController.navigate(Screen.Tracking.route) },
                 containerColor = MaterialTheme.colorScheme.tertiary
             ) {
-                androidx.compose.material3.Icon(
+                Icon(
                     imageVector = Icons.Default.GpsFixed,
                     contentDescription = "Iniciar seguimiento GPS",
                     modifier = Modifier.size(24.dp)
@@ -258,82 +262,10 @@ fun RoutesScreen(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // --- ESTADO DE LA LISTA Y EFECTO DE SCROLL ---
-            val listState = rememberLazyListState()
-
-            // Cuando cambia el filtro (selectedScooter), volvemos arriba
-            LaunchedEffect(selectedScooter) {
-                listState.scrollToItem(0)
-            }
-
-            // Encabezados de la tabla - Adaptativo según el tamaño de pantalla
-            val configuration = LocalConfiguration.current
-            val screenWidthDp = configuration.screenWidthDp
-            val isSmallScreen = screenWidthDp < 360 // Pantallas muy pequeñas (< 360dp)
-            val isMediumScreen = screenWidthDp < 420 // Pantallas medianas (360-420dp)
-
-            
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = if (isSmallScreen) 8.dp else 16.dp, vertical = 12.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "Vehículo",
-                    modifier = Modifier.weight(1.4f),
-                    style = MaterialTheme.typography.bodyMedium.copy(
-                        fontSize = 14.sp
-                    ),
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.87f),
-                    
-                )
-                Text(
-                    text = "Fecha",
-                    modifier = Modifier.weight(0.8f),
-                    style = MaterialTheme.typography.bodyMedium.copy(
-                        fontSize = 14.sp
-                    ),
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.87f),
-                    textAlign = TextAlign.Center,
-                )
-                Text(
-                    text = "Km",
-                    modifier = Modifier.weight(1.0f),
-                    style = MaterialTheme.typography.bodyMedium.copy(
-                        fontSize = 14.sp
-                    ),
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.87f),
-                    textAlign = TextAlign.End,
-                )
-                Text(
-                    text = "Lapso",
-                    modifier = Modifier.weight(0.8f),
-                    style = MaterialTheme.typography.bodyMedium.copy(
-                        fontSize = 14.sp
-                    ),
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.87f),
-                    textAlign = TextAlign.End,
-                )
-            }
-
-            HorizontalDivider(
-                modifier = Modifier.fillMaxWidth(),
-                thickness = 1.dp,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)
-            )
-
-            // Lista de rutas
+            // Lista de rutas (Diseño moderno de 2 columnas)
             if (isLoading) {
                 Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f),
+                    modifier = Modifier.fillMaxWidth().weight(1f),
                     contentAlignment = Alignment.Center
                 ) {
                     CircularProgressIndicator()
@@ -361,67 +293,68 @@ fun RoutesScreen(
                                             MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
                                         }
                                     )
-                                    .padding(
-                                        horizontal = if (screenWidthDp < 360) 8.dp else 16.dp,
-                                        vertical = 14.dp
-                                    ),
+                                    .padding(horizontal = 16.dp, vertical = 12.dp),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                            Text(
-                                text = userScooters.find { it.id == route.scooterId }?.modelo ?: route.scooterName,
-                                modifier = Modifier.weight(1.4f),
-                                style = MaterialTheme.typography.bodyMedium.copy(
-                                    fontSize = 14.sp
-                                ),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            Text(
-                                text = DateUtils.formatForDisplay(
-                                    Instant.ofEpochMilli(route.startTime)
-                                        .atZone(ZoneId.systemDefault())
-                                        .toLocalDate()
-                                ),
-                                modifier = Modifier.weight(0.8f),
-                                style = MaterialTheme.typography.bodyMedium.copy(
-                                    fontSize = 14.sp
-                                ),
-                                textAlign = TextAlign.Center,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            Text(
-                                text = String.format("%.1f km", route.totalDistance),
-                                modifier = Modifier.weight(1.0f),
-                                style = MaterialTheme.typography.bodyMedium.copy(
-                                    fontSize = 14.sp
-                                ),
-                                textAlign = TextAlign.End,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            Text(
-                                text = route.durationFormatted,
-                                modifier = Modifier.weight(0.8f),
-                                style = MaterialTheme.typography.bodyMedium.copy(
-                                    fontSize = 14.sp
-                                ),
-                                textAlign = TextAlign.End,
-                                color = MaterialTheme.colorScheme.primary,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
+                                // COLUMNA IZQUIERDA: Vehículo y Fecha
+                                Column(
+                                    modifier = Modifier.weight(1f),
+                                    verticalArrangement = Arrangement.Center
+                                ) {
+                                    // Nombre del vehículo (Grande)
+                                    Text(
+                                        text = userScooters.find { it.id == route.scooterId }?.modelo ?: route.scooterName,
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    // Fecha (Pequeña y gris)
+                                    Text(
+                                        text = DateUtils.formatForDisplay(
+                                            Instant.ofEpochMilli(route.startTime)
+                                                .atZone(ZoneId.systemDefault())
+                                                .toLocalDate()
+                                        ),
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(top = 4.dp)
+                                    )
+                                }
+
+                                // COLUMNA DERECHA: Distancia y Tiempo
+                                Column(
+                                    horizontalAlignment = Alignment.End,
+                                    verticalArrangement = Arrangement.Center
+                                ) {
+                                    // Distancia (El dato "Héroe")
+                                    Text(
+                                        text = String.format("%.1f km", route.totalDistance),
+                                        style = MaterialTheme.typography.titleMedium,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        fontFamily = FontFamily.Monospace
+                                    )
+                                    // Duración (Dato secundario)
+                                    Text(
+                                        text = route.durationFormatted,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        fontFamily = FontFamily.Monospace,
+                                        modifier = Modifier.padding(top = 4.dp)
+                                    )
+                                }
+                            }
+                            HorizontalDivider(
+                                modifier = Modifier.fillMaxWidth(),
+                                thickness = 1.dp,
+                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f)
                             )
                         }
-                        HorizontalDivider(
-                            modifier = Modifier.fillMaxWidth(),
-                            thickness = 1.dp,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)
-                        )
                     }
                 }
             }
-        }
         }
     }
 }

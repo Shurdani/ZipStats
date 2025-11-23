@@ -1,6 +1,5 @@
 package com.zipstats.app.ui.profile
 
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -11,66 +10,70 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.ElectricScooter
-import androidx.compose.material.icons.filled.History
-import androidx.compose.material.icons.filled.TrendingUp
-import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Label
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.outlined.Build
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableDoubleStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.material3.CircularProgressIndicator
-import kotlinx.coroutines.launch
-import java.time.LocalDate
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.zipstats.app.R
-import com.zipstats.app.model.VehicleType
-import com.zipstats.app.navigation.Screen
+import com.zipstats.app.model.Record
+import com.zipstats.app.model.Repair
+import com.zipstats.app.model.Scooter
+import com.zipstats.app.ui.components.DialogCancelButton
+import com.zipstats.app.ui.components.DialogConfirmButton
+import com.zipstats.app.ui.components.DialogDeleteButton
+import com.zipstats.app.ui.components.StandardDatePickerDialogWithValidation
 import com.zipstats.app.utils.DateUtils
-import com.zipstats.app.ui.theme.DialogShape
-import com.zipstats.app.ui.components.*
+import java.time.LocalDate
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -79,526 +82,250 @@ fun ScooterDetailScreen(
     scooterId: String,
     viewModel: ProfileViewModel = hiltViewModel()
 ) {
+    // Estados para datos asíncronos
+    var lastRepair by remember { mutableStateOf<Repair?>(null) }
+    var lastRecord by remember { mutableStateOf<Record?>(null) }
+    var usagePercentage by remember { mutableDoubleStateOf(0.0) } // Estado para el porcentaje
+    var isLoadingDetails by remember { mutableStateOf(true) }
+
     val uiState by viewModel.uiState.collectAsState()
-    var showDeleteDialog by remember { mutableStateOf(false) }
-    var showMenu by remember { mutableStateOf(false) }
-    var vehicleStats by remember { mutableStateOf<VehicleDetailedStats?>(null) }
-    var isLoadingStats by remember { mutableStateOf(true) }
-    var showEditSheet by remember { mutableStateOf(false) }
-    val scope = rememberCoroutineScope()
-    
-    val scooter = when (val state = uiState) {
-        is ProfileUiState.Success -> {
-            state.scooters.find { it.id == scooterId }
-        }
-        else -> null
-    }
 
-    // Cargar estadísticas detalladas del vehículo
-    LaunchedEffect(scooter) {
+    // Buscar el scooter específico en el estado cargado
+    val scooter = (uiState as? ProfileUiState.Success)?.scooters?.find { it.id == scooterId }
+
+    // Cargar datos adicionales
+    LaunchedEffect(scooterId, scooter) {
         if (scooter != null) {
-            isLoadingStats = true
-            vehicleStats = viewModel.getVehicleDetailedStats(scooter.id, scooter.nombre)
-            isLoadingStats = false
+            // 1. Asegurar que tenemos los detalles
+            viewModel.loadScooterDetails(scooterId)
+
+            // 2. Cargar datos calculados
+            lastRepair = viewModel.getLastRepair(scooterId)
+            lastRecord = viewModel.getLastRecord(scooter.nombre)
+            usagePercentage = viewModel.getVehicleUsagePercentage(scooter.nombre)
+
+            isLoadingDetails = false
         }
     }
 
-    if (showDeleteDialog && scooter != null) {
-        AlertDialog(
-            onDismissRequest = { showDeleteDialog = false },
-            title = { Text("Eliminar vehículo") },
-            text = {
-                Text(
-                    "¿Estás seguro de que quieres eliminar este vehículo? " +
-                            "Esta acción también eliminará todos los registros asociados."
-                )
-            },
-
-            confirmButton = {
-                DialogDeleteButton(
-                    text = "Eliminar",
-                    onClick = {
-                        showDeleteDialog = false
-                        scope.launch {
-                            try {
-                                // Ejecutar la eliminación y esperar a que termine
-                                viewModel.deleteScooter(scooterId)
-
-                                // Pequeño delay para garantizar sincronización
-                                kotlinx.coroutines.delay(300)
-
-                                // Navegar al terminar
-                                navController.navigateUp()
-                            } catch (e: Exception) {
-                                android.util.Log.e("ScooterDetailScreen", "Error durante eliminación", e)
-                            }
-                        }
-                    }
-                )
-            },
-
-            dismissButton = {
-                DialogCancelButton(
-                    text = "Cancelar",
-                    onClick = { showDeleteDialog = false }
-                )
-            },
-
-            shape = DialogShape
-        )
-    }
-
-    // Diálogo para editar el vehículo
-    if (showEditSheet && scooter != null) {
-        EditScooterDialog(
-            scooter = scooter,
-            onDismiss = { showEditSheet = false },
-            onSave = { nombre, marca, modelo, fechaCompra ->
-                viewModel.updateScooter(scooterId, nombre, marca, modelo, fechaCompra)
-                showEditSheet = false
-            }
-        )
-    }
+    var showDeleteDialog by remember { mutableStateOf(false) }
+    var showEditDialog by remember { mutableStateOf(false) }
+    var showMenu by remember { mutableStateOf(false) } // Estado para el menú de 3 puntos
 
     Scaffold(
-        modifier = Modifier.fillMaxSize(),
         topBar = {
             TopAppBar(
-                title = { Text("Detalles del vehículo") },
+                title = { Text("Detalles del Vehículo", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = { navController.navigateUp() }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Volver")
                     }
                 },
                 actions = {
+                    // Menú de 3 puntos
                     IconButton(onClick = { showMenu = true }) {
-                        Icon(
-                            Icons.Default.MoreVert,
-                            contentDescription = "Más opciones"
-                        )
+                        Icon(Icons.Default.MoreVert, contentDescription = "Opciones")
                     }
-                    
                     DropdownMenu(
                         expanded = showMenu,
                         onDismissRequest = { showMenu = false }
                     ) {
                         DropdownMenuItem(
                             text = { Text("Editar vehículo") },
+                            leadingIcon = { Icon(Icons.Default.Edit, null) },
                             onClick = {
                                 showMenu = false
-                                showEditSheet = true
-                            },
-                            leadingIcon = {
-                                Icon(
-                                    Icons.Default.Edit,
-                                    contentDescription = "Editar"
-                                )
+                                showEditDialog = true
                             }
                         )
                         DropdownMenuItem(
-                            text = { 
-                                Text(
-                                    "Eliminar vehículo",
-                                    color = MaterialTheme.colorScheme.error
-                                )
-                            },
+                            text = { Text("Eliminar vehículo", color = MaterialTheme.colorScheme.error) },
+                            leadingIcon = { Icon(Icons.Default.Delete, null, tint = MaterialTheme.colorScheme.error) },
                             onClick = {
                                 showMenu = false
                                 showDeleteDialog = true
-                            },
-                            leadingIcon = {
-                                Icon(
-                                    Icons.Default.Delete,
-                                    contentDescription = "Eliminar",
-                                    tint = MaterialTheme.colorScheme.error
-                                )
                             }
                         )
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimary,
-                    actionIconContentColor = MaterialTheme.colorScheme.onPrimary,
-                    navigationIconContentColor = MaterialTheme.colorScheme.onPrimary
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    titleContentColor = MaterialTheme.colorScheme.onSurface,
+                    actionIconContentColor = MaterialTheme.colorScheme.onSurface
                 )
             )
         }
+        // FAB ELIMINADO (Ya no es necesario)
     ) { padding ->
-        when (uiState) {
-            is ProfileUiState.Loading -> {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = androidx.compose.ui.Alignment.Center
-                ) {
-                    androidx.compose.material3.CircularProgressIndicator()
-                }
+        if (scooter != null) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .verticalScroll(rememberScrollState())
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(24.dp)
+            ) {
+                // 1. TARJETA HERO DEL VEHÍCULO
+                VehicleHeroCard(
+                    scooter = scooter,
+                    lastRecordDate = lastRecord?.fecha,
+                    usagePercentage = usagePercentage
+                )
+
+                // 2. ESPECIFICACIONES (Grid de datos)
+                VehicleSpecsSection(scooter = scooter)
+
+                // 3. MANTENIMIENTO (Tarjeta inteligente clicable)
+                MaintenanceSection(
+                    lastRepair = lastRepair,
+                    onHistoryClick = {
+                        navController.navigate("repairs/$scooterId")
+                    }
+                )
+
+                Spacer(modifier = Modifier.height(24.dp))
             }
-            is ProfileUiState.Success -> {
-                if (scooter != null) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(padding)
-                            .verticalScroll(rememberScrollState())
-                            .padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                // Encabezado del vehículo
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.primaryContainer
-                    ),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(20.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        // Fila principal con nombre del vehículo e icono
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
-                        ) {
-                            Column(
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Text(
-                                    text = scooter.nombre,
-                                    style = MaterialTheme.typography.headlineMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                                )
-                                
-                                if (vehicleStats?.lastRecord != null && !isLoadingStats) {
-                                    val lastRecord = vehicleStats?.lastRecord
-                                    Row(
-                                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-                                        modifier = Modifier.padding(top = 4.dp)
-                                    ) {
-                                        Icon(
-                                            Icons.Default.CalendarMonth,
-                                            contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f),
-                                            modifier = Modifier.size(14.dp)
-                                        )
-                                        Spacer(modifier = Modifier.size(6.dp))
-                                        Text(
-                                            text = "Último viaje: ${lastRecord?.fecha ?: ""}",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            fontWeight = FontWeight.Normal,
-                                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
-                                        )
-                                    }
-                                }
-                            }
-                            
-                            Image(
-                                painter = getVehicleIcon(scooter.vehicleType),
-                                contentDescription = "Icono del vehículo",
-                                modifier = Modifier.size(56.dp),
-                                colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(MaterialTheme.colorScheme.onPrimaryContainer)
-                            )
-                        }
-                        
-                        // Separador visual
-                        HorizontalDivider(
-                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.1f),
-                            thickness = 1.dp
-                        )
-                        
-                        // Fila con kilometraje y porcentaje de uso
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
-                        ) {
-                            Row(
-                                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-                                modifier = Modifier.weight(1f),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                Column {
-                                    Text(
-                                        text = "${String.format("%.1f", scooter.kilometrajeActual ?: 0.0)} km",
-                                        style = MaterialTheme.typography.titleLarge,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onPrimaryContainer
-                                    )
-                                }
-                                
-                                androidx.compose.material3.Text(
-                                    text = "|",
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.3f),
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Light
-                                )
-                                
-                                Column {
-                                    Text(
-                                        text = "Ultimo viaje",
-                                        style = MaterialTheme.typography.labelMedium,
-                                        fontWeight = FontWeight.Light,
-                                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.6f)
-                                    )
-                                    if (vehicleStats?.lastRecord != null && !isLoadingStats) {
-                                        val lastRecord = vehicleStats?.lastRecord
-                                        Text(
-                                            text = "${String.format("%.1f", lastRecord?.diferencia ?: 0.0)} km",
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            fontWeight = FontWeight.Medium,
-                                            color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                            modifier = Modifier.padding(top = 2.dp)
-                                        )
-                                    }
-                                }
-                            }
-                            
-                            // Círculo con porcentaje de uso
-                            if (!isLoadingStats && vehicleStats != null) {
-                                val percentage = vehicleStats?.usagePercentage ?: 0.0
-                                if (percentage > 0) {
-                                    Column(
-                                        horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally
-                                    ) {
-                                        Box(
-                                            modifier = Modifier
-                                                .size(56.dp)
-                                                .background(
-                                                    MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.15f),
-                                                    androidx.compose.foundation.shape.CircleShape
-                                                ),
-                                            contentAlignment = androidx.compose.ui.Alignment.Center
-                                        ) {
-                                            androidx.compose.material3.CircularProgressIndicator(
-                                                progress = { (percentage / 100.0).toFloat().coerceIn(0f, 1f) },
-                                                modifier = Modifier.size(50.dp),
-                                                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.9f),
-                                                strokeWidth = 3.dp,
-                                                trackColor = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.2f)
-                                            )
-                                            Text(
-                                                text = "${String.format("%.0f", percentage)}%",
-                                                style = MaterialTheme.typography.labelSmall,
-                                                fontWeight = FontWeight.Bold,
-                                                color = MaterialTheme.colorScheme.onPrimaryContainer
-                                            )
-                                        }
-                                        Spacer(modifier = Modifier.height(4.dp))
-                                        Text(
-                                            text = "Uso sobre el total",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            fontWeight = FontWeight.Light,
-                                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.6f)
-                                        )
-                                    }
-                                } else {
-                                    Column(
-                                        horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally
-                                    ) {
-                                        Box(
-                                            modifier = Modifier
-                                                .size(56.dp)
-                                                .background(
-                                                    MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.1f),
-                                                    androidx.compose.foundation.shape.CircleShape
-                                                ),
-                                            contentAlignment = androidx.compose.ui.Alignment.Center
-                                        ) {
-                                            Text(
-                                                text = "0%",
-                                                style = MaterialTheme.typography.labelSmall,
-                                                fontWeight = FontWeight.Bold,
-                                                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.5f)
-                                            )
-                                        }
-                                        Spacer(modifier = Modifier.height(4.dp))
-                                        Text(
-                                            text = "Uso sobre el total",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            fontWeight = FontWeight.Light,
-                                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.6f)
-                                        )
-                                    }
-                                }
-                            } else if (isLoadingStats) {
-                                Column(
-                                    horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally
-                                ) {
-                                    CircularProgressIndicator(
-                                        modifier = Modifier.size(40.dp),
-                                        strokeWidth = 3.dp,
-                                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
-                                    )
-                                    Spacer(modifier = Modifier.height(4.dp))
-                                    Text(
-                                        text = "Uso sobre el total",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        fontWeight = FontWeight.Light,
-                                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.6f)
-                                    )
-                                }
-                            }
-                        }
+        } else {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator()
+            }
+        }
+    }
+
+    // Diálogo de EDICIÓN
+    if (showEditDialog && scooter != null) {
+        EditScooterDialog(
+            scooter = scooter,
+            onDismiss = { showEditDialog = false },
+            onConfirm = { nombre, marca, modelo, fecha ->
+                viewModel.updateScooter(scooter.id, nombre, marca, modelo, fecha)
+                showEditDialog = false
+            }
+        )
+    }
+
+    // Diálogo de ELIMINACIÓN
+    if (showDeleteDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteDialog = false },
+            title = { Text("Eliminar vehículo") },
+            text = { Text("¿Estás seguro? Se eliminará el vehículo y todo su historial de mantenimiento. Los registros de viaje se conservarán pero quedarán desvinculados.") },
+            confirmButton = {
+                DialogDeleteButton(
+                    text = "Eliminar",
+                    onClick = {
+                        viewModel.deleteScooter(scooterId)
+                        showDeleteDialog = false
+                        navController.navigateUp()
                     }
-                }
-                
-                // Detalles
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surface
-                    ),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-                ) {
-                    Column(
-                        modifier = Modifier.padding(12.dp)
+                )
+            },
+            dismissButton = {
+                DialogCancelButton(text = "Cancelar", onClick = { showDeleteDialog = false })
+            }
+        )
+    }
+}
+
+// ----------------------------------------------------------------
+// COMPONENTES DE DISEÑO
+// ----------------------------------------------------------------
+
+@Composable
+fun VehicleHeroCard(
+    scooter: Scooter,
+    lastRecordDate: String?,
+    usagePercentage: Double
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Box(modifier = Modifier.padding(24.dp)) {
+            // Fondo decorativo
+            Icon(
+                imageVector = Icons.Default.ElectricScooter,
+                contentDescription = null,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .size(140.dp)
+                    .offset(x = 30.dp, y = (-30).dp),
+                tint = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.08f)
+            )
+
+            Column {
+                // Cabecera
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Surface(
+                        shape = CircleShape,
+                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.6f),
+                        modifier = Modifier.size(56.dp)
                     ) {
-                        Text(
-                            text = "Información",
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.Bold
-                        )
-                        
-                        Spacer(modifier = Modifier.height(8.dp))
-                        
-                        InfoRow(label = "Marca", value = scooter.marca)
-                        InfoRow(label = "Modelo", value = scooter.modelo)
-                        InfoRow(
-                            label = "Fecha de compra",
-                            value = DateUtils.formatForDisplay(DateUtils.parseApiDate(scooter.fechaCompra))
-                        )
-                    }
-                }
-                
-                // Mantenimiento
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surface
-                    ),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-                ) {
-                    Column(
-                        modifier = Modifier.padding(12.dp)
-                    ) {
-                        // Título de la sección
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { 
-                                    navController.navigate("${Screen.Repairs.route}/${scooter.id}")
-                                },
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
-                        ) {
-                            Row(
-                                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    Icons.Default.Build,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                                Spacer(modifier = Modifier.size(8.dp))
-                                Text(
-                                    text = "Mantenimiento",
-                                    style = MaterialTheme.typography.titleSmall,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
+                        Box(contentAlignment = Alignment.Center) {
                             Icon(
-                                Icons.Default.ChevronRight,
-                                contentDescription = "Ver todo",
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(18.dp)
+                                painter = painterResource(id = R.drawable.ic_electric_scooter_adaptive),
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.size(32.dp)
                             )
                         }
-                        
-                        // Última reparación
-                        if (vehicleStats?.lastRepair != null) {
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(
-                                text = "Última reparación",
-                                style = MaterialTheme.typography.labelMedium,
-                                fontWeight = FontWeight.Medium,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
-                                modifier = Modifier.padding(bottom = 4.dp)
-                            )
-                            
-                            val lastRepair = vehicleStats?.lastRepair
-                            Row(
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = lastRepair?.getFormattedDate() ?: "",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    fontWeight = FontWeight.Medium,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                                Text(
-                                    text = "—",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
-                                )
-                                Text(
-                                    text = lastRepair?.description ?: "",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    fontWeight = FontWeight.Normal
-                                )
-                                lastRepair?.mileage?.let { mileage ->
-                                    Text(
-                                        text = "—",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
-                                    )
-                                    Text(
-                                        text = "${String.format("%.0f", mileage)} km",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        fontWeight = FontWeight.Medium,
-                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-                                    )
-                                }
-                            }
-                        }
                     }
-                }
-                
-                    }
-                } else {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(padding),
-                        verticalArrangement = Arrangement.Center,
-                        horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally
-                    ) {
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Column {
                         Text(
-                            text = "Vehículo no encontrado",
-                            style = MaterialTheme.typography.titleMedium
+                            text = scooter.nombre,
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                        // Mostrar fecha del último viaje si existe
+                        val lastTripText = if (lastRecordDate != null) {
+                            "Último viaje: ${DateUtils.formatForDisplay(DateUtils.parseApiDate(lastRecordDate))}"
+                        } else {
+                            "Sin viajes registrados"
+                        }
+
+                        Text(
+                            text = lastTripText,
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
                         )
                     }
                 }
-            }
-            is ProfileUiState.Error -> {
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(padding),
-                    verticalArrangement = Arrangement.Center,
-                    horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally
+
+                Spacer(modifier = Modifier.height(32.dp))
+
+                // Estadísticas Principales
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.Bottom
                 ) {
-                    Text(
-                        text = (uiState as ProfileUiState.Error).message,
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.error
-                    )
+                    Column {
+                        Text(
+                            text = "Kilometraje Total",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f),
+                            modifier = Modifier.padding(bottom = 4.dp)
+                        )
+                        Text(
+                            text = "${String.format("%.1f", scooter.kilometrajeActual ?: 0.0)} km",
+                            style = MaterialTheme.typography.displaySmall,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            letterSpacing = (-1).sp
+                        )
+                    }
+
+                    // Indicador visual con porcentaje REAL (convertido a 0.0 - 1.0)
+                    // Si usagePercentage es > 100 (posible si es relativo a otros), lo capeamos visualmente
+                    val progress = (usagePercentage / 100.0).toFloat().coerceIn(0f, 1f)
+                    UsageCircularIndicator(percentage = progress, displayValue = usagePercentage.toInt())
                 }
             }
         }
@@ -606,51 +333,230 @@ fun ScooterDetailScreen(
 }
 
 @Composable
-private fun InfoRow(label: String, value: String) {
-    Column(
+fun UsageCircularIndicator(percentage: Float, displayValue: Int) {
+    Box(contentAlignment = Alignment.Center) {
+        CircularProgressIndicator(
+            progress = { 1f },
+            modifier = Modifier.size(72.dp),
+            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.15f),
+            strokeWidth = 8.dp,
+            trackColor = Color.Transparent,
+        )
+        CircularProgressIndicator(
+            progress = { percentage },
+            modifier = Modifier.size(72.dp),
+            color = MaterialTheme.colorScheme.onPrimaryContainer,
+            strokeWidth = 8.dp,
+            strokeCap = StrokeCap.Round
+        )
+        Text(
+            text = "$displayValue%",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onPrimaryContainer
+        )
+    }
+}
+
+@Composable
+fun VehicleSpecsSection(scooter: Scooter) {
+    Column {
+        Text(
+            text = "Información Técnica",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.padding(start = 4.dp, bottom = 12.dp)
+        )
+
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            shape = RoundedCornerShape(16.dp),
+            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                SpecItem(Icons.Default.Label, "Marca", scooter.marca)
+                VerticalDivider()
+                SpecItem(Icons.Default.Info, "Modelo", scooter.modelo)
+                VerticalDivider()
+                SpecItem(Icons.Default.CalendarMonth, "Adquirido", scooter.fechaCompra ?: "-")
+            }
+        }
+    }
+}
+
+@Composable
+fun VerticalDivider() {
+    Box(
         modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp)
-    ) {
+            .height(40.dp)
+            .width(1.dp)
+            .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+    )
+}
+
+@Composable
+fun SpecItem(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, value: String) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(
+            modifier = Modifier
+                .size(40.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                modifier = Modifier.size(20.dp),
+                tint = MaterialTheme.colorScheme.onSecondaryContainer
+            )
+        }
+        Spacer(modifier = Modifier.height(8.dp))
         Text(
             text = label,
-            style = MaterialTheme.typography.bodySmall,
-            fontWeight = FontWeight.Light,
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-            modifier = Modifier.padding(bottom = 2.dp)
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
         )
         Text(
             text = value,
             style = MaterialTheme.typography.bodyMedium,
-            fontWeight = FontWeight.Medium,
-            color = MaterialTheme.colorScheme.onSurface
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 1
         )
+    }
+}
+
+@Composable
+fun MaintenanceSection(
+    lastRepair: Repair?,
+    onHistoryClick: () -> Unit
+) {
+    Column {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "Mantenimiento",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.padding(start = 4.dp)
+            )
+        }
+
+        Spacer(modifier = Modifier.height(4.dp))
+
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onHistoryClick),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            shape = RoundedCornerShape(16.dp),
+            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(48.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.tertiaryContainer),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.Build,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onTertiaryContainer
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(16.dp))
+
+                Column(modifier = Modifier.weight(1f)) {
+                    if (lastRepair != null) {
+                        Text(
+                            text = "Última reparación",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = lastRepair.description,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = "${DateUtils.formatForDisplay(lastRepair.date)} • ${String.format("%.0f", lastRepair.mileage ?: 0.0)} km",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    } else {
+                        Text(
+                            text = "Sin registros",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = "Toca para registrar mantenimiento",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                Icon(
+                    imageVector = Icons.Default.ChevronRight,
+                    contentDescription = "Ver más",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun EditScooterDialog(
-    scooter: com.zipstats.app.model.Scooter,
+fun EditScooterDialog(
+    scooter: Scooter,
     onDismiss: () -> Unit,
-    onSave: (String, String, String, String) -> Unit
+    onConfirm: (String, String, String, String) -> Unit
 ) {
     var nombre by remember { mutableStateOf(scooter.nombre) }
     var marca by remember { mutableStateOf(scooter.marca) }
     var modelo by remember { mutableStateOf(scooter.modelo) }
-    var showDatePicker by remember { mutableStateOf(false) }
-    var selectedDate by remember { 
+
+    // Parsear fecha para el picker
+    var selectedDate by remember {
         mutableStateOf(
-            if (scooter.fechaCompra.isNotEmpty()) {
-                DateUtils.parseApiDate(scooter.fechaCompra)
-            } else {
+            try {
+                if (!scooter.fechaCompra.isNullOrBlank()) DateUtils.parseDisplayDate(scooter.fechaCompra)
+                else LocalDate.now()
+            } catch (e: Exception) {
                 LocalDate.now()
             }
         )
     }
-    var fechaTexto by remember { mutableStateOf(DateUtils.formatForDisplay(selectedDate)) }
-    var fechaError by remember { mutableStateOf<String?>(null) }
-    var showError by remember { mutableStateOf(false) }
+
+    var fechaTexto by remember { mutableStateOf(scooter.fechaCompra ?: "") }
+    var showDatePicker by remember { mutableStateOf(false) }
 
     LaunchedEffect(selectedDate) {
         fechaTexto = DateUtils.formatForDisplay(selectedDate)
@@ -660,9 +566,7 @@ private fun EditScooterDialog(
         onDismissRequest = onDismiss,
         title = { Text("Editar vehículo") },
         text = {
-            Column(
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 OutlinedTextField(
                     value = nombre,
                     onValueChange = { nombre = it },
@@ -670,7 +574,6 @@ private fun EditScooterDialog(
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
-
                 OutlinedTextField(
                     value = marca,
                     onValueChange = { marca = it },
@@ -678,7 +581,6 @@ private fun EditScooterDialog(
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
-
                 OutlinedTextField(
                     value = modelo,
                     onValueChange = { modelo = it },
@@ -686,84 +588,42 @@ private fun EditScooterDialog(
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
-
                 OutlinedTextField(
                     value = fechaTexto,
-                    onValueChange = { nuevoTexto ->
-                        fechaTexto = nuevoTexto
-                        try {
-                            val parsedDate = DateUtils.parseDisplayDate(nuevoTexto)
-                            if (parsedDate.isAfter(LocalDate.now())) {
-                                fechaError = "La fecha no puede ser futura"
-                            } else {
-                                fechaError = null
-                                selectedDate = parsedDate
-                            }
-                        } catch (e: Exception) {
-                            fechaError = "Fecha inválida"
-                        }
-                    },
+                    onValueChange = { },
                     label = { Text("Fecha de compra") },
-                    isError = fechaError != null,
-                    supportingText = fechaError?.let { { Text(it) } },
+                    readOnly = true,
                     trailingIcon = {
                         IconButton(onClick = { showDatePicker = true }) {
-                            Icon(Icons.Default.CalendarMonth, contentDescription = "Seleccionar fecha")
+                            Icon(Icons.Default.CalendarMonth, contentDescription = null)
                         }
                     },
-                    singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
-
-                if (showError) {
-                    Text(
-                        text = "Por favor, complete todos los campos",
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                }
             }
         },
-
         confirmButton = {
             DialogConfirmButton(
                 text = "Guardar",
+                enabled = nombre.isNotBlank() && marca.isNotBlank() && modelo.isNotBlank(),
                 onClick = {
-                    if (nombre.isBlank() || marca.isBlank() || modelo.isBlank() || fechaError != null) {
-                        showError = true
-                    } else {
-                        onSave(nombre, marca, modelo, fechaTexto)
-                        showError = false
-                    }
-                },
-                enabled = nombre.isNotBlank() &&
-                        marca.isNotBlank() &&
-                        modelo.isNotBlank() &&
-                        fechaError == null
+                    onConfirm(nombre, marca, modelo, fechaTexto)
+                }
             )
         },
-
         dismissButton = {
-            DialogCancelButton(
-                text = "Cancelar",
-                onClick = onDismiss
-            )
-        },
-
-        shape = DialogShape
+            DialogCancelButton(text = "Cancelar", onClick = onDismiss)
+        }
     )
 
     if (showDatePicker) {
-        com.zipstats.app.ui.components.StandardDatePickerDialogWithValidation(
+        StandardDatePickerDialogWithValidation(
             selectedDate = selectedDate,
-            onDateSelected = { 
-                selectedDate = it
-                fechaError = null
-            },
+            onDateSelected = { selectedDate = it },
             onDismiss = { showDatePicker = false },
-            title = "Seleccionar fecha de compra",
+            title = "Fecha de compra",
             maxDate = LocalDate.now(),
-            validateDate = { date -> !date.isAfter(LocalDate.now()) }
+            validateDate = { !it.isAfter(LocalDate.now()) }
         )
     }
 }

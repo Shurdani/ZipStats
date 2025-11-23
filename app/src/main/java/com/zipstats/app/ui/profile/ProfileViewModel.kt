@@ -14,29 +14,25 @@ import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.zipstats.app.model.Achievement
-import com.zipstats.app.model.AchievementLevel
-import com.zipstats.app.model.AchievementRequirementType
-import com.zipstats.app.model.Avatar
-import com.zipstats.app.model.Scooter
-import com.zipstats.app.model.User
-import com.zipstats.app.model.Record
-import com.zipstats.app.model.Repair
-import com.zipstats.app.repository.RecordRepository
-import com.zipstats.app.repository.VehicleRepository
-import com.zipstats.app.repository.UserRepository
-import com.zipstats.app.repository.RepairRepository
-import com.zipstats.app.utils.ExcelExporter
-import com.zipstats.app.utils.DateUtils
 import com.google.firebase.auth.EmailAuthProvider
-import org.apache.poi.ss.usermodel.*
-import org.apache.poi.xssf.usermodel.XSSFWorkbook
-import java.io.FileOutputStream
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
 import com.google.firebase.auth.UserProfileChangeRequest
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.storage.FirebaseStorage
+import com.zipstats.app.model.AchievementRequirementType
+import com.zipstats.app.model.Avatar
+import com.zipstats.app.model.Record
+import com.zipstats.app.model.Repair
+import com.zipstats.app.model.Scooter
+import com.zipstats.app.model.User
+import com.zipstats.app.repository.RecordRepository
+import com.zipstats.app.repository.RepairRepository
+import com.zipstats.app.repository.UserRepository
+import com.zipstats.app.repository.VehicleRepository
+import com.zipstats.app.service.CloudinaryService
+import com.zipstats.app.utils.DateUtils
+import com.zipstats.app.utils.ExcelExporter
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
@@ -50,7 +46,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
 import java.io.File
-import com.zipstats.app.service.CloudinaryService
 import javax.inject.Inject
 
 data class UserProfile(
@@ -134,6 +129,43 @@ class ProfileViewModel @Inject constructor(
     init {
         loadUserProfile()
         observeVehicles()
+    }
+
+    // ----------------------------------------------------------------
+    // FUNCIONES PARA DETALLES DEL VEHÍCULO (AÑADIDAS/CORREGIDAS)
+    // ----------------------------------------------------------------
+
+    fun loadScooterDetails(scooterId: String) {
+        viewModelScope.launch {
+            try {
+                // 1. Refrescar la lista general de vehículos para tener datos frescos
+                val scooters = vehicleRepository.getScooters().first()
+                val records = recordRepository.getRecords().first()
+
+                // Recalcular kilometraje para este patinete
+                val updatedScooters = scooters.map { scooter ->
+                    if (scooter.id == scooterId) {
+                        val totalKm = records
+                            .filter { it.patinete == scooter.nombre }
+                            .sumOf { it.diferencia }
+                        scooter.copy(kilometrajeActual = totalKm)
+                    } else {
+                        scooter
+                    }
+                }
+
+                // Actualizar el estado de la UI
+                _uiState.update { currentState ->
+                    if (currentState is ProfileUiState.Success) {
+                        currentState.copy(scooters = updatedScooters)
+                    } else {
+                        currentState
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("ProfileVM", "Error cargando detalles: ${e.message}")
+            }
+        }
     }
     
     // Observar cambios en los vehículos y registros para actualizar la UI automáticamente
@@ -262,68 +294,74 @@ class ProfileViewModel @Inject constructor(
 
     // Eliminado: método obsoleto que usaba startActivityForResult deprecado
 
+    private suspend fun createTempFileFromUri(uri: Uri): File? {
+        return withContext(Dispatchers.IO) {
+            try {
+                // Usamos cacheDir para no ensuciar la memoria permanente
+                val tempFile = File.createTempFile("upload_temp", ".jpg", context.cacheDir)
+
+                context.contentResolver.openInputStream(uri)?.use { inputStream ->
+                    tempFile.outputStream().use { outputStream ->
+                        inputStream.copyTo(outputStream)
+                    }
+                }
+                tempFile
+            } catch (e: Exception) {
+                Log.e("ProfileVM", "Error creando archivo temporal: ${e.message}")
+                null
+            }
+        }
+    }
+
     fun uploadProfileImage(uri: Uri) {
         viewModelScope.launch {
+            // Variable para el archivo temporal (para poder borrarlo luego)
+            var tempFile: File? = null
+
             try {
                 _uiState.value = ProfileUiState.Loading
-                val currentUser = auth.currentUser
-                
-                if (currentUser == null) {
-                    throw Exception("Usuario no autenticado")
-                }
-                
+                val currentUser = auth.currentUser ?: throw Exception("Usuario no autenticado")
                 val userId = currentUser.uid
-                Log.d("ProfileVM", "=== SUBIENDO IMAGEN A CLOUDINARY ===")
-                Log.d("ProfileVM", "Usuario ID: $userId")
-                Log.d("ProfileVM", "URI de imagen: $uri")
-                
-                // Crear ID único para la imagen
+
+                Log.d("ProfileVM", "=== PREPARANDO IMAGEN ===")
+
+                // 1. CONVERTIR URI -> ARCHIVO REAL (Vital para dispositivo físico)
+                tempFile = createTempFileFromUri(uri)
+
+                if (tempFile == null) {
+                    throw Exception("No se pudo procesar el archivo de imagen")
+                }
+
+                // 2. Comprimir si es necesario (Opcional, reutilizando tu lógica)
+                // Nota: Tu función compressImageIfNeeded devuelve un File, perfecto.
+                val fileToUpload = compressImageIfNeeded(tempFile)
+
+                Log.d("ProfileVM", "=== SUBIENDO A CLOUDINARY ===")
                 val timestamp = System.currentTimeMillis()
                 val publicId = "profile_${userId}_$timestamp"
-                
-                // Subir a Cloudinary
-                val cloudinaryUrl = cloudinaryService.uploadImage(uri, publicId)
-                
-                Log.d("ProfileVM", "✅ Imagen subida a Cloudinary: $cloudinaryUrl")
-                
-                // Guardar también localmente como respaldo
-                val localImagePath = saveImageLocally(uri, userId)
-                Log.d("ProfileVM", "✅ Imagen guardada localmente: $localImagePath")
-                
-                // Actualizar en Firestore con la URL de Cloudinary
-                Log.d("ProfileVM", "Actualizando perfil en Firestore...")
+
+                // 3. LLAMADA AL SERVICIO (OJO: Tu servicio debe aceptar File, no Uri)
+                // Si tu servicio actual pide Uri, TIENES QUE CAMBIARLO.
+                // Ver abajo cómo debe quedar el servicio.
+                val cloudinaryUrl = cloudinaryService.uploadImageFile(fileToUpload, publicId)
+
+                Log.d("ProfileVM", "✅ Subida OK: $cloudinaryUrl")
+
+                // 4. Actualizar Firestore
                 userRepository.updateUserPhoto(cloudinaryUrl)
-                
-                Log.d("ProfileVM", "✅ Perfil actualizado en Firestore")
-                
-                // Limpiar archivos temporales después de la subida exitosa
-                cleanupTempFiles()
-                
-                // Recargar el perfil
+
+                // 5. Refrescar UI
                 loadUserProfile()
-                
-                Log.d("ProfileVM", "=== SUBIDA COMPLETADA EXITOSAMENTE ===")
-                
+
             } catch (e: Exception) {
-                Log.e("ProfileVM", "❌ ERROR AL SUBIR IMAGEN", e)
-                Log.e("ProfileVM", "Tipo de error: ${e.javaClass.simpleName}")
-                Log.e("ProfileVM", "Mensaje: ${e.message}")
-                
-                // Fallback: intentar guardar localmente si falla Cloudinary
+                Log.e("ProfileVM", "❌ ERROR CRÍTICO AL SUBIR", e)
+                _uiState.value = ProfileUiState.Error("Error al subir imagen: ${e.message}")
+            } finally {
+                // 6. LIMPIEZA: Borrar el archivo temporal de la caché
                 try {
-                    Log.d("ProfileVM", "Intentando fallback a almacenamiento local...")
-                    val currentUser = auth.currentUser ?: throw Exception("Usuario no autenticado")
-                    val localImagePath = saveImageLocally(uri, currentUser.uid)
-                    userRepository.updateUserPhoto(localImagePath)
-                    
-                    // Limpiar archivos temporales después del fallback exitoso
-                    cleanupTempFiles()
-                    
-                    loadUserProfile()
-                    Log.d("ProfileVM", "✅ Fallback exitoso: imagen guardada localmente")
-                } catch (fallbackError: Exception) {
-                    Log.e("ProfileVM", "❌ Fallback también falló", fallbackError)
-                    _uiState.value = ProfileUiState.Error("Error al guardar la imagen: ${e.message}")
+                    tempFile?.delete()
+                } catch (e: Exception) {
+                    /* Ignorar error de borrado */
                 }
             }
         }
@@ -591,114 +629,48 @@ class ProfileViewModel @Inject constructor(
         }
     }
 
-    suspend fun deleteScooter(scooterId: String) {
-        try {
-            Log.d("ProfileViewModel", "=== INICIO ELIMINACIÓN VEHÍCULO ===")
-            Log.d("ProfileViewModel", "ID del vehículo a eliminar: $scooterId")
-            
-            // Obtener el nombre del vehículo antes de eliminarlo para los registros
-            val scooters = vehicleRepository.getScooters().first()
-            Log.d("ProfileViewModel", "Vehículos encontrados: ${scooters.size}")
-            val scooter = scooters.find { it.id == scooterId }
-            
-            if (scooter == null) {
-                Log.e("ProfileViewModel", "Vehículo no encontrado con ID: $scooterId")
-                _uiState.update { currentState ->
-                    when (currentState) {
-                        is ProfileUiState.Success -> {
-                            currentState.copy(message = "Vehículo no encontrado")
-                        }
-                        else -> currentState
-                    }
-                }
-                return
-            }
-            
-            val scooterName = scooter.nombre
-            Log.d("ProfileViewModel", "Nombre del vehículo: $scooterName")
-            
-            // Eliminar registros del vehículo (continuar incluso si falla)
+    // Versión NO suspendida para llamar desde la UI (onClick)
+    fun deleteScooter(scooterId: String) {
+        viewModelScope.launch {
             try {
-                if (scooterName.isNotEmpty()) {
-                    Log.d("ProfileViewModel", "Eliminando registros del vehículo...")
-                    recordRepository.deleteScooterRecords(scooterName)
-                    Log.d("ProfileViewModel", "Registros eliminados correctamente")
+                // 1. Obtener datos antes de borrar para limpiar registros asociados
+                val scooters = vehicleRepository.getScooters().first()
+                val scooter = scooters.find { it.id == scooterId } ?: return@launch
+
+                // 2. Borrar registros asociados (opcional, según tu lógica de negocio)
+                try {
+                    recordRepository.deleteScooterRecords(scooter.nombre)
+                } catch (e: Exception) {
+                    Log.e("ProfileVM", "Error borrando registros: ${e.message}")
                 }
-            } catch (e: Exception) {
-                Log.e("ProfileViewModel", "Error eliminando registros del vehículo", e)
-                // Continuar con la eliminación del vehículo
-            }
-            
-            // Eliminar rutas del vehículo (continuar incluso si falla)
-            try {
-                Log.d("ProfileViewModel", "Eliminando rutas del vehículo...")
-                val routesResult = routeRepository.deleteScooterRoutes(scooterId)
-                routesResult.fold(
-                    onSuccess = { Log.d("ProfileViewModel", "Rutas eliminadas correctamente") },
-                    onFailure = { e -> 
-                        if (e !is kotlinx.coroutines.CancellationException) {
-                            Log.e("ProfileViewModel", "Error eliminando rutas del vehículo", e)
-                        }
-                    }
-                )
-            } catch (e: kotlinx.coroutines.CancellationException) {
-                throw e // Re-lanzar cancelación
-            } catch (e: Exception) {
-                Log.e("ProfileViewModel", "Error eliminando rutas del vehículo", e)
-                // Continuar con la eliminación del vehículo
-            }
-            
-            // Eliminar el vehículo (esta es la operación principal)
-            Log.d("ProfileViewModel", "Eliminando vehículo de Firestore...")
-            vehicleRepository.deleteScooter(scooterId)
-            Log.d("ProfileViewModel", "Vehículo eliminado de Firestore correctamente")
-            
-            // Esperar un momento para que Firestore propague el cambio
-            kotlinx.coroutines.delay(500)
-            
-            // Verificar que el vehículo ya no existe
-            val remainingScooters = vehicleRepository.getScooters().first()
-            val stillExists = remainingScooters.any { it.id == scooterId }
-            if (stillExists) {
-                Log.w("ProfileViewModel", "El vehículo todavía existe después de la eliminación. Reintentando...")
-                // Reintentar la eliminación
+
+                // 3. Borrar rutas asociadas
+                try {
+                    routeRepository.deleteScooterRoutes(scooterId)
+                } catch (e: Exception) {
+                    Log.e("ProfileVM", "Error borrando rutas: ${e.message}")
+                }
+
+                // 4. Borrar el vehículo
                 vehicleRepository.deleteScooter(scooterId)
-                kotlinx.coroutines.delay(500)
-            }
-            
-            Log.d("ProfileViewModel", "=== ELIMINACIÓN COMPLETADA ===")
-            
-            // No necesitamos esperar ni recargar manualmente porque el Flow
-            // se actualizará automáticamente cuando Firestore detecte el cambio
-            // El observador continuo en observeVehicles() actualizará la UI
-            
-            // Mostrar mensaje de éxito
-            _uiState.update { currentState ->
-                when (currentState) {
-                    is ProfileUiState.Success -> {
-                        currentState.copy(message = "Vehículo eliminado correctamente")
-                    }
-                    else -> currentState
+
+                // 5. Feedback y recarga
+                _uiState.update { state ->
+                    if (state is ProfileUiState.Success) {
+                        state.copy(message = "Vehículo eliminado correctamente")
+                    } else state
+                }
+
+                // Recargar perfil para limpiar la lista
+                loadUserProfile()
+
+            } catch (e: Exception) {
+                _uiState.update { state ->
+                    if (state is ProfileUiState.Success) {
+                        state.copy(message = "Error al eliminar: ${e.message}")
+                    } else ProfileUiState.Error(e.message ?: "Error desconocido")
                 }
             }
-        } catch (e: kotlinx.coroutines.CancellationException) {
-            // Si se cancela, simplemente loguear y no mostrar error al usuario
-            Log.d("ProfileViewModel", "Eliminación de vehículo cancelada")
-            throw e // Re-lanzar para que la cancelación se propague correctamente
-        } catch (e: Exception) {
-            Log.e("ProfileViewModel", "=== ERROR EN ELIMINACIÓN ===")
-            Log.e("ProfileViewModel", "Tipo de error: ${e.javaClass.simpleName}")
-            Log.e("ProfileViewModel", "Mensaje: ${e.message}")
-            Log.e("ProfileViewModel", "Stack trace:", e)
-            _uiState.update { currentState ->
-                when (currentState) {
-                    is ProfileUiState.Success -> {
-                        currentState.copy(message = "Error al eliminar el vehículo: ${e.message}")
-                    }
-                    else -> currentState
-                }
-            }
-            throw e // Re-lanzar el error para que el caller sepa que falló
         }
     }
 
@@ -1225,30 +1197,24 @@ class ProfileViewModel @Inject constructor(
         }
     }
 
-    /**
-     * Obtiene la última reparación realizada para un vehículo específico
-     */
+    // Función suspendida para obtener la última reparación (usada en LaunchedEffect)
     suspend fun getLastRepair(vehicleId: String): Repair? {
         return try {
             val repairs = repairRepository.getRepairsForVehicle(vehicleId).first()
             repairs.maxByOrNull { it.date }
         } catch (e: Exception) {
-            Log.e("ProfileViewModel", "Error al obtener última reparación", e)
             null
         }
     }
 
-    /**
-     * Obtiene el último registro para un vehículo específico
-     */
+    // Función suspendida para obtener el último registro/viaje
     suspend fun getLastRecord(vehicleName: String): Record? {
         return try {
             val records = recordRepository.getRecords().first()
             records
-                .filter { it.vehicleName == vehicleName }
+                .filter { it.patinete == vehicleName }
                 .maxByOrNull { it.fecha }
         } catch (e: Exception) {
-            Log.e("ProfileViewModel", "Error al obtener último registro", e)
             null
         }
     }

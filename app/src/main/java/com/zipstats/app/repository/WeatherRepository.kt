@@ -48,15 +48,43 @@ class WeatherRepository @Inject constructor() {
             val isDayTime = (isDay == 1)
 
             return when (weatherCode) {
-                0 -> if (isDayTime) "☀️" else "🌙" // Cielo despejado
-                1 -> if (isDayTime) "🌤️" else "☁️🌙" // Principalmente despejado (noche)
-                2 -> if (isDayTime) "🌥️" else "☁️🌙" // Parcialmente nublado (noche)
-                3 -> "☁️" // Nublado
-                45, 48 -> "🌫️" // Niebla
-                51, 53, 55, 61, 63, 65 -> "🌧️" // Lluvia / Llovizna
-                80, 81, 82 -> if (isDayTime) "🌦️" else "🌧️" // Chubascos
-                71, 73, 75, 77, 85, 86 -> "❄️" // Nieve
-                95, 96, 99 -> "⛈️" // Tormenta
+                // ☀️ Despejado
+                0 -> if (isDayTime) "☀️" else "🌙"
+
+                // ⛅ Nubes
+                1, 2 -> if (isDayTime) "🌤️" else "☁️🌙"
+                3 -> "☁️"
+
+                // 🌫️ Niebla
+                45, 48 -> "🌫️"
+
+                // 🌦️ Llovizna / Lluvia Ligera (Algo suave)
+                // 51, 53: Llovizna
+                // 61: Lluvia ligera
+                // 80: Chubasco leve
+                51, 53, 61, 80 -> if (isDayTime) "🌦️" else "🌧️"
+
+                // 🌧️ Lluvia Fuerte / Moderada (¡Mójate!)
+                // 55: Llovizna densa
+                // 63, 65: Lluvia fuerte
+                // 81, 82: Chubascos fuertes
+                55, 63, 65, 81, 82 -> "🌧️"
+
+                // 🥶 AGUANIEVE / HIELO (Los códigos nuevos)
+                // Usamos la cara azul de frío porque es una advertencia clara de "Hielo"
+                // O puedes usar 🌨️ si prefieres solo clima.
+                56, 57, 66, 67 -> "🥶"
+
+                // ❄️ Nieve
+                71, 73, 75, 77, 85, 86 -> "❄️"
+
+                // ⛈️ Tormenta
+                95 -> "⚡" // Rayo o Nube con rayo
+
+                // 🧊 Granizo (Hail)
+                // Como duele si te da, el hielo es muy representativo
+                96, 99 -> "⛈️" // Tormenta fuerte (O puedes usar 🧊 si quieres ser muy literal)
+
                 else -> "🤷" // Desconocido
             }
         }
@@ -65,21 +93,59 @@ class WeatherRepository @Inject constructor() {
          * 4. AÑADIDO: Descripción local (Open-Meteo no la da traducida)
          */
         fun getDescriptionForWeather(weatherCode: Int, isDay: Int): String {
-            val isDayTime = (isDay == 1)
+            // El texto suele ser el mismo de día o de noche, pero mantenemos el check por si acaso
+            // (Ej: Podrías poner "Noche clara" en el 0 si quisieras)
+
             return when (weatherCode) {
-                0 -> if (isDayTime) "Despejado" else "Despejado (noche)"
-                1 -> "Principalmente despejado"
+                // ☀️ Despejado / Nubes
+                0 -> "Despejado"
+                1 -> "Mayormente despejado"
                 2 -> "Parcialmente nublado"
                 3 -> "Nublado"
+
+                // 🌫️ Niebla
                 45 -> "Niebla"
-                48 -> "Niebla escarchada"
-                51, 53, 55 -> "Llovizna"
-                61, 63, 65 -> "Lluvia"
-                80, 81, 82 -> "Chubascos"
-                71, 73, 75, 77 -> "Nieve"
-                85, 86 -> "Chubascos de nieve"
-                95, 96, 99 -> "Tormenta"
-                else -> "Condiciones desconocidas"
+                48 -> "Niebla con escarcha" // Ojo: pavimento resbaladizo
+
+                // 💧 Llovizna (Drizzle)
+                51 -> "Llovizna ligera"
+                53 -> "Llovizna moderada"
+                55 -> "Llovizna densa" // Aquí ya moja bastante
+
+                // ❄️💧 Llovizna Helada (Faltaba en tu lista)
+                56, 57 -> "Llovizna helada" // ¡Peligro de hielo!
+
+                // 🌧️ Lluvia (Rain)
+                61 -> "Lluvia ligera"
+                63 -> "Lluvia moderada"
+                65 -> "Lluvia fuerte" // Coincide con tu nuevo icono rainy_heavy
+
+                // ❄️💧 Lluvia Helada (Faltaba en tu lista)
+                66, 67 -> "Lluvia helada" // ¡Peligro máximo!
+
+                // ❄️ Nieve (Snow)
+                71 -> "Nevada ligera"
+                73 -> "Nevada moderada"
+                75 -> "Nevada fuerte"
+                77 -> "Granos de nieve"
+
+                // 🌧️ Chubascos (Showers - Lluvia repentina)
+                80 -> "Chubascos leves"
+                81 -> "Chubascos moderados"
+                82 -> "Chubascos violentos" // Coincide con rainy_heavy
+
+                // ❄️ Chubascos de nieve
+                85 -> "Chubascos de nieve"
+                86 -> "Chubascos de nieve fuertes"
+
+                // ⛈️ Tormenta
+                95 -> "Tormenta eléctrica"
+
+                // 🧊 Granizo (Hail) - Importante diferenciarlo
+                96 -> "Tormenta y granizo"
+                99 -> "Tormenta y granizo fuerte"
+
+                else -> "Desconocido"
             }
         }
 
@@ -92,31 +158,50 @@ class WeatherRepository @Inject constructor() {
             val isDayTime = (isDay == 1)
 
             return when (weatherCode) {
-                // Cielo Despejado
+                // ☀️ Cielo Despejado
                 0 -> if (isDayTime) R.drawable.wb_sunny else R.drawable.nightlight
 
-                // Nubes
+                // ⛅ Nubes
                 1, 2 -> if (isDayTime) R.drawable.partly_cloudy_day else R.drawable.partly_cloudy_night
                 3 -> R.drawable.cloud
 
-                // Niebla
+                // 🌫️ Niebla (Peligroso por visibilidad)
                 45, 48 -> R.drawable.foggy
 
-                // Lluvia / Llovizna / Chubascos
-                51, 53, 55, 61, 63, 65, 80, 81, 82 -> R.drawable.rainy
+                // 💧 LLOVIZNA / LLUVIA LIGERA (Precaución)
+                // 51, 53: Llovizna ligera/moderada
+                // 61: Lluvia ligera
+                // 80: Chubascos leves
+                51, 53, 61, 80 -> R.drawable.rainy
 
-                // Nieve
+                // 🌧️ LLUVIA FUERTE / AGUACERO (¡Peligro Aquaplaning!)
+                // 55: Llovizna densa
+                // 63, 65: Lluvia moderada/fuerte
+                // 81, 82: Chubascos violentos
+                55, 63, 65, 81, 82 -> R.drawable.rainy_heavy // Nuevo icono sugerido
+
+                // ❄️💧 AGUANIEVE / HIELO (Peligro Máximo)
+                // 56, 57, 66, 67
+                56, 57, 66, 67 -> R.drawable.rainy_snow
+
+                // ❄️ NIEVE
+                // En patinete, poca o mucha nieve es igual de malo (resbala).
+                // Podrías dejarlo todo junto, o separar 75 y 86 como "snowing_heavy" si quisieras.
                 71, 73, 75, 77, 85, 86 -> R.drawable.snowing
 
-                // Tormenta
-                95, 96, 99 -> R.drawable.thunderstorm
+                // ⛈️ TORMENTA ELÉCTRICA
+                95 -> R.drawable.thunderstorm
 
-                // Icono por defecto
+                // 🧊 TORMENTA CON GRANIZO (Dolor físico al conducir)
+                // 96, 99: Tormenta con granizo leve/fuerte
+                // Si no tienes icono de granizo, usa thunderstorm
+                96, 99 -> R.drawable.hail // O usa R.drawable.thunderstorm si no tienes este
+
+                // ❓ Default
                 else -> R.drawable.help_outline
             }
         }
     }
-
     /**
      * CAMBIADO: Obtiene el clima actual de Open-Meteo
      */

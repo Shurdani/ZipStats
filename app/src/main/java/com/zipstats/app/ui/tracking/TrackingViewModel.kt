@@ -1,15 +1,22 @@
 package com.zipstats.app.ui.tracking
 
+import android.annotation.SuppressLint
 import android.app.Application
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
+import android.location.Location
 import android.os.IBinder
+import android.os.Looper
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.zipstats.app.model.Route
+import com.google.android.gms.location.FusedLocationProviderClient
+import com.google.android.gms.location.LocationCallback
+import com.google.android.gms.location.LocationRequest
+import com.google.android.gms.location.LocationResult
+import com.google.android.gms.location.LocationServices
 import com.zipstats.app.model.RoutePoint
 import com.zipstats.app.model.Scooter
 import com.zipstats.app.repository.RecordRepository
@@ -17,21 +24,16 @@ import com.zipstats.app.repository.RouteRepository
 import com.zipstats.app.repository.VehicleRepository
 import com.zipstats.app.service.LocationTrackingService
 import com.zipstats.app.service.TrackingStateManager
-import com.zipstats.app.utils.PreferencesManager
 import com.zipstats.app.tracking.LocationTracker
-import com.google.android.gms.location.FusedLocationProviderClient
-import com.google.android.gms.location.LocationCallback
-import com.google.android.gms.location.LocationRequest
-import com.google.android.gms.location.LocationResult
-import com.google.android.gms.location.LocationServices
-import android.location.Location
-import android.os.Looper
-import android.annotation.SuppressLint
+import com.zipstats.app.utils.PreferencesManager
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import kotlin.math.roundToInt
 import javax.inject.Inject
+import kotlin.math.roundToInt
 
 /**
  * Estado del seguimiento de rutas

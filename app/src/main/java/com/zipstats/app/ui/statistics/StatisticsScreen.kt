@@ -13,7 +13,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -23,11 +25,12 @@ import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Park
 import androidx.compose.material.icons.filled.Share
-import androidx.compose.material.icons.outlined.Co2
+import androidx.compose.material.icons.outlined.Cloud
+import androidx.compose.material.icons.outlined.Eco
+import androidx.compose.material.icons.outlined.EmojiEvents
 import androidx.compose.material.icons.outlined.Forest
-import androidx.compose.material.icons.outlined.OilBarrel
+import androidx.compose.material.icons.outlined.LocalGasStation
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -38,6 +41,7 @@ import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.PrimaryTabRow
@@ -56,7 +60,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -101,7 +105,7 @@ fun StatisticsScreen(
     val context = LocalContext.current
     var selectedPeriod by remember { mutableIntStateOf(0) }
     var showMonthYearPicker by remember { mutableStateOf(false) }
-    
+
     // Diálogo de selección de mes/año
     if (showMonthYearPicker) {
         MonthYearPickerDialog(
@@ -111,11 +115,11 @@ fun StatisticsScreen(
             onDismiss = { showMonthYearPicker = false },
             onConfirm = { month, year, isYearOnly ->
                 if (isYearOnly) {
-                    // Si solo se selecciona año, cambiar a pestaña "Este Año"
-                    selectedPeriod = 2
+                    // Si solo se selecciona año, cambiar a pestaña "Este Año" (índice 1 ahora)
+                    selectedPeriod = 1
                     viewModel.setSelectedPeriod(null, year)
                 } else {
-                    // Si se selecciona mes, cambiar a pestaña "Este Mes"
+                    // Si se selecciona mes, cambiar a pestaña "Este Mes" (índice 0)
                     selectedPeriod = 0
                     viewModel.setSelectedPeriod(month, year)
                 }
@@ -128,14 +132,14 @@ fun StatisticsScreen(
         modifier = Modifier.fillMaxSize(),
         topBar = {
             TopAppBar(
-                title = { 
+                title = {
                     Column {
-                        Text("Estadísticas")
+                        Text("Estadísticas", fontWeight = FontWeight.Bold)
                         periodTitle?.let { title ->
                             Text(
                                 text = title,
                                 style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f)
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                             )
                         }
                     }
@@ -148,7 +152,7 @@ fun StatisticsScreen(
                         )
                     }
                     if ((selectedMonth != null && selectedYear != null) || (selectedYear != null && selectedMonth == null)) {
-                        IconButton(onClick = { 
+                        IconButton(onClick = {
                             viewModel.clearSelectedPeriod()
                             // Volver a la pestaña por defecto (Este Mes)
                             selectedPeriod = 0
@@ -161,9 +165,9 @@ fun StatisticsScreen(
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimary,
-                    actionIconContentColor = MaterialTheme.colorScheme.onPrimary
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    titleContentColor = MaterialTheme.colorScheme.onSurface,
+                    actionIconContentColor = MaterialTheme.colorScheme.onSurface
                 )
             )
         }
@@ -172,18 +176,18 @@ fun StatisticsScreen(
         val screenWidthDp = configuration.screenWidthDp
         val isSmallScreen = screenWidthDp < 360
         val horizontalPadding = if (isSmallScreen) 8.dp else 16.dp
-        
+
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            // Pestañas
+            // Pestañas - REORDENADAS: MES -> AÑO -> TODO
             PrimaryTabRow(selectedTabIndex = selectedPeriod) {
                 Tab(
                     selected = selectedPeriod == 0,
                     onClick = { selectedPeriod = 0 },
-                    text = { 
+                    text = {
                         Text(
                             "Este Mes",
                             fontWeight = if (selectedPeriod == 0) FontWeight.Bold else FontWeight.Normal
@@ -193,9 +197,9 @@ fun StatisticsScreen(
                 Tab(
                     selected = selectedPeriod == 1,
                     onClick = { selectedPeriod = 1 },
-                    text = { 
+                    text = {
                         Text(
-                            "Todo",
+                            "Este Año",
                             fontWeight = if (selectedPeriod == 1) FontWeight.Bold else FontWeight.Normal
                         )
                     }
@@ -203,9 +207,9 @@ fun StatisticsScreen(
                 Tab(
                     selected = selectedPeriod == 2,
                     onClick = { selectedPeriod = 2 },
-                    text = { 
+                    text = {
                         Text(
-                            "Este Año",
+                            "Todo",
                             fontWeight = if (selectedPeriod == 2) FontWeight.Bold else FontWeight.Normal
                         )
                     }
@@ -215,30 +219,30 @@ fun StatisticsScreen(
             // Contenido
             Box(
                 modifier = Modifier.fillMaxSize()
-        ) {
-            when (statistics) {
-                is StatisticsUiState.Loading -> {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        CircularProgressIndicator()
+            ) {
+                when (statistics) {
+                    is StatisticsUiState.Loading -> {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularProgressIndicator()
+                        }
                     }
-                }
-                is StatisticsUiState.Success -> {
-                    val stats = (statistics as StatisticsUiState.Success)
-                        
-                        // Determinar qué datos mostrar según la pestaña
+                    is StatisticsUiState.Success -> {
+                        val stats = (statistics as StatisticsUiState.Success)
+
+                        // Determinar qué datos mostrar según la pestaña (INDICES ACTUALIZADOS)
                         val currentPeriod = when (selectedPeriod) {
                             0 -> StatisticsPeriod.MONTHLY
-                            1 -> StatisticsPeriod.ALL
-                            else -> StatisticsPeriod.YEARLY
+                            1 -> StatisticsPeriod.YEARLY
+                            else -> StatisticsPeriod.ALL
                         }
-                        
+
                         // Determinar el título según el período y selección
                         val currentSelectedMonth = selectedMonth
                         val currentSelectedYear = selectedYear
-                        
+
                         val monthlyTitle = if (currentSelectedMonth != null && currentSelectedYear != null) {
                             val monthNames = listOf("Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
                                 "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre")
@@ -246,31 +250,22 @@ fun StatisticsScreen(
                         } else {
                             "Este mes has recorrido:"
                         }
-                        
+
                         val yearlyTitle = if (currentSelectedYear != null && currentSelectedMonth == null) {
                             "$currentSelectedYear has recorrido:"
                         } else {
                             "Este año has recorrido:"
                         }
-                        
+
                         val displayData = when (currentPeriod) {
                             StatisticsPeriod.MONTHLY -> PeriodData(
-                            totalDistance = stats.monthlyDistance,
-                            averageDistance = stats.monthlyAverageDistance,
-                            maxDistance = stats.monthlyMaxDistance,
-                            totalRecords = stats.monthlyRecords,
+                                totalDistance = stats.monthlyDistance,
+                                averageDistance = stats.monthlyAverageDistance,
+                                maxDistance = stats.monthlyMaxDistance,
+                                totalRecords = stats.monthlyRecords,
                                 title = monthlyTitle,
                                 chartData = stats.monthlyChartData,
                                 comparison = stats.monthlyComparison
-                            )
-                            StatisticsPeriod.ALL -> PeriodData(
-                                totalDistance = stats.totalDistance,
-                                averageDistance = stats.averageDistance,
-                                maxDistance = stats.maxDistance,
-                                totalRecords = stats.totalRecords,
-                                title = "En tu vida has recorrido:",
-                                chartData = stats.allTimeChartData,
-                                comparison = null
                             )
                             StatisticsPeriod.YEARLY -> PeriodData(
                                 totalDistance = stats.yearlyDistance,
@@ -281,40 +276,49 @@ fun StatisticsScreen(
                                 chartData = stats.yearlyChartData,
                                 comparison = stats.yearlyComparison
                             )
+                            StatisticsPeriod.ALL -> PeriodData(
+                                totalDistance = stats.totalDistance,
+                                averageDistance = stats.averageDistance,
+                                maxDistance = stats.maxDistance,
+                                totalRecords = stats.totalRecords,
+                                title = "En tu vida has recorrido:",
+                                chartData = stats.allTimeChartData,
+                                comparison = null
+                            )
                         }
-                        
+
                         Column(
                             modifier = Modifier
                                 .fillMaxSize()
                                 .verticalScroll(rememberScrollState())
                                 .padding(horizontal = horizontalPadding),
-                            verticalArrangement = Arrangement.spacedBy(if (isSmallScreen) 8.dp else 12.dp)
+                            verticalArrangement = Arrangement.spacedBy(if (isSmallScreen) 8.dp else 16.dp)
                         ) {
-                            Spacer(modifier = Modifier.height(4.dp))
-                            
-                            // Impacto Ecológico (Destacado y grande)
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            // 1. Impacto Ecológico (Rediseñado)
                             EcologicalImpactCardEnhanced(
                                 co2Saved = (displayData.totalDistance * 0.1).toInt(),
                                 treesEquivalent = (displayData.totalDistance * 0.005).toInt(),
                                 gasSaved = (displayData.totalDistance * 0.04).toInt()
                             )
 
-                            // Tarjetas de Resumen
+                            // 2. Tarjetas de Resumen
                             SummaryStatsCard(
                                 periodData = displayData,
                                 showMaxDistance = false,
-                                horizontalPadding = horizontalPadding,
+                                horizontalPadding = 16.dp, // Padding interno de la tarjeta
                                 onShare = {
                                     val shareText = when (currentPeriod) {
                                         StatisticsPeriod.MONTHLY -> viewModel.getMonthlyShareText(stats)
                                         StatisticsPeriod.ALL -> viewModel.getShareText(stats)
                                         StatisticsPeriod.YEARLY -> viewModel.getYearlyShareText(stats)
                                     }
-                                        val intent = Intent().apply {
-                                            action = Intent.ACTION_SEND
-                                            putExtra(Intent.EXTRA_TEXT, shareText)
-                                            type = "text/plain"
-                                        }
+                                    val intent = Intent().apply {
+                                        action = Intent.ACTION_SEND
+                                        putExtra(Intent.EXTRA_TEXT, shareText)
+                                        type = "text/plain"
+                                    }
                                     val title = when (currentPeriod) {
                                         StatisticsPeriod.MONTHLY -> "Compartir estadísticas mensuales"
                                         StatisticsPeriod.ALL -> "Compartir estadísticas totales"
@@ -324,39 +328,39 @@ fun StatisticsScreen(
                                 }
                             )
 
-                            // Tarjeta de Comparación (si existe)
+                            // 3. Tarjeta de Comparación (si existe)
                             displayData.comparison?.let { comparison ->
                                 ComparisonCard(
-                                    horizontalPadding = horizontalPadding,
+                                    horizontalPadding = 16.dp,
                                     comparison = comparison
                                 )
                             }
 
-                            // Tarjeta "Tu Próximo Logro"
+                            // 4. Tarjeta "Tu Próximo Logro" (Rediseñada)
                             stats.nextAchievement?.let { nextAchievement ->
                                 NextAchievementCard(
                                     nextAchievement = nextAchievement
                                 )
                             }
-                            
-                            Spacer(modifier = Modifier.height(8.dp))
+
+                            Spacer(modifier = Modifier.height(24.dp))
+                        }
                     }
-                }
-                is StatisticsUiState.Error -> {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = (statistics as StatisticsUiState.Error).message,
-                            textAlign = TextAlign.Center
-                        )
+                    is StatisticsUiState.Error -> {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = (statistics as StatisticsUiState.Error).message,
+                                textAlign = TextAlign.Center
+                            )
+                        }
                     }
                 }
             }
         }
     }
-}
 }
 
 data class PeriodData(
@@ -369,6 +373,10 @@ data class PeriodData(
     val comparison: ComparisonData?
 )
 
+// ===============================================================
+// COMPONENTES UI REDISEÑADOS
+// ===============================================================
+
 @Composable
 fun EcologicalImpactCardEnhanced(
     co2Saved: Int,
@@ -378,60 +386,50 @@ fun EcologicalImpactCardEnhanced(
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.primaryContainer
+            // Fondo con opacidad para que no sea tan pesado
+            containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.4f)
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-        shape = com.zipstats.app.ui.theme.CardShape
+        shape = RoundedCornerShape(24.dp) // Más redondeado estilo M3
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 14.dp), // Reducir padding ligeramente
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+        Column(modifier = Modifier.padding(20.dp)) {
+            // Título con icono
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Outlined.Eco,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = "Impacto Ecológico",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                )
-                Icon(
-                    imageVector = Icons.Filled.Park,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                    modifier = Modifier.size(28.dp)
+                    color = MaterialTheme.colorScheme.onSurface
                 )
             }
-            
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // Los 3 Datos en Fila
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                ImpactMetricEnhanced(
+                ImpactItem(
                     value = "$co2Saved",
                     unit = "kg CO₂",
-                    description = "ahorrados",
-                    icon = Icons.Outlined.Co2,
-                    modifier = Modifier.weight(1f)
+                    icon = Icons.Outlined.Cloud
                 )
-                ImpactMetricEnhanced(
+                ImpactItem(
                     value = "$treesEquivalent",
-                    unit = "árboles",
-                    description = "equiv.",
-                    icon = Icons.Outlined.Forest,
-                    modifier = Modifier.weight(1f)
+                    unit = "Árboles",
+                    icon = Icons.Outlined.Forest // O Park
                 )
-                ImpactMetricEnhanced(
+                ImpactItem(
                     value = "$gasSaved",
-                    unit = "L",
-                    description = "gasolina",
-                    icon = Icons.Outlined.OilBarrel,
-                    modifier = Modifier.weight(1f)
+                    unit = "L Gasolina",
+                    icon = Icons.Outlined.LocalGasStation
                 )
             }
         }
@@ -439,41 +437,51 @@ fun EcologicalImpactCardEnhanced(
 }
 
 @Composable
-fun ImpactMetricEnhanced(
+fun ImpactItem(
     value: String,
     unit: String,
-    description: String,
-    icon: ImageVector,
-    modifier: Modifier = Modifier
+    icon: ImageVector
 ) {
     Column(
-        modifier = modifier,
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(4.dp)
+        modifier = Modifier.width(80.dp)
     ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.size(28.dp)
-        )
+        // Círculo decorativo para el icono
+        Box(
+            modifier = Modifier
+                .size(48.dp)
+                .background(
+                    MaterialTheme.colorScheme.surface,
+                    CircleShape
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(24.dp)
+            )
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // EL NÚMERO GRANDE
         Text(
             text = value,
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onPrimaryContainer
+            style = MaterialTheme.typography.headlineSmall, // Más grande
+            fontWeight = FontWeight.ExtraBold,
+            color = MaterialTheme.colorScheme.onSurface
         )
+
+        // La unidad pequeña
         Text(
             text = unit,
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = FontWeight.Medium,
-            color = MaterialTheme.colorScheme.onPrimaryContainer
-        )
-        Text(
-            text = description,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f), // Mejor contraste
-            textAlign = TextAlign.Center
+            style = MaterialTheme.typography.labelMedium, // Pequeño y legible
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
         )
     }
 }
@@ -490,8 +498,8 @@ fun SummaryStatsCard(
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp), // Sombra más sutil pero presente
-        shape = com.zipstats.app.ui.theme.SmallCardShape
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        shape = RoundedCornerShape(16.dp)
     ) {
         Column(
             modifier = Modifier
@@ -515,7 +523,7 @@ fun SummaryStatsCard(
                     )
                 }
             }
-            
+
             Spacer(modifier = Modifier.height(8.dp))
 
             Row(
@@ -539,11 +547,11 @@ fun SummaryStatsCard(
                 if (showMaxDistance) {
                     StatMetric(
                         value = String.format("%.1f", periodData.maxDistance),
-                    unit = "km",
+                        unit = "km",
                         label = "Máximo",
-                    icon = Icons.Filled.BarChart,
-                    modifier = Modifier.weight(1f)
-                )
+                        icon = Icons.Filled.BarChart,
+                        modifier = Modifier.weight(1f)
+                    )
                 }
                 StatMetric(
                     value = periodData.totalRecords.toString(),
@@ -586,7 +594,7 @@ fun StatMetric(
         Text(
             text = label,
             style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f), // Mejor contraste
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
@@ -622,7 +630,7 @@ fun StatMetricWithDrawable(
         Text(
             text = label,
             style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f), // Mejor contraste
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
@@ -638,39 +646,27 @@ fun ComparisonCard(
         "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
         "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
     )
-    
+
     val comparisonText = if (comparison.comparisonMonth != null) {
-        // Comparación mensual
-        "${monthNames[comparison.comparisonMonth - 1]} del año ${comparison.comparisonYear}"
+        "${monthNames[comparison.comparisonMonth - 1]} ${comparison.comparisonYear}"
     } else {
-        // Comparación anual
-        "el año ${comparison.comparisonYear}"
+        "${comparison.comparisonYear}"
     }
-    
+
     val colorScheme = MaterialTheme.colorScheme
-    val containerColor = if (comparison.isPositive) {
-        colorScheme.tertiaryContainer
-    } else {
-        colorScheme.errorContainer
-    }
-    val primaryContentColor = if (comparison.isPositive) {
-        colorScheme.onTertiaryContainer
-    } else {
-        colorScheme.onErrorContainer
-    }
-    val accentColor = if (comparison.isPositive) {
-        colorScheme.tertiary
-    } else {
-        colorScheme.error
-    }
+    // Usamos colores semánticos más suaves pero claros
+    val containerColor = if (comparison.isPositive) colorScheme.tertiaryContainer else colorScheme.errorContainer
+    val contentColor = if (comparison.isPositive) colorScheme.onTertiaryContainer else colorScheme.onErrorContainer
+    val iconColor = if (comparison.isPositive) colorScheme.tertiary else colorScheme.error
 
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
             containerColor = containerColor,
-            contentColor = primaryContentColor
+            contentColor = contentColor
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        shape = RoundedCornerShape(16.dp)
     ) {
         Row(
             modifier = Modifier
@@ -680,39 +676,32 @@ fun ComparisonCard(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.weight(1f)) {
-            Text(
+                Text(
                     text = "Comparación con $comparisonText",
                     style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = primaryContentColor
-            )
+                    fontWeight = FontWeight.Bold,
+                    color = contentColor
+                )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = if (comparison.isPositive) {
-                        "¡Vas ${comparison.percentageChange.roundToInt()}% mejor!"
-                    } else {
-                        "${comparison.percentageChange.roundToInt()}% menos que $comparisonText"
-                    },
+                    text = if (comparison.isPositive) "Mejor rendimiento" else "Menos rendimiento",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = primaryContentColor.copy(alpha = 0.9f)
+                    color = contentColor.copy(alpha = 0.8f)
                 )
             }
-            
+
             Column(horizontalAlignment = Alignment.End) {
                 Icon(
-                    imageVector = if (comparison.isPositive) 
-                        Icons.AutoMirrored.Filled.TrendingUp 
-                    else 
-                        Icons.AutoMirrored.Filled.TrendingDown,
+                    imageVector = if (comparison.isPositive) Icons.AutoMirrored.Filled.TrendingUp else Icons.AutoMirrored.Filled.TrendingDown,
                     contentDescription = null,
-                    tint = accentColor,
-                    modifier = Modifier.size(40.dp)
+                    tint = iconColor,
+                    modifier = Modifier.size(32.dp)
                 )
                 Text(
                     text = "${if (comparison.isPositive) "+" else ""}${comparison.percentageChange.roundToInt()}%",
                     style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = accentColor
+                    fontWeight = FontWeight.Black, // Extra negrita
+                    color = iconColor
                 )
             }
         }
@@ -726,105 +715,71 @@ fun NextAchievementCard(
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.secondaryContainer
+            containerColor = MaterialTheme.colorScheme.tertiaryContainer // Color distintivo
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        shape = RoundedCornerShape(16.dp)
     ) {
-        Column(
+        Row(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+                .padding(20.dp)
+                .fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = "Tu Próximo Logro",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSecondaryContainer
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = nextAchievement.title,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSecondaryContainer
-                    )
-                    Text(
-                        text = nextAchievement.requirementText,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Medium,
-                        color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.8f)
-                    )
-                }
-                // Mostrar el emoji del logro
+            // Lado Izquierdo: Textos y Barra
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = nextAchievement.emoji,
-                    style = MaterialTheme.typography.displayMedium,
-                    modifier = Modifier.padding(start = 8.dp)
+                    text = "Próximo Logro",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.7f)
                 )
-            }
-            
-            // Descripción del logro
-            Text(
-                text = nextAchievement.description,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.7f)
-            )
-            
-            // Barra de progreso
-            Column {
-                Box(
+                Text(
+                    text = nextAchievement.title, // Ej: "El Trotamundos"
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onTertiaryContainer
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Barra de progreso más gruesa y moderna
+                LinearProgressIndicator(
+                    progress = { nextAchievement.progress },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(12.dp)
-                        .background(
-                            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f),
-                            shape = RoundedCornerShape(6.dp)
-                        )
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth(nextAchievement.progress)
-                            .height(12.dp)
-                            .background(
-                                brush = Brush.horizontalGradient(
-                                    colors = listOf(
-                                        MaterialTheme.colorScheme.secondary,
-                                        MaterialTheme.colorScheme.tertiary
-                                    )
-                                ),
-                                shape = RoundedCornerShape(6.dp)
-                            )
-                    )
-                }
+                        .height(10.dp)
+                        .clip(RoundedCornerShape(5.dp)),
+                    color = MaterialTheme.colorScheme.primary,
+                    trackColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f),
+                )
+
                 Spacer(modifier = Modifier.height(8.dp))
+
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(
-                        text = if (nextAchievement.progress < 1f) {
-                            "Objetivo: ${nextAchievement.requirementText}"
-                        } else {
-                            "¡Logro completado! 🎉"
-                        },
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.8f)
+                        text = "Objetivo: ${nextAchievement.requirementText}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onTertiaryContainer
                     )
                     Text(
                         text = "${(nextAchievement.progress * 100).roundToInt()}%",
-                        style = MaterialTheme.typography.bodyMedium,
+                        style = MaterialTheme.typography.labelLarge,
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSecondaryContainer
+                        color = MaterialTheme.colorScheme.onTertiaryContainer
                     )
                 }
             }
+
+            // Lado Derecho: Icono Vectorial (Trofeo) en lugar de Emoji Texto
+            Spacer(modifier = Modifier.width(16.dp))
+            Icon(
+                imageVector = Icons.Outlined.EmojiEvents, // Trofeo nativo
+                contentDescription = "Logro",
+                modifier = Modifier.size(48.dp),
+                tint = MaterialTheme.colorScheme.onTertiaryContainer
+            )
         }
     }
 }
@@ -838,7 +793,6 @@ fun MonthYearPickerDialog(
     onDismiss: () -> Unit,
     onConfirm: (month: Int, year: Int, isYearOnly: Boolean) -> Unit
 ) {
-// Validar que hay períodos disponibles
     if (availableMonthYears.isEmpty()) {
         AlertDialog(
             onDismissRequest = onDismiss,
@@ -855,23 +809,20 @@ fun MonthYearPickerDialog(
         return
     }
 
-    
-    var selectedMode by remember { mutableStateOf<SelectionMode?>(null) } // null = no seleccionado, Month = mes, Year = año
+    var selectedMode by remember { mutableStateOf<SelectionMode?>(null) }
     var selectedMonth by remember { mutableIntStateOf(currentMonth) }
     var selectedYear by remember { mutableIntStateOf(currentYear) }
     var showModeDropdown by remember { mutableStateOf(false) }
     var showMonthDropdown by remember { mutableStateOf(false) }
     var showYearDropdown by remember { mutableStateOf(false) }
-    
+
     val monthNames = listOf(
         "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
         "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
     )
-    
-    // Obtener años únicos de los registros disponibles
+
     val availableYears = availableMonthYears.map { it.second }.distinct().sortedDescending()
-    
-    // Obtener meses disponibles para el año seleccionado
+
     val availableMonthsForYear = remember(selectedYear, availableMonthYears) {
         availableMonthYears
             .filter { it.second == selectedYear }
@@ -879,8 +830,7 @@ fun MonthYearPickerDialog(
             .distinct()
             .sorted()
     }
-    
-    // Validar que el mes seleccionado existe en el año seleccionado
+
     LaunchedEffect(selectedYear, availableMonthsForYear) {
         if (selectedMonth !in availableMonthsForYear && availableMonthsForYear.isNotEmpty()) {
             selectedMonth = availableMonthsForYear.first()
@@ -895,8 +845,6 @@ fun MonthYearPickerDialog(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-
-                // Selector de modo (Mes o Año)
                 ExposedDropdownMenuBox(
                     expanded = showModeDropdown,
                     onExpandedChange = { showModeDropdown = it }
@@ -912,9 +860,7 @@ fun MonthYearPickerDialog(
                         readOnly = true,
                         label = { Text("Tipo de período") },
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = showModeDropdown) },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .menuAnchor()
+                        modifier = Modifier.fillMaxWidth().menuAnchor()
                     )
 
                     ExposedDropdownMenu(
@@ -938,7 +884,6 @@ fun MonthYearPickerDialog(
                     }
                 }
 
-                // Selector de mes (solo si el modo es Mes)
                 if (selectedMode is SelectionMode.Month) {
                     ExposedDropdownMenuBox(
                         expanded = showMonthDropdown,
@@ -950,9 +895,7 @@ fun MonthYearPickerDialog(
                             readOnly = true,
                             label = { Text("Mes") },
                             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = showMonthDropdown) },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .menuAnchor()
+                            modifier = Modifier.fillMaxWidth().menuAnchor()
                         )
 
                         ExposedDropdownMenu(
@@ -972,7 +915,6 @@ fun MonthYearPickerDialog(
                     }
                 }
 
-                // Selector de año
                 ExposedDropdownMenuBox(
                     expanded = showYearDropdown,
                     onExpandedChange = { showYearDropdown = it }
@@ -983,9 +925,7 @@ fun MonthYearPickerDialog(
                         readOnly = true,
                         label = { Text("Año") },
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = showYearDropdown) },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .menuAnchor()
+                        modifier = Modifier.fillMaxWidth().menuAnchor()
                     )
 
                     ExposedDropdownMenu(
@@ -1026,5 +966,4 @@ fun MonthYearPickerDialog(
         },
         shape = DialogShape
     )
-
 }

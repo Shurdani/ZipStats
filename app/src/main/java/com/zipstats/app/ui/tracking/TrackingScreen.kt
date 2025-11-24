@@ -737,6 +737,11 @@ fun AnimatedTrackingIndicator(
                     }
             )
         }
+		GpsIconWithSignalRing(
+            signalStrength = signalStrength,
+            isPaused = isPaused,
+            modifier = Modifier.size(80.dp)
+        )
     }
 }
 

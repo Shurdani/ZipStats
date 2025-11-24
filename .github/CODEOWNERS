@@ -1,0 +1,23 @@
+# CODEOWNERS - Define quién debe revisar cambios en archivos específicos
+# Más información: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Propietario global - todos los archivos por defecto
+* @Shurdani
+
+# Configuración de seguridad y workflows
+/.github/ @Shurdani
+/CHANGELOG.md @Shurdani
+
+# Configuración de build y dependencias (crítico)
+/app/build.gradle @Shurdani
+/build.gradle @Shurdani
+/gradle/ @Shurdani
+/gradle.properties @Shurdani
+
+# Configuración de Firebase (seguridad)
+/app/google-services.json @Shurdani
+
+# Archivos de configuración críticos
+/local.properties @Shurdani
+/settings.gradle @Shurdani
+

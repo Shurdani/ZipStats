@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <style name="Theme.Patinetatrack" parent="android:Theme.Material.Light.NoActionBar">
+        <!-- Primary brand color. -->
+        <item name="colorPrimary">@color/sage_green</item>
+        <item name="colorPrimaryDark">@color/sage_green</item>
+        <item name="colorAccent">@color/sage_green_light</item>
+        <!-- Status bar color. -->
+        <item name="android:statusBarColor">@color/sage_green</item>
+        <item name="android:navigationBarColor">@color/sage_green</item>
+        <!-- Enable window content transitions -->
+        <item name="android:windowActivityTransitions">true</item>
+        <item name="android:windowLightStatusBar">true</item>
+    </style>
+
+    <style name="Theme.Patinetatrack.NoActionBar">
+        <item name="windowActionBar">false</item>
+        <item name="windowNoTitle">true</item>
+        <item name="android:windowBackground">@color/white</item>
+        <item name="android:statusBarColor">@color/sage_green</item>
+        <item name="android:navigationBarColor">@color/sage_green</item>
+        <item name="android:windowLightStatusBar">true</item>
+    </style>
+</resources>

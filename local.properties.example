@@ -1,0 +1,21 @@
+## This file is an EXAMPLE template for local.properties
+# Copy this file to "local.properties" and fill in your own credentials
+# NEVER commit the actual "local.properties" file to Git!
+
+# Location of the Android SDK
+# This will be automatically set by Android Studio
+sdk.dir=YOUR_SDK_PATH
+
+# Cloudinary Configuration
+# Get these from: https://cloudinary.com/console
+cloudinary.cloud_name=YOUR_CLOUDINARY_CLOUD_NAME
+cloudinary.api_key=YOUR_CLOUDINARY_API_KEY
+cloudinary.api_secret=YOUR_CLOUDINARY_API_SECRET
+
+# Google Maps API Key
+# Get this from: https://console.cloud.google.com/google/maps-apis/credentials
+google.maps.api.key=YOUR_GOOGLE_MAPS_API_KEY
+
+# OpenWeather API Key
+# Get this from: https://openweathermap.org/api (Free tier available)
+openweather.api.key=YOUR_OPENWEATHER_API_KEY

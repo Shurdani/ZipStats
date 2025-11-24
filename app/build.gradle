@@ -1,0 +1,218 @@
+plugins {
+    id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+    id 'org.jetbrains.kotlin.plugin.compose'
+    id 'kotlin-kapt'
+    id 'dagger.hilt.android.plugin'
+    id 'com.google.gms.google-services'
+    
+}
+
+android {
+    namespace 'com.zipstats.app'
+    compileSdk 35
+
+    // Leer credenciales de Cloudinary desde local.properties
+    def localProperties = new Properties()
+    def localPropertiesFile = rootProject.file('local.properties')
+    if (localPropertiesFile.exists()) {
+        localPropertiesFile.withInputStream { localProperties.load(it) }
+    }
+
+    defaultConfig {
+        applicationId "com.zipstats.app"
+        minSdk 31
+        targetSdk 34
+        versionCode 22
+        versionName "4.1.1"
+
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        vectorDrawables {
+            useSupportLibrary true
+        }
+
+        // Exponer credenciales en BuildConfig
+        buildConfigField "String", "CLOUDINARY_CLOUD_NAME", "\"${localProperties.getProperty('cloudinary.cloud_name', 'YOUR_CLOUD_NAME')}\""
+        buildConfigField "String", "CLOUDINARY_API_KEY", "\"${localProperties.getProperty('cloudinary.api_key', 'YOUR_API_KEY')}\""
+        buildConfigField "String", "CLOUDINARY_API_SECRET", "\"${localProperties.getProperty('cloudinary.api_secret', 'YOUR_API_SECRET')}\""
+        buildConfigField "String", "OPENWEATHER_API_KEY", "\"${localProperties.getProperty('openweather.api.key', 'YOUR_OPENWEATHER_API_KEY')}\""
+
+        // Google Maps API Key
+        manifestPlaceholders = [
+            googleMapsApiKey: localProperties.getProperty('google.maps.api.key', 'YOUR_GOOGLE_MAPS_API_KEY')
+        ]
+    }
+
+    signingConfigs {
+        release {
+            // Leer configuración de signing desde variables de entorno o local.properties
+            def keystorePropertiesFile = rootProject.file("keystore.properties")
+            def keystoreProperties = new Properties()
+
+            // Intentar leer desde keystore.properties (para desarrollo local)
+            if (keystorePropertiesFile.exists()) {
+                keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+                storeFile file(keystoreProperties['storeFile'])
+                storePassword keystoreProperties['storePassword']
+                keyAlias keystoreProperties['keyAlias']
+                keyPassword keystoreProperties['keyPassword']
+            } else {
+                // Usar variables de entorno (para CI/CD)
+                storeFile file(System.getenv("KEYSTORE_FILE") ?: "keystore.jks")
+                storePassword System.getenv("KEYSTORE_PASSWORD") ?: ""
+                keyAlias System.getenv("KEY_ALIAS") ?: ""
+                keyPassword System.getenv("KEY_PASSWORD") ?: ""
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            signingConfig signingConfigs.release
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+    lint {
+        disable 'NullSafeMutableLiveData'
+        abortOnError false
+        checkReleaseBuilds false
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    kotlinOptions {
+        jvmTarget = '17'
+        freeCompilerArgs += [
+            "-opt-in=kotlin.RequiresOptIn",
+            "-Xsuppress-version-warnings"
+        ]
+    }
+    buildFeatures {
+        compose true
+        buildConfig true
+    }
+    packaging {
+        resources {
+            excludes += '/META-INF/{AL2.0,LGPL2.1}'
+            excludes += '/META-INF/DEPENDENCIES'
+            excludes += '/META-INF/LICENSE'
+            excludes += '/META-INF/LICENSE.txt'
+            excludes += '/META-INF/license.txt'
+            excludes += '/META-INF/NOTICE'
+            excludes += '/META-INF/NOTICE.txt'
+            excludes += '/META-INF/notice.txt'
+            excludes += '/META-INF/ASL2.0'
+        }
+    }
+    ndkVersion '27.1.12297006'
+}
+
+dependencies {
+    // --- AndroidX Core ---
+    implementation libs.androidx.core.ktx
+    implementation libs.androidx.appcompat
+    implementation libs.androidx.activity.ktx
+
+    // --- Material Design ---
+    implementation libs.material
+
+    // --- ConstraintLayout / CardView ---
+    implementation libs.androidx.constraintlayout
+    implementation libs.androidx.cardview
+
+    // --- Lifecycle / ViewModel / Compose Runtime ---
+    implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.7.0'
+    implementation 'androidx.lifecycle:lifecycle-viewmodel-ktx:2.7.0'
+    implementation 'androidx.lifecycle:lifecycle-runtime-compose:2.7.0'
+
+    // --- Jetpack Compose (compatible con compileSdk 34) ---
+    implementation platform('androidx.compose:compose-bom:2024.02.00')
+    implementation 'androidx.compose.ui:ui'
+    implementation 'androidx.compose.ui:ui-graphics'
+    implementation 'androidx.compose.ui:ui-tooling-preview'
+    implementation 'androidx.compose.material3:material3'
+    implementation 'androidx.activity:activity-compose:1.8.2'
+    implementation 'androidx.navigation:navigation-compose:2.8.5'
+    implementation 'androidx.navigation:navigation-runtime-ktx:2.9.5'
+    // Accompanist Navigation Animation para transiciones suaves
+    implementation 'com.google.accompanist:accompanist-navigation-animation:0.34.0'
+
+    // --- Hilt (actualizado y compatible con Kotlin 2.2.20) ---
+    implementation "com.google.dagger:hilt-android:2.57.2"
+    implementation libs.androidx.compose.ui
+    kapt "com.google.dagger:hilt-compiler:2.57.2"
+    implementation 'androidx.hilt:hilt-navigation-compose:1.2.0'
+
+    // --- Google Play Services / Maps ---
+    implementation 'com.google.android.gms:play-services-base:18.9.0'
+    implementation 'com.google.android.gms:play-services-maps:18.2.0'
+    implementation 'com.google.android.gms:play-services-location:21.0.1'
+    implementation 'com.google.maps.android:maps-compose:4.3.0'
+    implementation 'com.google.maps.android:android-maps-utils:3.8.0'
+
+    // --- Firebase (BoM actualizado) ---
+    implementation platform('com.google.firebase:firebase-bom:33.5.1')
+    implementation 'com.google.firebase:firebase-auth-ktx'
+    implementation 'com.google.firebase:firebase-firestore-ktx'
+    implementation 'com.google.firebase:firebase-storage-ktx'
+    implementation 'com.google.firebase:firebase-analytics-ktx'
+
+    // --- Google Sign In ---
+    implementation 'com.google.android.gms:play-services-auth:21.2.0'
+    // --- Material Icons ---
+    implementation 'androidx.compose.material:material-icons-core'
+    implementation 'androidx.compose.material:material-icons-extended'
+
+    // --- Coil (imágenes en Compose) ---
+    implementation 'io.coil-kt:coil-compose:2.7.0'
+
+    // --- Retrofit (para APIs externas, OpenWeather, etc.) ---
+    implementation 'com.squareup.retrofit2:retrofit:2.11.0'
+    implementation 'com.squareup.retrofit2:converter-gson:2.11.0'
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0'
+
+    // --- Excel (Apache POI - versión actualizada y optimizada) ---
+    implementation 'org.apache.poi:poi:5.2.3'
+    // Excluir módulos innecesarios para reducir tamaño del APK
+    implementation('org.apache.poi:poi-ooxml:5.2.3') {
+        exclude group: 'org.apache.poi', module: 'poi-scratchpad'
+        exclude group: 'org.apache.xmlgraphics', module: 'batik-svg'
+        exclude group: 'org.apache.xmlgraphics', module: 'batik-util'
+        exclude group: 'org.apache.xmlgraphics', module: 'batik-awt-util'
+    }
+
+    // --- DataStore Preferences ---
+    implementation 'androidx.datastore:datastore-preferences:1.1.1'
+
+    // --- Testing ---
+    testImplementation 'junit:junit:4.13.2'
+    androidTestImplementation 'androidx.test.ext:junit:1.1.5'
+    androidTestImplementation 'androidx.test.espresso:espresso-core:3.7.0'
+    androidTestImplementation 'androidx.compose.ui:ui-test-junit4:1.5.4'
+    debugImplementation 'androidx.compose.ui:ui-tooling:1.5.4'
+    debugImplementation 'androidx.compose.ui:ui-test-manifest:1.5.4'
+}
+
+kapt {
+    correctErrorTypes true
+}
+
+hilt {
+    enableAggregatingTask = true
+}
+
+// Configuración de memoria para R8
+android.applicationVariants.all { variant ->
+    if (variant.buildType.name == "release") {
+        variant.mergeAssetsProvider.configure {
+            doLast {
+                // Configurar memoria para R8
+                System.setProperty("org.gradle.jvmargs", "-Xmx4g -XX:MaxMetaspaceSize=1g")
+            }
+        }
+    }
+}
+

@@ -310,9 +310,9 @@ fun StatisticsScreen(
                                 horizontalPadding = 16.dp, // Padding interno de la tarjeta
                                 onShare = {
                                     val shareText = when (currentPeriod) {
-                                        StatisticsPeriod.MONTHLY -> viewModel.getMonthlyShareText(stats)
+                                        StatisticsPeriod.MONTHLY -> viewModel.getMonthlyShareText(stats, currentSelectedMonth, currentSelectedYear)
                                         StatisticsPeriod.ALL -> viewModel.getShareText(stats)
-                                        StatisticsPeriod.YEARLY -> viewModel.getYearlyShareText(stats)
+                                        StatisticsPeriod.YEARLY -> viewModel.getYearlyShareText(stats, currentSelectedYear)
                                     }
                                     val intent = Intent().apply {
                                         action = Intent.ACTION_SEND

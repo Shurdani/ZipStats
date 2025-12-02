@@ -12,9 +12,9 @@ cloudinary.cloud_name=YOUR_CLOUDINARY_CLOUD_NAME
 cloudinary.api_key=YOUR_CLOUDINARY_API_KEY
 cloudinary.api_secret=YOUR_CLOUDINARY_API_SECRET
 
-# Google Maps API Key
-# Get this from: https://console.cloud.google.com/google/maps-apis/credentials
-google.maps.api.key=YOUR_GOOGLE_MAPS_API_KEY
+# Mapbox Access Token
+# Get this from: https://account.mapbox.com/access-tokens/
+mapbox.access.token=YOUR_MAPBOX_ACCESS_TOKEN
 
 # OpenWeather API Key
 # Get this from: https://openweathermap.org/api (Free tier available)

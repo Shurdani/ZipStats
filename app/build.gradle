@@ -23,8 +23,8 @@ android {
         applicationId "com.zipstats.app"
         minSdk 31
         targetSdk 34
-        versionCode 22
-        versionName "4.1.1"
+        versionCode 23
+        versionName "4.2"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -37,9 +37,9 @@ android {
         buildConfigField "String", "CLOUDINARY_API_SECRET", "\"${localProperties.getProperty('cloudinary.api_secret', 'YOUR_API_SECRET')}\""
         buildConfigField "String", "OPENWEATHER_API_KEY", "\"${localProperties.getProperty('openweather.api.key', 'YOUR_OPENWEATHER_API_KEY')}\""
 
-        // Google Maps API Key
+        // Mapbox Access Token
         manifestPlaceholders = [
-            googleMapsApiKey: localProperties.getProperty('google.maps.api.key', 'YOUR_GOOGLE_MAPS_API_KEY')
+            mapboxAccessToken: localProperties.getProperty('mapbox.access.token', 'YOUR_MAPBOX_ACCESS_TOKEN')
         ]
     }
 
@@ -146,12 +146,20 @@ dependencies {
     kapt "com.google.dagger:hilt-compiler:2.57.2"
     implementation 'androidx.hilt:hilt-navigation-compose:1.2.0'
 
-    // --- Google Play Services / Maps ---
+    // --- Mapbox Maps SDK ---
+    implementation 'com.mapbox.maps:android-ndk27:11.8.0'
+    implementation 'com.mapbox.extension:maps-compose:11.8.0'
+    implementation("com.mapbox.mapboxsdk:mapbox-sdk-geojson:7.9.0")
+    implementation("com.mapbox.mapboxsdk:mapbox-sdk-services:7.9.0")
+    implementation("com.mapbox.mapboxsdk:mapbox-sdk-turf:7.9.0")
+    implementation("com.mapbox.mapboxsdk:mapbox-sdk-core:7.9.0")
+    implementation("androidx.annotation:annotation:1.0.0")
+
+    
+    // --- Google Play Services (solo location, ya no Maps) ---
     implementation 'com.google.android.gms:play-services-base:18.9.0'
-    implementation 'com.google.android.gms:play-services-maps:18.2.0'
     implementation 'com.google.android.gms:play-services-location:21.0.1'
-    implementation 'com.google.maps.android:maps-compose:4.3.0'
-    implementation 'com.google.maps.android:android-maps-utils:3.8.0'
+
 
     // --- Firebase (BoM actualizado) ---
     implementation platform('com.google.firebase:firebase-bom:33.5.1')

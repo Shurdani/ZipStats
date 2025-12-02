@@ -1,8 +1,16 @@
+// Kotlin code for CapturableMapView with Mapbox 11.8.0
+// Complete refactor implementing bounding box, padding, day/night, clean render, markers,
+// polyline gradient, cameraForCoordinates fit, etc.
+
+// NOTE: Replace package name as needed
 package com.zipstats.app.ui.components
 
-import android.content.res.Resources
-import android.util.Log
+// Si usas la solución de abajo, añade también este:
+import android.content.Context
+import android.graphics.Bitmap
+import android.view.LayoutInflater
 import androidx.compose.foundation.background
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -27,330 +35,270 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.core.content.ContextCompat
+import androidx.core.content.res.ResourcesCompat
+import androidx.core.graphics.drawable.toBitmap
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
-import com.google.android.gms.maps.CameraUpdateFactory
-import com.google.android.gms.maps.GoogleMap
-import com.google.android.gms.maps.MapView
-import com.google.android.gms.maps.model.BitmapDescriptor
-import com.google.android.gms.maps.model.BitmapDescriptorFactory
-import com.google.android.gms.maps.model.CameraPosition
-import com.google.android.gms.maps.model.JointType
-import com.google.android.gms.maps.model.LatLng
-import com.google.android.gms.maps.model.LatLngBounds
-import com.google.android.gms.maps.model.MapStyleOptions
-import com.google.android.gms.maps.model.MarkerOptions
-import com.google.android.gms.maps.model.PolylineOptions
-import com.google.android.gms.maps.model.RoundCap
-import com.google.maps.android.SphericalUtil
+import com.mapbox.geojson.Feature
+import com.mapbox.geojson.LineString
+import com.mapbox.geojson.Point
+import com.mapbox.maps.EdgeInsets
+import com.mapbox.maps.MapView
+import com.mapbox.maps.Style
+import com.mapbox.maps.extension.style.expressions.generated.Expression
+import com.mapbox.maps.extension.style.layers.addLayer
+import com.mapbox.maps.extension.style.layers.generated.lineLayer
+import com.mapbox.maps.extension.style.layers.generated.symbolLayer
+import com.mapbox.maps.extension.style.layers.properties.generated.IconAnchor
+import com.mapbox.maps.extension.style.layers.properties.generated.LineCap
+import com.mapbox.maps.extension.style.layers.properties.generated.LineJoin
+import com.mapbox.maps.extension.style.sources.addSource
+import com.mapbox.maps.extension.style.sources.generated.geoJsonSource
+import com.mapbox.maps.plugin.attribution.attribution
+import com.mapbox.maps.plugin.compass.compass
+import com.mapbox.maps.plugin.gestures.gestures
+import com.mapbox.maps.plugin.logo.logo
+import com.mapbox.maps.plugin.scalebar.scalebar
+import com.mapbox.turf.TurfMeasurement
 import com.zipstats.app.R
 import com.zipstats.app.model.Route
-import kotlinx.coroutines.delay
-import kotlin.math.ln
-import kotlin.math.max
+
+// Typealias para simplificar el tipo de función compleja del snapshot
+typealias MapSnapshotTrigger = ((Bitmap?) -> Unit) -> Unit
 
 @Composable
 fun CapturableMapView(
     route: Route,
-    onMapReady: ((com.google.android.gms.maps.GoogleMap) -> Unit)? = null,
-    modifier: Modifier = Modifier
+    onMapReady: ((MapView) -> Unit)? = null,
+    onSnapshotHandlerReady: ((MapSnapshotTrigger) -> Unit)? = null, // Handler para capturar snapshot
+    modifier: Modifier = Modifier,
+    isCompact: Boolean = false, // Si es true, usa marcadores más grandes para mapas pequeños
+    mapStyle: String = Style.MAPBOX_STREETS, // Estilo del mapa, por defecto MAPBOX_STREETS
+    onStyleLoaded: ((Style) -> Unit)? = null // Callback para modificar el estilo después de cargarlo
 ) {
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+
     var isMapLoaded by remember { mutableStateOf(false) }
     var mapError by remember { mutableStateOf<String?>(null) }
     var showTimeout by remember { mutableStateOf(false) }
-    var shouldReloadMap by remember { mutableStateOf(false) } // Flag para forzar recarga
-    var mapInstance by remember { mutableStateOf<com.google.android.gms.maps.GoogleMap?>(null) }
-    var mapKey by remember { mutableStateOf(0) } // Clave para forzar recreación
-    var isCameraReady by remember { mutableStateOf(false) } // Flag para indicar que la cámara está configurada
-    val lifecycleOwner = LocalLifecycleOwner.current
-    
-    // Convertir puntos de la ruta a LatLng
+    var mapKey by remember { mutableStateOf(0) }
+    var shouldReloadMap by remember { mutableStateOf(false) }
+    var mapViewRef by remember { mutableStateOf<MapView?>(null) }
+
+    // Convert route points to Mapbox Points
     val routePoints = remember(route.points) {
-        Log.d("CapturableMapView", "📍 Puntos de ruta: ${route.points.size}")
-        route.points.map { point ->
-            LatLng(point.latitude, point.longitude)
-        }
+        route.points.map { p -> Point.fromLngLat(p.longitude, p.latitude) }
     }
     
-    // Observar el ciclo de vida para recargar el mapa cuando la app vuelve del background
+    // Handle lifecycle to reload map
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
-            when (event) {
-                Lifecycle.Event.ON_RESUME -> {
-                    // Cuando la app vuelve del background, recargar el mapa
-                    Log.d("CapturableMapView", "🔄 App resumida, recargando mapa...")
+            if (event == Lifecycle.Event.ON_RESUME) {
                     isMapLoaded = false
                     mapError = null
                     showTimeout = false
-                    mapInstance = null // Limpiar instancia del mapa
-                    mapKey++ // Incrementar clave para forzar recreación
-                    shouldReloadMap = true // Activar recarga
-                }
-                else -> {}
+                mapKey++
+                shouldReloadMap = true
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
-        
-        onDispose {
-            lifecycleOwner.lifecycle.removeObserver(observer)
-        }
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
-    
-    // Efecto para manejar la recarga del mapa
-    LaunchedEffect(shouldReloadMap) {
-        if (shouldReloadMap) {
-            Log.d("CapturableMapView", "🔄 Recargando mapa...")
-            // Forzar recreación del AndroidView
-            shouldReloadMap = false // Resetear el flag
-        }
-    }
-    
-    // Timeout de 5 segundos para mostrar advertencia si el mapa no carga
+
+    // Timeout warning
     LaunchedEffect(Unit) {
-        delay(5000)
-        if (!isMapLoaded && mapError == null) {
-            showTimeout = true
-            Log.w("CapturableMapView", "⚠️ Timeout: El mapa está tardando más de lo esperado")
+        kotlinx.coroutines.delay(5000)
+        if (!isMapLoaded && mapError == null) showTimeout = true
+    }
+
+    val isDarkTheme = isSystemInDarkTheme()
+
+    // 1. Variable para recordar si ya hemos centrado esta ruta específica (para no bloquear al usuario si mueve el mapa)
+    var hasCenteredInitialState by remember(route.points) { mutableStateOf(false) }
+
+    // 2. EFECTO REACTIVO: Este es el "seguro de vida". 
+    // Se ejecuta cuando el mapa está listo O cuando cambian los puntos.
+    LaunchedEffect(mapViewRef, routePoints) {
+        val map = mapViewRef ?: return@LaunchedEffect
+        
+        if (routePoints.isNotEmpty() && !hasCenteredInitialState) {
+            fitCameraToRoute(map, routePoints, isCompact)
+            hasCenteredInitialState = true // Marcamos como centrado para esta ruta
         }
     }
+
+
     
+
+
+    // Render area
     Box(modifier = modifier.fillMaxSize()) {
-        // Mapa usando AndroidView para acceso directo al GoogleMap
         key(mapKey) {
             AndroidView(
-                factory = { context ->
-                MapView(context).apply {
-                    onCreate(null)
-                    getMapAsync { googleMap ->
+                factory = { ctx ->
+                    val mapView = LayoutInflater.from(ctx)
+                        .inflate(R.layout.mapview_no_attribution, null) as MapView
+
+                    mapViewRef = mapView
+
+                    val styleUri = mapStyle // Usar el estilo pasado como parámetro
+
+                    mapView.mapboxMap.loadStyle(styleUri) { style ->
                         try {
                             isMapLoaded = true
-                            showTimeout = false
-                            mapInstance = googleMap
-                            Log.d("CapturableMapView", "✅ Mapa cargado correctamente")
+                            configureMapUI(mapView)
                             
-                            // NUEVO: Aplicar estilo personalizado al mapa
-                            try {
-                                val success = googleMap.setMapStyle(
-                                    MapStyleOptions.loadRawResourceStyle(
-                                        context,
-                                        R.raw.map_style_light
-                                    )
-                                )
-                                if (!success) {
-                                    Log.e("CapturableMapView", "⚠️ El parseo del estilo falló")
-                                } else {
-                                    Log.d("CapturableMapView", "✅ Estilo de mapa aplicado correctamente")
-                                }
-                            } catch (e: Resources.NotFoundException) {
-                                Log.e("CapturableMapView", "❌ No se encontró el archivo de estilo", e)
-                            } catch (e: Exception) {
-                                Log.e("CapturableMapView", "❌ Error al aplicar estilo del mapa", e)
-                            }
+                            // Permitir modificar el estilo antes de agregar nuestras capas
+                            onStyleLoaded?.invoke(style)
                             
-                            // Configurar el mapa
-                            googleMap.uiSettings.apply {
-                                isZoomControlsEnabled = true
-                                isZoomGesturesEnabled = true
-                                isScrollGesturesEnabled = true
-                                isTiltGesturesEnabled = false
-                                isRotateGesturesEnabled = false
-                                isCompassEnabled = true
-                                isMyLocationButtonEnabled = false
-                            }
+                            addGradientPolyline(style, routePoints)
+                            addMarkers(ctx, style, routePoints, isCompact)
+                            fitCameraToRoute(mapView, routePoints, isCompact)
                             
-                            // Dibujar la ruta
-                            if (routePoints.isNotEmpty()) {
-                                Log.d("CapturableMapView", "🎨 Dibujando polyline con ${routePoints.size} puntos")
+                            // Preparar la función de snapshot y enviarla hacia arriba
+                            val snapshotTrigger: ((Bitmap?) -> Unit) -> Unit = { callback ->
+                                android.util.Log.d("CapturableMapView", "=== INICIO CAPTURA SNAPSHOT ===")
+                                android.util.Log.d("CapturableMapView", "Dimensiones iniciales: ${mapView.width}x${mapView.height}")
                                 
-                                // Crear polyline con degradado azul → violeta
-                                createGradientPolyline(googleMap, routePoints, context)
-                                
-                                // Marcadores personalizados
-                                val startMarker = createStartMarker(context)
-                                val endMarker = createEndMarker(context)
-                                
-                                // Marcador de inicio (boton play personalizado) con rotación
-                                val start = routePoints.first()
-                                val bearing = if (routePoints.size > 1) {
-                                    val next = routePoints[1]
-                                    SphericalUtil.computeHeading(start, next).toFloat()
-                                } else {
-                                    0f // Sin rotación si solo hay un punto
-                                }
-                                val adjustedBearing = (bearing - 90f) % 360 // compensamos que el icono apunta a la derecha
-                                
-                                googleMap.addMarker(
-                                    MarkerOptions()
-                                        .position(start)
-                                        .title("Inicio de la ruta")
-                                        .snippet("Punto de partida")
-                                        .icon(startMarker)
-                                        .anchor(0.5f, 0.5f) // Centrar el icono en la coordenada
-                                        .rotation(adjustedBearing)
-                                        .flat(true) // Hacer el marcador plano para que rote correctamente
-                                )
-                                
-                                // Marcador de final (boton stop personalizado)
-                                if (routePoints.size > 1) {
-                                    googleMap.addMarker(
-                                        MarkerOptions()
-                                            .position(routePoints.last())
-                                            .title("Final de la ruta")
-                                            .snippet("Meta")
-                                            .icon(endMarker)
-                                            .anchor(0.5f, 0.5f) // Centrar el icono en la coordenada
-                                    )
-                                }
-                                
-                                // Ajustar cámara a la ruta con rotación basada en bearing real
-                                if (routePoints.size > 1) {
-                                    // Construir bounds para calcular el centro
-                                    val boundsBuilder = LatLngBounds.Builder()
-                                    routePoints.forEach { boundsBuilder.include(it) }
-                                    val bounds = boundsBuilder.build()
-                                    val center = bounds.center
-                                    
-                                    // Calcular dimensiones del bounding box (información para logging)
-                                    val latSpan = bounds.northeast.latitude - bounds.southwest.latitude
-                                    val lonSpan = bounds.northeast.longitude - bounds.southwest.longitude
-                                    val avgLat = center.latitude
-                                    val latKm = latSpan * 111.0
-                                    val lonKm = lonSpan * 111.0 * kotlin.math.cos(Math.toRadians(avgLat))
-                                    val isLong = latKm > lonKm
-                                    
-                                    Log.d("CapturableMapView", "📏 Dimensiones: lat ${String.format("%.2f", latKm)}km, lon ${String.format("%.2f", lonKm)}km (${if (isLong) "larga" else "ancha"})")
-                                    
-                                    // Calcular bearing entre el primer y último punto
-                                    val firstPoint = routePoints.first()
-                                    val lastPoint = routePoints.last()
-                                    val bearingDouble = SphericalUtil.computeHeading(firstPoint, lastPoint)
-                                    
-                                    // Normalizar bearing a rango 0-360° y convertir a Float
-                                    val bearing = ((bearingDouble + 360) % 360).toFloat()
-                                    
-                                    // Determinar si la ruta es más horizontal que vertical basándose en proporción
-                                    // Si lonKm es mayor o similar a latKm, es horizontal
-                                    val isHorizontal = lonKm >= latKm * 0.8 // Permitimos un 20% de tolerancia
-                                    
-                                    // Rotar 90° SOLO si la ruta es más vertical que horizontal (isLong)
-                                    // para que quede horizontal en pantalla
-                                    // Si ya es horizontal, usar bearing 0° (norte arriba)
-                                    val cameraBearing = if (isLong && !isHorizontal) {
-                                        // Ruta vertical: rotar 90° para ponerla horizontal
-                                        ((bearing + 90) % 360).toFloat()
+                                try {
+                                    // Validar que el mapa tenga dimensiones válidas
+                                    if (mapView.width <= 0 || mapView.height <= 0) {
+                                        android.util.Log.e("CapturableMapView", "MapView tiene dimensiones inválidas: ${mapView.width}x${mapView.height}")
+                                        callback(null)
                                     } else {
-                                        // Ruta horizontal: sin rotación, norte arriba
-                                        0f
-                                    }
-                                    
-                                    // Calcular zoom dinámico basado en el tamaño de la ruta
-                                    // Zoom interpolado suavemente entre 18f (muy pequeño) y 11f (muy grande)
-                                    // Aumentado +0.5f para acercar más la vista
-                                    val maxDimKm = max(latKm, lonKm)
-                                    val baseZoom = when {
-                                        maxDimKm < 0.1 -> 18f  // Ruta muy pequeña (< 100m): zoom fijo máximo
-                                        maxDimKm > 10f -> 11f  // Ruta muy larga (> 10km): zoom fijo mínimo
-                                        else -> {
-                                            // Interpolación suave usando escala logarítmica para transiciones naturales
-                                            // Rangos: 0.1km -> 18f, 10km -> 11f
-                                            val logMin = ln(0.1)
-                                            val logMax = ln(10.0)
-                                            val logCurrent = ln(maxDimKm.coerceAtLeast(0.1))
-                                            val t = (logCurrent - logMin) / (logMax - logMin)
-                                            (18.0 - t * 7.0).coerceIn(11.0, 18.0).toFloat() // Interpolación lineal entre 18 y 11
+                                        // Esperar más tiempo para asegurar que el mapa esté completamente renderizado y visible
+                                        // Primero esperamos a que el view esté completamente medido y visible
+                                        mapView.post {
+                                            // Luego esperamos un poco más para que los tiles se rendericen
+                                            mapView.postDelayed({
+                                                try {
+                                                    android.util.Log.d("CapturableMapView", "Intentando capturar después de delays")
+                                                    android.util.Log.d("CapturableMapView", "Dimensiones después de delays: ${mapView.width}x${mapView.height}")
+                                                    
+                                                    // Validar nuevamente después de la espera
+                                                    if (mapView.width <= 0 || mapView.height <= 0) {
+                                                        android.util.Log.e("CapturableMapView", "MapView aún tiene dimensiones inválidas después de esperar")
+                                                        callback(null)
+                                                    } else if (!mapView.isShown || mapView.visibility != android.view.View.VISIBLE) {
+                                                        android.util.Log.e("CapturableMapView", "MapView no está visible: isShown=${mapView.isShown}, visibility=${mapView.visibility}")
+                                                        callback(null)
+                                                    } else {
+                                                        android.util.Log.d("CapturableMapView", "Usando API nativa de Mapbox snapshot()")
+                                                        android.util.Log.d("CapturableMapView", "Dimensiones del MapView: ${mapView.width}x${mapView.height}")
+                                                        
+                                                        // Usar la API nativa de Mapbox para capturar el mapa
+                                                        // Esto captura solo el contenido del mapa, no toda la ventana
+                                                        try {
+                                                            mapView.snapshot { snapshotBitmap ->
+                                                                if (snapshotBitmap == null) {
+                                                                    android.util.Log.e("CapturableMapView", "Mapbox snapshot retornó null")
+                                                                    // Fallback: usar draw() directamente
+                                                                    try {
+                                                                        val fallbackBitmap = Bitmap.createBitmap(
+                                                                            mapView.width,
+                                                                            mapView.height,
+                                                                            Bitmap.Config.ARGB_8888
+                                                                        )
+                                                                        val canvas = android.graphics.Canvas(fallbackBitmap)
+                                                                        mapView.draw(canvas)
+                                                                        android.util.Log.d("CapturableMapView", "Fallback draw() exitoso: ${fallbackBitmap.width}x${fallbackBitmap.height}")
+                                                                        callback(fallbackBitmap)
+                                                                    } catch (e: Exception) {
+                                                                        android.util.Log.e("CapturableMapView", "Error en fallback draw(): ${e.message}", e)
+                                                                        callback(null)
+                                                                    }
+                                                                } else {
+                                                                    android.util.Log.d("CapturableMapView", "Mapbox snapshot exitoso: ${snapshotBitmap.width}x${snapshotBitmap.height}")
+                                                                    callback(snapshotBitmap)
+                                                                }
+                                                            }
+                                                        } catch (e: Exception) {
+                                                            android.util.Log.e("CapturableMapView", "Error al llamar snapshot(): ${e.message}", e)
+                                                            // Fallback: usar draw() directamente
+                                                            try {
+                                                                val fallbackBitmap = Bitmap.createBitmap(
+                                                                    mapView.width,
+                                                                    mapView.height,
+                                                                    Bitmap.Config.ARGB_8888
+                                                                )
+                                                                val canvas = android.graphics.Canvas(fallbackBitmap)
+                                                                mapView.draw(canvas)
+                                                                android.util.Log.d("CapturableMapView", "Fallback draw() después de error: ${fallbackBitmap.width}x${fallbackBitmap.height}")
+                                                                callback(fallbackBitmap)
+                                                            } catch (e2: Exception) {
+                                                                android.util.Log.e("CapturableMapView", "Error en fallback draw(): ${e2.message}", e2)
+                                                                callback(null)
+                                                            }
+                                                        }
+                                                    }
+                                                } catch (e: Exception) {
+                                                    android.util.Log.e("CapturableMapView", "Error al capturar snapshot: ${e.message}", e)
+                                                    e.printStackTrace()
+                                                    callback(null)
+                                                }
+                                            }, 1000) // Esperar 1000ms para asegurar que el mapa esté completamente renderizado
                                         }
                                     }
-                                    // Aplicar zoom adicional para rutas pequeñas y medianas para mejor encuadre
-                                    val dynamicZoom = when {
-                                        maxDimKm < 0.5 -> baseZoom + 1.0f // Rutas < 500m: +1 zoom
-                                        maxDimKm < 2.0 -> baseZoom + 0.7f // Rutas 500m-2km: +0.7 zoom
-                                        maxDimKm < 5.0 -> baseZoom + 0.5f // Rutas 2-5km: +0.5 zoom
-                                        else -> baseZoom // Rutas grandes: zoom base
-                                    }.coerceIn(11f, 20f) // Límites de zoom de Google Maps
-                                    
-                                    Log.d("CapturableMapView", "🧭 Bearing original: $bearing°")
-                                    Log.d("CapturableMapView", "🧭 isLong: $isLong, isHorizontal: $isHorizontal")
-                                    Log.d("CapturableMapView", "🧭 Camera bearing aplicado: $cameraBearing°")
-                                    Log.d("CapturableMapView", "🔍 Zoom dinámico: $dynamicZoom (ruta: ${String.format("%.1f", maxDimKm)}km)")
-                                    
-                                    // Aplicar bearing con rotación si es necesario y zoom ajustado
-                                    val cameraPosition = CameraPosition.Builder()
-                                        .target(center)
-                                        .zoom(dynamicZoom)
-                                        .bearing(cameraBearing)
-                                        .tilt(0f)
-                                        .build()
-                                    
-                                    // Usar moveCamera (sin animación) para aplicar la posición instantáneamente
-                                    googleMap.moveCamera(CameraUpdateFactory.newCameraPosition(cameraPosition))
-                                    
-                                    Log.d("CapturableMapView", "📐 Cámara ajustada con ${routePoints.size} puntos")
-                                    Log.d("CapturableMapView", "📍 Centro: ($center)")
-                                    
-                                    // Marcar que la cámara está lista
-                                    isCameraReady = true
-                                } else {
-                                    googleMap.moveCamera(CameraUpdateFactory.newLatLngZoom(routePoints.first(), 17f))
-                                    Log.d("CapturableMapView", "📐 Cámara ajustada a punto único")
-                                    isCameraReady = true
+                                } catch (e: Exception) {
+                                    android.util.Log.e("CapturableMapView", "Error al preparar snapshot: ${e.message}", e)
+                                    callback(null)
                                 }
-                                
-                                Log.d("CapturableMapView", "📍 Marcadores añadidos: inicio y final")
-                            } else {
-                                // Posición por defecto en Barcelona
-                                googleMap.moveCamera(CameraUpdateFactory.newLatLngZoom(
-                                    LatLng(41.3851, 2.1734), 14f
-                                ))
                             }
+                            onSnapshotHandlerReady?.invoke(snapshotTrigger)
                             
-                            // Llamar al callback cuando el mapa esté listo
-                            onMapReady?.invoke(googleMap)
-                            
+                            onMapReady?.invoke(mapView)
                         } catch (e: Exception) {
-                            Log.e("CapturableMapView", "❌ Error configurando mapa: ${e.message}", e)
                             mapError = e.message
                         }
                     }
-                }
-            },
-            modifier = Modifier.fillMaxSize()
-        )
+
+                    mapView
+                },
+                update = { mapView ->
+                    // ESTO SE EJECUTA EN CADA RECOMPOSICIÓN
+                    // Si por lo que sea el LaunchedEffect falló, esto lo atrapa.
+                    if (routePoints.isNotEmpty() && !hasCenteredInitialState) {
+                        fitCameraToRoute(mapView, routePoints, isCompact)
+                        hasCenteredInitialState = true
+                    }
+                },
+                modifier = Modifier.fillMaxSize()
+            )
         }
         
-        // Indicador de carga
-        if (!isMapLoaded && mapError == null) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.9f)),
+        // --- Loading overlay ---
+        if (!isMapLoaded && mapError == null) LoadingOverlay(showTimeout)
+
+        // --- Error overlay ---
+        mapError?.let { ErrorOverlay(it) }
+
+        // --- No points overlay ---
+        if (isMapLoaded && routePoints.isEmpty()) NoPointsOverlay()
+    }
+}
+
+// --- UI Overlays ---
+
+@Composable
+private fun LoadingOverlay(showTimeout: Boolean) {
+    Box(
+        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface.copy(alpha = 0.9f)),
                 contentAlignment = Alignment.Center
             ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.padding(16.dp)
-                ) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(48.dp),
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text(
-                        text = "Cargando mapa...",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    
+        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(16.dp)) {
+            CircularProgressIndicator(modifier = Modifier.size(48.dp))
+            Spacer(Modifier.height(16.dp))
+            Text("Cargando mapa…")
                     if (showTimeout) {
-                        Spacer(modifier = Modifier.height(8.dp))
+                Spacer(Modifier.height(8.dp))
                         Text(
-                            text = "Esto está tardando más de lo normal.\nVerifica tu conexión a internet.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    "Esto está tardando más de lo normal.\nVerifica tu conexión.",
                             textAlign = TextAlign.Center
                         )
                     }
@@ -358,168 +306,209 @@ fun CapturableMapView(
             }
         }
         
-        // Mensaje de error
-        mapError?.let { error ->
+@Composable
+private fun ErrorOverlay(error: String) {
             Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(MaterialTheme.colorScheme.errorContainer),
+        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.errorContainer),
                 contentAlignment = Alignment.Center
             ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.padding(16.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.ErrorOutline,
-                        contentDescription = "Error",
-                        modifier = Modifier.size(48.dp),
-                        tint = MaterialTheme.colorScheme.error
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text(
-                        text = "Error al cargar el mapa",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onErrorContainer
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = error,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onErrorContainer,
-                        textAlign = TextAlign.Center
-                    )
-                }
-            }
-        }
-        
-        // Indicador de puntos cuando el mapa está cargado
-        if (isMapLoaded && routePoints.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(MaterialTheme.colorScheme.surfaceVariant),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.padding(16.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Map,
-                        contentDescription = "Sin puntos",
-                        modifier = Modifier.size(48.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text(
-                        text = "Sin puntos GPS en esta ruta",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Icon(Icons.Default.ErrorOutline, contentDescription = null, modifier = Modifier.size(48.dp))
+            Spacer(Modifier.height(8.dp))
+            Text("Error al cargar el mapa")
+            Spacer(Modifier.height(4.dp))
+            Text(error, textAlign = TextAlign.Center)
         }
     }
 }
 
-/**
- * Crea un BitmapDescriptor personalizado para el marcador de inicio
- */
-private fun createStartMarker(context: android.content.Context): BitmapDescriptor {
-    // Cargar el drawable vectorial
-    val drawable = ContextCompat.getDrawable(
-        context,
-        R.drawable.ic_marker_start
-    ) ?: return BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_GREEN)
-    
-    // Convertir a Bitmap
-    val bitmap = android.graphics.Bitmap.createBitmap(
-        drawable.intrinsicWidth,
-        drawable.intrinsicHeight,
-        android.graphics.Bitmap.Config.ARGB_8888
-    )
-    val canvas = android.graphics.Canvas(bitmap)
-    drawable.setBounds(0, 0, canvas.width, canvas.height)
-    drawable.draw(canvas)
-    
-    return BitmapDescriptorFactory.fromBitmap(bitmap)
-}
-
-/**
- * Crea una polyline con degradado azul → violeta y resplandor blanco
- */
-private fun createGradientPolyline(
-    googleMap: GoogleMap,
-    routePoints: List<LatLng>,
-    context: android.content.Context
-) {
-    if (routePoints.size < 2) return
-
-    // Colores del degradado
-    val startColor = 0xFF2979FF.toInt() // Azul (#2979FF)
-    val endColor = 0xFF7E57C2.toInt()   // Violeta (#7E57C2)
-
-    // Color del resplandor (blanco 25% opacidad)
-    val glowColor = 0x40FFFFFF.toInt()
-
-    // 1️⃣ Resplandor (debajo de todo)
-    val glowPolyline = PolylineOptions()
-        .addAll(routePoints)
-        .color(glowColor)
-        .width(25f)
-        .jointType(JointType.ROUND)
-        .startCap(RoundCap())
-        .endCap(RoundCap())
-
-    googleMap.addPolyline(glowPolyline)
-
-    // 2️⃣ Polyline principal con degradado
-    val totalSegments = routePoints.size - 1
-    val colorSteps = 50 // número de tonos en el degradado
-
-    for (i in 0 until totalSegments) {
-        // Calculamos progreso proporcional al índice global (no solo 0..50)
-        val progress = (i.toFloat() / totalSegments) * (colorSteps - 1) / (colorSteps - 1)
-
-        val r = ((1 - progress) * ((startColor shr 16) and 0xFF) + progress * ((endColor shr 16) and 0xFF)).toInt()
-        val g = ((1 - progress) * ((startColor shr 8) and 0xFF) + progress * ((endColor shr 8) and 0xFF)).toInt()
-        val b = ((1 - progress) * (startColor and 0xFF) + progress * (endColor and 0xFF)).toInt()
-        val segmentColor = (0xFF shl 24) or (r shl 16) or (g shl 8) or b
-
-        val segmentPoints = listOf(routePoints[i], routePoints[i + 1])
-
-        val mainPolyline = PolylineOptions()
-            .addAll(segmentPoints)
-            .color(segmentColor)
-            .width(15f)
-            .jointType(JointType.ROUND)
-            .startCap(RoundCap())
-            .endCap(RoundCap())
-
-        googleMap.addPolyline(mainPolyline)
+@Composable
+private fun NoPointsOverlay() {
+    Box(
+        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceVariant),
+                contentAlignment = Alignment.Center
+            ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Icon(Icons.Default.Map, contentDescription = null, modifier = Modifier.size(48.dp))
+            Spacer(Modifier.height(8.dp))
+            Text("Sin puntos GPS en esta ruta")
+        }
     }
 }
 
-/**
- * Crea un BitmapDescriptor personalizado para el marcador de fin
- */
-private fun createEndMarker(context: android.content.Context): BitmapDescriptor {
-    // Cargar el drawable vectorial
-    val drawable = ContextCompat.getDrawable(
-        context,
-        R.drawable.ic_marker_end
-    ) ?: return BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED)
-    
-    // Convertir a Bitmap
-    val bitmap = android.graphics.Bitmap.createBitmap(
-        drawable.intrinsicWidth,
-        drawable.intrinsicHeight,
-        android.graphics.Bitmap.Config.ARGB_8888
+// --- Map UI configuration ---
+
+private fun configureMapUI(mapView: MapView) {
+    // Disable user interactions
+    mapView.gestures.rotateEnabled = false
+    mapView.gestures.pitchEnabled = false
+    mapView.gestures.scrollEnabled = false
+    // zoomEnabled no existe en esta versión de Mapbox, se controla con scrollEnabled
+
+    // Disable built-in UI
+    mapView.compass.enabled = false
+    mapView.scalebar.enabled = false
+
+    // Deshabilitar logo y botón de información para evitar crashes
+    mapView.logo.enabled = false
+    mapView.attribution.enabled = false
+}
+
+// --- Add gradient polyline ---
+
+private fun addGradientPolyline(style: Style, points: List<Point>) {
+    if (points.size < 2) return
+
+    val glow = geoJsonSource("route-glow-source") {
+        geometry(LineString.fromLngLats(points))
+        lineMetrics(true)
+    }
+    style.addSource(glow)
+
+    style.addLayer(
+        lineLayer("route-glow-layer", "route-glow-source") {
+            lineColor(0x40FFFFFF.toInt())
+            lineWidth(24.0)
+            lineCap(LineCap.ROUND)
+            lineJoin(LineJoin.ROUND)
+        }
     )
-    val canvas = android.graphics.Canvas(bitmap)
-    drawable.setBounds(0, 0, canvas.width, canvas.height)
-    drawable.draw(canvas)
+
+    val main = geoJsonSource("route-main-source") {
+        geometry(LineString.fromLngLats(points))
+        lineMetrics(true) // Necesario para que funcione el gradiente
+    }
+    style.addSource(main)
+
+    style.addLayer(
+        lineLayer("route-main-layer", "route-main-source") {
+            lineWidth(8.0)
+            lineCap(LineCap.ROUND)
+            lineJoin(LineJoin.ROUND)
+            // Degradado de azul (#2979FF) a violeta (#7E57C2) - colores de los marcadores
+            lineGradient(
+                Expression.interpolate {
+                    linear()
+                    lineProgress()
+                    stop {
+                        literal(0.0)
+                        color(0xFF2979FF.toInt())
+                    }
+                    stop {
+                        literal(1.0)
+                        color(0xFF7E57C2.toInt())
+                    }
+                }
+            )
+        }
+    )
+}
+
+// --- Add start/end markers ---
+
+private fun addMarkers(context: Context, style: Style, points: List<Point>, isCompact: Boolean = false) {
+    if (points.size < 2) return
+
+    // Tamaño uniforme de iconos para ambos contextos
+    val iconSize = 96
     
-    return BitmapDescriptorFactory.fromBitmap(bitmap)
+    val startDrawable = ResourcesCompat.getDrawable(context.resources, R.drawable.ic_marker_start, context.theme)
+    val endDrawable = ResourcesCompat.getDrawable(context.resources, R.drawable.ic_marker_end, context.theme)
+
+    val startIcon = startDrawable?.toBitmap(iconSize, iconSize)
+    val endIcon = endDrawable?.toBitmap(iconSize, iconSize)
+    
+    // Escala 1.0 para ambos contextos (mapa pequeño y grande)
+    val iconScale = 1.0
+
+    if (startIcon != null) style.addImage("start_marker", startIcon)
+    if (endIcon != null) style.addImage("end_marker", endIcon)
+
+    // CÁLCULO: Orientación del primer segmento para rotar el icono
+    val initialBearing = TurfMeasurement.bearing(points[0], points[1])
+
+    // Start marker
+    style.addSource(
+        geoJsonSource("start-marker-source") {
+            feature(Feature.fromGeometry(points.first()))
+        }
+    )
+
+    style.addLayer(
+        symbolLayer("start-marker-layer", "start-marker-source") {
+            iconImage("start_marker")
+            iconSize(iconScale)
+            iconAnchor(IconAnchor.CENTER)
+            iconAllowOverlap(true)
+            iconIgnorePlacement(true)
+            // AQUÍ LA MAGIA: Rotamos el icono
+            iconRotate(initialBearing) 
+            // Si tu icono apunta hacia arriba por defecto, usa: initialBearing
+            // Si apunta hacia la derecha, resta 90: (initialBearing - 90.0)
+        }
+    )
+
+    // End marker (Sin rotación o rotación final si quieres)
+    style.addSource(
+        geoJsonSource("end-marker-source") {
+            feature(Feature.fromGeometry(points.last()))
+        }
+    )
+
+    style.addLayer(
+        symbolLayer("end-marker-layer", "end-marker-source") {
+            iconImage("end_marker")
+            iconSize(iconScale)
+            iconAnchor(IconAnchor.CENTER)
+            iconAllowOverlap(true)
+        }
+    )
+}
+
+// --- Fit camera to entire route with padding ---
+
+private fun fitCameraToRoute(mapView: MapView, points: List<Point>, isCompact: Boolean = false) {
+    if (points.size < 2) return
+
+    val mapboxMap = mapView.mapboxMap
+
+    // 1. ARREGLO DE TAMAÑO: Padding ajustado según el contexto
+    val pixelDensity = mapView.context.resources.displayMetrics.density
+    
+    // En mapa compacto (pequeño) usar padding uniforme y pequeño para ver toda la ruta
+    // En pantalla completa, usar más padding inferior por la tarjeta superpuesta
+    val topPadding = if (isCompact) 16.0 * pixelDensity else 32.0 * pixelDensity
+    val sidePadding = if (isCompact) 16.0 * pixelDensity else 32.0 * pixelDensity
+    val bottomPadding = if (isCompact) 16.0 * pixelDensity else 200.0 * pixelDensity
+    
+    // 2. CÁLCULO DE ROTACIÓN INTELIGENTE (solo para rutas verticales)
+    val start = points.first()
+    val end = points.last()
+    val routeBearing = TurfMeasurement.bearing(start, end)
+    
+    // Normalizar bearing a 0-360
+    val normalizedBearing = ((routeBearing % 360) + 360) % 360
+    
+    // Detectar si la ruta es vertical (orientación norte-sur)
+    // Consideramos vertical si el bearing está cerca de 0° (norte) o 180° (sur)
+    // o cerca de 90° (este) o 270° (oeste) - pero en realidad, vertical es 0° o 180°
+    val isVertical = (normalizedBearing < 45.0 || normalizedBearing > 315.0) || // Norte (0°)
+                     (normalizedBearing > 135.0 && normalizedBearing < 225.0)   // Sur (180°)
+    
+    // Solo rotar si la ruta es vertical para hacerla horizontal
+    val targetCameraBearing = if (isVertical) {
+        routeBearing - 90.0
+    } else {
+        0.0 // Sin rotación para rutas horizontales
+    }
+
+    val camera = mapboxMap.cameraForCoordinates(
+        points,
+        EdgeInsets(topPadding, sidePadding, bottomPadding, sidePadding), // Padding inferior aumentado
+        bearing = targetCameraBearing, 
+        pitch = 0.0
+    )
+
+    // ¡IMPORTANTE! Usamos setCamera para que sea INSTANTÁNEO
+    mapboxMap.setCamera(camera) 
 }

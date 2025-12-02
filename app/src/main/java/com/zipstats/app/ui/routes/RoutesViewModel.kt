@@ -13,8 +13,7 @@ import android.util.Log
 import androidx.core.content.FileProvider
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.google.android.gms.maps.model.LatLng
-import com.google.android.gms.maps.model.LatLngBounds
+import com.mapbox.geojson.Point
 import com.zipstats.app.model.Route
 import com.zipstats.app.model.Scooter
 import com.zipstats.app.repository.RecordRepository
@@ -237,17 +236,15 @@ class RoutesViewModel @Inject constructor(
     }
     
     /**
-     * Comparte una ruta con una imagen del mapa generada usando un GoogleMap real
-     * Esta función debe ser llamada desde una Activity/Fragment que tenga acceso al GoogleMap
+     * Comparte una ruta con una imagen del mapa generada usando un MapView real
+     * Esta función debe ser llamada desde una Activity/Fragment que tenga acceso al MapView
      */
-    fun shareRouteWithRealMap(route: Route, googleMap: com.google.android.gms.maps.GoogleMap) {
+    fun shareRouteWithRealMap(route: Route, mapView: com.mapbox.maps.MapView) {
         viewModelScope.launch {
             try {
                 withContext(Dispatchers.Main) {
-                    // Asegurar que el mapa esté completamente cargado antes de tomar la snapshot
-                    googleMap.setOnMapLoadedCallback {
-                        tomarSnapshotYCompartir(route, googleMap)
-                    }
+                    // Tomar snapshot directamente
+                    tomarSnapshotYCompartir(route, mapView)
                 }
             } catch (e: Exception) {
                 Log.e("RoutesVM", "Error al configurar mapa: ${e.message}", e)
@@ -259,11 +256,14 @@ class RoutesViewModel @Inject constructor(
     /**
      * Toma la snapshot del mapa y la comparte
      */
-    private fun tomarSnapshotYCompartir(route: Route, googleMap: com.google.android.gms.maps.GoogleMap) {
-        googleMap.snapshot(com.google.android.gms.maps.GoogleMap.SnapshotReadyCallback { snapshotBitmap ->
+    private fun tomarSnapshotYCompartir(route: Route, mapView: com.mapbox.maps.MapView) {
+        val mapboxMap = mapView.getMapboxMap()
+        
+        // En Mapbox, snapshot se llama desde MapView
+        mapView.snapshot { snapshotBitmap ->
             if (snapshotBitmap == null) {
                 _errorMessage.value = "Error al generar imagen del mapa"
-                return@SnapshotReadyCallback
+                return@snapshot
             }
 
             viewModelScope.launch {
@@ -358,7 +358,7 @@ class RoutesViewModel @Inject constructor(
                     _errorMessage.value = "Error al procesar imagen: ${e.message}"
                 }
             }
-        })
+        }
     }
     
     /**
@@ -500,60 +500,14 @@ class RoutesViewModel @Inject constructor(
         val height = 1920
         val mapHeight = (height * 0.7f).toInt() // 70% para el mapa
 
-        val routePoints = route.points.map { LatLng(it.latitude, it.longitude) }
+        val routePoints = route.points.map { Point.fromLngLat(it.longitude, it.latitude) }
         if (routePoints.isEmpty()) {
             return Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
         }
 
-        // Usar Google Static Maps con mejor configuración
-        val mapBitmap: Bitmap? = try {
-            // Construir URL Static Maps con polyline codificada y mejor centrado
-            val path = routePoints.joinToString("|") { "${it.latitude},${it.longitude}" }
-            val apiKey = context.packageManager.getApplicationInfo(context.packageName, PackageManager.GET_META_DATA)
-                .metaData?.getString("com.google.android.geo.API_KEY") ?: ""
-            
-            // Calcular bounds para centrar mejor la ruta
-            val bounds = LatLngBounds.Builder().also { routePoints.forEach(it::include) }.build()
-            val center = bounds.center
-            val zoom = calculateOptimalZoom(bounds, width, mapHeight)
-            
-            val urlStr = buildString {
-                append("https://maps.googleapis.com/maps/api/staticmap?")
-                append("center=${center.latitude},${center.longitude}")
-                append("&zoom=$zoom")
-                append("&size=${width}x${mapHeight}")
-                append("&scale=2")
-                append("&maptype=roadmap")
-                append("&style=feature:all|element:labels|visibility:on") // Asegurar que las etiquetas estén visibles
-                append("&style=feature:road|element:geometry|color:0xffffff") // Carreteras blancas
-                append("&style=feature:water|element:geometry|color:0x4d90fe") // Agua azul
-                append("&style=feature:landscape|element:geometry|color:0xf5f5f5") // Paisaje gris claro
-                append("&path=color:0x2196F3FF|weight:8|")
-                append(path)
-                append("&markers=color:green|label:S|")
-                append("${routePoints.first().latitude},${routePoints.first().longitude}")
-                append("&markers=color:red|label:F|")
-                append("${routePoints.last().latitude},${routePoints.last().longitude}")
-                append("&key=$apiKey")
-            }
-            
-            val url = URL(urlStr)
-            val conn = url.openConnection() as HttpURLConnection
-            conn.connectTimeout = 5000
-            conn.readTimeout = 5000
-            conn.inputStream.use { inputStream ->
-                val originalBitmap = BitmapFactory.decodeStream(inputStream)
-                // ¡¡APLICAR REDIMENSIONADO INMEDIATAMENTE!!
-                if (originalBitmap != null) {
-                    redimensionarBitmap(originalBitmap, 1080)
-                } else {
-                    null
-                }
-            }
-        } catch (e: Exception) {
-            Log.e("RoutesVM", "Error al generar mapa estático: ${e.message}", e)
-            null
-        }
+        // TODO: Implementar Mapbox Static Images API para generar mapas estáticos
+        // Por ahora, usar fallback
+        val mapBitmap: Bitmap? = null
 
         // Componer imagen final
         val finalBitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
@@ -615,9 +569,12 @@ class RoutesViewModel @Inject constructor(
     /**
      * Calcula el zoom óptimo para mostrar toda la ruta
      */
-    private fun calculateOptimalZoom(bounds: LatLngBounds, width: Int, height: Int): Int {
-        val latDiff = bounds.northeast.latitude - bounds.southwest.latitude
-        val lngDiff = bounds.northeast.longitude - bounds.southwest.longitude
+    private fun calculateOptimalZoom(routePoints: List<Point>, width: Int, height: Int): Int {
+        if (routePoints.isEmpty()) return 14
+        val lats = routePoints.map { it.latitude() }
+        val lngs = routePoints.map { it.longitude() }
+        val latDiff = (lats.maxOrNull() ?: 0.0) - (lats.minOrNull() ?: 0.0)
+        val lngDiff = (lngs.maxOrNull() ?: 0.0) - (lngs.minOrNull() ?: 0.0)
         val maxDiff = maxOf(latDiff, lngDiff)
         
         return when {
@@ -633,7 +590,7 @@ class RoutesViewModel @Inject constructor(
     /**
      * Dibuja un mapa de fallback mejorado cuando no se puede cargar el mapa real
      */
-    private fun drawFallbackMap(canvas: Canvas, routePoints: List<LatLng>, width: Int, mapHeight: Int) {
+    private fun drawFallbackMap(canvas: Canvas, routePoints: List<Point>, width: Int, mapHeight: Int) {
         // Fondo con gradiente sutil que simula un mapa
         val mapPaint = Paint().apply {
             color = Color.rgb(240, 248, 255)
@@ -662,15 +619,16 @@ class RoutesViewModel @Inject constructor(
         }
         
         // Calcular bounds con padding
-        val bb = LatLngBounds.Builder().also { routePoints.forEach(it::include) }.build()
-        val latRange = (bb.northeast.latitude - bb.southwest.latitude).coerceAtLeast(1e-6)
-        val lngRange = (bb.northeast.longitude - bb.southwest.longitude).coerceAtLeast(1e-6)
+        val lats = routePoints.map { it.latitude() }
+        val lngs = routePoints.map { it.longitude() }
+        val latRange = ((lats.maxOrNull() ?: 0.0) - (lats.minOrNull() ?: 0.0)).coerceAtLeast(1e-6)
+        val lngRange = ((lngs.maxOrNull() ?: 0.0) - (lngs.minOrNull() ?: 0.0)).coerceAtLeast(1e-6)
         val padLat = latRange * 0.2 // Aumentar padding para mejor centrado
         val padLng = lngRange * 0.2
-        val minLat = bb.southwest.latitude - padLat
-        val minLng = bb.southwest.longitude - padLng
-        val maxLat = bb.northeast.latitude + padLat
-        val maxLng = bb.northeast.longitude + padLng
+        val minLat = (lats.minOrNull() ?: 0.0) - padLat
+        val minLng = (lngs.minOrNull() ?: 0.0) - padLng
+        val maxLat = (lats.maxOrNull() ?: 0.0) + padLat
+        val maxLng = (lngs.maxOrNull() ?: 0.0) + padLng
         val adjLat = maxLat - minLat
         val adjLng = maxLng - minLng
         
@@ -683,9 +641,9 @@ class RoutesViewModel @Inject constructor(
         val offsetX = ((width - usedWidth) / 2f)
         val offsetY = ((mapHeight - usedHeight) / 2f)
         
-        fun px(p: LatLng): Pair<Float, Float> {
-            val x = offsetX + ((p.longitude - minLng) * scale).toFloat()
-            val y = offsetY + (usedHeight - ((p.latitude - minLat) * scale).toFloat())
+        fun px(p: Point): Pair<Float, Float> {
+            val x = offsetX + ((p.longitude() - minLng) * scale).toFloat()
+            val y = offsetY + (usedHeight - ((p.latitude() - minLat) * scale).toFloat())
             return x to y
         }
         

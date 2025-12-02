@@ -329,52 +329,61 @@ class StatisticsViewModel @Inject constructor(
             "${medals[index]} ${scooter.model}: ${scooter.totalKilometers} km"
         }
         
-        return """🛴 Estadísticas totales de ${userName.value} 
+        return """ Estadísticas totales de ${userName.value} 
 
 📊 Total recorrido: ${stats.totalDistance} km
-
-🌱 CO₂ ahorrado: $co2Saved kg (≈ $treesEquivalent árboles que están ahí, aplaudiendo mi eco-héroe anónimo 🌳👏)
+🌱 CO₂ ahorrado: $co2Saved kg ≈ $treesEquivalent árboles 🌳
 ⛽ Gasolina ahorrada: $gasSaved Litros
-
 🏆 Top Vehículos:
 ${scooterTexts.joinToString("\n")}
-
 #ZipStats""".trimIndent()
     }
 
-    fun getMonthlyShareText(stats: StatisticsUiState.Success): String {
+    fun getMonthlyShareText(stats: StatisticsUiState.Success, month: Int? = null, year: Int? = null): String {
         val co2Saved = (stats.monthlyDistance * 0.1).toInt()
         val treesEquivalent = (stats.monthlyDistance * 0.005).toInt()
         val gasSaved = (stats.monthlyDistance * 0.04).toInt()
+        
+        // Usar el mes y año seleccionados, o el actual si no hay selección
+        val selectedMonth = (month ?: _selectedMonth.value ?: LocalDate.now().monthValue).coerceIn(1, 12)
+        val selectedYear = year ?: _selectedYear.value ?: LocalDate.now().year
+        
+        // Lista de nombres de meses en español
+        val monthNames = listOf(
+            "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+            "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
+        )
+        val monthName = monthNames.getOrElse(selectedMonth - 1) { "Mes" }
+        
         return """
-🛴 Estadísticas mensuales de ${userName.value} 🛴
+ Estadísticas de $monthName $selectedYear de ${userName.value} 
 
 📊 Total recorrido: ${stats.monthlyDistance} km
 📈 Promedio por registro: ${stats.monthlyAverageDistance} km
 🏆 Mejor registro: ${stats.monthlyMaxDistance} km
 📝 Total de registros: ${stats.monthlyRecords}
-
-🌱 CO₂ ahorrado: $co2Saved kg (≈ $treesEquivalent árboles que están ahí, aplaudiendo mi eco-héroe anónimo 🌳👏)
+🌱 CO₂ ahorrado: $co2Saved kg ≈ $treesEquivalent árboles 🌳
 ⛽ Gasolina ahorrada: $gasSaved Litros 
-
 #ZipStats""".trimIndent()
     }
 
-    fun getYearlyShareText(stats: StatisticsUiState.Success): String {
+    fun getYearlyShareText(stats: StatisticsUiState.Success, year: Int? = null): String {
         val co2Saved = (stats.yearlyDistance * 0.1).toInt()
         val treesEquivalent = (stats.yearlyDistance * 0.005).toInt()
         val gasSaved = (stats.yearlyDistance * 0.04).toInt()
+        
+        // Usar el año seleccionado, o el actual si no hay selección
+        val selectedYear = year ?: _selectedYear.value ?: LocalDate.now().year
+        
         return """
-🛴 Estadísticas de ${LocalDate.now().year} de ${userName.value} 🛴
+ Estadísticas de $selectedYear de ${userName.value}
 
 📊 Total recorrido: ${stats.yearlyDistance} km
 📈 Promedio por registro: ${stats.yearlyAverageDistance} km
 🏆 Mejor registro: ${stats.yearlyMaxDistance} km
 📝 Total de registros: ${stats.yearlyRecords}
-
-🌱 CO₂ ahorrado: $co2Saved kg (≈ $treesEquivalent árboles que están ahí, aplaudiendo mi eco-héroe anónimo 🌳👏)
+🌱 CO₂ ahorrado: $co2Saved kg ≈ $treesEquivalent árboles 🌳
 ⛽ Gasolina ahorrada: $gasSaved Litros 
-
 #ZipStats""".trimIndent()
     }
 

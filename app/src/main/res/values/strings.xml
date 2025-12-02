@@ -1,6 +1,9 @@
 <resources>
     <string name="app_name">ZipStats</string>
     
+    <!-- Mapbox Access Token -->
+    <string name="mapbox_access_token" translatable="false">pk.eyJ1Ijoic2h1cmRhbmkiLCJhIjoiY21paGMxeGlpMGduMDNjcXNhNzJkOHE3ZCJ9.OG0tI1sW1XbuxFFxzzXqNw</string>
+    
     <!-- Strings para compartir rutas -->
     <string name="vehicle_icon">Icono del vehículo</string>
     <string name="distance_icon">Icono de distancia</string>

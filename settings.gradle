@@ -8,13 +8,20 @@ pluginManagement {
     }
 }
 
+// Leer local.properties antes del bloque dependencyResolutionManagement
+def localProperties = new Properties()
+def localPropertiesFile = file('local.properties')
+if (localPropertiesFile.exists()) {
+    localPropertiesFile.withInputStream { localProperties.load(it) }
+}
+
 dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS)
     repositories {
         google()
         mavenCentral()
         maven { url "https://maven.google.com" }
-        // Mapbox Maven repository
+        maven { url "https://jitpack.io" } // Para HBRecorder
         maven {
             url = uri("https://api.mapbox.com/downloads/v2/releases/maven")
             authentication {
@@ -24,8 +31,13 @@ dependencyResolutionManagement {
                 // Do not change the username below.
                 // This should always be `mapbox` (not your username).
                 username = "mapbox"
-                // Use the secret token you stored in gradle.properties as the password
-                password = providers.gradleProperty("MAPBOX_DOWNLOADS_TOKEN").get()
+                // Use the secret token from gradle.properties or local.properties
+                def downloadsToken = providers.gradleProperty("MAPBOX_DOWNLOADS_TOKEN").orNull
+                if (downloadsToken == null) {
+                    // Intentar leer desde local.properties como fallback
+                    downloadsToken = localProperties.getProperty('MAPBOX_DOWNLOADS_TOKEN', '')
+                }
+                password = downloadsToken ?: ''
             }
         }
     }

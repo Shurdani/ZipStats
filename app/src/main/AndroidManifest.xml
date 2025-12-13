@@ -5,6 +5,15 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
+    
+    <!-- Permisos para grabación de pantalla con HBRecorder -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
+    <!-- Requerido en Android 14+ (API 34) para servicios en primer plano con tipo microphone -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
 
     <!-- Permisos de Lectura/Escritura de Medios: Ya no son necesarios en minSdk 31+
          porque las funciones usan MediaStore o PickVisualMedia. -->
@@ -17,7 +26,6 @@
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <!-- Estos permisos son cruciales para un minSdk 31+ -->
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
 
@@ -37,16 +45,17 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.Patinetatrack"
         android:usesCleartextTraffic="true"
+        android:requestLegacyExternalStorage="true"
         tools:targetApi="34">
 
         <meta-data
             android:name="com.google.android.gms.version"
             android:value="@integer/google_play_services_version" />
 
-        <!-- Mapbox Access Token - Se lee desde strings.xml -->
+        <!-- Mapbox Access Token - Se lee desde local.properties vía manifestPlaceholders -->
         <meta-data
             android:name="com.mapbox.maps.mapbox_access_token"
-            android:value="@string/mapbox_access_token" />
+            android:value="${mapboxAccessToken}" />
 
         <activity
             android:name=".MainActivity"
@@ -81,6 +90,12 @@
             android:enabled="true"
             android:exported="false"
             android:foregroundServiceType="location" />
+
+        <!-- 
+        Nota: El servicio ScreenRecordService de HBRecorder ya está declarado 
+        en el manifest de la librería con foregroundServiceType="mediaProjection|microphone"
+        No es necesario declararlo aquí.
+        -->
 
     </application>
 

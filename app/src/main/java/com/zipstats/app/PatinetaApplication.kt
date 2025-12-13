@@ -4,6 +4,7 @@ import android.app.Application
 import android.util.Log
 import com.google.firebase.firestore.FirebaseFirestoreException
 import com.mapbox.common.MapboxOptions
+import com.zipstats.app.BuildConfig
 import dagger.hilt.android.HiltAndroidApp
 
 @HiltAndroidApp
@@ -14,13 +15,13 @@ class PatinetaApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         
-        // Inicializar Mapbox con el access token
-        val mapboxToken = getString(R.string.mapbox_access_token)
+        // Inicializar Mapbox con el access token desde BuildConfig (lee de local.properties)
+        val mapboxToken = BuildConfig.MAPBOX_ACCESS_TOKEN
         if (mapboxToken.isNotEmpty() && mapboxToken != "YOUR_MAPBOX_ACCESS_TOKEN") {
             MapboxOptions.accessToken = mapboxToken
             Log.d("PatinetaApplication", "✅ Mapbox token configurado correctamente")
         } else {
-            Log.e("PatinetaApplication", "❌ Mapbox token no encontrado o inválido")
+            Log.e("PatinetaApplication", "❌ Mapbox token no encontrado o inválido. Asegúrate de configurarlo en local.properties")
         }
         
         // Configurar handler global para excepciones no capturadas

@@ -22,6 +22,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.core.app.ActivityCompat
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.AlertDialog
@@ -57,7 +58,11 @@ import com.zipstats.app.ui.theme.ColorTheme
 import com.zipstats.app.ui.theme.PatinetatrackTheme
 import com.zipstats.app.ui.theme.ThemeMode
 import com.zipstats.app.permission.PermissionManager
+import com.zipstats.app.di.AppOverlayRepositoryEntryPoint
+import com.zipstats.app.repository.AppOverlayRepository
 import com.zipstats.app.ui.permissions.PermissionsDialog
+import com.zipstats.app.ui.shared.AppOverlayState
+import com.zipstats.app.ui.shared.SplashOverlay
 import dagger.hilt.android.EntryPointAccessors
 import com.google.firebase.FirebaseApp
 import com.zipstats.app.R
@@ -236,6 +241,15 @@ class MainActivity : ComponentActivity() {
         var pureBlackOledEnabled by remember { mutableStateOf(false) }
         val composeScope = rememberCoroutineScope()
 
+        // AppOverlayRepository para el overlay global
+        val appOverlayRepository: AppOverlayRepository = remember { 
+            dagger.hilt.android.EntryPointAccessors.fromApplication(
+                applicationContext,
+                AppOverlayRepositoryEntryPoint::class.java
+            ).appOverlayRepository()
+        }
+        val overlay by appOverlayRepository.overlay.collectAsState()
+
         // Repository for settings
         val settingsRepository = remember { SettingsRepository(applicationContext) }
 
@@ -334,51 +348,63 @@ class MainActivity : ComponentActivity() {
 
             }
 
-            Scaffold(
-                modifier = Modifier.fillMaxSize(),
-                bottomBar = {
-                    if (currentRoute !in listOf(Screen.Login.route, Screen.Register.route)) {
-                        BottomNavigation(navController = navController)
+            Box(modifier = Modifier.fillMaxSize()) {
+                Scaffold(
+                    modifier = Modifier.fillMaxSize(),
+                    bottomBar = {
+                        if (currentRoute !in listOf(Screen.Splash.route, Screen.Login.route, Screen.Register.route)) {
+                            BottomNavigation(navController = navController)
+                        }
+                    }
+                ) { paddingValues ->
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(paddingValues),
+                        color = MaterialTheme.colorScheme.background
+                    ) {
+                        NavGraph(
+                            navController = navController,
+                            currentThemeMode = currentThemeMode,
+                            onThemeModeChange = { newMode ->
+                                currentThemeMode = newMode
+                                composeScope.launch {
+                                    settingsRepository.setThemeMode(newMode)
+                                }
+                            },
+                            currentColorTheme = currentColorTheme,
+                            onColorThemeChange = { newTheme ->
+                                currentColorTheme = newTheme
+                                composeScope.launch {
+                                    settingsRepository.setColorTheme(newTheme)
+                                }
+                            },
+                            dynamicColorEnabled = dynamicColorEnabled,
+                            onDynamicColorChange = { enabled ->
+                                dynamicColorEnabled = enabled
+                                composeScope.launch {
+                                    settingsRepository.setDynamicColor(enabled)
+                                }
+                            },
+                            pureBlackOledEnabled = pureBlackOledEnabled,
+                            onPureBlackOledChange = { enabled ->
+                                pureBlackOledEnabled = enabled
+                                composeScope.launch {
+                                    settingsRepository.setPureBlackOled(enabled)
+                                }
+                            }
+                        )
                     }
                 }
-            ) { paddingValues ->
-                Surface(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(paddingValues),
-                    color = MaterialTheme.colorScheme.background
-                ) {
-                    NavGraph(
-                        navController = navController,
-                        currentThemeMode = currentThemeMode,
-                        onThemeModeChange = { newMode ->
-                            currentThemeMode = newMode
-                            composeScope.launch {
-                                settingsRepository.setThemeMode(newMode)
-                            }
-                        },
-                        currentColorTheme = currentColorTheme,
-                        onColorThemeChange = { newTheme ->
-                            currentColorTheme = newTheme
-                            composeScope.launch {
-                                settingsRepository.setColorTheme(newTheme)
-                            }
-                        },
-                        dynamicColorEnabled = dynamicColorEnabled,
-                        onDynamicColorChange = { enabled ->
-                            dynamicColorEnabled = enabled
-                            composeScope.launch {
-                                settingsRepository.setDynamicColor(enabled)
-                            }
-                        },
-                        pureBlackOledEnabled = pureBlackOledEnabled,
-                        onPureBlackOledChange = { enabled ->
-                            pureBlackOledEnabled = enabled
-                            composeScope.launch {
-                                settingsRepository.setPureBlackOled(enabled)
-                            }
-                        }
-                    )
+                
+                // Mostrar overlay si está activo
+                when (val overlayState = overlay) {
+                    is AppOverlayState.Splash -> {
+                        SplashOverlay(message = overlayState.message)
+                    }
+                    is AppOverlayState.None -> {
+                        // No mostrar nada
+                    }
                 }
             }
         }

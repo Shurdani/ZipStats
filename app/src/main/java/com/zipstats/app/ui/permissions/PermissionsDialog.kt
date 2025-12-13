@@ -12,7 +12,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Camera
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -62,8 +64,19 @@ fun PermissionsDialog(
                 Text(
                     text = "Para que la app funcione correctamente, necesitamos los siguientes permisos:",
                     style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.padding(bottom = 16.dp)
+                    modifier = Modifier.padding(bottom = 8.dp)
                 )
+                
+                // Mostrar nota sobre permisos opcionales
+                val hasOptionalPermissions = permissions.any { !it.isRequired }
+                if (hasOptionalPermissions) {
+                    Text(
+                        text = "Nota: Los permisos marcados como opcionales se solicitarán cuando los necesites (por ejemplo, al guardar un vídeo de ruta).",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                        modifier = Modifier.padding(bottom = 16.dp)
+                    )
+                }
 
                 permissions.forEach { permission ->
                     Row(
@@ -80,16 +93,37 @@ fun PermissionsDialog(
                             modifier = Modifier.size(24.dp)
                         )
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "${getPermissionShortName(permission.permission)}:",
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.Bold
-                            )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Text(
+                                    text = getPermissionShortName(permission.permission),
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                if (!permission.isRequired) {
+                                    Text(
+                                        text = "(Opcional)",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                    )
+                                }
+                            }
                             Text(
                                 text = permission.description,
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                             )
+                            // Nota especial para MediaProjection
+                            if (permission.permission.contains("MEDIA_PROJECTION")) {
+                                Text(
+                                    text = "Este permiso se solicitará cuando pulses el botón 'Descargar' en una animación de ruta.",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f),
+                                    modifier = Modifier.padding(top = 4.dp)
+                                )
+                            }
                         }
                     }
                 }
@@ -117,6 +151,9 @@ private fun getPermissionIcon(permission: String): androidx.compose.ui.graphics.
         permission.contains("LOCATION") -> Icons.Default.LocationOn
         permission.contains("NOTIFICATION") || permission.contains("POST_NOTIFICATIONS") -> Icons.Default.Notifications
         permission.contains("CAMERA") -> Icons.Default.Camera
+        permission.contains("RECORD_AUDIO") -> Icons.Default.Mic
+        permission.contains("MEDIA_PROJECTION") -> Icons.Default.Videocam
+        permission.contains("FOREGROUND_SERVICE_MICROPHONE") -> Icons.Default.Mic
         else -> Icons.Default.Info // Fallback
     }
 }
@@ -127,6 +164,8 @@ private fun getPermissionIconColor(permission: String): androidx.compose.ui.grap
         permission.contains("LOCATION") -> MaterialTheme.colorScheme.error
         permission.contains("NOTIFICATION") || permission.contains("POST_NOTIFICATIONS") -> androidx.compose.ui.graphics.Color(0xFFFFC107) // Amarillo/Naranja para Notificaciones
         permission.contains("CAMERA") -> androidx.compose.ui.graphics.Color(0xFF2196F3) // Azul para Cámara
+        permission.contains("RECORD_AUDIO") || permission.contains("FOREGROUND_SERVICE_MICROPHONE") -> androidx.compose.ui.graphics.Color(0xFF4CAF50) // Verde para Audio
+        permission.contains("MEDIA_PROJECTION") -> androidx.compose.ui.graphics.Color(0xFF9C27B0) // Púrpura para Grabación de pantalla
         else -> MaterialTheme.colorScheme.primary
     }
 }
@@ -136,6 +175,9 @@ private fun getPermissionShortName(permission: String): String {
         permission.contains("LOCATION") -> "Ubicación"
         permission.contains("NOTIFICATION") || permission.contains("POST_NOTIFICATIONS") -> "Notificaciones"
         permission.contains("CAMERA") -> "Cámara"
+        permission.contains("RECORD_AUDIO") -> "Grabación de audio"
+        permission.contains("MEDIA_PROJECTION") -> "Grabación de pantalla"
+        permission.contains("FOREGROUND_SERVICE_MICROPHONE") -> "Servicio de audio"
         else -> "Permiso"
     }
 }

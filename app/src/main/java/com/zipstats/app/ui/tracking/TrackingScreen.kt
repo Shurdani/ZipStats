@@ -96,9 +96,13 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.zipstats.app.R
 import com.zipstats.app.model.Scooter
 import com.zipstats.app.model.VehicleType
+import com.zipstats.app.di.AppOverlayRepositoryEntryPoint
 import com.zipstats.app.permission.PermissionManager
+import com.zipstats.app.repository.AppOverlayRepository
 import com.zipstats.app.repository.SettingsRepository
 import com.zipstats.app.ui.components.DialogCancelButton
+import com.zipstats.app.ui.shared.AppOverlayState
+import dagger.hilt.android.EntryPointAccessors
 import com.zipstats.app.ui.components.DialogConfirmButton
 import com.zipstats.app.ui.components.DialogDeleteButton
 import com.zipstats.app.ui.theme.DialogShape
@@ -116,6 +120,15 @@ fun TrackingScreen(
     val permissionManager = remember { PermissionManager(context) }
     val settingsRepository = remember { SettingsRepository(context) }
     val keepScreenOnEnabled by settingsRepository.keepScreenOnDuringTrackingFlow.collectAsState(initial = false)
+
+    // AppOverlayRepository para observar cuando se oculta el overlay
+    val appOverlayRepository: AppOverlayRepository = remember {
+        EntryPointAccessors.fromApplication(
+            context.applicationContext,
+            AppOverlayRepositoryEntryPoint::class.java
+        ).appOverlayRepository()
+    }
+    val overlay by appOverlayRepository.overlay.collectAsState()
 
     val trackingState by viewModel.trackingState.collectAsState()
     val isTracking = trackingState is TrackingState.Tracking
@@ -172,7 +185,7 @@ fun TrackingScreen(
     var routeSaved by remember { mutableStateOf(false) }
 
     LaunchedEffect(hasAllRequiredPermissions, trackingState) {
-        if (hasAllRequiredPermissions && trackingState is TrackingState.Idle) {
+        if (hasAllRequiredPermissions && trackingState is TrackingState.Idle && !routeSaved) {
             kotlinx.coroutines.delay(300)
             viewModel.startPreLocationTracking()
         } else if (trackingState !is TrackingState.Idle) {
@@ -182,15 +195,17 @@ fun TrackingScreen(
 
     DisposableEffect(Unit) {
         onDispose {
-            if (trackingState is TrackingState.Idle) {
+            if (trackingState is TrackingState.Idle && !routeSaved) {
                 viewModel.stopPreLocationTracking()
             }
         }
     }
 
-    LaunchedEffect(message) {
-        if (message?.contains("Ruta guardada exitosamente") == true) {
+    // Navegar cuando el overlay se oculte después de guardar
+    LaunchedEffect(overlay, message) {
+        if (message?.contains("Ruta guardada exitosamente") == true && overlay is AppOverlayState.None && !routeSaved) {
             routeSaved = true
+            viewModel.stopPreLocationTracking() // Detener GPS previo para evitar mostrar la pantalla de precarga
             // Usar onNavigateToRoutes para navegar correctamente a Routes
             // en lugar de onNavigateBack que puede mostrar la pantalla de pre-carga
             onNavigateToRoutes()
@@ -238,6 +253,11 @@ fun TrackingScreen(
             when {
                 !hasAllRequiredPermissions -> {
                     PermissionRequestCard(onRequestPermissions = { openAppSettings() })
+                }
+                // No mostrar IdleStateContent si ya guardamos la ruta (estamos navegando)
+                routeSaved -> {
+                    // Mostrar contenido vacío mientras navegamos
+                    Box(modifier = Modifier.fillMaxSize())
                 }
                 trackingState is TrackingState.Idle && hasAllRequiredPermissions -> {
                     IdleStateContent(

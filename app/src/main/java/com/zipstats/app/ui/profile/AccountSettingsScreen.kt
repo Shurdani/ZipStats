@@ -43,10 +43,12 @@ import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.ScreenLockPortrait
 import androidx.compose.material.icons.filled.Security
+import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material.icons.outlined.AccountCircle
 import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material3.AlertDialog
@@ -832,6 +834,9 @@ private fun getPermissionIcon(permission: String): ImageVector {
         permission.contains("LOCATION") -> Icons.Default.LocationOn
         permission.contains("NOTIFICATION") -> Icons.Default.Notifications
         permission.contains("CAMERA") -> Icons.Default.Camera
+        permission.contains("RECORD_AUDIO") -> Icons.Default.Mic
+        permission.contains("MEDIA_PROJECTION") -> Icons.Default.Videocam
+        permission.contains("FOREGROUND_SERVICE_MICROPHONE") -> Icons.Default.Mic
         permission.contains("MEDIA") -> Icons.Default.Image
         else -> Icons.Default.Security
     }
@@ -843,6 +848,9 @@ private fun getPermissionDisplayName(permission: String): String {
         permission.contains("COARSE_LOCATION") -> "Ubicación (Aproximada)"
         permission.contains("NOTIFICATION") -> "Notificaciones"
         permission.contains("CAMERA") -> "Cámara"
+        permission.contains("RECORD_AUDIO") -> "Grabación de audio"
+        permission.contains("MEDIA_PROJECTION") -> "Grabación de pantalla"
+        permission.contains("FOREGROUND_SERVICE_MICROPHONE") -> "Servicio de audio en primer plano"
         permission.contains("MEDIA") -> "Archivos"
         else -> "Permiso del sistema"
     }

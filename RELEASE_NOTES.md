@@ -59,6 +59,6 @@ Gracias a todos los usuarios que reportaron los problemas de carga inicial y exp
 ---
 
 **Versión**: 4.4.0  
-**Fecha**: $(date +%Y-%m-%d)  
+**Fecha**: 2025-12-13  
 **Compatibilidad**: Android API 31+
 

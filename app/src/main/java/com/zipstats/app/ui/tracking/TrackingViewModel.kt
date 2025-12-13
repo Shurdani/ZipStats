@@ -20,6 +20,7 @@ import com.google.android.gms.location.LocationServices
 import com.zipstats.app.model.RoutePoint
 import com.zipstats.app.model.Scooter
 import com.zipstats.app.repository.RecordRepository
+import com.zipstats.app.repository.AppOverlayRepository
 import com.zipstats.app.repository.RouteRepository
 import com.zipstats.app.repository.VehicleRepository
 import com.zipstats.app.service.LocationTrackingService
@@ -81,7 +82,8 @@ class TrackingViewModel @Inject constructor(
     private val routeRepository: RouteRepository,
     private val scooterRepository: VehicleRepository,
     private val recordRepository: RecordRepository,
-    private val preferencesManager: PreferencesManager
+    private val preferencesManager: PreferencesManager,
+    private val appOverlayRepository: AppOverlayRepository
 ) : AndroidViewModel(application) {
 
     private val context: Context = application.applicationContext
@@ -839,6 +841,9 @@ class TrackingViewModel @Inject constructor(
     fun finishTracking(notes: String = "", addToRecords: Boolean = false) {
         viewModelScope.launch {
             try {
+                // Mostrar overlay de guardado
+                appOverlayRepository.showSplashOverlay("Guardando ruta…")
+                
                 // Detener el servicio inmediatamente
                 stopTrackingService()
                 
@@ -1075,6 +1080,12 @@ class TrackingViewModel @Inject constructor(
                     
                     _message.value = message
                     _trackingState.value = TrackingState.Idle
+                    
+                    // Mínimo tiempo de UX antes de ocultar overlay
+                    kotlinx.coroutines.delay(600)
+                    
+                    // Ocultar overlay después de guardar
+                    appOverlayRepository.hideOverlay()
                 } else {
                     throw result.exceptionOrNull() ?: Exception("Error al guardar la ruta")
                 }
@@ -1082,6 +1093,9 @@ class TrackingViewModel @Inject constructor(
                 Log.e(TAG, "Error al finalizar ruta", e)
                 _trackingState.value = TrackingState.Error(e.message ?: "Error al guardar la ruta")
                 _message.value = "Error: ${e.message}"
+                
+                // Ocultar overlay en caso de error también
+                appOverlayRepository.hideOverlay()
             }
         }
     }

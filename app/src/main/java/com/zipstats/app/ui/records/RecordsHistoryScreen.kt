@@ -42,6 +42,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
@@ -57,9 +58,12 @@ import com.zipstats.app.ui.components.DialogSaveButton
 import com.zipstats.app.ui.components.EmptyStateRecords
 import com.zipstats.app.ui.components.ExpandableRow
 import com.zipstats.app.ui.components.StandardDatePickerDialogWithValidation
+import com.zipstats.app.di.AppOverlayRepositoryEntryPoint
+import com.zipstats.app.repository.AppOverlayRepository
 import com.zipstats.app.ui.onboarding.OnboardingDialog
 import com.zipstats.app.ui.theme.DialogShape
 import com.zipstats.app.utils.DateUtils
+import dagger.hilt.android.EntryPointAccessors
 import java.time.Instant
 import java.time.ZoneId
 
@@ -70,6 +74,15 @@ fun RecordsHistoryScreen(
     viewModel: RecordsViewModel = hiltViewModel(),
     onboardingViewModel: OnboardingViewModel = hiltViewModel()
 ) {
+    val context = LocalContext.current
+    val appOverlayRepository: AppOverlayRepository = remember {
+        EntryPointAccessors.fromApplication(
+            context.applicationContext,
+            AppOverlayRepositoryEntryPoint::class.java
+        ).appOverlayRepository()
+    }
+    val vehiclesReady by appOverlayRepository.vehiclesReady.collectAsState()
+    
     val onboardingManager = onboardingViewModel.onboardingManager
     val records by viewModel.records.collectAsState()
     val userScooters by viewModel.userScooters.collectAsState()
@@ -238,6 +251,7 @@ fun RecordsHistoryScreen(
                         showBottomSheet = true
                     }
                 },
+                enabled = vehiclesReady, // Deshabilitar hasta que los vehículos estén cargados
                 containerColor = MaterialTheme.colorScheme.primary
             ) {
                 Icon(

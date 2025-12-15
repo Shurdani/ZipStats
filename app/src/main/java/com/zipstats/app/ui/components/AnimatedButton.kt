@@ -12,6 +12,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.scale
 
 /**
@@ -131,10 +132,14 @@ fun AnimatedFloatingActionButton(
     
     androidx.compose.material3.FloatingActionButton(
         onClick = {
-            clicked = true
-            onClick()
+            if (enabled) {
+                clicked = true
+                onClick()
+            }
         },
-        modifier = modifier.scale(scale),
+        modifier = modifier
+            .scale(scale)
+            .alpha(if (enabled) 1f else 0.38f), // Material3 disabled opacity
         containerColor = containerColor
     ) {
         content()

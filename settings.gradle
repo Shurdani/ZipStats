@@ -4,6 +4,7 @@ pluginManagement {
         mavenCentral()
         gradlePluginPortal()
         maven { url "https://maven.google.com" }
+        maven { url "https://jitpack.io" }
         maven {url = uri("https://api.mapbox.com/downloads/v2/releases/maven")}
     }
 }
@@ -14,6 +15,8 @@ dependencyResolutionManagement {
         google()
         mavenCentral()
         maven { url "https://maven.google.com" }
+        // JitPack repository (para dependencias de GitHub como HBRecorder)
+        maven { url "https://jitpack.io" }
         // Mapbox Maven repository
         maven {
             url = uri("https://api.mapbox.com/downloads/v2/releases/maven")

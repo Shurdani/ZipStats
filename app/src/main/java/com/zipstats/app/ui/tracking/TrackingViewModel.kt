@@ -19,8 +19,8 @@ import com.google.android.gms.location.LocationResult
 import com.google.android.gms.location.LocationServices
 import com.zipstats.app.model.RoutePoint
 import com.zipstats.app.model.Scooter
-import com.zipstats.app.repository.RecordRepository
 import com.zipstats.app.repository.AppOverlayRepository
+import com.zipstats.app.repository.RecordRepository
 import com.zipstats.app.repository.RouteRepository
 import com.zipstats.app.repository.VehicleRepository
 import com.zipstats.app.service.LocationTrackingService
@@ -181,6 +181,9 @@ class TrackingViewModel @Inject constructor(
     // Job para manejo del clima en segundo plano
     private var weatherJob: kotlinx.coroutines.Job? = null
     
+    // Job para el observador del estado global - permite cancelarlo explícitamente
+    private var globalStateJob: kotlinx.coroutines.Job? = null
+    
     // Lista de patinetes disponibles
     private val _scooters = MutableStateFlow<List<Scooter>>(emptyList())
     val scooters: StateFlow<List<Scooter>> = _scooters.asStateFlow()
@@ -259,11 +262,16 @@ class TrackingViewModel @Inject constructor(
      * Sincroniza el estado del ViewModel con el estado global del servicio
      */
     private fun syncWithGlobalState() {
-        viewModelScope.launch {
-            // Observar el estado global de tracking
+        // Cancelamos cualquier job anterior por si acaso
+        globalStateJob?.cancel()
+        
+        // Guardamos la referencia en la variable
+        globalStateJob = viewModelScope.launch {
             trackingStateManager.isTracking.collect { isTracking ->
+                // Ya no necesitamos el "if (isSaving)" aquí, 
+                // porque cancelaremos este Job antes de que eso ocurra.
+                
                 if (isTracking) {
-                    // Si hay tracking activo, conectar con el servicio
                     if (!serviceBound) {
                         connectToService()
                     }
@@ -841,11 +849,21 @@ class TrackingViewModel @Inject constructor(
     fun finishTracking(notes: String = "", addToRecords: Boolean = false) {
         viewModelScope.launch {
             try {
-                // Mostrar overlay de guardado
-                appOverlayRepository.showSplashOverlay("Guardando ruta…")
+                // 🛑 CORTE DE SEGURIDAD TOTAL 🛑
+                // Cancelamos la escucha del estado global. 
+                // A partir de esta línea, NADA externo puede cambiar el estado de esta pantalla.
+                globalStateJob?.cancel()
+                globalStateJob = null
+
+                // 1. Establecemos estado local GUARDANDO
+                _trackingState.value = TrackingState.Saving
                 
-                // Detener el servicio inmediatamente
+                // 2. Mostrar overlay (UI)
+                appOverlayRepository.showSplashOverlay("Guardando ruta…")
+
+                // 3. Detener el servicio (Ahora es seguro, nadie escuchará el evento de parada)
                 stopTrackingService()
+                trackingStateManager.resetState() // Esto emitirá 'false' globalmente, pero ya no escuchamos.
                 
                 // Guardar datos antes de resetear
                 val scooter = _selectedScooter.value ?: throw Exception("No hay vehículo seleccionado")
@@ -853,9 +871,7 @@ class TrackingViewModel @Inject constructor(
                 val startTime = _startTime.value
                 val endTime = System.currentTimeMillis()
                 
-                // Resetear estado inmediatamente
-                _trackingState.value = TrackingState.Saving
-                trackingStateManager.resetState()
+                // Resetear variables locales (el estado ya está en Saving y el trackingStateManager ya se reseteó arriba)
                 _routePoints.value = emptyList()
                 _currentDistance.value = 0.0
                 _currentSpeed.value = 0.0
@@ -1079,13 +1095,19 @@ class TrackingViewModel @Inject constructor(
                     }
                     
                     _message.value = message
-                    _trackingState.value = TrackingState.Idle
+                    // NO cambiar a Idle aquí - mantener en Saving hasta que se oculte el overlay
+                    // El flag isClosing en TrackingScreen maneja el renderizado
+                    // _trackingState.value = TrackingState.Idle  // ❌ ELIMINADO - causa el flash
                     
                     // Mínimo tiempo de UX antes de ocultar overlay
                     kotlinx.coroutines.delay(600)
                     
                     // Ocultar overlay después de guardar
                     appOverlayRepository.hideOverlay()
+                    
+                    // Solo cambiar a Idle después de ocultar el overlay (aunque ya no importa porque isClosing bloquea el renderizado)
+                    // Pero lo hacemos por limpieza del estado
+                    _trackingState.value = TrackingState.Idle
                 } else {
                     throw result.exceptionOrNull() ?: Exception("Error al guardar la ruta")
                 }

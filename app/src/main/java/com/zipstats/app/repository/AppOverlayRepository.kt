@@ -16,12 +16,19 @@ class AppOverlayRepository @Inject constructor() {
     private val _overlay = MutableStateFlow<AppOverlayState>(AppOverlayState.None)
     val overlay: StateFlow<AppOverlayState> = _overlay.asStateFlow()
 
+    private val _vehiclesReady = MutableStateFlow<Boolean>(false)
+    val vehiclesReady: StateFlow<Boolean> = _vehiclesReady.asStateFlow()
+
     fun showSplashOverlay(message: String) {
         _overlay.value = AppOverlayState.Splash(message)
     }
 
     fun hideOverlay() {
         _overlay.value = AppOverlayState.None
+    }
+
+    fun setVehiclesReady(ready: Boolean) {
+        _vehiclesReady.value = ready
     }
 }
 

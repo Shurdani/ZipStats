@@ -16,6 +16,7 @@ import androidx.lifecycle.viewModelScope
 import com.mapbox.geojson.Point
 import com.zipstats.app.model.Route
 import com.zipstats.app.model.Scooter
+import com.zipstats.app.repository.AppOverlayRepository
 import com.zipstats.app.repository.RecordRepository
 import com.zipstats.app.repository.RouteRepository
 import com.zipstats.app.repository.VehicleRepository
@@ -47,6 +48,7 @@ class RoutesViewModel @Inject constructor(
     private val routeRepository: RouteRepository,
     private val scooterRepository: VehicleRepository,
     private val recordRepository: RecordRepository,
+    private val appOverlayRepository: AppOverlayRepository,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
 
@@ -136,8 +138,11 @@ class RoutesViewModel @Inject constructor(
             try {
                 val scooters = scooterRepository.getUserScooters()
                 _userScooters.value = scooters
+                // Marcar vehículos como listos después de cargarlos
+                appOverlayRepository.setVehiclesReady(true)
             } catch (e: Exception) {
-                // Error silencioso
+                // Error silencioso, pero aún marcamos como ready para no bloquear la app
+                appOverlayRepository.setVehiclesReady(true)
             }
         }
     }

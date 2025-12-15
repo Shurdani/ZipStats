@@ -76,6 +76,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -94,19 +95,19 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.zipstats.app.R
+import com.zipstats.app.di.AppOverlayRepositoryEntryPoint
 import com.zipstats.app.model.Scooter
 import com.zipstats.app.model.VehicleType
-import com.zipstats.app.di.AppOverlayRepositoryEntryPoint
 import com.zipstats.app.permission.PermissionManager
 import com.zipstats.app.repository.AppOverlayRepository
 import com.zipstats.app.repository.SettingsRepository
 import com.zipstats.app.ui.components.DialogCancelButton
-import com.zipstats.app.ui.shared.AppOverlayState
-import dagger.hilt.android.EntryPointAccessors
 import com.zipstats.app.ui.components.DialogConfirmButton
 import com.zipstats.app.ui.components.DialogDeleteButton
+import com.zipstats.app.ui.shared.AppOverlayState
 import com.zipstats.app.ui.theme.DialogShape
 import com.zipstats.app.utils.LocationUtils
+import dagger.hilt.android.EntryPointAccessors
 import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -183,19 +184,34 @@ fun TrackingScreen(
     }
 
     var routeSaved by remember { mutableStateOf(false) }
+    
+    // Flag local de cierre: una vez se pulsa "Guardar", la pantalla NO debe renderizar nada más
+    // Este flag manda más que cualquier estado del ViewModel
+    var isClosing by rememberSaveable { mutableStateOf(false) }
+    
+    // Flag para garantizar que el pre-GPS solo se inicia una vez al entrar a la pantalla
+    var hasStartedPreGps by rememberSaveable { mutableStateOf(false) }
 
-    LaunchedEffect(hasAllRequiredPermissions, trackingState) {
-        if (hasAllRequiredPermissions && trackingState is TrackingState.Idle && !routeSaved) {
-            kotlinx.coroutines.delay(300)
+    // Pre-GPS solo se inicia una vez al entrar a la pantalla
+    // Patrón determinista: efecto de entrada, no de estado
+    LaunchedEffect(hasAllRequiredPermissions) {
+        if (hasAllRequiredPermissions && !hasStartedPreGps) {
+            hasStartedPreGps = true
             viewModel.startPreLocationTracking()
-        } else if (trackingState !is TrackingState.Idle) {
+        }
+    }
+
+    // Detener pre-GPS cuando empieza el tracking activo
+    LaunchedEffect(trackingState) {
+        if (trackingState is TrackingState.Tracking) {
             viewModel.stopPreLocationTracking()
         }
     }
 
+    // Detener pre-GPS cuando se sale de la pantalla o cuando se guarda la ruta
     DisposableEffect(Unit) {
         onDispose {
-            if (trackingState is TrackingState.Idle && !routeSaved) {
+            if (!routeSaved) {
                 viewModel.stopPreLocationTracking()
             }
         }
@@ -211,6 +227,16 @@ fun TrackingScreen(
             onNavigateToRoutes()
             viewModel.clearMessage()
         }
+    }
+
+    // SOLUCIÓN DEFINITIVA: Abortar composición completa antes del Scaffold
+    // Esto evita el layout pass que causa el flash
+    // Compose no puede dibujar lo que no existe en el árbol
+    if (isClosing) {
+        // Importante: no Scaffold, no Column, no Scroll
+        // Solo un Box vacío que ocupa todo el espacio
+        Box(modifier = Modifier.fillMaxSize())
+        return
     }
 
     Scaffold(
@@ -306,6 +332,9 @@ fun TrackingScreen(
             distance = currentDistance,
             duration = duration,
             onConfirm = { notes, addToRecords ->
+                // Activar flag de cierre ANTES de cualquier estado
+                // Esto congela la UI y evita cualquier flash
+                isClosing = true
                 viewModel.finishTracking(notes, addToRecords)
                 showFinishDialog = false
             },

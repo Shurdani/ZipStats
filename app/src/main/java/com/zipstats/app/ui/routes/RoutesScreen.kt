@@ -36,6 +36,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -49,10 +50,13 @@ import com.zipstats.app.ui.components.DialogCancelButton
 import com.zipstats.app.ui.components.DialogConfirmButton
 import com.zipstats.app.ui.components.EmptyStateRoutes
 import com.zipstats.app.ui.components.ExpandableRow
+import com.zipstats.app.di.AppOverlayRepositoryEntryPoint
+import com.zipstats.app.repository.AppOverlayRepository
 import com.zipstats.app.ui.onboarding.OnboardingDialog
 import com.zipstats.app.ui.records.OnboardingViewModel
 import com.zipstats.app.ui.theme.DialogShape
 import com.zipstats.app.utils.DateUtils
+import dagger.hilt.android.EntryPointAccessors
 import java.time.Instant
 import java.time.ZoneId
 
@@ -63,6 +67,15 @@ fun RoutesScreen(
     viewModel: RoutesViewModel = hiltViewModel(),
     onboardingViewModel: OnboardingViewModel = hiltViewModel()
 ) {
+    val context = LocalContext.current
+    val appOverlayRepository: AppOverlayRepository = remember {
+        EntryPointAccessors.fromApplication(
+            context.applicationContext,
+            AppOverlayRepositoryEntryPoint::class.java
+        ).appOverlayRepository()
+    }
+    val vehiclesReady by appOverlayRepository.vehiclesReady.collectAsState()
+    
     val routes by viewModel.routes.collectAsState()
     val userScooters by viewModel.userScooters.collectAsState()
     val selectedScooter by viewModel.selectedScooter.collectAsState()
@@ -255,6 +268,7 @@ fun RoutesScreen(
                         }
                     }
                 },
+                enabled = vehiclesReady, // Deshabilitar hasta que los vehículos estén cargados
                 containerColor = MaterialTheme.colorScheme.tertiary
             ) {
                 Icon(
@@ -323,6 +337,10 @@ fun RoutesScreen(
                 EmptyStateRoutes(
                     onStartRoute = {
                         // Verificar si hay vehículos antes de permitir iniciar ruta
+                        if (!vehiclesReady) {
+                            // Esperar a que los vehículos estén cargados
+                            return@EmptyStateRoutes
+                        }
                         if (userScooters.isEmpty()) {
                             showOnboardingDialog = true
                         } else {

@@ -3,6 +3,7 @@ package com.zipstats.app.ui.splash
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.firebase.auth.FirebaseAuth
+import com.zipstats.app.repository.AppOverlayRepository
 import com.zipstats.app.repository.RecordRepository
 import com.zipstats.app.repository.RouteRepository
 import com.zipstats.app.repository.VehicleRepository
@@ -18,7 +19,8 @@ class SplashViewModel @Inject constructor(
     private val vehicleRepository: VehicleRepository,
     private val routeRepository: RouteRepository,
     private val recordRepository: RecordRepository,
-    private val auth: FirebaseAuth
+    private val auth: FirebaseAuth,
+    private val appOverlayRepository: AppOverlayRepository
 ) : ViewModel() {
 
     private val _ready = MutableStateFlow(false)
@@ -33,6 +35,9 @@ class SplashViewModel @Inject constructor(
                     // Cargar vehículos para que estén en memoria
                     vehicleRepository.getUserVehicles()
                     
+                    // Marcar vehículos como listos
+                    appOverlayRepository.setVehiclesReady(true)
+                    
                     // Cargar rutas para que estén en memoria (ignorar resultado, solo necesita cargar)
                     routeRepository.getUserRoutes()
                     
@@ -44,10 +49,13 @@ class SplashViewModel @Inject constructor(
                 } catch (e: Exception) {
                     // Si hay error, igual marcamos como ready para no bloquear la app
                     // Los Flows se suscribirán cuando se necesiten y manejarán el error
+                    appOverlayRepository.setVehiclesReady(true)
                     _ready.value = true
                 }
             } else {
                 // Si no hay usuario, no hay nada que cargar
+                // Pero marcamos vehiclesReady como true para que las pantallas se muestren
+                appOverlayRepository.setVehiclesReady(true)
                 _ready.value = true
             }
         }

@@ -1,13 +1,15 @@
 package com.zipstats.app.navigation
 
-// IMPORTANTE: Usamos la navegación estándar de Compose, no Accompanist si ya estamos en 2.8.5+
-// Si usas 2.8.5, 'AnimatedNavHost' ya es parte de 'androidx.navigation.compose.NavHost'
-// Pero si tu proyecto aún depende de Accompanist para algo, mantenlo.
-// Voy a asumir que usas la librería oficial androidx.navigation.compose.NavHost
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import com.zipstats.app.di.AppOverlayRepositoryEntryPoint
+import com.zipstats.app.repository.AppOverlayRepository
 import com.zipstats.app.ui.achievements.AchievementsScreen
 import com.zipstats.app.ui.auth.EmailVerificationScreen
 import com.zipstats.app.ui.auth.LoginScreen
@@ -19,11 +21,13 @@ import com.zipstats.app.ui.profile.ScootersManagementScreen
 import com.zipstats.app.ui.records.RecordsHistoryScreen
 import com.zipstats.app.ui.repairs.RepairsScreen
 import com.zipstats.app.ui.routes.RoutesScreen
+import com.zipstats.app.ui.shared.AppOverlayState
 import com.zipstats.app.ui.splash.SplashScreen
 import com.zipstats.app.ui.statistics.StatisticsScreen
 import com.zipstats.app.ui.theme.ColorTheme
 import com.zipstats.app.ui.theme.ThemeMode
 import com.zipstats.app.ui.tracking.TrackingScreen
+import dagger.hilt.android.EntryPointAccessors
 
 @Composable
 fun NavGraph(
@@ -85,19 +89,58 @@ fun NavGraph(
             )
         }
 
-        // 5. Records (Home)
+        // 5. Records
         composable(route = Screen.Records.route) {
-            RecordsHistoryScreen(navController = navController)
+            val context = LocalContext.current
+            val appOverlayRepository: AppOverlayRepository = remember {
+                EntryPointAccessors.fromApplication(
+                    context.applicationContext,
+                    AppOverlayRepositoryEntryPoint::class.java
+                ).appOverlayRepository()
+            }
+            val vehiclesReady by appOverlayRepository.vehiclesReady.collectAsState()
+
+            // Renderizar siempre para que el ViewModel se cree, pero solo mostrar contenido cuando vehiclesReady
+            if (vehiclesReady) {
+                RecordsHistoryScreen(navController = navController)
+            }
         }
 
         // 6. Statistics
         composable(route = Screen.Statistics.route) {
-            StatisticsScreen(navController = navController)
+            val context = LocalContext.current
+            val appOverlayRepository: AppOverlayRepository = remember {
+                EntryPointAccessors.fromApplication(
+                    context.applicationContext,
+                    AppOverlayRepositoryEntryPoint::class.java
+                ).appOverlayRepository()
+            }
+            val vehiclesReady by appOverlayRepository.vehiclesReady.collectAsState()
+
+            // Renderizar siempre para que el ViewModel se cree, pero solo mostrar contenido cuando vehiclesReady
+            if (vehiclesReady) {
+                StatisticsScreen(navController = navController)
+            }
         }
 
-        // 7. Routes
+        // 7. Routes (Home)
         composable(route = Screen.Routes.route) {
-            RoutesScreen(navController = navController)
+            val context = LocalContext.current
+            val appOverlayRepository: AppOverlayRepository = remember {
+                EntryPointAccessors.fromApplication(
+                    context.applicationContext,
+                    AppOverlayRepositoryEntryPoint::class.java
+                ).appOverlayRepository()
+            }
+            val vehiclesReady by appOverlayRepository.vehiclesReady.collectAsState()
+
+            // Solo renderizar cuando vehiclesReady para evitar el flash del nombre "crudo"
+            // El ViewModel se creará cuando se renderice la pantalla y cargará los vehículos
+            // Si vehiclesReady es false, el ViewModel no se crea, pero esto está bien porque
+            // vehiclesReady se marca como true en SplashViewModel o cuando se cargan los vehículos
+            if (vehiclesReady) {
+                RoutesScreen(navController = navController)
+            }
         }
 
         // 8. Repairs
@@ -175,6 +218,8 @@ fun NavGraph(
 
         // 15. Tracking
         composable(route = Screen.Tracking.route) {
+            // TrackingScreen siempre debe existir en el árbol de UI mientras estemos en esta ruta
+            // El overlay se maneja a nivel global y debe tapar la pantalla, no destruirla
             TrackingScreen(
                 onNavigateBack = {
                     navController.popBackStack()

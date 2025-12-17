@@ -328,7 +328,7 @@ fun ProfileScreen(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            // Tarjeta KM
+                            // Tarjeta KM (clickable - lleva a Estadísticas)
                             StatSummaryCard(
                                 title = "Distancia Total",
                                 value = String.format("%.1f", state.scooters.sumOf { it.kilometrajeActual ?: 0.0 }),
@@ -336,10 +336,11 @@ fun ProfileScreen(
                                 icon = Icons.AutoMirrored.Filled.TrendingUp,
                                 containerColor = MaterialTheme.colorScheme.primaryContainer,
                                 contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                                onClick = { navController.navigate(Screen.Statistics.route) },
                                 modifier = Modifier.weight(1f)
                             )
 
-                            // Tarjeta Logros
+                            // Tarjeta Logros (clickable - lleva a Logros)
                             StatSummaryCard(
                                 title = "Logros",
                                 value = "${state.unlockedAchievements}/${state.totalAchievements}",
@@ -347,6 +348,7 @@ fun ProfileScreen(
                                 icon = Icons.Default.EmojiEvents,
                                 containerColor = MaterialTheme.colorScheme.tertiaryContainer,
                                 contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+                                onClick = { navController.navigate(Screen.Achievements.route) },
                                 modifier = Modifier.weight(1f)
                             )
                         }
@@ -511,10 +513,22 @@ fun StatSummaryCard(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     containerColor: androidx.compose.ui.graphics.Color,
     contentColor: androidx.compose.ui.graphics.Color,
+    onClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     Card(
-        modifier = modifier,
+        modifier = modifier
+            .then(
+                if (onClick != null) {
+                    Modifier.clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = onClick
+                    )
+                } else {
+                    Modifier
+                }
+            ),
         colors = CardDefaults.cardColors(containerColor = containerColor),
         shape = RoundedCornerShape(24.dp)
     ) {

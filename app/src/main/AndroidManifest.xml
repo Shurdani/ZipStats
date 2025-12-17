@@ -19,6 +19,8 @@
     <!-- Estos permisos son cruciales para un minSdk 31+ -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+    <!-- Permiso para grabación de pantalla (Android 14+) -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
 
     <!-- Permiso de internet para APIs (OpenWeather, etc.) -->

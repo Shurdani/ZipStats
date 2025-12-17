@@ -83,6 +83,7 @@ import com.zipstats.app.repository.VehicleRepository
 import com.zipstats.app.repository.WeatherRepository
 import com.zipstats.app.ui.components.CapturableMapView
 import com.zipstats.app.ui.components.MapSnapshotTrigger
+import com.zipstats.app.ui.components.RouteSummaryCard
 import com.zipstats.app.utils.CityUtils
 import com.zipstats.app.utils.DateUtils
 import com.zipstats.app.utils.ShareUtils
@@ -475,123 +476,29 @@ fun TripDetailsOverlay(
         date.format(formatter)
     }
 
-    Card(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp),
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = androidx.compose.ui.graphics.Color(0xFF1E1E1E).copy(alpha = 0.98f)
-        ),
-        elevation = CardDefaults.cardElevation(12.dp)
-    ) {
-        Column(
-            modifier = Modifier.padding(top = 20.dp, start = 20.dp, end = 20.dp, bottom = 16.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Top
-            ) {
-                Text(
-                    text = tituloRuta,
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                    color = androidx.compose.ui.graphics.Color.White,
-                    modifier = Modifier.weight(1f).padding(end = 8.dp),
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
-
-                Text(
-                    text = "ZipStats",
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                    color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.9f),
-                    modifier = Modifier.padding(top = 2.dp)
-                )
-            }
-
-            Text(
-                text = "${route.scooterName} • $fechaFormateada",
-                style = MaterialTheme.typography.bodyMedium,
-                color = androidx.compose.ui.graphics.Color.LightGray
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                StatItemModern(Icons.Default.Straighten, String.format("%.1f km", route.totalDistance), "Distancia")
-                StatItemModern(Icons.Default.Timer, formatDurationWithUnits(route.totalDuration), "Tiempo")
-                StatItemModern(Icons.Default.Speed, String.format("%.1f km/h", route.averageSpeed), "Vel. Media")
-            }
-
-            if (route.weatherTemperature != null) {
-                Spacer(modifier = Modifier.height(16.dp))
-
-                Surface(
-                    shape = RoundedCornerShape(12.dp),
-                    color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.08f),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Row(
-                        modifier = Modifier.padding(vertical = 10.dp, horizontal = 16.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center
-                    ) {
-                        Image(
-                            painter = painterResource(id = getWeatherIconResId(route.weatherEmoji, route.weatherIsDay)),
-                            contentDescription = null,
-                            modifier = Modifier.size(24.dp),
-                            colorFilter = ColorFilter.tint(androidx.compose.ui.graphics.Color.White)
-                        )
-                        Spacer(modifier = Modifier.width(12.dp))
-
-                        Text(
-                            text = "${String.format("%.0f", route.weatherTemperature)}°C",
-                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                            color = androidx.compose.ui.graphics.Color.White
-                        )
-
-                        Spacer(modifier = Modifier.width(8.dp))
-
-                        Text(
-                            text = (route.weatherDescription ?: "").substringBefore("(").trim(),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.9f)
-                        )
-                    }
-                }
-            }
+    val weatherIconRes = remember(route.weatherEmoji, route.weatherIsDay) {
+        if (route.weatherTemperature != null) {
+            getWeatherIconResId(route.weatherEmoji, route.weatherIsDay)
+        } else {
+            null
         }
     }
-}
 
-@Composable
-private fun StatItemModern(icon: ImageVector, value: String, label: String) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = androidx.compose.ui.graphics.Color(0xFF90CAF9),
-            modifier = Modifier.size(22.dp)
-        )
-        Spacer(modifier = Modifier.height(4.dp))
-        Text(
-            text = value,
-            style = MaterialTheme.typography.titleMedium.copy(
-                fontWeight = FontWeight.Bold,
-                fontFeatureSettings = "tnum"
-            ),
-            color = androidx.compose.ui.graphics.Color.White
-        )
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelSmall,
-            color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.9f)
-        )
+    val weatherText = remember(route.weatherDescription) {
+        route.weatherDescription?.substringBefore("(")?.trim()
     }
+
+    RouteSummaryCard(
+        title = tituloRuta,
+        subtitle = "${route.scooterName} • $fechaFormateada",
+        distanceKm = route.totalDistance.toFloat(),
+        duration = formatDurationWithUnits(route.totalDuration),
+        avgSpeed = route.averageSpeed.toFloat(),
+        temperature = route.weatherTemperature?.toInt(),
+        weatherText = weatherText,
+        weatherIconRes = weatherIconRes,
+        modifier = modifier
+    )
 }
 
 // -------------------------------------------------------------------------

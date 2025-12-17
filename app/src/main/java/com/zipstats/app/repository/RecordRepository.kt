@@ -76,6 +76,7 @@ class RecordRepository @Inject constructor(
                                     id = doc.id,
                                     vehiculo = data["vehiculo"] as? String ?: "",
                                     patinete = data["patinete"] as? String ?: "",
+                                    scooterId = data["scooterId"] as? String ?: "",
                                     fecha = data["fecha"] as? String ?: "",
                                     kilometraje = (data["kilometraje"] as? Number)?.toDouble() ?: 0.0,
                                     diferencia = (data["diferencia"] as? Number)?.toDouble() ?: 0.0,
@@ -127,32 +128,58 @@ class RecordRepository @Inject constructor(
         return records.sumOf<Record> { it.diferencia }
     }
 
-    suspend fun addRecord(vehiculo: String, kilometraje: Double, fecha: String): Result<Unit> {
+    suspend fun addRecord(vehiculo: String, kilometraje: Double, fecha: String, scooterId: String? = null): Result<Unit> {
         return try {
             val userId = auth.currentUser?.uid ?: throw Exception("Usuario no autenticado")
             
             // Obtener el último registro para este vehículo
-            // Buscar por ambos campos para compatibilidad
-            val lastRecord = recordsCollection
-                .whereEqualTo("userId", userId)
-                .get()
-                .await()
-                .documents
-                .mapNotNull { doc ->
-                    val data = doc.data ?: return@mapNotNull null
-                    Record(
-                        id = doc.id,
-                        vehiculo = data["vehiculo"] as? String ?: "",
-                        patinete = data["patinete"] as? String ?: "",
-                        fecha = data["fecha"] as? String ?: "",
-                        kilometraje = (data["kilometraje"] as? Number)?.toDouble() ?: 0.0,
-                        diferencia = (data["diferencia"] as? Number)?.toDouble() ?: 0.0,
-                        userId = data["userId"] as? String ?: "",
-                        isInitialRecord = data["isInitialRecord"] as? Boolean ?: false
-                    )
-                }
-                .filter { it.vehicleName == vehiculo }
-                .maxByOrNull { it.fecha }
+            // Buscar por scooterId si está disponible, sino por nombre (compatibilidad)
+            val lastRecord = if (scooterId != null && scooterId.isNotEmpty()) {
+                recordsCollection
+                    .whereEqualTo("userId", userId)
+                    .whereEqualTo("scooterId", scooterId)
+                    .get()
+                    .await()
+                    .documents
+                    .mapNotNull { doc ->
+                        val data = doc.data ?: return@mapNotNull null
+                        Record(
+                            id = doc.id,
+                            vehiculo = data["vehiculo"] as? String ?: "",
+                            patinete = data["patinete"] as? String ?: "",
+                            scooterId = data["scooterId"] as? String ?: "",
+                            fecha = data["fecha"] as? String ?: "",
+                            kilometraje = (data["kilometraje"] as? Number)?.toDouble() ?: 0.0,
+                            diferencia = (data["diferencia"] as? Number)?.toDouble() ?: 0.0,
+                            userId = data["userId"] as? String ?: "",
+                            isInitialRecord = data["isInitialRecord"] as? Boolean ?: false
+                        )
+                    }
+                    .maxByOrNull { it.fecha }
+            } else {
+                // Fallback: buscar por nombre para compatibilidad con registros antiguos
+                recordsCollection
+                    .whereEqualTo("userId", userId)
+                    .get()
+                    .await()
+                    .documents
+                    .mapNotNull { doc ->
+                        val data = doc.data ?: return@mapNotNull null
+                        Record(
+                            id = doc.id,
+                            vehiculo = data["vehiculo"] as? String ?: "",
+                            patinete = data["patinete"] as? String ?: "",
+                            scooterId = data["scooterId"] as? String ?: "",
+                            fecha = data["fecha"] as? String ?: "",
+                            kilometraje = (data["kilometraje"] as? Number)?.toDouble() ?: 0.0,
+                            diferencia = (data["diferencia"] as? Number)?.toDouble() ?: 0.0,
+                            userId = data["userId"] as? String ?: "",
+                            isInitialRecord = data["isInitialRecord"] as? Boolean ?: false
+                        )
+                    }
+                    .filter { it.vehicleName == vehiculo }
+                    .maxByOrNull { it.fecha }
+            }
 
             // Calcular la diferencia
             val diferencia = lastRecord?.let { kilometraje - it.kilometraje } ?: 0.0
@@ -161,6 +188,7 @@ class RecordRepository @Inject constructor(
             val record = Record(
                 vehiculo = vehiculo,
                 patinete = vehiculo, // Mantener compatibilidad
+                scooterId = scooterId ?: "",
                 fecha = fecha,
                 kilometraje = kilometraje,
                 diferencia = diferencia,
@@ -213,6 +241,7 @@ class RecordRepository @Inject constructor(
                 "diferencia" to record.diferencia,
                 "vehiculo" to record.vehicleName,
                 "patinete" to record.vehicleName, // Mantener compatibilidad
+                "scooterId" to record.scooterId,
                 "userId" to userId,
                 "isInitialRecord" to record.isInitialRecord
             )

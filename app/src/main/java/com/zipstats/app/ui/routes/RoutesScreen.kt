@@ -388,13 +388,9 @@ fun RoutesScreen(
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
                                     )
-                                    // Fecha (Pequeña y gris)
+                                    // Fecha y hora (Pequeña y gris)
                                     Text(
-                                        text = DateUtils.formatForDisplay(
-                                            Instant.ofEpochMilli(route.startTime)
-                                                .atZone(ZoneId.systemDefault())
-                                                .toLocalDate()
-                                        ),
+                                        text = DateUtils.formatForDisplayWithTime(route.startTime),
                                         style = MaterialTheme.typography.bodyMedium,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         modifier = Modifier.padding(top = 4.dp)

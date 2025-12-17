@@ -237,14 +237,17 @@ class VehicleRepository @Inject constructor(
         )
 
         // Crear el vehículo
-        vehiclesCollection
+        val vehicleDocRef = vehiclesCollection
             .add(vehicle)
             .await()
+        
+        val vehicleId = vehicleDocRef.id
 
-        // Crear el registro inicial a 0km
+        // Crear el registro inicial a 0km con el scooterId
         val record = Record(
             vehiculo = nombre,
             patinete = nombre, // Compatibilidad con datos legacy
+            scooterId = vehicleId, // ID permanente del vehículo
             fecha = fechaFinal,
             kilometraje = 0.0,
             diferencia = 0.0,

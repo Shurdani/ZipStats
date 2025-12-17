@@ -149,11 +149,14 @@ class ProfileViewModel @Inject constructor(
                 val scooters = vehicleRepository.getScooters().first()
                 val records = recordRepository.getRecords().first()
 
-                // Recalcular kilometraje para este patinete
+                // Recalcular kilometraje para este patinete (usar scooterId cuando esté disponible)
                 val updatedScooters = scooters.map { scooter ->
                     if (scooter.id == scooterId) {
                         val totalKm = records
-                            .filter { it.patinete == scooter.nombre }
+                            .filter { 
+                                // Buscar por scooterId (preferido) o por nombre (compatibilidad)
+                                it.scooterId == scooterId || (it.scooterId.isEmpty() && it.vehicleName == scooter.nombre)
+                            }
                             .sumOf { it.diferencia }
                         scooter.copy(kilometrajeActual = totalKm)
                     } else {
@@ -183,9 +186,12 @@ class ProfileViewModel @Inject constructor(
                 vehicleRepository.getScooters(),
                 recordRepository.getRecords()
             ) { scooters, records ->
-                // Calcular kilometraje total para cada patinete
+                // Calcular kilometraje total para cada patinete (usar scooterId cuando esté disponible)
                 val scootersWithKm = scooters.map { scooter ->
-                    val scooterRecords = records.filter { it.patinete == scooter.nombre }
+                    val scooterRecords = records.filter { 
+                        // Buscar por scooterId (preferido) o por nombre (compatibilidad)
+                        it.scooterId == scooter.id || (it.scooterId.isEmpty() && it.vehicleName == scooter.nombre)
+                    }
                     val totalKm = scooterRecords.sumOf { it.diferencia }
                     scooter.copy(kilometrajeActual = totalKm)
                 }
@@ -272,9 +278,12 @@ class ProfileViewModel @Inject constructor(
                 val scooters = vehicleRepository.getScooters().first()
                 val records = recordRepository.getRecords().first()
                 
-                // Calcular kilometraje total para cada patinete
+                // Calcular kilometraje total para cada patinete (usar scooterId cuando esté disponible)
                 val scootersWithKm = scooters.map { scooter ->
-                    val scooterRecords = records.filter { it.patinete == scooter.nombre }
+                    val scooterRecords = records.filter { 
+                        // Buscar por scooterId (preferido) o por nombre (compatibilidad)
+                        it.scooterId == scooter.id || (it.scooterId.isEmpty() && it.vehicleName == scooter.nombre)
+                    }
                     val totalKm = scooterRecords.sumOf { it.diferencia }
                     scooter.copy(kilometrajeActual = totalKm)
                 }
@@ -621,6 +630,42 @@ class ProfileViewModel @Inject constructor(
                 
                 // Convertir la fecha del formato de visualización (DD/MM/YYYY) al formato de API (YYYY-MM-DD)
                 val fechaFormateada = fechaCompra?.let { DateUtils.formatForApi(DateUtils.parseDisplayDate(it)) }
+                
+                // Si el nombre cambió, actualizar todos los registros relacionados
+                // Ahora usamos scooterId para encontrar los registros, así que solo necesitamos actualizar el nombre
+                val oldName = currentScooter.nombre
+                if (oldName != nombre) {
+                    val records = recordRepository.getRecords().first()
+                    val relatedRecords = records.filter { 
+                        // Buscar por scooterId (preferido) o por nombre (compatibilidad)
+                        it.scooterId == scooterId || it.vehicleName == oldName || it.patinete == oldName || it.vehiculo == oldName 
+                    }
+                    
+                    // Actualizar cada registro con el nuevo nombre y asegurar que tenga el scooterId
+                    relatedRecords.forEach { record ->
+                        val updatedRecord = record.copy(
+                            vehiculo = nombre,
+                            patinete = nombre, // Mantener compatibilidad
+                            scooterId = if (record.scooterId.isEmpty()) scooterId else record.scooterId // Asegurar scooterId
+                        )
+                        recordRepository.updateRecord(updatedRecord)
+                    }
+                } else {
+                    // Aunque el nombre no cambió, asegurémonos de que todos los registros tengan el scooterId
+                    val records = recordRepository.getRecords().first()
+                    val relatedRecords = records.filter { 
+                        (it.scooterId.isEmpty() && (it.vehicleName == nombre || it.patinete == nombre || it.vehiculo == nombre)) ||
+                        it.scooterId == scooterId
+                    }
+                    
+                    // Actualizar registros que no tienen scooterId
+                    relatedRecords.filter { it.scooterId.isEmpty() }.forEach { record ->
+                        val updatedRecord = record.copy(
+                            scooterId = scooterId
+                        )
+                        recordRepository.updateRecord(updatedRecord)
+                    }
+                }
                 
                 // Crear el scooter actualizado manteniendo los campos que no se editan
                 val updatedScooter = currentScooter.copy(
@@ -1264,34 +1309,53 @@ class ProfileViewModel @Inject constructor(
         }
     }
 
-    // Función suspendida para obtener el último registro/viaje
-    suspend fun getLastRecord(vehicleName: String): Record? {
+    // Función suspendida para obtener el último registro/viaje (por scooterId, con fallback a nombre)
+    suspend fun getLastRecord(scooterId: String? = null, vehicleName: String? = null): Record? {
         return try {
             val records = recordRepository.getRecords().first()
-            records
-                .filter { it.patinete == vehicleName }
-                .maxByOrNull { it.fecha }
+            if (scooterId != null && scooterId.isNotEmpty()) {
+                // Buscar por scooterId (preferido)
+                records
+                    .filter { it.scooterId == scooterId }
+                    .maxByOrNull { it.fecha }
+            } else if (vehicleName != null) {
+                // Fallback: buscar por nombre para compatibilidad con registros antiguos
+                records
+                    .filter { it.vehicleName == vehicleName }
+                    .maxByOrNull { it.fecha }
+            } else {
+                null
+            }
         } catch (e: Exception) {
             null
         }
     }
 
     /**
-     * Calcula el porcentaje de uso de un vehículo respecto al total de la flota
+     * Calcula el porcentaje de uso de un vehículo respecto al total de la flota (por scooterId, con fallback a nombre)
      */
-    suspend fun getVehicleUsagePercentage(vehicleName: String): Double {
+    suspend fun getVehicleUsagePercentage(scooterId: String? = null, vehicleName: String? = null): Double {
         return try {
             val records = recordRepository.getRecords().first()
-            val allVehicles = records.map { it.vehicleName }.distinct()
             
-            if (allVehicles.isEmpty()) return 0.0
+            if (records.isEmpty()) return 0.0
             
             val totalKmAllVehicles = records.sumOf { it.diferencia }
-            val vehicleKm = records
-                .filter { it.vehicleName == vehicleName }
-                .sumOf { it.diferencia }
-            
             if (totalKmAllVehicles == 0.0) return 0.0
+            
+            val vehicleKm = if (scooterId != null && scooterId.isNotEmpty()) {
+                // Buscar por scooterId (preferido)
+                records
+                    .filter { it.scooterId == scooterId }
+                    .sumOf { it.diferencia }
+            } else if (vehicleName != null) {
+                // Fallback: buscar por nombre para compatibilidad con registros antiguos
+                records
+                    .filter { it.vehicleName == vehicleName }
+                    .sumOf { it.diferencia }
+            } else {
+                0.0
+            }
             
             (vehicleKm / totalKmAllVehicles) * 100.0
         } catch (e: Exception) {
@@ -1306,8 +1370,8 @@ class ProfileViewModel @Inject constructor(
     suspend fun getVehicleDetailedStats(vehicleId: String, vehicleName: String): VehicleDetailedStats {
         return try {
             val lastRepair = getLastRepair(vehicleId)
-            val lastRecord = getLastRecord(vehicleName)
-            val usagePercentage = getVehicleUsagePercentage(vehicleName)
+            val lastRecord = getLastRecord(scooterId = vehicleId, vehicleName = vehicleName)
+            val usagePercentage = getVehicleUsagePercentage(scooterId = vehicleId, vehicleName = vehicleName)
             
             VehicleDetailedStats(
                 lastRepair = lastRepair,

@@ -7,6 +7,7 @@ data class Record(
     val id: String = "",
     val vehiculo: String = "", // Nombre del vehículo (anteriormente "patinete")
     val patinete: String = "", // Mantenido para compatibilidad con datos existentes en Firestore
+    val scooterId: String = "", // ID permanente del vehículo (preferido sobre nombre)
     val fecha: String = "",
     val kilometraje: Double = 0.0,
     val diferencia: Double = 0.0,

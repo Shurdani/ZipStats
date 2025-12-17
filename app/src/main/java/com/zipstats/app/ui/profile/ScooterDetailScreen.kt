@@ -102,15 +102,15 @@ fun ScooterDetailScreen(
     var isDeleting by remember { mutableStateOf(false) } // Para bloquear la UI
 
     // Cargar datos adicionales
-    LaunchedEffect(scooterId, scooter) {
+    LaunchedEffect(scooterId, scooter?.nombre) {
         if (scooter != null) {
             // 1. Asegurar que tenemos los detalles
             viewModel.loadScooterDetails(scooterId)
 
-            // 2. Cargar datos calculados
+            // 2. Cargar datos calculados usando el scooterId (permanente)
             lastRepair = viewModel.getLastRepair(scooterId)
-            lastRecord = viewModel.getLastRecord(scooter.nombre)
-            usagePercentage = viewModel.getVehicleUsagePercentage(scooter.nombre)
+            lastRecord = viewModel.getLastRecord(scooterId = scooterId, vehicleName = scooter.nombre)
+            usagePercentage = viewModel.getVehicleUsagePercentage(scooterId = scooterId, vehicleName = scooter.nombre)
 
             isLoadingDetails = false
         }
@@ -210,8 +210,16 @@ fun ScooterDetailScreen(
             scooter = scooter,
             onDismiss = { showEditDialog = false },
             onConfirm = { nombre, marca, modelo, fecha ->
-                viewModel.updateScooter(scooter.id, nombre, marca, modelo, fecha)
-                showEditDialog = false
+                scope.launch {
+                    viewModel.updateScooter(scooter.id, nombre, marca, modelo, fecha)
+                    // Esperar un momento para que se actualice el estado
+                    kotlinx.coroutines.delay(300)
+                    // Recargar los datos usando scooterId (permanente, no cambia con el nombre)
+                    lastRepair = viewModel.getLastRepair(scooterId)
+                    lastRecord = viewModel.getLastRecord(scooterId = scooterId, vehicleName = nombre)
+                    usagePercentage = viewModel.getVehicleUsagePercentage(scooterId = scooterId, vehicleName = nombre)
+                    showEditDialog = false
+                }
             }
         )
     }

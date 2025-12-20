@@ -412,17 +412,13 @@ private fun FullscreenMapDialog(
             usePlatformDefaultWidth = false
         )
     ) {
-        // Medir altura de la card para padding dinámico del mapa
-        var cardHeight by remember { mutableStateOf(0) }
-        val density = LocalDensity.current
-        val cardHeightDp = with(density) { cardHeight.toDp() }
-        
-        Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+        Box(modifier = Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Color.Black)) {
+            /* =========================
+             * MAPA – FULLSCREEN REAL
+             * ========================= */
             CapturableMapView(
                 route = route,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(bottom = cardHeightDp + 24.dp),
+                modifier = Modifier.fillMaxSize(),
                 onSnapshotHandlerReady = onSnapshotHandlerReady,
                 onMapReady = { mapView ->
                     onMapReady?.invoke(mapView)
@@ -438,35 +434,45 @@ private fun FullscreenMapDialog(
                 }
             )
 
+            /* =========================
+             * BOTÓN CERRAR
+             * ========================= */
             Surface(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .statusBarsPadding()
                     .padding(16.dp)
-                    .zIndex(10f),
+                    .zIndex(20f),
                 shape = CircleShape,
-                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
+                color = androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.5f),
                 shadowElevation = 8.dp
             ) {
                 IconButton(onClick = onDismiss, modifier = Modifier.size(48.dp)) {
                     Icon(
                         imageVector = Icons.Default.Close,
                         contentDescription = "Cerrar",
+                        tint = androidx.compose.ui.graphics.Color.White,
                         modifier = Modifier.size(28.dp)
                     )
                 }
             }
 
-            TripDetailsOverlay(
-                route = route,
+            /* =========================
+             * CARD FLOTANTE (OVERLAY)
+             * ========================= */
+            Box(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
                     .navigationBarsPadding()
                     .padding(bottom = 24.dp)
-                    .onGloballyPositioned { coordinates ->
-                        cardHeight = coordinates.size.height
-                    }
-            )
+                    .zIndex(10f),
+                contentAlignment = Alignment.Center
+            ) {
+                TripDetailsOverlay(
+                    route = route
+                )
+            }
         }
     }
 }

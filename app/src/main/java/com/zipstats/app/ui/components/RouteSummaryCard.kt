@@ -3,6 +3,7 @@ package com.zipstats.app.ui.components
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -21,7 +22,6 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -29,7 +29,6 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 
 /**
@@ -99,24 +98,29 @@ fun RouteSummaryCard(
             Spacer(modifier = Modifier.height(16.dp))
 
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
+                modifier = Modifier.fillMaxWidth()
             ) {
-                StatItemModern(
-                    icon = Icons.Default.Straighten,
-                    value = String.format("%.1f km", distanceKm),
-                    label = "Distancia"
-                )
-                StatItemModern(
-                    icon = Icons.Default.Timer,
-                    value = duration,
-                    label = "Tiempo"
-                )
-                StatItemModern(
-                    icon = Icons.Default.Speed,
-                    value = String.format("%.1f km/h", avgSpeed),
-                    label = "Vel. Media"
-                )
+                Box(modifier = Modifier.weight(1f)) {
+                    StatItemModern(
+                        icon = Icons.Default.Straighten,
+                        value = String.format("%.1f km", distanceKm),
+                        label = "Distancia"
+                    )
+                }
+                Box(modifier = Modifier.weight(1f)) {
+                    StatItemModern(
+                        icon = Icons.Default.Timer,
+                        value = duration,
+                        label = "Tiempo"
+                    )
+                }
+                Box(modifier = Modifier.weight(1f)) {
+                    StatItemModern(
+                        icon = Icons.Default.Speed,
+                        value = String.format("%.1f km/h", avgSpeed),
+                        label = "Vel. Media"
+                    )
+                }
             }
 
             if (temperature != null && weatherText != null && weatherIconRes != null) {
@@ -164,10 +168,15 @@ fun RouteSummaryCard(
 }
 
 @Composable
-private fun StatItemModern(icon: ImageVector, value: String, label: String) {
+private fun StatItemModern(
+    icon: ImageVector,
+    value: String,
+    label: String,
+    modifier: Modifier = Modifier
+) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.fillMaxWidth()
+        modifier = modifier
     ) {
         Icon(
             imageVector = icon,

@@ -834,9 +834,7 @@ private fun getPermissionIcon(permission: String): ImageVector {
         permission.contains("LOCATION") -> Icons.Default.LocationOn
         permission.contains("NOTIFICATION") -> Icons.Default.Notifications
         permission.contains("CAMERA") -> Icons.Default.Camera
-        permission.contains("RECORD_AUDIO") -> Icons.Default.Mic
         permission.contains("MEDIA_PROJECTION") -> Icons.Default.Videocam
-        permission.contains("FOREGROUND_SERVICE_MICROPHONE") -> Icons.Default.Mic
         permission.contains("MEDIA") -> Icons.Default.Image
         else -> Icons.Default.Security
     }
@@ -848,9 +846,7 @@ private fun getPermissionDisplayName(permission: String): String {
         permission.contains("COARSE_LOCATION") -> "Ubicación (Aproximada)"
         permission.contains("NOTIFICATION") -> "Notificaciones"
         permission.contains("CAMERA") -> "Cámara"
-        permission.contains("RECORD_AUDIO") -> "Grabación de audio"
         permission.contains("MEDIA_PROJECTION") -> "Grabación de pantalla"
-        permission.contains("FOREGROUND_SERVICE_MICROPHONE") -> "Servicio de audio en primer plano"
         permission.contains("MEDIA") -> "Archivos"
         else -> "Permiso del sistema"
     }

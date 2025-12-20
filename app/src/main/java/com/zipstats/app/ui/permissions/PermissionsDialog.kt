@@ -12,7 +12,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Camera
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.LocationOn
-import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material3.AlertDialog
@@ -151,9 +150,7 @@ private fun getPermissionIcon(permission: String): androidx.compose.ui.graphics.
         permission.contains("LOCATION") -> Icons.Default.LocationOn
         permission.contains("NOTIFICATION") || permission.contains("POST_NOTIFICATIONS") -> Icons.Default.Notifications
         permission.contains("CAMERA") -> Icons.Default.Camera
-        permission.contains("RECORD_AUDIO") -> Icons.Default.Mic
         permission.contains("MEDIA_PROJECTION") -> Icons.Default.Videocam
-        permission.contains("FOREGROUND_SERVICE_MICROPHONE") -> Icons.Default.Mic
         else -> Icons.Default.Info // Fallback
     }
 }
@@ -164,7 +161,6 @@ private fun getPermissionIconColor(permission: String): androidx.compose.ui.grap
         permission.contains("LOCATION") -> MaterialTheme.colorScheme.error
         permission.contains("NOTIFICATION") || permission.contains("POST_NOTIFICATIONS") -> androidx.compose.ui.graphics.Color(0xFFFFC107) // Amarillo/Naranja para Notificaciones
         permission.contains("CAMERA") -> androidx.compose.ui.graphics.Color(0xFF2196F3) // Azul para Cámara
-        permission.contains("RECORD_AUDIO") || permission.contains("FOREGROUND_SERVICE_MICROPHONE") -> androidx.compose.ui.graphics.Color(0xFF4CAF50) // Verde para Audio
         permission.contains("MEDIA_PROJECTION") -> androidx.compose.ui.graphics.Color(0xFF9C27B0) // Púrpura para Grabación de pantalla
         else -> MaterialTheme.colorScheme.primary
     }
@@ -175,9 +171,7 @@ private fun getPermissionShortName(permission: String): String {
         permission.contains("LOCATION") -> "Ubicación"
         permission.contains("NOTIFICATION") || permission.contains("POST_NOTIFICATIONS") -> "Notificaciones"
         permission.contains("CAMERA") -> "Cámara"
-        permission.contains("RECORD_AUDIO") -> "Grabación de audio"
         permission.contains("MEDIA_PROJECTION") -> "Grabación de pantalla"
-        permission.contains("FOREGROUND_SERVICE_MICROPHONE") -> "Servicio de audio"
         else -> "Permiso"
     }
 }

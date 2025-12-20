@@ -55,16 +55,6 @@ class PermissionManager @Inject constructor(
             )
         )
 
-        // Permiso de grabación de audio (para grabación de pantalla con audio)
-        permissions.add(
-            AppPermission(
-                permission = Manifest.permission.RECORD_AUDIO,
-                name = "Grabación de audio",
-                description = "Necesario para grabar audio del sistema al guardar vídeos de rutas animadas",
-                isRequired = false // No es crítico, se puede grabar sin audio
-            )
-        )
-
         // Permisos de servicios en primer plano para grabación de pantalla (Android 14+)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             permissions.add(
@@ -72,14 +62,6 @@ class PermissionManager @Inject constructor(
                     permission = Manifest.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION,
                     name = "Grabación de pantalla",
                     description = "Necesario para grabar la pantalla al guardar vídeos de rutas animadas",
-                    isRequired = false
-                )
-            )
-            permissions.add(
-                AppPermission(
-                    permission = Manifest.permission.FOREGROUND_SERVICE_MICROPHONE,
-                    name = "Servicio de audio en primer plano",
-                    description = "Necesario para grabar audio del sistema durante la grabación de pantalla (Android 14+)",
                     isRequired = false
                 )
             )

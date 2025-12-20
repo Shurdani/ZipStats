@@ -22,7 +22,6 @@ import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.NavigationDrawerItemDefaults
 import androidx.compose.material3.RadioButton
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.Alignment
@@ -62,7 +61,7 @@ fun AppDrawer(
                 .fillMaxWidth()
                 .padding(vertical = 24.dp, horizontal = 16.dp)
         ) {
-            Text(
+            ZipStatsText(
                 text = "ZipStats",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold
@@ -78,11 +77,11 @@ fun AppDrawer(
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Column {
-                    Text(
+                    ZipStatsText(
                         text = userName,
                         style = MaterialTheme.typography.titleMedium
                     )
-                    Text(
+                    ZipStatsText(
                         text = userEmail,
                         style = MaterialTheme.typography.bodyMedium
                     )
@@ -100,7 +99,7 @@ fun AppDrawer(
         items.forEach { item ->
             NavigationDrawerItem(
                 icon = { Icon(item.icon, contentDescription = null) },
-                label = { Text(item.label) },
+                label = { ZipStatsText(item.label) },
                 selected = false,
                 onClick = {
                     navController.navigate(item.route)
@@ -118,7 +117,7 @@ fun AppDrawer(
 
         // Selector de tema
         Column(modifier = Modifier.padding(horizontal = 16.dp)) {
-            Text(
+            ZipStatsText(
                 text = "Tema",
                 style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.padding(vertical = 8.dp)
@@ -139,7 +138,7 @@ fun AppDrawer(
                         onClick = { onThemeChange(theme) }
                     )
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text(
+                    ZipStatsText(
                         text = when (theme) {
                             ThemeMode.LIGHT -> "Claro"
                             ThemeMode.DARK -> "Oscuro"
@@ -155,7 +154,7 @@ fun AppDrawer(
         // Botón de cerrar sesión
         NavigationDrawerItem(
             icon = { Icon(Icons.AutoMirrored.Filled.ExitToApp, contentDescription = null) },
-            label = { Text("Cerrar sesión") },
+            label = { ZipStatsText("Cerrar sesión") },
             selected = false,
             onClick = {
                 onLogout()

@@ -31,7 +31,7 @@ fun DialogSaveButton(
         enabled = enabled,
         shape = RoundedCornerShape(12.dp),
     ) {
-        Text(text)
+        ZipStatsText(text)
     }
 }
 
@@ -47,7 +47,7 @@ fun DialogNeutralButton(
         onClick = onClick,
         shape = RoundedCornerShape(12.dp)
     ) {
-        Text(text)
+        ZipStatsText(text)
     }
 }
 
@@ -67,7 +67,7 @@ fun DialogDeleteButton(
         ),
         shape = RoundedCornerShape(12.dp)
     ) {
-        Text(text)
+        ZipStatsText(text)
     }
 }
 
@@ -87,7 +87,7 @@ fun DialogFullWidthButton(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp)
     ) {
-        Text(text)
+        ZipStatsText(text)
     }
 }
 
@@ -134,7 +134,7 @@ fun DialogApplyButton(
             .fillMaxWidth(),
         shape = RoundedCornerShape(12.dp)
     ) {
-        Text(text)
+        ZipStatsText(text)
     }
 }
 
@@ -163,7 +163,7 @@ fun DialogOptionButton(
                 tint = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Spacer(modifier = Modifier.width(10.dp))
-            Text(
+            ZipStatsText(
                 text = text,
                 style = MaterialTheme.typography.bodyLarge
             )

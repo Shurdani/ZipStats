@@ -27,7 +27,10 @@ data class WeatherData(
     val uvIndex: Double?,
     val windDirection: Int?,
     val windGusts: Double?,
-    val rainProbability: Int?
+    val rainProbability: Int?,
+    val precipitation: Double,     // mm reales
+    val rain: Double?,             // mm
+    val showers: Double?           // mm
 )
 
 @Singleton
@@ -212,7 +215,9 @@ class WeatherRepository @Inject constructor() {
 
                 // ¡Ya no necesitamos API Key!
 
-                val params = "current=temperature_2m,apparent_temperature,relative_humidity_2m,is_day,weather_code,wind_speed_10m,wind_direction_10m,wind_gusts_10m,uv_index,precipitation_probability"
+                val params = "current=temperature_2m,apparent_temperature,relative_humidity_2m,is_day," +
+                    "weather_code,wind_speed_10m,wind_direction_10m,wind_gusts_10m," +
+                    "uv_index,precipitation,rain,showers,precipitation_probability"
                 val units = "temperature_unit=celsius&wind_speed_unit=kmh&timezone=auto&precipitation_unit=mm"
                 val urlString = "$BASE_URL/forecast?latitude=$latitude&longitude=$longitude&$params&$units"
 
@@ -284,6 +289,9 @@ class WeatherRepository @Inject constructor() {
         val windDirection = current.getInt("wind_direction_10m")
         val windGusts = current.getDouble("wind_gusts_10m")
         val rainProbability = current.getInt("precipitation_probability")
+        val precipitation = current.getDouble("precipitation")
+        val rain = current.optDouble("rain", 0.0)
+        val showers = current.optDouble("showers", 0.0)
 
         // Usamos nuestras nuevas funciones del companion object
         val description = getDescriptionForWeather(weatherCode, isDay)
@@ -302,7 +310,10 @@ class WeatherRepository @Inject constructor() {
             uvIndex = uvIndex,
             windDirection = windDirection,
             windGusts = windGusts,
-            rainProbability = rainProbability
+            rainProbability = rainProbability,
+            precipitation = precipitation,
+            rain = rain,
+            showers = showers
         )
     }
 }

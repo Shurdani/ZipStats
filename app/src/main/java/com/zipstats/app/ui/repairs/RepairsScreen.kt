@@ -1,8 +1,18 @@
 package com.zipstats.app.ui.repairs
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -14,15 +24,33 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Speed
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -33,16 +61,15 @@ import androidx.navigation.NavController
 import com.zipstats.app.model.Repair
 import com.zipstats.app.model.Scooter
 import com.zipstats.app.ui.components.AnimatedFloatingActionButton
-import com.zipstats.app.ui.components.EmptyStateRepairs
 import com.zipstats.app.ui.components.DialogDeleteButton
 import com.zipstats.app.ui.components.DialogNeutralButton
 import com.zipstats.app.ui.components.DialogSaveButton
+import com.zipstats.app.ui.components.EmptyStateRepairs
 import com.zipstats.app.ui.components.StandardDatePickerDialog
+import com.zipstats.app.ui.components.ZipStatsText
 import com.zipstats.app.ui.theme.DialogShape
 import com.zipstats.app.utils.DateUtils
-import java.time.Instant
 import java.time.LocalDate
-import java.time.ZoneId
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -96,9 +123,9 @@ fun RepairsScreen(
             TopAppBar(
                 title = {
                     Column {
-                        Text("Mantenimiento", fontWeight = FontWeight.Bold)
+                        ZipStatsText("Mantenimiento", fontWeight = FontWeight.Bold)
                         scooter?.let {
-                            Text(
+                            ZipStatsText(
                                 text = "${it.marca} ${it.modelo}",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
@@ -188,7 +215,7 @@ fun RepairsScreen(
                         Modifier.fillMaxSize(),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(
+                        ZipStatsText(
                             text = (uiState as RepairsUiState.Error).message,
                             textAlign = TextAlign.Center,
                             color = MaterialTheme.colorScheme.error
@@ -212,14 +239,14 @@ fun RepairsScreen(
                 showEditDialog = false
                 if (isEditing) selectedRepair = null
             },
-            title = { Text(titleText) },
+            title = { ZipStatsText(titleText) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                     // Selector de Fecha
                     OutlinedTextField(
                         value = DateUtils.formatForDisplay(tempDate),
                         onValueChange = {},
-                        label = { Text("Fecha") },
+                        label = { ZipStatsText("Fecha") },
                         readOnly = true,
                         trailingIcon = {
                             IconButton(onClick = { showDatePicker = true }) {
@@ -233,8 +260,8 @@ fun RepairsScreen(
                     OutlinedTextField(
                         value = tempDesc,
                         onValueChange = { tempDesc = it },
-                        label = { Text("Descripción") },
-                        placeholder = { Text("Ej: Cambio de pastillas de freno") },
+                        label = { ZipStatsText("Descripción") },
+                        placeholder = { ZipStatsText("Ej: Cambio de pastillas de freno") },
                         modifier = Modifier.fillMaxWidth(),
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
                         minLines = 2,
@@ -250,11 +277,11 @@ fun RepairsScreen(
                                 tempMileage = it.replace(',', '.')
                             }
                         },
-                        label = { Text("Kilometraje (Opcional)") },
-                        placeholder = { Text("Km al momento de la reparación") },
+                        label = { ZipStatsText("Kilometraje (Opcional)") },
+                        placeholder = { ZipStatsText("Km al momento de la reparación") },
                         modifier = Modifier.fillMaxWidth(),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Done),
-                        trailingIcon = { Text("km ", style = MaterialTheme.typography.bodySmall) }
+                        trailingIcon = { ZipStatsText("km ", style = MaterialTheme.typography.bodySmall) }
                     )
                 }
             },
@@ -302,7 +329,7 @@ fun RepairsScreen(
                             onClick = { showDeleteDialog = true },
                             colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
                         ) {
-                            Text("Eliminar")
+                            ZipStatsText("Eliminar")
                         }
                         Spacer(modifier = Modifier.width(8.dp))
                         DialogNeutralButton(
@@ -341,8 +368,8 @@ fun RepairsScreen(
     if (showDeleteDialog && selectedRepair != null) {
         AlertDialog(
             onDismissRequest = { showDeleteDialog = false },
-            title = { Text("Eliminar registro") },
-            text = { Text("¿Estás seguro de que quieres eliminar esta reparación del historial?") },
+            title = { ZipStatsText("Eliminar registro") },
+            text = { ZipStatsText("¿Estás seguro de que quieres eliminar esta reparación del historial?") },
             confirmButton = {
                 DialogDeleteButton(
                     text = "Eliminar",
@@ -414,7 +441,7 @@ fun RepairItemCard(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
+                    ZipStatsText(
                         text = DateUtils.formatForDisplay(repair.date), // Usar helper de fecha
                         style = MaterialTheme.typography.labelLarge,
                         color = MaterialTheme.colorScheme.primary,
@@ -438,7 +465,7 @@ fun RepairItemCard(
                                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                                 Spacer(modifier = Modifier.width(4.dp))
-                                Text(
+                                ZipStatsText(
                                     text = "${String.format("%.0f", km)} km",
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -450,7 +477,7 @@ fun RepairItemCard(
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                Text(
+                ZipStatsText(
                     text = repair.description,
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurface

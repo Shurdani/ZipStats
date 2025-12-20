@@ -25,7 +25,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
+import com.zipstats.app.ui.components.ZipStatsText
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -114,7 +114,7 @@ fun ScootersManagementScreen(
         modifier = Modifier.fillMaxSize(),
         topBar = {
             TopAppBar(
-                title = { Text("Mis Vehículos") },
+                title = { ZipStatsText("Mis Vehículos") },
                 navigationIcon = {
                     IconButton(onClick = { navController.navigateUp() }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Volver")
@@ -157,12 +157,12 @@ fun ScootersManagementScreen(
                         modifier = Modifier.size(64.dp),
                         tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
                     )
-                    Text(
+                    ZipStatsText(
                         text = "No tienes vehículos registrados",
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                     )
-                    Text(
+                    ZipStatsText(
                         text = "Toca el botón + para añadir tu primer vehículo",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
@@ -223,7 +223,7 @@ fun ScooterManagementItem(
                         .background(MaterialTheme.colorScheme.primaryContainer),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(
+                    ZipStatsText(
                         text = scooterWithStats.scooter.vehicleType.emoji,
                         style = MaterialTheme.typography.headlineLarge
                     )
@@ -232,17 +232,17 @@ fun ScooterManagementItem(
                 Column(
                     verticalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
-                    Text(
+                    ZipStatsText(
                         text = scooterWithStats.scooter.nombre,
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold
                     )
-                    Text(
+                    ZipStatsText(
                         text = "${scooterWithStats.scooter.marca} ${scooterWithStats.scooter.modelo}",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                     )
-                    Text(
+                    ZipStatsText(
                         text = "${String.format("%.1f", scooterWithStats.totalKm)} km",
                         style = MaterialTheme.typography.bodyLarge,
                         fontWeight = FontWeight.Bold,
@@ -291,7 +291,7 @@ fun AddScooterBottomSheet(
             .padding(bottom = 32.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Text(
+        ZipStatsText(
             text = "Añadir Patinete",
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold
@@ -300,7 +300,7 @@ fun AddScooterBottomSheet(
         OutlinedTextField(
             value = nombre,
             onValueChange = { nombre = it },
-            label = { Text("Nombre") },
+            label = { ZipStatsText("Nombre") },
             singleLine = true,
             modifier = Modifier.fillMaxWidth()
         )
@@ -308,7 +308,7 @@ fun AddScooterBottomSheet(
         OutlinedTextField(
             value = marca,
             onValueChange = { marca = it },
-            label = { Text("Marca") },
+            label = { ZipStatsText("Marca") },
             singleLine = true,
             modifier = Modifier.fillMaxWidth()
         )
@@ -316,7 +316,7 @@ fun AddScooterBottomSheet(
         OutlinedTextField(
             value = modelo,
             onValueChange = { modelo = it },
-            label = { Text("Modelo") },
+            label = { ZipStatsText("Modelo") },
             singleLine = true,
             modifier = Modifier.fillMaxWidth()
         )
@@ -324,7 +324,7 @@ fun AddScooterBottomSheet(
         OutlinedTextField(
             value = DateUtils.formatForDisplay(selectedDate),
             onValueChange = { },
-            label = { Text("Fecha de compra") },
+            label = { ZipStatsText("Fecha de compra") },
             readOnly = true,
             trailingIcon = {
                 IconButton(onClick = { showDatePicker = true }) {
@@ -335,7 +335,7 @@ fun AddScooterBottomSheet(
         )
 
         if (showError) {
-            Text(
+            ZipStatsText(
                 text = "Por favor, complete todos los campos",
                 color = MaterialTheme.colorScheme.error,
                 style = MaterialTheme.typography.bodySmall
@@ -354,7 +354,7 @@ fun AddScooterBottomSheet(
                     contentColor = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant
                 )
             ) {
-                Text("Cancelar")
+                ZipStatsText("Cancelar")
             }
             androidx.compose.material3.Button(
                 onClick = {
@@ -367,7 +367,7 @@ fun AddScooterBottomSheet(
                 },
                 modifier = Modifier.weight(1f)
             ) {
-                Text("Guardar")
+                ZipStatsText("Guardar")
             }
         }
     }

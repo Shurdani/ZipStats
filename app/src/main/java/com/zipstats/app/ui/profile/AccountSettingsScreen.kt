@@ -64,7 +64,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
-import androidx.compose.material3.Text
+import com.zipstats.app.ui.components.ZipStatsText
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -222,8 +222,8 @@ fun AccountSettingsScreen(
     if (showLogoutDialog) {
         AlertDialog(
             onDismissRequest = { showLogoutDialog = false },
-            title = { Text("Cerrar sesión") },
-            text = { Text("¿Estás seguro de que quieres salir?") },
+            title = { ZipStatsText("Cerrar sesión") },
+            text = { ZipStatsText("¿Estás seguro de que quieres salir?") },
             confirmButton = {
                 DialogDeleteButton(
                     text = "Cerrar sesión",
@@ -253,7 +253,7 @@ fun AccountSettingsScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    Text(
+                    ZipStatsText(
                         "Ajustes",
                         fontWeight = FontWeight.Bold
                     )
@@ -281,7 +281,7 @@ fun AccountSettingsScreen(
         ) {
             // 1. SECCIÓN APARIENCIA (Tema)
             SettingsSection(title = "Apariencia") {
-                Text(
+                ZipStatsText(
                     text = "Tema",
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -371,9 +371,9 @@ fun AccountSettingsScreen(
                         ) {
                             Column {
                                 ListItem(
-                                    headlineContent = { Text("Paleta de colores") },
+                                    headlineContent = { ZipStatsText("Paleta de colores") },
                                     supportingContent = {
-                                        Text(
+                                        ZipStatsText(
                                             if (dynamicColorEnabled && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S)
                                                 "Dinámicos activados"
                                             else
@@ -434,8 +434,8 @@ fun AccountSettingsScreen(
                     val permissionsClickInteractionSource = remember { MutableInteractionSource() }
                     Column {
                         ListItem(
-                            headlineContent = { Text("Permisos de la app") },
-                            supportingContent = { Text("Gestionar acceso a ubicación, cámara...") },
+                            headlineContent = { ZipStatsText("Permisos de la app") },
+                            supportingContent = { ZipStatsText("Gestionar acceso a ubicación, cámara...") },
                             leadingContent = { Icon(Icons.Default.Security, null, tint = MaterialTheme.colorScheme.primary) },
                             trailingContent = {
                                 Icon(
@@ -461,9 +461,9 @@ fun AccountSettingsScreen(
                                     val permissionItemClickInteractionSource = remember { MutableInteractionSource() }
                                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
                                     ListItem(
-                                        headlineContent = { Text(getPermissionDisplayName(permission.permission)) },
+                                        headlineContent = { ZipStatsText(getPermissionDisplayName(permission.permission)) },
                                         supportingContent = {
-                                            Text(
+                                            ZipStatsText(
                                                 text = if (permissionStates[permission.permission] == true) "Permitido" else "Denegado",
                                                 color = if (permissionStates[permission.permission] == true) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
                                             )
@@ -545,7 +545,7 @@ fun AccountSettingsScreen(
 @Composable
 fun SettingsSection(title: String, content: @Composable () -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(
+        ZipStatsText(
             text = title,
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
@@ -586,7 +586,7 @@ fun ThemeOptionCard(
                 else MaterialTheme.colorScheme.onSurfaceVariant
             )
             Spacer(modifier = Modifier.height(8.dp))
-            Text(
+            ZipStatsText(
                 text = text,
                 style = MaterialTheme.typography.labelMedium,
                 fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
@@ -607,8 +607,8 @@ fun SettingsSwitchItem(
     enabled: Boolean = true
 ) {
     ListItem(
-        headlineContent = { Text(title) },
-        supportingContent = subtitle?.let { { Text(it) } },
+        headlineContent = { ZipStatsText(title) },
+        supportingContent = subtitle?.let { { ZipStatsText(it) } },
         leadingContent = {
             Icon(
                 imageVector = icon,
@@ -644,7 +644,7 @@ fun SettingsActionItem(
     val actionClickInteractionSource = remember { MutableInteractionSource() }
     ListItem(
         headlineContent = {
-            Text(
+            ZipStatsText(
                 text = title,
                 color = textColor,
                 fontWeight = if (textColor != MaterialTheme.colorScheme.onSurface) FontWeight.Bold else FontWeight.Normal
@@ -685,12 +685,12 @@ private fun EditNameDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Editar nombre") },
+        title = { ZipStatsText("Editar nombre") },
         text = {
             OutlinedTextField(
                 value = name,
                 onValueChange = { name = it },
-                label = { Text("Nombre") },
+                label = { ZipStatsText("Nombre") },
                 singleLine = true
             )
         },
@@ -719,13 +719,13 @@ private fun ChangePasswordDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Cambiar contraseña") },
+        title = { ZipStatsText("Cambiar contraseña") },
         text = {
             Column {
                 OutlinedTextField(
                     value = currentPassword,
                     onValueChange = { currentPassword = it },
-                    label = { Text("Contraseña actual") },
+                    label = { ZipStatsText("Contraseña actual") },
                     visualTransformation = PasswordVisualTransformation(),
                     singleLine = true
                 )
@@ -733,7 +733,7 @@ private fun ChangePasswordDialog(
                 OutlinedTextField(
                     value = newPassword,
                     onValueChange = { newPassword = it },
-                    label = { Text("Nueva contraseña") },
+                    label = { ZipStatsText("Nueva contraseña") },
                     visualTransformation = PasswordVisualTransformation(),
                     singleLine = true
                 )
@@ -741,7 +741,7 @@ private fun ChangePasswordDialog(
                 OutlinedTextField(
                     value = confirmPassword,
                     onValueChange = { confirmPassword = it },
-                    label = { Text("Confirmar contraseña") },
+                    label = { ZipStatsText("Confirmar contraseña") },
                     visualTransformation = PasswordVisualTransformation(),
                     singleLine = true
                 )
@@ -768,8 +768,8 @@ fun DeleteAccountDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Eliminar cuenta") },
-        text = { Text("¿Estás seguro de que quieres eliminar tu cuenta? Esta acción no se puede deshacer.") },
+        title = { ZipStatsText("Eliminar cuenta") },
+        text = { ZipStatsText("¿Estás seguro de que quieres eliminar tu cuenta? Esta acción no se puede deshacer.") },
         confirmButton = {
             DialogDeleteButton(text = "Eliminar", onClick = onConfirm)
         },
@@ -807,7 +807,7 @@ private fun ColorPaletteCard(
             modifier = Modifier.fillMaxWidth().padding(12.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text(
+            ZipStatsText(
                 text = theme.displayName,
                 style = MaterialTheme.typography.labelLarge,
                 fontWeight = if (selected && enabled) FontWeight.Bold else FontWeight.Medium,

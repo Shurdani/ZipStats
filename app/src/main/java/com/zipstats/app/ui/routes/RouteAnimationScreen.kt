@@ -32,20 +32,20 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -82,6 +82,7 @@ import com.zipstats.app.R
 import com.zipstats.app.map.RouteAnimator
 import com.zipstats.app.model.Route
 import com.zipstats.app.ui.components.RouteSummaryCard
+import com.zipstats.app.ui.components.ZipStatsText
 import com.zipstats.app.utils.CityUtils
 
 @Composable
@@ -286,8 +287,17 @@ fun RouteAnimationDialog(
         )
     ) {
         Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
+            // Medir altura de la card para padding dinámico de la cámara (no del mapa)
+            var cardHeightPx by remember { mutableStateOf(0) }
+            val density = LocalDensity.current
+            val bottomPadding = if (isRecording) 24.dp else 110.dp
+            val cardHeightDp = with(density) { 
+                if (cardHeightPx > 0) cardHeightPx.toDp() else 0.dp 
+            }
             
-            // 1. MAPA
+            /* =========================
+             * MAPA – FULLSCREEN REAL
+             * ========================= */
             AndroidView(
                 factory = { ctx ->
                     val mapView = LayoutInflater.from(ctx)
@@ -437,27 +447,27 @@ fun RouteAnimationDialog(
                 modifier = Modifier.fillMaxSize()
             )
             
-            // 2. BOTÓN CERRAR (Top Right) - Solo visible si NO grabamos
+            /* =========================
+             * BOTÓN CERRAR
+             * ========================= */
             if (!isRecording) {
-                Box(
+                IconButton(
+                    onClick = onDismiss,
                     modifier = Modifier
                         .align(Alignment.TopEnd)
                         .statusBarsPadding()
                         .padding(16.dp)
+                        .size(48.dp)
+                        .background(Color.Black.copy(alpha = 0.5f), CircleShape)
                         .zIndex(20f)
                 ) {
-                    IconButton(
-                        onClick = onDismiss, 
-                        modifier = Modifier
-                            .size(48.dp)
-                            .background(Color.Black.copy(alpha = 0.5f), CircleShape)
-                    ) {
-                        Icon(Icons.Default.Close, "Cerrar", tint = Color.White)
-                    }
+                    Icon(Icons.Default.Close, "Cerrar", tint = Color.White)
                 }
             }
             
-            // TARJETA DE RESUMEN DE RUTA (Siempre visible, cambia de posición según el estado de grabación)
+            /* =========================
+             * CARD FLOTANTE (OVERLAY)
+             * ========================= */
             val tituloRuta = remember(route) { CityUtils.getRouteTitleText(route) }
             val fechaFormateada = remember(route.startTime) {
                 val date = java.time.LocalDate.ofEpochDay(route.startTime / (1000 * 60 * 60 * 24))
@@ -475,13 +485,17 @@ fun RouteAnimationDialog(
                 route.weatherDescription?.substringBefore("(")?.trim()
             }
             
-            Column(
+            Box(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
                     .navigationBarsPadding()
-                    .padding(bottom = if (isRecording) 24.dp else 110.dp) // Si está grabando, pegada al borde; si no, encima de los botones
+                    .padding(bottom = bottomPadding)
                     .zIndex(10f)
+                    .onGloballyPositioned { coordinates ->
+                        cardHeightPx = coordinates.size.height
+                    },
+                contentAlignment = Alignment.Center
             ) {
                 RouteSummaryCard(
                     title = tituloRuta,
@@ -495,6 +509,18 @@ fun RouteAnimationDialog(
                 )
             }
             
+            // Actualizar padding dinámico de la cámara cuando cambie la altura de la card
+            LaunchedEffect(cardHeightPx, bottomPadding) {
+                animator?.let {
+                    val cardHeightDpValue = with(density) { if (cardHeightPx > 0) cardHeightPx.toDp() else 0.dp }
+                    val totalPaddingDp = cardHeightDpValue + bottomPadding
+                    it.bottomPaddingDp = (totalPaddingDp.value * density.density).toDouble()
+                }
+            }
+            
+            /* =========================
+             * BARRA CINEMÁTICA
+             * ========================= */
             // 3. UI SUPERPUESTA (Solo visible si NO grabamos)
             if (!isRecording) {
                 // BARRA DE CONTROL CINEMÁTICA (Bottom)
@@ -522,20 +548,21 @@ fun RouteAnimationDialog(
                         // BOTÓN VELOCIDAD (Izquierda)
                         FloatingActionButton(
                             onClick = {
-                                // Guardar el estado de reproducción de la música antes de cambiar velocidad
-                                val wasPlaying = mediaPlayer?.isPlaying == true
+                                // Guardar el estado de reproducción ANTES de cambiar velocidad
+                                val wasPlaying = isPlaying && (mediaPlayer?.isPlaying == true)
                                 
                                 isSpeed2x = !isSpeed2x
                                 animator?.toggleSpeed()
                                 
-                                // Si la música estaba reproduciéndose, asegurarse de que continúe después de un pequeño delay
-                                // para dar tiempo a que la animación se reinicie
+                                // Mantener el estado de reproducción - no cambiar isPlaying
+                                // Solo asegurarse de que el MediaPlayer continúe si estaba reproduciéndose
                                 if (wasPlaying) {
+                                    // Pequeño delay para asegurar que la animación se reinicie completamente
                                     android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
                                         if (mediaPlayer != null && !mediaPlayer!!.isPlaying && isPlaying) {
                                             mediaPlayer?.start()
                                         }
-                                    }, 50) // Pequeño delay para asegurar que la animación se reinicie
+                                    }, 100) // Delay un poco mayor para asegurar estabilidad
                                 }
                             },
                             containerColor = if (isSpeed2x) MaterialTheme.colorScheme.primary else Color.White.copy(alpha = 0.2f),
@@ -543,7 +570,7 @@ fun RouteAnimationDialog(
                             modifier = Modifier.size(56.dp),
                             shape = CircleShape
                         ) {
-                            Text(
+                            ZipStatsText(
                                 text = if (isSpeed2x) "2x" else "1x",
                                 fontWeight = FontWeight.Bold
                             )

@@ -42,7 +42,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
+import com.zipstats.app.ui.components.ZipStatsText
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -124,7 +124,7 @@ fun ScooterDetailScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Detalles del Vehículo", fontWeight = FontWeight.Bold) },
+                title = { ZipStatsText("Detalles del Vehículo", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = { navController.navigateUp() }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Volver")
@@ -140,7 +140,7 @@ fun ScooterDetailScreen(
                         onDismissRequest = { showMenu = false }
                     ) {
                         DropdownMenuItem(
-                            text = { Text("Editar vehículo") },
+                            text = { ZipStatsText("Editar vehículo") },
                             leadingIcon = { Icon(Icons.Default.Edit, null) },
                             onClick = {
                                 showMenu = false
@@ -148,7 +148,7 @@ fun ScooterDetailScreen(
                             }
                         )
                         DropdownMenuItem(
-                            text = { Text("Eliminar vehículo", color = MaterialTheme.colorScheme.error) },
+                            text = { ZipStatsText("Eliminar vehículo", color = MaterialTheme.colorScheme.error) },
                             leadingIcon = { Icon(Icons.Default.Delete, null, tint = MaterialTheme.colorScheme.error) },
                             onClick = {
                                 showMenu = false
@@ -241,8 +241,8 @@ fun ScooterDetailScreen(
     if (showDeleteDialog) {
         AlertDialog(
             onDismissRequest = { if (!isDeleting) showDeleteDialog = false }, // Bloquear cierre si borra
-            title = { Text("Eliminar vehículo") },
-            text = { Text("¿Estás seguro? Se eliminará el vehículo y todo su historial de mantenimiento. Esta acción no se puede deshacer.") },
+            title = { ZipStatsText("Eliminar vehículo") },
+            text = { ZipStatsText("¿Estás seguro? Se eliminará el vehículo y todo su historial de mantenimiento. Esta acción no se puede deshacer.") },
             confirmButton = {
                 DialogDeleteButton(
                     text = if (isDeleting) "Borrando..." else "Eliminar",
@@ -318,7 +318,7 @@ fun VehicleHeroCard(
             Column {
                 // Cabecera - Nombre del vehículo con más espacio
                 Column(modifier = Modifier.fillMaxWidth()) {
-                    Text(
+                    ZipStatsText(
                         text = scooter.nombre,
                         style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.Bold,
@@ -331,7 +331,7 @@ fun VehicleHeroCard(
                         "Sin viajes registrados"
                     }
 
-                    Text(
+                    ZipStatsText(
                         text = lastTripText,
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f),
@@ -348,18 +348,17 @@ fun VehicleHeroCard(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
-                        Text(
+                        ZipStatsText(
                             text = "Kilometraje Total",
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f),
                             modifier = Modifier.padding(bottom = 4.dp)
                         )
-                        Text(
+                        ZipStatsText(
                             text = "${String.format("%.1f", scooter.kilometrajeActual ?: 0.0)} km",
                             style = MaterialTheme.typography.displaySmall,
                             fontWeight = FontWeight.ExtraBold,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer,
-                            letterSpacing = (-1).sp
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
                         )
                     }
 
@@ -429,7 +428,7 @@ fun UsageCircularIndicatorWithIcon(
             }
         }
         // Etiqueta de porcentaje debajo
-        Text(
+        ZipStatsText(
             text = "$displayValue%",
             style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.Bold,
@@ -463,7 +462,7 @@ fun UsageExplanationDialog(
                     modifier = Modifier.size(20.dp)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
-                Text(
+                ZipStatsText(
                     text = "Uso relativo",
                     fontWeight = FontWeight.Bold,
                     style = MaterialTheme.typography.titleMedium
@@ -471,7 +470,7 @@ fun UsageExplanationDialog(
             }
         },
         text = {
-            Text(
+            ZipStatsText(
                 text = "Este vehículo ($vehicleName) ha recorrido ${String.format("%.1f", vehicleKm)} km que representan un $usagePercentage% del total de $userName.",
                 style = MaterialTheme.typography.bodyMedium
             )
@@ -488,7 +487,7 @@ fun UsageExplanationDialog(
 @Composable
 fun VehicleSpecsSection(scooter: Scooter) {
     Column {
-        Text(
+        ZipStatsText(
             text = "Información Técnica",
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
@@ -546,12 +545,12 @@ fun SpecItem(icon: androidx.compose.ui.graphics.vector.ImageVector, label: Strin
             )
         }
         Spacer(modifier = Modifier.height(8.dp))
-        Text(
+        ZipStatsText(
             text = label,
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
         )
-        Text(
+        ZipStatsText(
             text = value,
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.SemiBold,
@@ -572,7 +571,7 @@ fun MaintenanceSection(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
+            ZipStatsText(
                 text = "Mantenimiento",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
@@ -620,13 +619,13 @@ fun MaintenanceSection(
 
                 Column(modifier = Modifier.weight(1f)) {
                     if (lastRepair != null) {
-                        Text(
+                        ZipStatsText(
                             text = "Última reparación",
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Spacer(modifier = Modifier.height(2.dp))
-                        Text(
+                        ZipStatsText(
                             text = lastRepair.description,
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
@@ -634,19 +633,19 @@ fun MaintenanceSection(
                             maxLines = 1
                         )
                         Spacer(modifier = Modifier.height(2.dp))
-                        Text(
+                        ZipStatsText(
                             text = "${DateUtils.formatForDisplay(lastRepair.date)} • ${String.format("%.0f", lastRepair.mileage ?: 0.0)} km",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.primary
                         )
                     } else {
-                        Text(
+                        ZipStatsText(
                             text = "Sin registros",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface
                         )
-                        Text(
+                        ZipStatsText(
                             text = "Toca para registrar mantenimiento",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -696,34 +695,34 @@ fun EditScooterDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Editar vehículo") },
+        title = { ZipStatsText("Editar vehículo") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 OutlinedTextField(
                     value = nombre,
                     onValueChange = { nombre = it },
-                    label = { Text("Nombre") },
+                    label = { ZipStatsText("Nombre") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
                 OutlinedTextField(
                     value = marca,
                     onValueChange = { marca = it },
-                    label = { Text("Marca") },
+                    label = { ZipStatsText("Marca") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
                 OutlinedTextField(
                     value = modelo,
                     onValueChange = { modelo = it },
-                    label = { Text("Modelo") },
+                    label = { ZipStatsText("Modelo") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
                 OutlinedTextField(
                     value = fechaTexto,
                     onValueChange = { },
-                    label = { Text("Fecha de compra") },
+                    label = { ZipStatsText("Fecha de compra") },
                     readOnly = true,
                     trailingIcon = {
                         IconButton(onClick = { showDatePicker = true }) {

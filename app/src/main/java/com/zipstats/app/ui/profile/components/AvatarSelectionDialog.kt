@@ -29,7 +29,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Text
+import com.zipstats.app.ui.components.ZipStatsText
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -73,7 +73,7 @@ fun AvatarSelectionDialog(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
+                ZipStatsText(
                     text = "Elegir Avatar",
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Bold
@@ -109,18 +109,18 @@ fun AvatarSelectionDialog(
                                     .background(MaterialTheme.colorScheme.surface),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Text(
+                                ZipStatsText(
                                     text = previewAvatar!!.emoji,
                                     style = MaterialTheme.typography.headlineMedium
                                 )
                             }
                             Column(modifier = Modifier.weight(1f)) {
-                                Text(
+                                ZipStatsText(
                                     text = previewAvatar!!.name,
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.Bold
                                 )
-                                Text(
+                                ZipStatsText(
                                     text = previewAvatar!!.category.displayName,
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
@@ -139,7 +139,7 @@ fun AvatarSelectionDialog(
                         showSuggestions = it.isEmpty()
                         selectedCategory = null
                     },
-                    placeholder = { Text("Buscar avatar...") },
+                    placeholder = { ZipStatsText("Buscar avatar...") },
                     leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true
@@ -148,7 +148,7 @@ fun AvatarSelectionDialog(
                 Spacer(modifier = Modifier.height(12.dp))
                 
                 // Título de sección
-                Text(
+                ZipStatsText(
                     text = when {
                         showSuggestions -> "✨ Sugerencias para ti"
                         searchQuery.isNotEmpty() -> "🔍 Resultados de búsqueda"
@@ -250,7 +250,7 @@ fun AvatarSelectionDialog(
                 }
                 
                 // Contador de avatares
-                Text(
+                ZipStatsText(
                     text = "${filteredAvatars.size} avatares disponibles",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
@@ -298,11 +298,11 @@ private fun CategoryChip(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            Text(
+            ZipStatsText(
                 text = category.icon,
                 style = MaterialTheme.typography.titleMedium
             )
-            Text(
+            ZipStatsText(
                 text = category.displayName,
                 style = MaterialTheme.typography.labelSmall,
                 maxLines = 1,
@@ -345,7 +345,7 @@ private fun AvatarItem(
             modifier = Modifier.fillMaxSize(),
             contentAlignment = Alignment.Center
         ) {
-            Text(
+            ZipStatsText(
                 text = avatar.emoji,
                 style = MaterialTheme.typography.headlineMedium
             )

@@ -70,27 +70,30 @@ fun RouteSummaryCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.Top
             ) {
-                Text(
+                ZipStatsText(
                     text = title,
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
                     color = androidx.compose.ui.graphics.Color.White,
                     modifier = Modifier.weight(1f).padding(end = 8.dp),
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
+                    maxLines = 1
                 )
 
-                Text(
+                ZipStatsText(
                     text = "ZipStats",
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
                     color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.9f),
-                    modifier = Modifier.padding(top = 2.dp)
+                    modifier = Modifier.padding(top = 2.dp),
+                    maxLines = 1
                 )
             }
 
-            Text(
+            ZipStatsText(
                 text = subtitle,
                 style = MaterialTheme.typography.bodyMedium,
-                color = androidx.compose.ui.graphics.Color.LightGray
+                color = androidx.compose.ui.graphics.Color.LightGray,
+                maxLines = 1
             )
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -137,18 +140,21 @@ fun RouteSummaryCard(
                         )
                         Spacer(modifier = Modifier.width(12.dp))
 
-                        Text(
+                        ZipStatsText(
                             text = "${String.format("%.0f", temperature.toFloat())}°C",
-                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                            color = androidx.compose.ui.graphics.Color.White
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = androidx.compose.ui.graphics.Color.White,
+                            maxLines = 1
                         )
 
                         Spacer(modifier = Modifier.width(8.dp))
 
-                        Text(
+                        ZipStatsText(
                             text = weatherText,
                             style = MaterialTheme.typography.bodyMedium,
-                            color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.9f)
+                            color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.9f),
+                            maxLines = 1
                         )
                     }
                 }
@@ -159,7 +165,10 @@ fun RouteSummaryCard(
 
 @Composable
 private fun StatItemModern(icon: ImageVector, value: String, label: String) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.fillMaxWidth()
+    ) {
         Icon(
             imageVector = icon,
             contentDescription = null,
@@ -167,18 +176,18 @@ private fun StatItemModern(icon: ImageVector, value: String, label: String) {
             modifier = Modifier.size(22.dp)
         )
         Spacer(modifier = Modifier.height(4.dp))
-        Text(
+        ZipStatsText(
             text = value,
-            style = MaterialTheme.typography.titleMedium.copy(
-                fontWeight = FontWeight.Bold,
-                fontFeatureSettings = "tnum"
-            ),
-            color = androidx.compose.ui.graphics.Color.White
+            style = MaterialTheme.typography.bodyLarge,
+            fontWeight = FontWeight.Medium,
+            color = androidx.compose.ui.graphics.Color.White,
+            maxLines = 1
         )
-        Text(
+        ZipStatsText(
             text = label,
             style = MaterialTheme.typography.labelSmall,
-            color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.9f)
+            color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.9f),
+            maxLines = 1
         )
     }
 }

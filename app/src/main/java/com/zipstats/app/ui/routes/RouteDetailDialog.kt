@@ -52,7 +52,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
+import com.zipstats.app.ui.components.ZipStatsText
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -63,7 +63,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -410,10 +412,17 @@ private fun FullscreenMapDialog(
             usePlatformDefaultWidth = false
         )
     ) {
+        // Medir altura de la card para padding dinámico del mapa
+        var cardHeight by remember { mutableStateOf(0) }
+        val density = LocalDensity.current
+        val cardHeightDp = with(density) { cardHeight.toDp() }
+        
         Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
             CapturableMapView(
                 route = route,
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(bottom = cardHeightDp + 24.dp),
                 onSnapshotHandlerReady = onSnapshotHandlerReady,
                 onMapReady = { mapView ->
                     onMapReady?.invoke(mapView)
@@ -454,6 +463,9 @@ private fun FullscreenMapDialog(
                     .align(Alignment.BottomCenter)
                     .navigationBarsPadding()
                     .padding(bottom = 24.dp)
+                    .onGloballyPositioned { coordinates ->
+                        cardHeight = coordinates.size.height
+                    }
             )
         }
     }
@@ -518,13 +530,13 @@ private fun CompactHeader(route: Route, vehicleIconRes: Int, vehicleName: String
             tint = MaterialTheme.colorScheme.primary,
             modifier = Modifier.size(28.dp).padding(end = 6.dp)
         )
-        Text(
+        ZipStatsText(
             text = vehicleName,
             style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.primary
         )
-        Text(
+        ZipStatsText(
             text = " · ",
             style = MaterialTheme.typography.titleLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -536,7 +548,7 @@ private fun CompactHeader(route: Route, vehicleIconRes: Int, vehicleName: String
             tint = MaterialTheme.colorScheme.onSurfaceVariant
         )
         Spacer(modifier = Modifier.width(4.dp))
-        Text(
+        ZipStatsText(
             text = DateUtils.formatForDisplay(
                 java.time.LocalDate.ofEpochDay(route.startTime / (1000 * 60 * 60 * 24))
             ),
@@ -550,7 +562,7 @@ private fun CompactHeader(route: Route, vehicleIconRes: Int, vehicleName: String
 private fun RouteTitle(route: Route) {
     val title: String = CityUtils.getRouteTitleText(route)
 
-    Text(
+    ZipStatsText(
         text = title,
         style = MaterialTheme.typography.bodyLarge,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -621,20 +633,36 @@ private fun StatChip(value: String, label: String, iconRes: Int? = null, modifie
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 12.dp)
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center
+            ) {
                 if (iconRes != null) {
                     Image(
                         painter = painterResource(id = iconRes),
                         contentDescription = null,
-                        modifier = Modifier.size(24.dp).padding(end = 6.dp),
+                        modifier = Modifier.size(20.dp).padding(end = 4.dp),
                         colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.onPrimaryContainer)
                     )
                 }
-                Text(text = value, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                ZipStatsText(
+                    text = value,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    maxLines = 1
+                )
             }
-            Text(text = label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f))
+            ZipStatsText(
+                text = label,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f),
+                maxLines = 1
+            )
         }
     }
 }
@@ -660,7 +688,7 @@ private fun CollapsibleAdvancedDetails(route: Route, expanded: Boolean, onToggle
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(imageVector = Icons.Default.Analytics, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text(text = "Ver más detalles", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    ZipStatsText(text = "Ver más detalles", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 }
                 Icon(imageVector = if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore, contentDescription = null)
             }
@@ -674,7 +702,7 @@ private fun CollapsibleAdvancedDetails(route: Route, expanded: Boolean, onToggle
                     Spacer(modifier = Modifier.height(8.dp))
                     AdvancedStatRow("Velocidad Media", String.format("%.1f km/h", route.averageSpeed), false)
                     Spacer(modifier = Modifier.height(8.dp))
-                    AdvancedStatRow("Tiempo en Movimiento (${String.format("%.0f%%", route.movingPercentage)})", formatDuration(route.movingTime), false)
+                    AdvancedStatRow("En Movimiento (${String.format("%.0f%%", route.movingPercentage)})", formatDuration(route.movingTime), false)
                     Spacer(modifier = Modifier.height(8.dp))
                     AdvancedStatRow("Hora de Inicio", formatTime(route.startTime), false)
                     Spacer(modifier = Modifier.height(8.dp))
@@ -687,13 +715,24 @@ private fun CollapsibleAdvancedDetails(route: Route, expanded: Boolean, onToggle
 
 @Composable
 private fun AdvancedStatRow(label: String, value: String, highlight: Boolean) {
-    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-        Text(text = label, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Text(
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        ZipStatsText(
+            text = label,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1
+        )
+        ZipStatsText(
             text = value,
             style = if (highlight) MaterialTheme.typography.titleLarge else MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
-            color = if (highlight) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+            color = if (highlight) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+            maxLines = 1,
+            textAlign = TextAlign.End
         )
     }
 }
@@ -721,9 +760,9 @@ private fun WeatherInfoDialog(route: Route, onDismiss: () -> Unit) {
                     colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.primary)
                 )
                 Spacer(modifier = Modifier.height(16.dp))
-                Text(text = route.weatherDescription?.substringBefore("(")?.trim() ?: "Detalles del Clima", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
+                ZipStatsText(text = route.weatherDescription?.substringBefore("(")?.trim() ?: "Detalles del Clima", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
                 Spacer(modifier = Modifier.height(8.dp))
-                Text(text = "${String.format("%.1f", route.weatherTemperature)}°C", style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                ZipStatsText(text = "${String.format("%.1f", route.weatherTemperature)}°C", style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                 Spacer(modifier = Modifier.height(24.dp))
                 Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                     route.weatherFeelsLike?.let { WeatherDetailRow(Icons.Default.Thermostat, "Sensación térmica", "${String.format("%.1f", it)}°C") }
@@ -734,9 +773,103 @@ private fun WeatherInfoDialog(route: Route, onDismiss: () -> Unit) {
                     if (route.weatherIsDay && route.weatherUvIndex != null && route.weatherUvIndex > 0) {
                         WeatherDetailRow(Icons.Default.WbSunny, "Índice UV", String.format("%.0f", route.weatherUvIndex))
                     }
+                    
+                    // Badges de seguridad y condiciones (justo después de la última línea)
+                    val hasWetRoad = checkWetRoadConditions(route)
+                    val hasExtremeConditions = checkExtremeConditions(route)
+                    
+                    if (hasWetRoad || hasExtremeConditions) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            if (hasWetRoad) {
+                                // Badge de calzada mojada (solo si NO llovió durante la ruta)
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = MaterialTheme.colorScheme.errorContainer,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    ZipStatsText(
+                                        text = "🟡 Calzada mojada",
+                                        style = MaterialTheme.typography.labelLarge,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onErrorContainer,
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                        textAlign = TextAlign.Center
+                                    )
+                                }
+                            }
+                            
+                            if (hasExtremeConditions) {
+                                // Badge de condiciones extremas
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = MaterialTheme.colorScheme.errorContainer,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    ZipStatsText(
+                                        text = "⚠️ Condiciones extremas",
+                                        style = MaterialTheme.typography.labelLarge,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onErrorContainer,
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                        textAlign = TextAlign.Center
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    
+                    // Mostrar información de lluvia detectada durante la ruta (justo después de la última línea o badges)
+                    if (route.weatherHadRain == true) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            // Badge de seguridad
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = MaterialTheme.colorScheme.tertiaryContainer,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                ZipStatsText(
+                                    text = "🔵 Ruta realizada con lluvia",
+                                    style = MaterialTheme.typography.labelLarge,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onTertiaryContainer,
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                    textAlign = TextAlign.Center
+                                )
+                            }
+                            
+                            ZipStatsText(
+                                text = "Lluvia detectada durante la ruta",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            route.weatherRainStartMinute?.let { minute ->
+                                ZipStatsText(
+                                    text = "Desde el minuto $minute",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            route.weatherMaxPrecipitation?.let { maxPrecip ->
+                                if (maxPrecip > 0.0) {
+                                    ZipStatsText(
+                                        text = "Precipitación máxima: ${String.format("%.1f", maxPrecip)} mm",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
                 Spacer(modifier = Modifier.height(24.dp))
-                Button(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) { Text("Cerrar") }
+                Button(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) { ZipStatsText("Cerrar") }
             }
         }
     }
@@ -747,9 +880,99 @@ private fun WeatherDetailRow(icon: ImageVector, label: String, value: String) {
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
         Icon(imageVector = icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
         Spacer(modifier = Modifier.width(16.dp))
-        Text(text = label, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
-        Text(text = value, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold)
+        ZipStatsText(text = label, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+        ZipStatsText(text = value, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold)
     }
+}
+
+/**
+ * Verifica si hay condiciones de calzada mojada (SIN lluvia activa).
+ * Se usa para mostrar el aviso amarillo. Si llueve, se muestra el aviso de lluvia (azul/rosa) y este se oculta.
+ * Considera día/noche porque la evaporación cambia significativamente.
+ */
+private fun checkWetRoadConditions(route: Route): Boolean {
+    // 1. EXCLUSIÓN: Si llovió durante la ruta, NO mostramos "Calzada Mojada".
+    // ¿Por qué? Porque ya mostraremos el badge de "Ruta realizada con lluvia" que es más específico.
+    if (route.weatherHadRain == true) {
+        return false
+    }
+    
+    val isDay = route.weatherIsDay ?: true // Por defecto asumimos día si no está definido
+    
+    // 2. Calzada mojada considerando día/noche
+    // Día: humedad muy alta (>90%) o probabilidad alta (>40%) - suelo puede estar mojado pero seca más rápido
+    // Noche: humedad alta (>85%) es suficiente - el suelo tarda mucho más en secarse sin sol
+    if (route.weatherHumidity != null) {
+        if (isDay) {
+            // Día: necesita condiciones más extremas
+            if (route.weatherHumidity >= 90) {
+                return true
+            }
+            if (route.weatherRainProbability != null && route.weatherRainProbability > 40) {
+                return true
+            }
+        } else {
+            // Noche: con humedad alta el suelo tarda mucho en secarse
+            if (route.weatherHumidity >= 85) {
+                return true
+            }
+            if (route.weatherRainProbability != null && route.weatherRainProbability > 35) {
+                return true
+            }
+        }
+    }
+    
+    // 3. Si hay precipitación máxima registrada por la API pero no se detectó como "Lluvia activa"
+    // (Ej: Llovió justo antes de salir o llovizna muy fina que no activó el sensor de lluvia pero mojó el suelo)
+    if (route.weatherMaxPrecipitation != null && route.weatherMaxPrecipitation > 0.1) {
+        return true
+    }
+    
+    return false
+}
+
+/**
+ * Verifica si hay condiciones extremas durante la ruta
+ */
+private fun checkExtremeConditions(route: Route): Boolean {
+    // Viento fuerte (>40 km/h)
+    if (route.weatherWindSpeed != null && route.weatherWindSpeed > 40) {
+        return true
+    }
+    
+    // Ráfagas de viento muy fuertes (>60 km/h)
+    if (route.weatherWindGusts != null && route.weatherWindGusts > 60) {
+        return true
+    }
+    
+    // Temperatura extrema (<0°C o >35°C)
+    if (route.weatherTemperature != null) {
+        if (route.weatherTemperature < 0 || route.weatherTemperature > 35) {
+            return true
+        }
+    }
+    
+    // Índice UV muy alto (>8) - solo de día
+    if (route.weatherIsDay && route.weatherUvIndex != null && route.weatherUvIndex > 8) {
+        return true
+    }
+    
+    // Tormenta (detectada por emoji o descripción)
+    val isStorm = route.weatherEmoji?.let { emoji ->
+        emoji.contains("⛈") || emoji.contains("⚡")
+    } ?: false
+    
+    val isStormByDescription = route.weatherDescription?.let { desc ->
+        desc.contains("Tormenta", ignoreCase = true) ||
+        desc.contains("granizo", ignoreCase = true) ||
+        desc.contains("rayo", ignoreCase = true)
+    } ?: false
+    
+    if (isStorm || isStormByDescription) {
+        return true
+    }
+    
+    return false
 }
 
 // La lógica de compartir se ha movido a ShareUtils.kt

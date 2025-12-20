@@ -23,7 +23,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -33,6 +32,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.zipstats.app.model.Avatars
+import com.zipstats.app.ui.components.ZipStatsText
 
 @Composable
 fun AvatarPreview(
@@ -53,7 +53,7 @@ fun AvatarPreview(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Text(
+            ZipStatsText(
                 text = "Foto de Perfil",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold
@@ -89,13 +89,13 @@ fun AvatarPreview(
                             )
                         }
                         !avatarEmoji.isNullOrEmpty() -> {
-                            Text(
+                            ZipStatsText(
                                 text = avatarEmoji,
                                 style = MaterialTheme.typography.headlineLarge
                             )
                         }
                         else -> {
-                            Text(
+                            ZipStatsText(
                                 text = "👤",
                                 style = MaterialTheme.typography.headlineLarge
                             )
@@ -107,12 +107,12 @@ fun AvatarPreview(
                 Column(
                     modifier = Modifier.weight(1f)
                 ) {
-                    Text(
+                    ZipStatsText(
                         text = userName,
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold
                     )
-                    Text(
+                    ZipStatsText(
                         text = when {
                             !photoUrl.isNullOrEmpty() -> "Foto personalizada"
                             !avatarEmoji.isNullOrEmpty() -> "Avatar: ${getAvatarName(avatarEmoji)}"
@@ -141,7 +141,7 @@ fun AvatarPreview(
             Column(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Text(
+                ZipStatsText(
                     text = "Cambiar foto:",
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.Medium
@@ -162,7 +162,7 @@ fun AvatarPreview(
                             modifier = Modifier.size(16.dp)
                         )
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text("Cámara")
+                        ZipStatsText("Cámara")
                     }
                     
                     // Botón de galería
@@ -176,7 +176,7 @@ fun AvatarPreview(
                             modifier = Modifier.size(16.dp)
                         )
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text("Galería")
+                        ZipStatsText("Galería")
                     }
                 }
                 
@@ -185,7 +185,7 @@ fun AvatarPreview(
                     onClick = onSelectAvatar,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("Elegir Avatar")
+                    ZipStatsText("Elegir Avatar")
                 }
             }
         }

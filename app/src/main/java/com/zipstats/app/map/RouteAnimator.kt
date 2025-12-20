@@ -18,7 +18,8 @@ class RouteAnimator(
 ) {
 
     var isFollowingCamera: Boolean = true
-    var animationSpeedFactor = 2.0 // Velocidad por defecto 2x para rutas largas 
+    var animationSpeedFactor = 2.0 // Velocidad por defecto 2x para rutas largas
+    var bottomPaddingDp: Double = 300.0 // Padding inferior dinámico para la cámara (en dp, se convierte a píxeles) 
     
     private var animator: ValueAnimator? = null
     private val interpolator = LinearInterpolator()
@@ -46,9 +47,9 @@ class RouteAnimator(
         distances
     }
 
-    fun startAnimation(startFromIndex: Float = 0f) {
+    fun startAnimation(startFromIndex: Float = 0f, skipCallbacks: Boolean = false) {
         if (route.size < 2) return
-        stopAnimation(resetIndex = false) // Paramos, pero no reseteamos el índice manual
+        stopAnimation(resetIndex = false, skipCallbacks = skipCallbacks) // Paramos, pero no reseteamos el índice manual
 
         this.currentIndex = startFromIndex
 
@@ -169,9 +170,57 @@ class RouteAnimator(
         // Alternar entre 2x (velocidad base) y 4x (velocidad doble)
         // Desde la perspectiva del usuario: "1x" (2x real) <-> "2x" (4x real)
         animationSpeedFactor = if (animationSpeedFactor == 2.0) 4.0 else 2.0
+        
         // Reiniciar desde el punto actual con la nueva velocidad
+        // Capturamos la distancia actual antes de cancelar para evitar saltos
         if (animator?.isRunning == true) {
-            startAnimation(startFromIndex = currentIndex)
+            // Obtener la distancia actual del animator antes de cancelarlo
+            val currentAnimator = animator
+            val currentDistance = if (currentAnimator != null && currentAnimator.isRunning) {
+                try {
+                    (currentAnimator.animatedValue as? Float)?.toDouble() ?: run {
+                        // Fallback: calcular desde currentIndex
+                        val i = currentIndex.toInt()
+                        val t = currentIndex - i
+                        if (i < cumulativeDistances.size - 1) {
+                            val segmentStart = cumulativeDistances[i]
+                            val segmentEnd = cumulativeDistances[i + 1]
+                            segmentStart + (segmentEnd - segmentStart) * t
+                        } else {
+                            cumulativeDistances.last()
+                        }
+                    }
+                } catch (e: Exception) {
+                    // Fallback: calcular desde currentIndex
+                    val i = currentIndex.toInt()
+                    val t = currentIndex - i
+                    if (i < cumulativeDistances.size - 1) {
+                        val segmentStart = cumulativeDistances[i]
+                        val segmentEnd = cumulativeDistances[i + 1]
+                        segmentStart + (segmentEnd - segmentStart) * t
+                    } else {
+                        cumulativeDistances.last()
+                    }
+                }
+            } else {
+                // Si no está corriendo, calcular desde currentIndex
+                val i = currentIndex.toInt()
+                val t = currentIndex - i
+                if (i < cumulativeDistances.size - 1) {
+                    val segmentStart = cumulativeDistances[i]
+                    val segmentEnd = cumulativeDistances[i + 1]
+                    segmentStart + (segmentEnd - segmentStart) * t
+                } else {
+                    cumulativeDistances.last()
+                }
+            }
+            
+            // Encontrar el índice correspondiente a esta distancia para reiniciar sin salto
+            val segmentIndex = findSegmentIndex(currentDistance)
+            val preciseIndex = segmentIndex.first + segmentIndex.second
+            
+            // Reiniciar desde el índice preciso calculado, saltando callbacks para evitar efectos secundarios
+            startAnimation(startFromIndex = preciseIndex, skipCallbacks = true)
         }
     }
 
@@ -197,7 +246,13 @@ class RouteAnimator(
         startAnimation(startFromIndex = currentIndex)
     }
 
-    fun stopAnimation(resetIndex: Boolean = true) {
+    fun stopAnimation(resetIndex: Boolean = true, skipCallbacks: Boolean = false) {
+        val currentAnimator = animator
+        if (skipCallbacks && currentAnimator != null) {
+            // Remover listeners antes de cancelar para evitar callbacks no deseados
+            currentAnimator.removeAllListeners()
+            currentAnimator.removeAllUpdateListeners()
+        }
         animator?.cancel()
         animator = null
         if (resetIndex) currentIndex = 0f
@@ -270,7 +325,7 @@ class RouteAnimator(
             .bearing(bearing)
             .pitch(55.0) // Vista Relive
             .zoom(finalZoom)
-            .padding(com.mapbox.maps.EdgeInsets(0.0, 100.0, 300.0, 0.0))
+            .padding(com.mapbox.maps.EdgeInsets(0.0, 100.0, bottomPaddingDp, 0.0)) // Padding dinámico inferior
             .build()
         
         // 3) Animación instantánea pero suave (sin easeTo agresivo)

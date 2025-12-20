@@ -40,6 +40,8 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CloudOff
+import androidx.compose.material.icons.filled.WaterDrop
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.GpsFixed
 import androidx.compose.material.icons.filled.LocationOff
 import androidx.compose.material.icons.filled.LocationOn
@@ -66,7 +68,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
+import com.zipstats.app.ui.components.ZipStatsText
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -167,6 +169,8 @@ fun TrackingScreen(
     val weatherStatus by viewModel.weatherStatus.collectAsState()
     val gpsPreLocationState by viewModel.gpsPreLocationState.collectAsState()
     val hasValidGpsSignal = remember(gpsPreLocationState) { viewModel.hasValidGpsSignal() }
+    val shouldShowRainWarning by viewModel.shouldShowRainWarning.collectAsState()
+    val isActiveRainWarning by viewModel.isActiveRainWarning.collectAsState()
 
     var showScooterPicker by remember { mutableStateOf(false) }
     var showFinishDialog by remember { mutableStateOf(false) }
@@ -243,7 +247,7 @@ fun TrackingScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    Text(
+                    ZipStatsText(
                         "Seguimiento GPS",
                         fontWeight = FontWeight.Bold
                     )
@@ -291,8 +295,12 @@ fun TrackingScreen(
                         scooters = scooters,
                         gpsPreLocationState = gpsPreLocationState,
                         hasValidGpsSignal = hasValidGpsSignal,
+                        weatherStatus = weatherStatus,
+                        shouldShowRainWarning = shouldShowRainWarning,
+                        isActiveRainWarning = isActiveRainWarning,
                         onScooterClick = { showScooterPicker = true },
-                        onStartTracking = { viewModel.startTracking() }
+                        onStartTracking = { viewModel.startTracking() },
+                        onDismissRainWarning = { viewModel.dismissRainWarning() }
                     )
                 }
                 else -> {
@@ -381,13 +389,13 @@ fun PermissionRequestCard(onRequestPermissions: () -> Unit) {
                 tint = MaterialTheme.colorScheme.onErrorContainer
             )
             Spacer(modifier = Modifier.height(16.dp))
-            Text(
+            ZipStatsText(
                 text = "Permisos requeridos",
                 style = MaterialTheme.typography.titleLarge,
                 color = MaterialTheme.colorScheme.onErrorContainer
             )
             Spacer(modifier = Modifier.height(8.dp))
-            Text(
+            ZipStatsText(
                 text = "Para grabar rutas GPS, necesitamos:\n• Acceso a tu ubicación\n• Mostrar notificación persistente\n\nVe a Configuración > Aplicaciones > ZipStats > Permisos para activarlos.",
                 style = MaterialTheme.typography.bodyMedium,
                 textAlign = TextAlign.Center,
@@ -398,7 +406,7 @@ fun PermissionRequestCard(onRequestPermissions: () -> Unit) {
                 onClick = onRequestPermissions,
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
             ) {
-                Text("Abrir configuración")
+                ZipStatsText("Abrir configuración")
             }
         }
     }
@@ -410,8 +418,12 @@ fun IdleStateContent(
     scooters: List<Scooter>,
     gpsPreLocationState: TrackingViewModel.GpsPreLocationState,
     hasValidGpsSignal: Boolean,
+    weatherStatus: WeatherStatus,
+    shouldShowRainWarning: Boolean,
+    isActiveRainWarning: Boolean,
     onScooterClick: () -> Unit,
-    onStartTracking: () -> Unit
+    onStartTracking: () -> Unit,
+    onDismissRainWarning: () -> Unit
 ) {
     Column(
         modifier = Modifier.fillMaxWidth().padding(top = 32.dp),
@@ -425,7 +437,7 @@ fun IdleStateContent(
 
         Spacer(modifier = Modifier.height(32.dp))
 
-        Text(
+        ZipStatsText(
             text = "Listo para grabar tu ruta",
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.Bold,
@@ -480,18 +492,18 @@ fun IdleStateContent(
                 Spacer(modifier = Modifier.width(16.dp))
 
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(
+                    ZipStatsText(
                         text = "Vehículo seleccionado",
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    Text(
+                    ZipStatsText(
                         text = selectedScooter?.nombre ?: "Seleccionar...",
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold
                     )
                     if (selectedScooter != null) {
-                        Text(
+                        ZipStatsText(
                             text = selectedScooter.modelo,
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -508,6 +520,95 @@ fun IdleStateContent(
         }
 
         Spacer(modifier = Modifier.height(32.dp))
+        
+        // Aviso preventivo de lluvia (dinámico según tipo)
+        AnimatedVisibility(
+            visible = shouldShowRainWarning,
+            enter = fadeIn() + expandVertically(),
+            exit = fadeOut() + shrinkVertically()
+        ) {
+            // Determinar tipo de aviso y configuración visual
+            val containerColor = if (isActiveRainWarning) {
+                // CASO A: LLUVIA ACTIVA - Usar tertiaryContainer para diferenciarlo del aviso de calzada mojada
+                MaterialTheme.colorScheme.tertiaryContainer
+            } else {
+                // CASO B: CALZADA MOJADA (sin lluvia activa)
+                MaterialTheme.colorScheme.errorContainer
+            }
+            
+            val contentColor = if (isActiveRainWarning) {
+                MaterialTheme.colorScheme.onTertiaryContainer
+            } else {
+                MaterialTheme.colorScheme.onErrorContainer
+            }
+            
+            val icon = if (isActiveRainWarning) {
+                Icons.Default.WaterDrop
+            } else {
+                Icons.Default.Warning
+            }
+            
+            val title = if (isActiveRainWarning) {
+                "Lluvia detectada"
+            } else {
+                "Precaución: Calzada mojada"
+            }
+            
+            val subtitle = if (isActiveRainWarning) {
+                "El pavimento está resbaladizo. Reduce la velocidad."
+            } else {
+                "Alta humedad o lluvia reciente detectada."
+            }
+            
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = containerColor,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 16.dp)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        modifier = Modifier.weight(1f),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = icon,
+                            contentDescription = null,
+                            tint = contentColor,
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            ZipStatsText(
+                                text = title,
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = contentColor
+                            )
+                            ZipStatsText(
+                                text = subtitle,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = contentColor.copy(alpha = 0.8f)
+                            )
+                        }
+                    }
+                    IconButton(onClick = onDismissRainWarning) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Cerrar",
+                            tint = contentColor
+                        )
+                    }
+                }
+            }
+        }
 
         Button(
             onClick = onStartTracking,
@@ -526,7 +627,7 @@ fun IdleStateContent(
                 modifier = Modifier.size(28.dp)
             )
             Spacer(modifier = Modifier.width(8.dp))
-            Text(
+            ZipStatsText(
                 text = if (hasValidGpsSignal) "INICIAR SEGUIMIENTO" else "ESPERANDO GPS...",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold
@@ -609,7 +710,7 @@ fun GpsPreLocationStatusText(gpsPreLocationState: TrackingViewModel.GpsPreLocati
         color = color.copy(alpha = 0.1f),
         shape = RoundedCornerShape(16.dp)
     ) {
-        Text(
+        ZipStatsText(
             text = text,
             style = MaterialTheme.typography.labelLarge,
             color = color,
@@ -720,15 +821,15 @@ fun TrackingActiveContent(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceEvenly
             ) {
-                Text("Cancelar", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
-                Text(if (isPaused) "Reanudar" else "Pausar", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
-                Text("Guardar", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
+                ZipStatsText("Cancelar", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
+                ZipStatsText(if (isPaused) "Reanudar" else "Pausar", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                ZipStatsText("Guardar", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
             }
 
         } else {
             CircularProgressIndicator()
             Spacer(modifier = Modifier.height(16.dp))
-            Text("Guardando ruta...", style = MaterialTheme.typography.bodyMedium)
+            ZipStatsText("Guardando ruta...", style = MaterialTheme.typography.bodyMedium)
         }
     }
 }
@@ -863,7 +964,7 @@ fun StatCard(
             Spacer(modifier = Modifier.height(8.dp))
 
             // --- AQUÍ ESTÁ EL CAMBIO ---
-            Text(
+            ZipStatsText(
                 text = value,
                 // Usamos el estilo del tema (que ya debería tener Montserrat)
                 // Y le inyectamos la configuración "tnum" (Tabular Numbers)
@@ -876,10 +977,11 @@ fun StatCard(
             )
             // ---------------------------
 
-            Text(
+            ZipStatsText(
                 text = title,
                 style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1
             )
         }
     }
@@ -915,7 +1017,7 @@ fun TrackingWeatherCard(
                     is WeatherStatus.Loading -> {
                         CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("Cargando clima...", style = MaterialTheme.typography.bodyMedium)
+                        ZipStatsText("Cargando clima...", style = MaterialTheme.typography.bodyMedium)
                     }
                     is WeatherStatus.Success -> {
                         // Nota: usamos el helper que acepta nulo para seguridad
@@ -926,7 +1028,7 @@ fun TrackingWeatherCard(
                             colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.onSurfaceVariant)
                         )
                         Spacer(modifier = Modifier.width(12.dp))
-                        Text(
+                        ZipStatsText(
                             text = "${String.format("%.0f", weatherStatus.temperature)}°C",
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold,
@@ -940,7 +1042,7 @@ fun TrackingWeatherCard(
 
                         val direction = convertWindDirectionToText(weatherStatus.windDirection)
 
-                        Text(
+                        ZipStatsText(
                             text = "${String.format("%.0f", weatherStatus.windSpeed)} km/h ($direction)",
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold,
@@ -950,7 +1052,7 @@ fun TrackingWeatherCard(
                     is WeatherStatus.Error -> {
                         Icon(Icons.Default.CloudOff, null, tint = MaterialTheme.colorScheme.error)
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("Sin datos de clima (Toca para reintentar)", style = MaterialTheme.typography.bodySmall)
+                        ZipStatsText("Sin datos de clima (Toca para reintentar)", style = MaterialTheme.typography.bodySmall)
                     }
                     else -> {}
                 }
@@ -968,7 +1070,7 @@ fun ScooterPickerDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Seleccionar vehículo") },
+        title = { ZipStatsText("Seleccionar vehículo") },
         text = {
             LazyColumn {
                 items(scooters) { scooter ->
@@ -999,11 +1101,11 @@ fun ScooterPickerDialog(
                             )
                             Spacer(modifier = Modifier.width(16.dp))
                             Column {
-                                Text(
+                                ZipStatsText(
                                     text = scooter.nombre,
                                     style = MaterialTheme.typography.titleMedium
                                 )
-                                Text(
+                                ZipStatsText(
                                     text = scooter.modelo,
                                     style = MaterialTheme.typography.bodySmall
                                 )
@@ -1035,17 +1137,17 @@ fun FinishRouteDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Finalizar ruta") },
+        title = { ZipStatsText("Finalizar ruta") },
         text = {
             Column {
-                Text("¿Deseas guardar esta ruta?")
+                ZipStatsText("¿Deseas guardar esta ruta?")
                 Spacer(modifier = Modifier.height(16.dp))
 
-                Text(
+                ZipStatsText(
                     text = "Distancia: ${LocationUtils.formatDistance(distance)}",
                     style = MaterialTheme.typography.bodyMedium
                 )
-                Text(
+                ZipStatsText(
                     text = "Duración: ${formatDuration(duration)}",
                     style = MaterialTheme.typography.bodyMedium
                 )
@@ -1061,7 +1163,7 @@ fun FinishRouteDialog(
                         onCheckedChange = { addToRecords = it }
                     )
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text(
+                    ZipStatsText(
                         text = "Añadir ${String.format("%.1f", distance)} km a registros",
                         style = MaterialTheme.typography.bodyMedium
                     )
@@ -1072,7 +1174,7 @@ fun FinishRouteDialog(
                 OutlinedTextField(
                     value = notes,
                     onValueChange = { notes = it },
-                    label = { Text("Título (opcional)") },
+                    label = { ZipStatsText("Título (opcional)") },
                     modifier = Modifier.fillMaxWidth(),
                     maxLines = 3
                 )
@@ -1101,8 +1203,8 @@ fun CancelRouteDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Cancelar seguimiento") },
-        text = { Text("¿Estás seguro? Se perderán todos los datos de la ruta.") },
+        title = { ZipStatsText("Cancelar seguimiento") },
+        text = { ZipStatsText("¿Estás seguro? Se perderán todos los datos de la ruta.") },
         confirmButton = {
             DialogDeleteButton(
                 text = "Cancelar ruta",

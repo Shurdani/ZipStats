@@ -22,7 +22,6 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -33,6 +32,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.zipstats.app.ui.components.ZipStatsText
 
 @Composable
 fun OnboardingDialog(
@@ -87,7 +87,7 @@ fun OnboardingDialog(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.Center
                 ) {
-                    Text(
+                    ZipStatsText(
                         text = "¡Bienvenido!",
                         style = MaterialTheme.typography.headlineSmall.copy(
                             fontWeight = FontWeight.Bold
@@ -107,7 +107,7 @@ fun OnboardingDialog(
                 Spacer(modifier = Modifier.height(16.dp))
 
                 // 3. TEXTO EXPLICATIVO
-                Text(
+                ZipStatsText(
                     text = "Para sacar el máximo partido a tus rutas, primero necesitamos saber qué conduces.",
                     style = MaterialTheme.typography.bodyLarge,
                     textAlign = TextAlign.Center,
@@ -116,7 +116,7 @@ fun OnboardingDialog(
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                Text(
+                ZipStatsText(
                     text = "Registra tu primer vehículo en segundos.",
                     style = MaterialTheme.typography.bodyMedium,
                     textAlign = TextAlign.Center,
@@ -137,7 +137,7 @@ fun OnboardingDialog(
                     ),
                     shape = RoundedCornerShape(12.dp) // Botón un poco menos redondo que la tarjeta
                 ) {
-                    Text(
+                    ZipStatsText(
                         text = "Registrar vehículo ahora",
                         style = MaterialTheme.typography.labelLarge.copy(
                             fontSize = 16.sp,
@@ -153,7 +153,7 @@ fun OnboardingDialog(
                     onClick = onDismiss,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text(
+                    ZipStatsText(
                         text = "Echar un vistazo primero",
                         style = MaterialTheme.typography.labelLarge,
                         color = MaterialTheme.colorScheme.outline

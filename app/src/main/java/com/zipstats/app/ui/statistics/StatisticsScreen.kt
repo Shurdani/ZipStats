@@ -47,7 +47,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Tab
-import androidx.compose.material3.Text
+import com.zipstats.app.ui.components.ZipStatsText
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -134,9 +134,9 @@ fun StatisticsScreen(
             TopAppBar(
                 title = {
                     Column {
-                        Text("Estadísticas", fontWeight = FontWeight.Bold)
+                        ZipStatsText("Estadísticas", fontWeight = FontWeight.Bold)
                         periodTitle?.let { title ->
-                            Text(
+                            ZipStatsText(
                                 text = title,
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
@@ -188,9 +188,10 @@ fun StatisticsScreen(
                     selected = selectedPeriod == 0,
                     onClick = { selectedPeriod = 0 },
                     text = {
-                        Text(
+                        ZipStatsText(
                             "Este Mes",
-                            fontWeight = if (selectedPeriod == 0) FontWeight.Bold else FontWeight.Normal
+                            fontWeight = if (selectedPeriod == 0) FontWeight.Bold else FontWeight.Normal,
+                            maxLines = 1
                         )
                     }
                 )
@@ -198,9 +199,10 @@ fun StatisticsScreen(
                     selected = selectedPeriod == 1,
                     onClick = { selectedPeriod = 1 },
                     text = {
-                        Text(
+                        ZipStatsText(
                             "Este Año",
-                            fontWeight = if (selectedPeriod == 1) FontWeight.Bold else FontWeight.Normal
+                            fontWeight = if (selectedPeriod == 1) FontWeight.Bold else FontWeight.Normal,
+                            maxLines = 1
                         )
                     }
                 )
@@ -208,9 +210,10 @@ fun StatisticsScreen(
                     selected = selectedPeriod == 2,
                     onClick = { selectedPeriod = 2 },
                     text = {
-                        Text(
+                        ZipStatsText(
                             "Todo",
-                            fontWeight = if (selectedPeriod == 2) FontWeight.Bold else FontWeight.Normal
+                            fontWeight = if (selectedPeriod == 2) FontWeight.Bold else FontWeight.Normal,
+                            maxLines = 1
                         )
                     }
                 )
@@ -351,7 +354,7 @@ fun StatisticsScreen(
                             modifier = Modifier.fillMaxSize(),
                             contentAlignment = Alignment.Center
                         ) {
-                            Text(
+                            ZipStatsText(
                                 text = (statistics as StatisticsUiState.Error).message,
                                 textAlign = TextAlign.Center
                             )
@@ -401,7 +404,7 @@ fun EcologicalImpactCardEnhanced(
                     modifier = Modifier.size(20.dp)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
-                Text(
+                ZipStatsText(
                     text = "Impacto Ecológico",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
@@ -414,22 +417,25 @@ fun EcologicalImpactCardEnhanced(
             // Los 3 Datos en Fila
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
+                horizontalArrangement = Arrangement.SpaceEvenly
             ) {
                 ImpactItem(
                     value = "$co2Saved",
                     unit = "kg CO₂",
-                    icon = Icons.Outlined.Cloud
+                    icon = Icons.Outlined.Cloud,
+                    modifier = Modifier.weight(1f)
                 )
                 ImpactItem(
                     value = "$treesEquivalent",
                     unit = "Árboles",
-                    icon = Icons.Outlined.Forest // O Park
+                    icon = Icons.Outlined.Forest, // O Park
+                    modifier = Modifier.weight(1f)
                 )
                 ImpactItem(
                     value = "$gasSaved",
                     unit = "L Gasolina",
-                    icon = Icons.Outlined.LocalGasStation
+                    icon = Icons.Outlined.LocalGasStation,
+                    modifier = Modifier.weight(1f)
                 )
             }
         }
@@ -440,11 +446,12 @@ fun EcologicalImpactCardEnhanced(
 fun ImpactItem(
     value: String,
     unit: String,
-    icon: ImageVector
+    icon: ImageVector,
+    modifier: Modifier = Modifier
 ) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.width(80.dp)
+        modifier = modifier
     ) {
         // Círculo decorativo para el icono
         Box(
@@ -467,21 +474,21 @@ fun ImpactItem(
         Spacer(modifier = Modifier.height(12.dp))
 
         // EL NÚMERO GRANDE
-        Text(
+        ZipStatsText(
             text = value,
             style = MaterialTheme.typography.headlineSmall, // Más grande
             fontWeight = FontWeight.ExtraBold,
-            color = MaterialTheme.colorScheme.onSurface
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 1
         )
 
         // La unidad pequeña
-        Text(
+        ZipStatsText(
             text = unit,
             style = MaterialTheme.typography.labelMedium, // Pequeño y legible
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
+            maxLines = 1
         )
     }
 }
@@ -511,7 +518,7 @@ fun SummaryStatsCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
+                ZipStatsText(
                     text = periodData.title,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
@@ -584,19 +591,17 @@ fun StatMetric(
             tint = MaterialTheme.colorScheme.primary,
             modifier = Modifier.size(24.dp)
         )
-        Text(
+        ZipStatsText(
             text = value + (if (unit.isNotEmpty()) " $unit" else ""),
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
+            maxLines = 1
         )
-        Text(
+        ZipStatsText(
             text = label,
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f),
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
+            maxLines = 1
         )
     }
 }
@@ -620,19 +625,17 @@ fun StatMetricWithDrawable(
             colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.primary),
             modifier = Modifier.size(24.dp)
         )
-        Text(
+        ZipStatsText(
             text = value + (if (unit.isNotEmpty()) " $unit" else ""),
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
+            maxLines = 1
         )
-        Text(
+        ZipStatsText(
             text = label,
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f),
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
+            maxLines = 1
         )
     }
 }
@@ -676,14 +679,14 @@ fun ComparisonCard(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Text(
+                ZipStatsText(
                     text = "Comparación con $comparisonText",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     color = contentColor
                 )
                 Spacer(modifier = Modifier.height(4.dp))
-                Text(
+                ZipStatsText(
                     text = if (comparison.isPositive) "Mejor rendimiento" else "Menos rendimiento",
                     style = MaterialTheme.typography.bodyMedium,
                     color = contentColor.copy(alpha = 0.8f)
@@ -697,7 +700,7 @@ fun ComparisonCard(
                     tint = iconColor,
                     modifier = Modifier.size(32.dp)
                 )
-                Text(
+                ZipStatsText(
                     text = "${if (comparison.isPositive) "+" else ""}${comparison.percentageChange.roundToInt()}%",
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Black, // Extra negrita
@@ -727,12 +730,12 @@ fun NextAchievementCard(
         ) {
             // Lado Izquierdo: Textos y Barra
             Column(modifier = Modifier.weight(1f)) {
-                Text(
+                ZipStatsText(
                     text = "Próximo Logro",
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.7f)
                 )
-                Text(
+                ZipStatsText(
                     text = nextAchievement.title, // Ej: "El Trotamundos"
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
@@ -758,12 +761,12 @@ fun NextAchievementCard(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Text(
+                    ZipStatsText(
                         text = "Objetivo: ${nextAchievement.requirementText}",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onTertiaryContainer
                     )
-                    Text(
+                    ZipStatsText(
                         text = "${(nextAchievement.progress * 100).roundToInt()}%",
                         style = MaterialTheme.typography.labelLarge,
                         fontWeight = FontWeight.Bold,
@@ -796,8 +799,8 @@ fun MonthYearPickerDialog(
     if (availableMonthYears.isEmpty()) {
         AlertDialog(
             onDismissRequest = onDismiss,
-            title = { Text("Sin datos") },
-            text = { Text("No hay registros disponibles para consultar.") },
+            title = { ZipStatsText("Sin datos") },
+            text = { ZipStatsText("No hay registros disponibles para consultar.") },
             confirmButton = {
                 DialogConfirmButton(
                     text = "Aceptar",
@@ -839,7 +842,7 @@ fun MonthYearPickerDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Seleccionar Período") },
+        title = { ZipStatsText("Seleccionar Período") },
         text = {
             Column(
                 modifier = Modifier.fillMaxWidth(),
@@ -858,7 +861,7 @@ fun MonthYearPickerDialog(
                         },
                         onValueChange = {},
                         readOnly = true,
-                        label = { Text("Tipo de período") },
+                        label = { ZipStatsText("Tipo de período") },
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = showModeDropdown) },
                         modifier = Modifier.fillMaxWidth().menuAnchor()
                     )
@@ -868,14 +871,14 @@ fun MonthYearPickerDialog(
                         onDismissRequest = { showModeDropdown = false }
                     ) {
                         DropdownMenuItem(
-                            text = { Text("Mes") },
+                            text = { ZipStatsText("Mes") },
                             onClick = {
                                 selectedMode = SelectionMode.Month
                                 showModeDropdown = false
                             }
                         )
                         DropdownMenuItem(
-                            text = { Text("Año") },
+                            text = { ZipStatsText("Año") },
                             onClick = {
                                 selectedMode = SelectionMode.Year
                                 showModeDropdown = false
@@ -893,7 +896,7 @@ fun MonthYearPickerDialog(
                             value = monthNames[selectedMonth - 1],
                             onValueChange = {},
                             readOnly = true,
-                            label = { Text("Mes") },
+                            label = { ZipStatsText("Mes") },
                             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = showMonthDropdown) },
                             modifier = Modifier.fillMaxWidth().menuAnchor()
                         )
@@ -904,7 +907,7 @@ fun MonthYearPickerDialog(
                         ) {
                             availableMonthsForYear.forEach { monthNumber ->
                                 DropdownMenuItem(
-                                    text = { Text(monthNames[monthNumber - 1]) },
+                                    text = { ZipStatsText(monthNames[monthNumber - 1]) },
                                     onClick = {
                                         selectedMonth = monthNumber
                                         showMonthDropdown = false
@@ -923,7 +926,7 @@ fun MonthYearPickerDialog(
                         value = selectedYear.toString(),
                         onValueChange = {},
                         readOnly = true,
-                        label = { Text("Año") },
+                        label = { ZipStatsText("Año") },
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = showYearDropdown) },
                         modifier = Modifier.fillMaxWidth().menuAnchor()
                     )
@@ -934,7 +937,7 @@ fun MonthYearPickerDialog(
                     ) {
                         availableYears.forEach { year ->
                             DropdownMenuItem(
-                                text = { Text(year.toString()) },
+                                text = { ZipStatsText(year.toString()) },
                                 onClick = {
                                     selectedYear = year
                                     showYearDropdown = false

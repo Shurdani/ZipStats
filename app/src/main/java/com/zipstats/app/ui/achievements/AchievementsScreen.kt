@@ -39,7 +39,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
+import com.zipstats.app.ui.components.ZipStatsText
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -113,7 +113,7 @@ fun AchievementsScreen(
         modifier = Modifier.fillMaxSize(),
         topBar = {
             TopAppBar(
-                title = { Text("Logros", fontWeight = FontWeight.Bold) },
+                title = { ZipStatsText("Logros", fontWeight = FontWeight.Bold) },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface, // Moderno (Surface)
                     titleContentColor = MaterialTheme.colorScheme.onSurface,
@@ -137,7 +137,7 @@ fun AchievementsScreen(
                     FilterChip(
                         selected = selectedLevel == null,
                         onClick = { selectedLevel = null },
-                        label = { Text("Todos") },
+                        label = { ZipStatsText("Todos", maxLines = 1) },
                         leadingIcon = if (selectedLevel == null) {
                             { Icon(Icons.Default.Check, null, modifier = Modifier.size(16.dp)) }
                         } else null
@@ -147,7 +147,7 @@ fun AchievementsScreen(
                     FilterChip(
                         selected = selectedLevel == AchievementLevel.NOVATO,
                         onClick = { selectedLevel = AchievementLevel.NOVATO },
-                        label = { Text("🔰 Novato") },
+                        label = { ZipStatsText("🔰 Novato", maxLines = 1) },
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer
                         )
@@ -157,7 +157,7 @@ fun AchievementsScreen(
                     FilterChip(
                         selected = selectedLevel == AchievementLevel.EXPLORADOR,
                         onClick = { selectedLevel = AchievementLevel.EXPLORADOR },
-                        label = { Text("🧭 Explorador") },
+                        label = { ZipStatsText("🧭 Explorador", maxLines = 1) },
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = MaterialTheme.colorScheme.tertiaryContainer
                         )
@@ -167,7 +167,7 @@ fun AchievementsScreen(
                     FilterChip(
                         selected = selectedLevel == AchievementLevel.MAESTRO,
                         onClick = { selectedLevel = AchievementLevel.MAESTRO },
-                        label = { Text("👑 Maestro") },
+                        label = { ZipStatsText("👑 Maestro", maxLines = 1) },
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = MaterialTheme.colorScheme.primaryContainer
                         )
@@ -199,7 +199,7 @@ fun AchievementsScreen(
                                     tint = MaterialTheme.colorScheme.surfaceVariant
                                 )
                                 Spacer(modifier = Modifier.height(16.dp))
-                                Text(
+                                ZipStatsText(
                                     text = "No hay logros en esta categoría",
                                     style = MaterialTheme.typography.bodyLarge,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -231,7 +231,7 @@ fun AchievementsScreen(
                 }
                 is AchievementsUiState.Error -> {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text(
+                        ZipStatsText(
                             text = (achievements as AchievementsUiState.Error).message,
                             color = MaterialTheme.colorScheme.error
                         )
@@ -393,14 +393,14 @@ private fun AchievementGridCard(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text(
+                ZipStatsText(
                     text = achievement.title,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     textAlign = TextAlign.Center,
                     color = textColor,
                     maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
+                    softWrap = true
                 )
                 Spacer(modifier = Modifier.height(4.dp))
 
@@ -421,13 +421,13 @@ private fun AchievementGridCard(
                 // Texto de progreso (Opcional, si quieres que se vea el %)
                 if (!isUnlocked) {
                     // FIX: Formatear a 1 decimal máximo para evitar números largos (ej: 58.1%)
-                    Text(
+                    ZipStatsText(
                         text = "${String.format("%.1f", achievement.progress)}%",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 } else {
-                    Text(
+                    ZipStatsText(
                         text = "Completado",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.primary,
@@ -472,7 +472,7 @@ fun AchievementDetailDialog(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 // Título Grande
-                Text(
+                ZipStatsText(
                     text = achievement.title,
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Bold,
@@ -512,7 +512,7 @@ fun AchievementDetailDialog(
                 Spacer(modifier = Modifier.height(24.dp))
 
                 // Descripción e Historia
-                Text(
+                ZipStatsText(
                     text = achievement.description,
                     style = MaterialTheme.typography.bodyLarge,
                     textAlign = TextAlign.Center,
@@ -524,13 +524,13 @@ fun AchievementDetailDialog(
                 // Estado / Progreso
                 if (!achievement.isUnlocked) {
                     // FIX: Formatear a 1 decimal máximo
-                    Text(
+                    ZipStatsText(
                         text = "Progreso: ${String.format("%.1f", achievement.progress)}%",
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.secondary
                     )
                 } else {
-                    Text(
+                    ZipStatsText(
                         text = "¡Conseguido! 🎉",
                         style = MaterialTheme.typography.labelLarge,
                         fontWeight = FontWeight.Bold,
@@ -546,7 +546,7 @@ fun AchievementDetailDialog(
                         onClick = onDismiss,
                         modifier = Modifier.weight(1f)
                     ) {
-                        Text("Cerrar")
+                        ZipStatsText("Cerrar")
                     }
 
                     Button(
@@ -556,7 +556,7 @@ fun AchievementDetailDialog(
                     ) {
                         Icon(Icons.Default.Share, null, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("Compartir")
+                        ZipStatsText("Compartir")
                     }
                 }
             }

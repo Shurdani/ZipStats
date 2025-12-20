@@ -19,7 +19,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -31,6 +30,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.zipstats.app.ui.components.ZipStatsText
 
 @Composable
 fun EmailVerificationScreen(
@@ -83,14 +83,14 @@ fun EmailVerificationScreen(
                 is AuthState.Loading -> {
                     CircularProgressIndicator()
                     Spacer(modifier = Modifier.height(16.dp))
-                    Text(
+                    ZipStatsText(
                         text = "Verificando...",
                         style = MaterialTheme.typography.bodyLarge
                     )
                 }
                 
                 AuthState.EmailVerificationSent -> {
-                    Text(
+                    ZipStatsText(
                         text = "Email de verificación enviado",
                         style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.Bold,
@@ -99,7 +99,7 @@ fun EmailVerificationScreen(
                     
                     Spacer(modifier = Modifier.height(8.dp))
                     
-                    Text(
+                    ZipStatsText(
                         text = "Enviado a: ${viewModel.getCurrentUserEmail() ?: "tu email"}",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.primary,
@@ -109,7 +109,7 @@ fun EmailVerificationScreen(
                     
                     Spacer(modifier = Modifier.height(16.dp))
                     
-                    Text(
+                    ZipStatsText(
                         text = "Hemos enviado un enlace de verificación a tu correo electrónico. " +
                                "Por favor, revisa tu bandeja de entrada y haz clic en el enlace para verificar tu cuenta.\n\n" +
                                "⚠️ Si no ves el email, revisa tu carpeta de SPAM o PROMOCIONES.",
@@ -133,27 +133,27 @@ fun EmailVerificationScreen(
                                 modifier = Modifier.size(18.dp)
                             )
                             Spacer(modifier = Modifier.size(8.dp))
-                            Text("Verificar de nuevo")
+                            ZipStatsText("Verificar de nuevo")
                         }
                         
                         OutlinedButton(
                             onClick = { viewModel.sendEmailVerification() },
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Text("Reenviar email de verificación")
+                            ZipStatsText("Reenviar email de verificación")
                         }
                         
                         TextButton(
                             onClick = onNavigateToLogin,
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Text("Volver al inicio de sesión")
+                            ZipStatsText("Volver al inicio de sesión")
                         }
                     }
                 }
                 
                 AuthState.EmailNotVerified -> {
-                    Text(
+                    ZipStatsText(
                         text = "Verifica tu correo electrónico",
                         style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.Bold,
@@ -162,7 +162,7 @@ fun EmailVerificationScreen(
                     
                     Spacer(modifier = Modifier.height(8.dp))
                     
-                    Text(
+                    ZipStatsText(
                         text = "Enviado a: ${viewModel.getCurrentUserEmail() ?: "tu email"}",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.primary,
@@ -172,7 +172,7 @@ fun EmailVerificationScreen(
                     
                     Spacer(modifier = Modifier.height(16.dp))
                     
-                    Text(
+                    ZipStatsText(
                         text = "Hemos enviado un enlace de verificación a tu correo electrónico. " +
                                "Por favor, revisa tu bandeja de entrada y haz clic en el enlace para verificar tu cuenta.\n\n" +
                                "⚠️ Si no ves el email, revisa tu carpeta de SPAM o PROMOCIONES.",
@@ -196,27 +196,27 @@ fun EmailVerificationScreen(
                                 modifier = Modifier.size(18.dp)
                             )
                             Spacer(modifier = Modifier.size(8.dp))
-                            Text("Verificar de nuevo")
+                            ZipStatsText("Verificar de nuevo")
                         }
                         
                         OutlinedButton(
                             onClick = { viewModel.sendEmailVerification() },
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Text("Reenviar email de verificación")
+                            ZipStatsText("Reenviar email de verificación")
                         }
                         
                         TextButton(
                             onClick = onNavigateToLogin,
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Text("Volver al inicio de sesión")
+                            ZipStatsText("Volver al inicio de sesión")
                         }
                     }
                 }
                 
                 AuthState.Success -> {
-                    Text(
+                    ZipStatsText(
                         text = "¡Email verificado!",
                         style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.Bold,
@@ -226,7 +226,7 @@ fun EmailVerificationScreen(
                     
                     Spacer(modifier = Modifier.height(16.dp))
                     
-                    Text(
+                    ZipStatsText(
                         text = "Tu cuenta ha sido verificada correctamente. Ya puedes usar la aplicación.",
                         style = MaterialTheme.typography.bodyLarge,
                         textAlign = TextAlign.Center,
@@ -239,12 +239,12 @@ fun EmailVerificationScreen(
                         onClick = onNavigateToLogin,
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("Continuar")
+                        ZipStatsText("Continuar")
                     }
                 }
                 
                 is AuthState.Error -> {
-                    Text(
+                    ZipStatsText(
                         text = "Error",
                         style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.Bold,
@@ -255,7 +255,7 @@ fun EmailVerificationScreen(
                     Spacer(modifier = Modifier.height(16.dp))
                     
                     (authState as? AuthState.Error)?.let { errorState ->
-                        Text(
+                        ZipStatsText(
                             text = errorState.message,
                             style = MaterialTheme.typography.bodyLarge,
                             textAlign = TextAlign.Center,
@@ -269,13 +269,13 @@ fun EmailVerificationScreen(
                         onClick = onNavigateToLogin,
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("Volver al inicio de sesión")
+                        ZipStatsText("Volver al inicio de sesión")
                     }
                 }
                 
                 else -> {
                     // Estado inicial o inesperado
-                    Text(
+                    ZipStatsText(
                         text = "Verificación de email",
                         style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.Bold,

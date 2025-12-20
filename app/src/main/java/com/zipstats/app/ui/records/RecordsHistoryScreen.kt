@@ -30,7 +30,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.PrimaryScrollableTabRow
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Tab
-import androidx.compose.material3.Text
+import com.zipstats.app.ui.components.ZipStatsText
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -159,8 +159,8 @@ fun RecordsHistoryScreen(
     recordToDelete?.let { record ->
         AlertDialog(
             onDismissRequest = { recordToDelete = null },
-            title = { Text("Confirmar eliminación") },
-            text = { Text("¿Estás seguro de que quieres eliminar este registro?") },
+            title = { ZipStatsText("Confirmar eliminación") },
+            text = { ZipStatsText("¿Estás seguro de que quieres eliminar este registro?") },
             confirmButton = {
                 DialogDeleteButton(
                     text = "Eliminar",
@@ -228,7 +228,7 @@ fun RecordsHistoryScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    Text(
+                    ZipStatsText(
                         "Historial de Viajes",
                         fontWeight = FontWeight.Bold
                     )
@@ -283,10 +283,11 @@ fun RecordsHistoryScreen(
                         selected = selectedModel == null,
                         onClick = { viewModel.setSelectedModel(null) }
                     ) {
-                        Text(
+                        ZipStatsText(
                             text = "Todos",
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 12.dp),
-                            fontWeight = if (selectedModel == null) FontWeight.Bold else FontWeight.Normal
+                            fontWeight = if (selectedModel == null) FontWeight.Bold else FontWeight.Normal,
+                            maxLines = 1
                         )
                     }
                     userScooters.distinctBy { it.modelo }.forEach { scooter ->
@@ -294,10 +295,11 @@ fun RecordsHistoryScreen(
                             selected = selectedModel == scooter.modelo,
                             onClick = { viewModel.setSelectedModel(scooter.modelo) }
                         ) {
-                            Text(
+                            ZipStatsText(
                                 text = scooter.modelo,
                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 12.dp),
-                                fontWeight = if (selectedModel == scooter.modelo) FontWeight.Bold else FontWeight.Normal
+                                fontWeight = if (selectedModel == scooter.modelo) FontWeight.Bold else FontWeight.Normal,
+                                maxLines = 1
                             )
                         }
                     }
@@ -355,14 +357,13 @@ fun RecordsHistoryScreen(
                                 modifier = Modifier.weight(1f),
                                 verticalArrangement = Arrangement.Center
                             ) {
-                                Text(
+                                ZipStatsText(
                                     text = userScooters.find { it.nombre == record.patinete }?.modelo ?: record.patinete,
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.Bold,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
+                                    maxLines = 1
                                 )
-                                Text(
+                                ZipStatsText(
                                     text = DateUtils.formatForDisplay(DateUtils.parseApiDate(record.fecha)),
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -375,18 +376,16 @@ fun RecordsHistoryScreen(
                                 horizontalAlignment = Alignment.End,
                                 verticalArrangement = Arrangement.Center
                             ) {
-                                Text(
+                                ZipStatsText(
                                     text = String.format("+%.1f km", record.diferencia),
                                     style = MaterialTheme.typography.titleMedium,
                                     color = MaterialTheme.colorScheme.primary,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                                    fontWeight = FontWeight.ExtraBold
                                 )
-                                Text(
+                                ZipStatsText(
                                     text = String.format("%.1f total", record.kilometraje),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
                                     modifier = Modifier.padding(top = 4.dp)
                                 )
                             }
@@ -451,7 +450,7 @@ fun NewRecordDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Nuevo registro") },
+        title = { ZipStatsText("Nuevo registro") },
         text = {
             Column(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -465,7 +464,7 @@ fun NewRecordDialog(
                         value = userScooters.find { it.nombre == selectedScooter }
                             ?.let { "${it.modelo} (${it.nombre})" } ?: "",
                         onValueChange = {},
-                        label = { Text("Vehículo") },
+                        label = { ZipStatsText("Vehículo") },
                         readOnly = true,
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
                         modifier = Modifier
@@ -478,7 +477,7 @@ fun NewRecordDialog(
                     ) {
                         userScooters.forEach { scooter ->
                             DropdownMenuItem(
-                                text = { Text("${scooter.modelo} (${scooter.nombre})") },
+                                text = { ZipStatsText("${scooter.modelo} (${scooter.nombre})") },
                                 onClick = {
                                     selectedScooter = scooter.nombre
                                     expanded = false
@@ -497,13 +496,13 @@ fun NewRecordDialog(
                             kilometraje = it
                             errorMessage = null
                         },
-                        label = { Text("Kilometraje") },
+                        label = { ZipStatsText("Kilometraje") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         modifier = Modifier.fillMaxWidth()
                     )
                     // Chivato de kilometraje anterior
                     if (previousMileage != null) {
-                        Text(
+                        ZipStatsText(
                             text = "Anterior: $previousMileage km",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -516,7 +515,7 @@ fun NewRecordDialog(
                 OutlinedTextField(
                     value = DateUtils.formatForDisplay(selectedDate),
                     onValueChange = {},
-                    label = { Text("Fecha") },
+                    label = { ZipStatsText("Fecha") },
                     readOnly = true,
                     trailingIcon = {
                         IconButton(onClick = { showDatePicker = true }) {
@@ -527,7 +526,7 @@ fun NewRecordDialog(
                 )
 
                 errorMessage?.let { error ->
-                    Text(
+                    ZipStatsText(
                         text = error,
                         color = MaterialTheme.colorScheme.error,
                         style = MaterialTheme.typography.bodySmall
@@ -596,7 +595,7 @@ fun EditRecordDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Editar registro") },
+        title = { ZipStatsText("Editar registro") },
         text = {
             Column(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -610,7 +609,7 @@ fun EditRecordDialog(
                         value = userScooters.find { it.nombre == selectedScooter }
                             ?.let { "${it.modelo} (${it.nombre})" } ?: "",
                         onValueChange = {},
-                        label = { Text("Vehículo") },
+                        label = { ZipStatsText("Vehículo") },
                         readOnly = true,
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
                         modifier = Modifier
@@ -623,7 +622,7 @@ fun EditRecordDialog(
                     ) {
                         userScooters.forEach { scooter ->
                             DropdownMenuItem(
-                                text = { Text("${scooter.modelo} (${scooter.nombre})") },
+                                text = { ZipStatsText("${scooter.modelo} (${scooter.nombre})") },
                                 onClick = {
                                     selectedScooter = scooter.nombre
                                     expanded = false
@@ -641,7 +640,7 @@ fun EditRecordDialog(
                         kilometraje = it
                         errorMessage = null
                     },
-                    label = { Text("Kilometraje") },
+                    label = { ZipStatsText("Kilometraje") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -650,7 +649,7 @@ fun EditRecordDialog(
                 OutlinedTextField(
                     value = DateUtils.formatForDisplay(selectedDate),
                     onValueChange = {},
-                    label = { Text("Fecha") },
+                    label = { ZipStatsText("Fecha") },
                     readOnly = true,
                     trailingIcon = {
                         IconButton(onClick = { showDatePicker = true }) {
@@ -661,7 +660,7 @@ fun EditRecordDialog(
                 )
 
                 errorMessage?.let { error ->
-                    Text(
+                    ZipStatsText(
                         text = error,
                         color = MaterialTheme.colorScheme.error,
                         style = MaterialTheme.typography.bodySmall

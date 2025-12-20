@@ -50,7 +50,7 @@ fun EmptyStateView(
         Spacer(modifier = Modifier.height(24.dp))
 
         // Título
-        Text(
+        ZipStatsText(
             text = title,
             style = MaterialTheme.typography.headlineSmall,
             fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
@@ -61,7 +61,7 @@ fun EmptyStateView(
         Spacer(modifier = Modifier.height(12.dp))
 
         // Descripción
-        Text(
+        ZipStatsText(
             text = description,
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
@@ -101,7 +101,7 @@ fun EmptyStateRecords(
                     modifier = Modifier.size(18.dp)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("Añadir registro")
+                ZipStatsText("Añadir registro")
             }
         }
     )
@@ -128,7 +128,7 @@ fun EmptyStateRoutes(
                     modifier = Modifier.size(18.dp)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("Iniciar ruta")
+                ZipStatsText("Iniciar ruta")
             }
         }
     )
@@ -155,7 +155,7 @@ fun EmptyStateRepairs(
                     modifier = Modifier.size(18.dp)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("Añadir mantenimiento")
+                ZipStatsText("Añadir mantenimiento")
             }
         }
     )
@@ -182,7 +182,7 @@ fun EmptyStateVehicles(
                     modifier = Modifier.size(18.dp)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("Añadir vehículo")
+                ZipStatsText("Añadir vehículo")
             }
         }
     )

@@ -27,7 +27,6 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -143,7 +142,7 @@ private fun TrackingBannerContent(
             Column(
                 modifier = Modifier.weight(1f)
             ) {
-                Text(
+                ZipStatsText(
                     text = if (isPaused) "GPS Pausado" else "Grabando ruta GPS",
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Bold,
@@ -153,17 +152,17 @@ private fun TrackingBannerContent(
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text(
+                    ZipStatsText(
                         text = distance,
                         style = MaterialTheme.typography.bodySmall,
                         color = contentColor.copy(alpha = 0.8f)
                     )
-                    Text(
+                    ZipStatsText(
                         text = "•",
                         style = MaterialTheme.typography.bodySmall,
                         color = contentColor.copy(alpha = 0.6f)
                     )
-                    Text(
+                    ZipStatsText(
                         text = duration,
                         style = MaterialTheme.typography.bodySmall,
                         color = contentColor.copy(alpha = 0.8f)
@@ -172,7 +171,7 @@ private fun TrackingBannerContent(
             }
             
             // Indicador de "Toca para ver"
-            Text(
+            ZipStatsText(
                 text = "Ver",
                 style = MaterialTheme.typography.labelMedium,
                 color = contentColor,

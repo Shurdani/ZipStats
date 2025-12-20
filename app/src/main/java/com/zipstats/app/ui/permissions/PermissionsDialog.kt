@@ -18,7 +18,7 @@ import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
+import com.zipstats.app.ui.components.ZipStatsText
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -48,7 +48,7 @@ fun PermissionsDialog(
                     tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(24.dp)
                 )
-                Text(
+                ZipStatsText(
                     text = "Permisos necesarios",
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Bold
@@ -61,7 +61,7 @@ fun PermissionsDialog(
                     .fillMaxWidth()
                     .verticalScroll(rememberScrollState())
             ) {
-                Text(
+                ZipStatsText(
                     text = "Para que la app funcione correctamente, necesitamos los siguientes permisos:",
                     style = MaterialTheme.typography.bodyMedium,
                     modifier = Modifier.padding(bottom = 8.dp)
@@ -70,7 +70,7 @@ fun PermissionsDialog(
                 // Mostrar nota sobre permisos opcionales
                 val hasOptionalPermissions = permissions.any { !it.isRequired }
                 if (hasOptionalPermissions) {
-                    Text(
+                    ZipStatsText(
                         text = "Nota: Los permisos marcados como opcionales se solicitarán cuando los necesites (por ejemplo, al guardar un vídeo de ruta).",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
@@ -97,27 +97,27 @@ fun PermissionsDialog(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
-                                Text(
+                                ZipStatsText(
                                     text = getPermissionShortName(permission.permission),
                                     style = MaterialTheme.typography.titleSmall,
                                     fontWeight = FontWeight.Bold
                                 )
                                 if (!permission.isRequired) {
-                                    Text(
+                                    ZipStatsText(
                                         text = "(Opcional)",
                                         style = MaterialTheme.typography.labelSmall,
                                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                                     )
                                 }
                             }
-                            Text(
+                            ZipStatsText(
                                 text = permission.description,
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                             )
                             // Nota especial para MediaProjection
                             if (permission.permission.contains("MEDIA_PROJECTION")) {
-                                Text(
+                                ZipStatsText(
                                     text = "Este permiso se solicitará cuando pulses el botón 'Descargar' en una animación de ruta.",
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f),

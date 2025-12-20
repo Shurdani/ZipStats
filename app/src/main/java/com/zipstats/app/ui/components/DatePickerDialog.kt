@@ -4,7 +4,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Text
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.rememberDatePickerState
@@ -71,7 +70,7 @@ fun StandardDatePickerDialog(
                     onDismiss()
                 }
             ) {
-                Text("OK")
+                ZipStatsText("OK")
             }
         },
         dismissButton = {
@@ -82,14 +81,14 @@ fun StandardDatePickerDialog(
                     contentColor = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant
                 )
             ) {
-                Text("Cancelar")
+                ZipStatsText("Cancelar")
             }
         }
     ) {
         DatePicker(
             state = datePickerState,
             title = {
-                Text(
+                ZipStatsText(
                     text = title,
                     modifier = Modifier.padding(16.dp)
                 )
@@ -152,7 +151,7 @@ fun StandardDatePickerDialogWithValidation(
                 },
                 enabled = isValidDate
             ) {
-                Text("OK")
+                ZipStatsText("OK")
             }
         },
         dismissButton = {
@@ -163,14 +162,14 @@ fun StandardDatePickerDialogWithValidation(
                     contentColor = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant
                 )
             ) {
-                Text("Cancelar")
+                ZipStatsText("Cancelar")
             }
         }
     ) {
         DatePicker(
             state = datePickerState,
             title = {
-                Text(
+                ZipStatsText(
                     text = title,
                     modifier = Modifier.padding(16.dp)
                 )

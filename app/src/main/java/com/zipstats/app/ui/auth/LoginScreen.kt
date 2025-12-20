@@ -42,7 +42,6 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -65,7 +64,6 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.google.android.gms.auth.api.signin.GoogleSignIn
@@ -74,6 +72,7 @@ import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.google.android.gms.common.api.ApiException
 import com.google.android.gms.tasks.Task
 import com.zipstats.app.R
+import com.zipstats.app.ui.components.ZipStatsText
 
 // Web Client ID para Google Sign In
 private const val DEFAULT_WEB_CLIENT_ID = "811393382396-fi0s13vdo86gabespr7dmb559f202l7d.apps.googleusercontent.com"
@@ -228,14 +227,14 @@ fun LoginScreen(
 
                 Spacer(modifier = Modifier.height(24.dp))
 
-                Text(
+                ZipStatsText(
                     text = "Bienvenido",
                     style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onBackground
                 )
 
-                Text(
+                ZipStatsText(
                     text = "Inicia sesión para continuar",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -247,7 +246,7 @@ fun LoginScreen(
                 OutlinedTextField(
                     value = email,
                     onValueChange = { email = it },
-                    label = { Text("Correo electrónico") },
+                    label = { ZipStatsText("Correo electrónico") },
                     leadingIcon = { Icon(Icons.Default.Email, null) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
@@ -261,7 +260,7 @@ fun LoginScreen(
                 )
 
                 if (emailError.isNotEmpty() && email.isNotEmpty()) {
-                    Text(
+                    ZipStatsText(
                         text = emailError,
                         color = MaterialTheme.colorScheme.error,
                         style = MaterialTheme.typography.bodySmall,
@@ -274,7 +273,7 @@ fun LoginScreen(
                 OutlinedTextField(
                     value = password,
                     onValueChange = { password = it },
-                    label = { Text("Contraseña") },
+                    label = { ZipStatsText("Contraseña") },
                     leadingIcon = { Icon(Icons.Default.Lock, null) },
                     visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                     singleLine = true,
@@ -293,7 +292,7 @@ fun LoginScreen(
 
                 if (showError) {
                     Spacer(modifier = Modifier.height(8.dp))
-                    Text(
+                    ZipStatsText(
                         text = errorMessage,
                         color = MaterialTheme.colorScheme.error,
                         style = MaterialTheme.typography.bodyMedium,
@@ -305,7 +304,7 @@ fun LoginScreen(
 
                 Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterEnd) {
                     TextButton(onClick = { showResetDialog = true }) {
-                        Text("¿Olvidaste tu contraseña?")
+                        ZipStatsText("¿Olvidaste tu contraseña?")
                     }
                 }
 
@@ -333,7 +332,7 @@ fun LoginScreen(
                             color = MaterialTheme.colorScheme.onPrimary
                         )
                     } else {
-                        Text("Iniciar Sesión", fontSize = 16.sp)
+                        ZipStatsText("Iniciar Sesión", style = MaterialTheme.typography.bodyLarge)
                     }
                 }
 
@@ -344,7 +343,7 @@ fun LoginScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     HorizontalDivider(modifier = Modifier.weight(1f))
-                    Text(
+                    ZipStatsText(
                         text = "O continúa con",
                         modifier = Modifier.padding(horizontal = 16.dp),
                         style = MaterialTheme.typography.bodySmall,
@@ -372,7 +371,7 @@ fun LoginScreen(
                         horizontalArrangement = Arrangement.Center
                     ) {
                         // Icono "G" estilizado
-                        Text(
+                        ZipStatsText(
                             text = "G",
                             style = MaterialTheme.typography.titleLarge.copy(
                                 fontWeight = FontWeight.Black,
@@ -380,7 +379,7 @@ fun LoginScreen(
                             ),
                             modifier = Modifier.padding(end = 12.dp)
                         )
-                        Text("Google", color = MaterialTheme.colorScheme.onSurface)
+                        ZipStatsText("Google", color = MaterialTheme.colorScheme.onSurface)
                     }
                 }
 
@@ -390,13 +389,13 @@ fun LoginScreen(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.Center
                 ) {
-                    Text(
+                    ZipStatsText(
                         text = "¿No tienes cuenta?",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     TextButton(onClick = onRegisterClick) {
-                        Text(
+                        ZipStatsText(
                             text = "Regístrate",
                             fontWeight = FontWeight.Bold
                         )
@@ -418,9 +417,9 @@ fun LoginScreen(
                     modifier = Modifier.padding(24.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Text("Recuperar Contraseña", style = MaterialTheme.typography.headlineSmall)
+                    ZipStatsText("Recuperar Contraseña", style = MaterialTheme.typography.headlineSmall)
                     Spacer(modifier = Modifier.height(16.dp))
-                    Text(
+                    ZipStatsText(
                         "Introduce tu email para recibir un enlace de recuperación.",
                         textAlign = TextAlign.Center,
                         style = MaterialTheme.typography.bodyMedium
@@ -429,23 +428,23 @@ fun LoginScreen(
                     OutlinedTextField(
                         value = resetEmail,
                         onValueChange = { resetEmail = it; resetError = "" },
-                        label = { Text("Email") },
+                        label = { ZipStatsText("Email") },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                         isError = resetError.isNotEmpty()
                     )
                     if (resetError.isNotEmpty()) {
-                        Text(resetError, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                        ZipStatsText(resetError, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                     }
                     Spacer(modifier = Modifier.height(24.dp))
                     Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
-                        TextButton(onClick = { showResetDialog = false }) { Text("Cancelar") }
+                        TextButton(onClick = { showResetDialog = false }) { ZipStatsText("Cancelar") }
                         Button(
                             onClick = {
                                 if (resetEmail.isEmpty()) resetError = "Campo obligatorio"
                                 else viewModel.resetPassword(resetEmail)
                             }
-                        ) { Text("Enviar") }
+                        ) { ZipStatsText("Enviar") }
                     }
                 }
             }
@@ -456,10 +455,10 @@ fun LoginScreen(
         AlertDialog(
             onDismissRequest = { showResetConfirmation = false },
             icon = { Icon(Icons.Default.Check, null, tint = MaterialTheme.colorScheme.primary) },
-            title = { Text("Correo Enviado") },
-            text = { Text("Revisa tu bandeja de entrada para restablecer tu contraseña.") },
+            title = { ZipStatsText("Correo Enviado") },
+            text = { ZipStatsText("Revisa tu bandeja de entrada para restablecer tu contraseña.") },
             confirmButton = {
-                Button(onClick = { showResetConfirmation = false }) { Text("Entendido") }
+                Button(onClick = { showResetConfirmation = false }) { ZipStatsText("Entendido") }
             }
         )
     }
@@ -475,9 +474,9 @@ fun LoginScreen(
                     modifier = Modifier.padding(24.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Text("Vincular cuenta", style = MaterialTheme.typography.headlineSmall)
+                    ZipStatsText("Vincular cuenta", style = MaterialTheme.typography.headlineSmall)
                     Spacer(modifier = Modifier.height(16.dp))
-                    Text(
+                    ZipStatsText(
                         "El email $mergeEmail ya está registrado. Ingresa tu contraseña para vincular con Google.",
                         textAlign = TextAlign.Center,
                         style = MaterialTheme.typography.bodyMedium
@@ -486,7 +485,7 @@ fun LoginScreen(
                     OutlinedTextField(
                         value = mergePassword,
                         onValueChange = { mergePassword = it; mergeError = "" },
-                        label = { Text("Contraseña") },
+                        label = { ZipStatsText("Contraseña") },
                         visualTransformation = if (mergePasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                         trailingIcon = {
                             IconButton(onClick = { mergePasswordVisible = !mergePasswordVisible }) {
@@ -497,11 +496,11 @@ fun LoginScreen(
                         isError = mergeError.isNotEmpty()
                     )
                     if (mergeError.isNotEmpty()) {
-                        Text(mergeError, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                        ZipStatsText(mergeError, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                     }
                     Spacer(modifier = Modifier.height(24.dp))
                     Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
-                        TextButton(onClick = { showMergeDialog = false }) { Text("Cancelar") }
+                        TextButton(onClick = { showMergeDialog = false }) { ZipStatsText("Cancelar") }
                         Button(
                             onClick = {
                                 if (mergePassword.isEmpty()) mergeError = "Ingresa tu contraseña"
@@ -510,7 +509,7 @@ fun LoginScreen(
                             enabled = authState !is AuthState.Loading
                         ) {
                             if (authState is AuthState.Loading) CircularProgressIndicator(modifier = Modifier.size(16.dp), color = Color.White)
-                            else Text("Vincular")
+                            else ZipStatsText("Vincular")
                         }
                     }
                 }

@@ -37,7 +37,12 @@ data class Route(
     val weatherWindDirection: Int? = null, // Dirección del viento en grados (0-360),
     val weatherRainProbability: Int? = null, // Probabilidad de lluvia en %
     val weatherUvIndex: Double? = null,// Índice UV
-    val weatherWindGusts: Double? = null // La velocidad del viento en km/h
+    val weatherWindGusts: Double? = null, // La velocidad del viento en km/h
+    // Detección de lluvia durante la ruta
+    val weatherHadRain: Boolean? = null,
+    val weatherRainStartMinute: Int? = null,
+    val weatherMaxPrecipitation: Double? = null,
+    val weatherRainReason: String? = null // Razón de detección de lluvia (para debug)
 
 ) {
     /**
@@ -93,8 +98,11 @@ data class Route(
         "weatherWindDirection" to weatherWindDirection,
         "weatherRainProbability" to weatherRainProbability,
         "weatherUvIndex" to weatherUvIndex,
-        "weatherWindGusts" to weatherWindGusts
-
+        "weatherWindGusts" to weatherWindGusts,
+        "weatherHadRain" to weatherHadRain,
+        "weatherRainStartMinute" to weatherRainStartMinute,
+        "weatherMaxPrecipitation" to weatherMaxPrecipitation,
+        "weatherRainReason" to weatherRainReason
     )
 
     companion object {
@@ -146,8 +154,11 @@ data class Route(
                 weatherWindDirection = (map["weatherWindDirection"] as? Number)?.toInt(),
                 weatherRainProbability = (map["weatherRainProbability"] as? Number)?.toInt(),
                 weatherUvIndex = (map["weatherUvIndex"] as? Number)?.toDouble(),
-                weatherWindGusts = (map["weatherWindGusts"] as? Number)?.toDouble()
-
+                weatherWindGusts = (map["weatherWindGusts"] as? Number)?.toDouble(),
+                weatherHadRain = map["weatherHadRain"] as? Boolean,
+                weatherRainStartMinute = (map["weatherRainStartMinute"] as? Number)?.toInt(),
+                weatherMaxPrecipitation = (map["weatherMaxPrecipitation"] as? Number)?.toDouble(),
+                weatherRainReason = map["weatherRainReason"] as? String
             )
         }
     }

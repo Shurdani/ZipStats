@@ -40,7 +40,6 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -62,10 +61,10 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.zipstats.app.R
+import com.zipstats.app.ui.components.ZipStatsText
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -189,14 +188,14 @@ fun RegisterScreen(
 
                 Spacer(modifier = Modifier.height(24.dp))
 
-                Text(
+                ZipStatsText(
                     text = "Crear Cuenta",
                     style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onBackground
                 )
 
-                Text(
+                ZipStatsText(
                     text = "Únete a la comunidad ZipStats",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -210,7 +209,7 @@ fun RegisterScreen(
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
-                    label = { Text("Nombre") },
+                    label = { ZipStatsText("Nombre") },
                     leadingIcon = { Icon(Icons.Default.Person, null) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
@@ -220,7 +219,7 @@ fun RegisterScreen(
                     colors = customColors
                 )
                 if (nameError.isNotEmpty() && name.isNotEmpty()) {
-                    Text(nameError, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(start = 16.dp))
+                    ZipStatsText(nameError, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(start = 16.dp))
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
@@ -229,7 +228,7 @@ fun RegisterScreen(
                 OutlinedTextField(
                     value = email,
                     onValueChange = { email = it },
-                    label = { Text("Correo electrónico") },
+                    label = { ZipStatsText("Correo electrónico") },
                     leadingIcon = { Icon(Icons.Default.Email, null) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
@@ -239,7 +238,7 @@ fun RegisterScreen(
                     colors = customColors
                 )
                 if (emailError.isNotEmpty() && email.isNotEmpty()) {
-                    Text(emailError, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(start = 16.dp))
+                    ZipStatsText(emailError, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(start = 16.dp))
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
@@ -248,7 +247,7 @@ fun RegisterScreen(
                 OutlinedTextField(
                     value = password,
                     onValueChange = { password = it },
-                    label = { Text("Contraseña") },
+                    label = { ZipStatsText("Contraseña") },
                     leadingIcon = { Icon(Icons.Default.Lock, null) },
                     visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                     singleLine = true,
@@ -286,7 +285,7 @@ fun RegisterScreen(
                 OutlinedTextField(
                     value = confirmPassword,
                     onValueChange = { confirmPassword = it },
-                    label = { Text("Confirmar contraseña") },
+                    label = { ZipStatsText("Confirmar contraseña") },
                     leadingIcon = { Icon(Icons.Default.Lock, null) },
                     visualTransformation = if (confirmPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                     singleLine = true,
@@ -303,12 +302,12 @@ fun RegisterScreen(
                 )
 
                 if (confirmPassword.isNotEmpty() && password != confirmPassword) {
-                    Text("Las contraseñas no coinciden", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(start = 16.dp))
+                    ZipStatsText("Las contraseñas no coinciden", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(start = 16.dp))
                 }
 
                 if (showError) {
                     Spacer(modifier = Modifier.height(16.dp))
-                    Text(
+                    ZipStatsText(
                         text = errorMessage,
                         color = MaterialTheme.colorScheme.error,
                         style = MaterialTheme.typography.bodyMedium,
@@ -353,7 +352,7 @@ fun RegisterScreen(
                             color = MaterialTheme.colorScheme.onPrimary
                         )
                     } else {
-                        Text("Registrarse", fontSize = 16.sp)
+                        ZipStatsText("Registrarse", style = MaterialTheme.typography.bodyLarge)
                     }
                 }
 
@@ -363,13 +362,13 @@ fun RegisterScreen(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.Center
                 ) {
-                    Text(
+                    ZipStatsText(
                         text = "¿Ya tienes cuenta?",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     TextButton(onClick = { navController.navigateUp() }) {
-                        Text(
+                        ZipStatsText(
                             text = "Inicia sesión",
                             fontWeight = FontWeight.Bold
                         )
@@ -399,7 +398,7 @@ private fun PasswordRequirement(
             modifier = Modifier.size(16.dp)
         )
         Spacer(modifier = Modifier.width(8.dp))
-        Text(
+        ZipStatsText(
             text = text,
             style = MaterialTheme.typography.bodySmall,
             color = if (isValid) Color(0xFF4CAF50) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),

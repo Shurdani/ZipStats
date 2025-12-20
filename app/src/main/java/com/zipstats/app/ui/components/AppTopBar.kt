@@ -5,7 +5,6 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.navigation.NavController
@@ -18,7 +17,7 @@ fun AppTopBar(
     showBackButton: Boolean = true
 ) {
     TopAppBar(
-        title = { Text(title) },
+        title = { ZipStatsText(title) },
         navigationIcon = {
             if (showBackButton) {
                 IconButton(onClick = { navController.navigateUp() }) {

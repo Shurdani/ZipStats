@@ -480,8 +480,9 @@ fun PatinetatrackTheme(
             @Suppress("DEPRECATION")
             window.statusBarColor = colorScheme.surface.toArgb()
 
+            // IMPORTANTE: Usar colorScheme.surface para que la barra de navegación cambie con el tema
             @Suppress("DEPRECATION")
-            window.navigationBarColor = Color.Transparent.toArgb()
+            window.navigationBarColor = colorScheme.surface.toArgb()
 
             // Configurar el sistema de barras para Android 10+
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -500,6 +501,7 @@ fun PatinetatrackTheme(
             // Si el tema es oscuro -> Iconos Claros (isAppearanceLight = false)
             // Si el tema es claro -> Iconos Oscuros (isAppearanceLight = true)
             controller.isAppearanceLightStatusBars = !darkTheme
+            // CRÍTICO para Xiaomi/Redmi: Forzar iconos claros/oscuros según tema
             controller.isAppearanceLightNavigationBars = !darkTheme
 
             // Asegurarse de que la ventana tenga el fondo correcto
@@ -512,7 +514,7 @@ fun PatinetatrackTheme(
 
     MaterialTheme(
         colorScheme = colorScheme,
-        typography = AppTypography,
+        typography = ZipStatsTypography,
         content = content
     )
 }

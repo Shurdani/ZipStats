@@ -63,7 +63,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
+import com.zipstats.app.ui.components.ZipStatsText
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -83,6 +83,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -191,7 +192,7 @@ fun ProfileScreen(
         val currentState = uiState as? ProfileUiState.Success
         AlertDialog(
             onDismissRequest = { showPhotoOptionsDialog = false },
-            title = { Text("Cambiar foto de perfil") },
+            title = { ZipStatsText("Cambiar foto de perfil") },
             shape = DialogShape,
             text = {
                 Column(
@@ -277,7 +278,7 @@ fun ProfileScreen(
         modifier = Modifier.fillMaxSize(),
         topBar = {
             TopAppBar(
-                title = { Text("Perfil", fontWeight = FontWeight.Bold) },
+                title = { ZipStatsText("Perfil", fontWeight = FontWeight.Bold) },
                 actions = {
                     AnimatedIconButton(onClick = { navController.navigate(Screen.AccountSettings.route) }) {
                         Icon(imageVector = Icons.Default.Settings, contentDescription = "Ajustes")
@@ -332,7 +333,7 @@ fun ProfileScreen(
                             StatSummaryCard(
                                 title = "Distancia Total",
                                 value = String.format("%.1f", state.scooters.sumOf { it.kilometrajeActual ?: 0.0 }),
-                                unit = "km",
+                                unit = "en KM",
                                 icon = Icons.AutoMirrored.Filled.TrendingUp,
                                 containerColor = MaterialTheme.colorScheme.primaryContainer,
                                 contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
@@ -355,11 +356,12 @@ fun ProfileScreen(
 
                         // 3. SECCIÓN VEHÍCULOS
                         Column {
-                            Text(
+                            ZipStatsText(
                                 text = "Mis Vehículos",
                                 style = MaterialTheme.typography.titleLarge,
                                 fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface
+                                color = MaterialTheme.colorScheme.onSurface,
+                                maxLines = 1
                             )
                             Spacer(modifier = Modifier.height(12.dp))
 
@@ -385,7 +387,7 @@ fun ProfileScreen(
                 }
                 is ProfileUiState.Error -> {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text(
+                        ZipStatsText(
                             text = state.message,
                             style = MaterialTheme.typography.bodyLarge,
                             color = MaterialTheme.colorScheme.error
@@ -435,7 +437,7 @@ fun UserProfileSection(
                         contentScale = ContentScale.Crop
                     )
                 } else if (user.avatar != null) {
-                    Text(
+                    ZipStatsText(
                         text = user.avatar,
                         style = MaterialTheme.typography.displayLarge,
                         modifier = Modifier.wrapContentSize()
@@ -476,15 +478,17 @@ fun UserProfileSection(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        Text(
+        ZipStatsText(
             text = user.name,
             style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.Bold
+            fontWeight = FontWeight.Bold,
+            maxLines = 1
         )
-        Text(
+        ZipStatsText(
             text = user.email,
             style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1
         )
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -500,7 +504,7 @@ fun UserProfileSection(
                 modifier = Modifier.size(18.dp)
             )
             Spacer(modifier = Modifier.width(8.dp))
-            Text("Exportar Datos")
+            ZipStatsText("Exportar Datos")
         }
     }
 }
@@ -542,18 +546,27 @@ fun StatSummaryCard(
                 tint = contentColor,
                 modifier = Modifier.size(28.dp)
             )
-            Column {
-                Text(
+            Column(
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                ZipStatsText(
                     text = value,
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Bold,
-                    color = contentColor
+                    color = contentColor,
+                    maxLines = 1
                 )
-                Text(
-                    text = "$unit\n$title", // Salto de línea para ahorrar espacio horizontal
+                ZipStatsText(
+                    text = title,
                     style = MaterialTheme.typography.labelMedium,
                     color = contentColor.copy(alpha = 0.8f),
-                    lineHeight = 14.sp
+                    maxLines = 1
+                )
+                ZipStatsText(
+                    text = unit,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = contentColor.copy(alpha = 0.8f),
+                    maxLines = 1
                 )
             }
         }
@@ -594,24 +607,27 @@ fun ScooterCardItem(
             Spacer(modifier = Modifier.width(16.dp))
 
             Column(modifier = Modifier.weight(1f)) {
-                Text(
+                ZipStatsText(
                     text = scooter.nombre,
                     style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1
                 )
-                Text(
+                ZipStatsText(
                     text = scooter.modelo,
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1
                 )
             }
 
             Column(horizontalAlignment = Alignment.End) {
-                Text(
+                ZipStatsText(
                     text = "${String.format("%.1f", scooter.kilometrajeActual ?: 0.0)} km",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary
+                    color = MaterialTheme.colorScheme.primary,
+                    maxLines = 1
                 )
                 Icon(
                     imageVector = Icons.Default.ChevronRight,
@@ -646,7 +662,7 @@ fun EmptyStateVehicleCard() {
                 tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
             )
             Spacer(modifier = Modifier.height(8.dp))
-            Text(
+            ZipStatsText(
                 text = "No tienes vehículos registrados",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -665,7 +681,7 @@ fun AvatarSelectionDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Seleccionar avatar") },
+        title = { ZipStatsText("Seleccionar avatar") },
         shape = DialogShape,
         text = {
             LazyVerticalGrid(
@@ -692,7 +708,7 @@ fun AvatarSelectionDialog(
                             ),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(
+                        ZipStatsText(
                             text = avatar.emoji,
                             style = MaterialTheme.typography.headlineMedium
                         )
@@ -728,7 +744,7 @@ fun AddScooterDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Añadir vehículo") },
+        title = { ZipStatsText("Añadir vehículo") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 ExposedDropdownMenuBox(
@@ -738,7 +754,7 @@ fun AddScooterDialog(
                     OutlinedTextField(
                         value = selectedVehicleType.displayName,
                         onValueChange = { },
-                        label = { Text("Tipo de vehículo") },
+                        label = { ZipStatsText("Tipo de vehículo") },
                         readOnly = true,
                         leadingIcon = {
                             Image(
@@ -768,7 +784,7 @@ fun AddScooterDialog(
                                             modifier = Modifier.size(24.dp),
                                             colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.onSurface)
                                         )
-                                        Text(type.displayName)
+                                        ZipStatsText(type.displayName)
                                     }
                                 },
                                 onClick = {
@@ -783,28 +799,28 @@ fun AddScooterDialog(
                 OutlinedTextField(
                     value = nombre,
                     onValueChange = { nombre = it },
-                    label = { Text("Nombre") },
+                    label = { ZipStatsText("Nombre") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
                 OutlinedTextField(
                     value = marca,
                     onValueChange = { marca = it },
-                    label = { Text("Marca") },
+                    label = { ZipStatsText("Marca") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
                 OutlinedTextField(
                     value = modelo,
                     onValueChange = { modelo = it },
-                    label = { Text("Modelo") },
+                    label = { ZipStatsText("Modelo") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
                 OutlinedTextField(
                     value = fechaTexto,
                     onValueChange = { },
-                    label = { Text("Fecha de compra") },
+                    label = { ZipStatsText("Fecha de compra") },
                     readOnly = true,
                     trailingIcon = {
                         IconButton(onClick = { showDatePicker = true }) {

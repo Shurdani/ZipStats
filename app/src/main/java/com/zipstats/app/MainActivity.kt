@@ -336,8 +336,8 @@ class MainActivity : ComponentActivity() {
             if (showDialog && errorMessage != null) {
                 AlertDialog(
                     onDismissRequest = { showDialog = false },
-                    title = { Text("Error en la importación") },
-                    text = { Text(errorMessage) },
+                    title = { ZipStatsText("Error en la importación") },
+                    text = { ZipStatsText(errorMessage) },
                     confirmButton = {
                         DialogNeutralButton(
                             text = "Aceptar",

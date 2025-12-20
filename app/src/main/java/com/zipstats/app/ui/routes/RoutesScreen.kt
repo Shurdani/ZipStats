@@ -24,7 +24,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.PrimaryScrollableTabRow
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Tab
-import androidx.compose.material3.Text
+import com.zipstats.app.ui.components.ZipStatsText
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -154,8 +154,8 @@ fun RoutesScreen(
     errorMessage?.let { msg ->
         AlertDialog(
             onDismissRequest = { viewModel.clearError() },
-            title = { Text("Información") },
-            text = { Text(msg) },
+            title = { ZipStatsText("Información") },
+            text = { ZipStatsText(msg) },
             confirmButton = {
                 DialogConfirmButton(
                     text = "Aceptar",
@@ -169,8 +169,8 @@ fun RoutesScreen(
     routeToDelete?.let { route ->
         AlertDialog(
             onDismissRequest = { routeToDelete = null },
-            title = { Text("Confirmar eliminación") },
-            text = { Text("¿Estás seguro de que quieres eliminar esta ruta?") },
+            title = { ZipStatsText("Confirmar eliminación") },
+            text = { ZipStatsText("¿Estás seguro de que quieres eliminar esta ruta?") },
             confirmButton = {
                 DialogConfirmButton(
                     text = "Eliminar",
@@ -240,7 +240,7 @@ fun RoutesScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    Text(
+                    ZipStatsText(
                         "Historial de Rutas",
                         fontWeight = FontWeight.Bold
                     )
@@ -301,10 +301,11 @@ fun RoutesScreen(
                         selected = selectedScooter == null,
                         onClick = { viewModel.setSelectedScooter(null) }
                     ) {
-                        Text(
+                        ZipStatsText(
                             text = "Todos",
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 12.dp),
-                            fontWeight = if (selectedScooter == null) FontWeight.Bold else FontWeight.Normal
+                            fontWeight = if (selectedScooter == null) FontWeight.Bold else FontWeight.Normal,
+                            maxLines = 1
                         )
                     }
                     userScooters.forEach { scooter ->
@@ -312,10 +313,11 @@ fun RoutesScreen(
                             selected = selectedScooter == scooter.id,
                             onClick = { viewModel.setSelectedScooter(scooter.id) }
                         ) {
-                            Text(
+                            ZipStatsText(
                                 text = scooter.modelo,
                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 12.dp),
-                                fontWeight = if (selectedScooter == scooter.id) FontWeight.Bold else FontWeight.Normal
+                                fontWeight = if (selectedScooter == scooter.id) FontWeight.Bold else FontWeight.Normal,
+                                maxLines = 1
                             )
                         }
                     }
@@ -381,15 +383,14 @@ fun RoutesScreen(
                                     verticalArrangement = Arrangement.Center
                                 ) {
                                     // Nombre del vehículo (Grande)
-                                    Text(
+                                    ZipStatsText(
                                         text = userScooters.find { it.id == route.scooterId }?.modelo ?: route.scooterName,
                                         style = MaterialTheme.typography.titleMedium,
                                         fontWeight = FontWeight.Bold,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
+                                        maxLines = 1
                                     )
                                     // Fecha y hora (Pequeña y gris)
-                                    Text(
+                                    ZipStatsText(
                                         text = DateUtils.formatForDisplayWithTime(route.startTime),
                                         style = MaterialTheme.typography.bodyMedium,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -403,19 +404,17 @@ fun RoutesScreen(
                                     verticalArrangement = Arrangement.Center
                                 ) {
                                     // Distancia (El dato "Héroe")
-                                    Text(
+                                    ZipStatsText(
                                         text = String.format("%.1f km", route.totalDistance),
                                         style = MaterialTheme.typography.titleMedium,
                                         color = MaterialTheme.colorScheme.primary,
-                                        fontWeight = FontWeight.ExtraBold,
-                                        fontFamily = FontFamily.Monospace
+                                        fontWeight = FontWeight.ExtraBold
                                     )
                                     // Duración (Dato secundario)
-                                    Text(
+                                    ZipStatsText(
                                         text = route.durationFormatted,
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        fontFamily = FontFamily.Monospace,
                                         modifier = Modifier.padding(top = 4.dp)
                                     )
                                 }

@@ -24,7 +24,6 @@ import androidx.compose.material.icons.filled.Map
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -294,10 +293,10 @@ private fun LoadingOverlay(showTimeout: Boolean) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(16.dp)) {
             CircularProgressIndicator(modifier = Modifier.size(48.dp))
             Spacer(Modifier.height(16.dp))
-            Text("Cargando mapa…")
+            ZipStatsText("Cargando mapa…")
                     if (showTimeout) {
                 Spacer(Modifier.height(8.dp))
-                        Text(
+                        ZipStatsText(
                     "Esto está tardando más de lo normal.\nVerifica tu conexión.",
                             textAlign = TextAlign.Center
                         )
@@ -315,9 +314,9 @@ private fun ErrorOverlay(error: String) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Icon(Icons.Default.ErrorOutline, contentDescription = null, modifier = Modifier.size(48.dp))
             Spacer(Modifier.height(8.dp))
-            Text("Error al cargar el mapa")
+            ZipStatsText("Error al cargar el mapa")
             Spacer(Modifier.height(4.dp))
-            Text(error, textAlign = TextAlign.Center)
+            ZipStatsText(error, textAlign = TextAlign.Center)
         }
     }
 }
@@ -331,7 +330,7 @@ private fun NoPointsOverlay() {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Icon(Icons.Default.Map, contentDescription = null, modifier = Modifier.size(48.dp))
             Spacer(Modifier.height(8.dp))
-            Text("Sin puntos GPS en esta ruta")
+            ZipStatsText("Sin puntos GPS en esta ruta")
         }
     }
 }

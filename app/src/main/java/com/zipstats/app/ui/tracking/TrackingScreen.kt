@@ -40,8 +40,6 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CloudOff
-import androidx.compose.material.icons.filled.WaterDrop
-import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.GpsFixed
 import androidx.compose.material.icons.filled.LocationOff
 import androidx.compose.material.icons.filled.LocationOn
@@ -52,6 +50,8 @@ import androidx.compose.material.icons.filled.Route
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.TwoWheeler
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.filled.WaterDrop
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -61,6 +61,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
@@ -68,7 +69,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
-import com.zipstats.app.ui.components.ZipStatsText
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -89,6 +89,7 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -106,6 +107,7 @@ import com.zipstats.app.repository.SettingsRepository
 import com.zipstats.app.ui.components.DialogCancelButton
 import com.zipstats.app.ui.components.DialogConfirmButton
 import com.zipstats.app.ui.components.DialogDeleteButton
+import com.zipstats.app.ui.components.ZipStatsText
 import com.zipstats.app.ui.shared.AppOverlayState
 import com.zipstats.app.ui.theme.DialogShape
 import com.zipstats.app.utils.LocationUtils
@@ -171,6 +173,7 @@ fun TrackingScreen(
     val hasValidGpsSignal = remember(gpsPreLocationState) { viewModel.hasValidGpsSignal() }
     val shouldShowRainWarning by viewModel.shouldShowRainWarning.collectAsState()
     val isActiveRainWarning by viewModel.isActiveRainWarning.collectAsState()
+    val shouldShowExtremeWarning by viewModel.shouldShowExtremeWarning.collectAsState()
 
     var showScooterPicker by remember { mutableStateOf(false) }
     var showFinishDialog by remember { mutableStateOf(false) }
@@ -298,9 +301,12 @@ fun TrackingScreen(
                         weatherStatus = weatherStatus,
                         shouldShowRainWarning = shouldShowRainWarning,
                         isActiveRainWarning = isActiveRainWarning,
+                        shouldShowExtremeWarning = shouldShowExtremeWarning,
+                        isTracking = isTracking,
                         onScooterClick = { showScooterPicker = true },
                         onStartTracking = { viewModel.startTracking() },
-                        onDismissRainWarning = { viewModel.dismissRainWarning() }
+                        onDismissRainWarning = { viewModel.dismissRainWarning() },
+                        onDismissExtremeWarning = { viewModel.dismissExtremeWarning() }
                     )
                 }
                 else -> {
@@ -359,6 +365,225 @@ fun TrackingScreen(
             },
             onDismiss = { showCancelDialog = false }
         )
+    }
+}
+
+// Modelo de datos simple para un aviso
+data class WarningItem(
+    val icon: ImageVector,
+    val title: String,
+    val subtitle: String,
+    val iconColor: Color // Color del icono
+)
+
+/**
+ * Centro de Notificaciones Unificado - Una sola tarjeta inteligente que agrupa todos los avisos
+ * Prioridad: Lluvia/Calzada mojada > Condiciones extremas
+ */
+@Composable
+fun PreRideSmartWarning(
+    shouldShowRainWarning: Boolean,
+    isActiveRainWarning: Boolean,
+    shouldShowExtremeWarning: Boolean,
+    isTracking: Boolean,
+    weatherStatus: WeatherStatus,
+    onDismissRainWarning: () -> Unit,
+    onDismissExtremeWarning: () -> Unit
+) {
+    // Solo mostrar en pantalla de precarga GPS (antes de iniciar), no durante el tracking
+    val shouldShow = (shouldShowRainWarning || shouldShowExtremeWarning) && !isTracking
+    
+    // Construir la lista de avisos activos (prioridad: lluvia/calzada mojada > condiciones extremas)
+    val activeWarnings = remember(shouldShowRainWarning, isActiveRainWarning, shouldShowExtremeWarning, weatherStatus) {
+        val list = mutableListOf<WarningItem>()
+
+        // Prioridad 1: Lluvia o Calzada Mojada (Mutuamente excluyentes)
+        if (shouldShowRainWarning) {
+            if (isActiveRainWarning) {
+                // Lluvia activa
+                list.add(
+                    WarningItem(
+                        icon = Icons.Default.WaterDrop,
+                        title = "Lluvia detectada",
+                        subtitle = "El pavimento está resbaladizo.",
+                        iconColor = Color(0xFF0D47A1) // Azul oscuro
+                    )
+                )
+            } else {
+                // Calzada mojada (sin lluvia activa)
+                list.add(
+                    WarningItem(
+                        icon = Icons.Default.Warning,
+                        title = "Precaución: Calzada mojada",
+                        subtitle = "El pavimento puede estar resbaladizo.",
+                        iconColor = Color(0xFFE65100) // Naranja oscuro
+                    )
+                )
+            }
+        }
+
+        // Prioridad 2: Condiciones Extremas (complementario)
+        // 🔥 Mensaje dinámico según la condición específica que activa la alerta
+        if (shouldShowExtremeWarning) {
+            val extremeSubtitle = when (weatherStatus) {
+                is WeatherStatus.Success -> {
+                    // Convertir viento de m/s a km/h
+                    val windSpeedKmh = (weatherStatus.windSpeed ?: 0.0) * 3.6
+                    val windGustsKmh = (weatherStatus.windGusts ?: 0.0) * 3.6
+                    val temperature = weatherStatus.temperature // Double, no nullable
+                    val uvIndex = weatherStatus.uvIndex
+                    val isDay = weatherStatus.isDay
+                    
+                    // Detectar qué condiciones específicas están activas
+                    val isExtremeWind = windSpeedKmh > 40
+                    val isExtremeGusts = windGustsKmh > 60
+                    val isExtremeTemp = temperature < 0 || temperature > 35
+                    val isExtremeUv = isDay && uvIndex != null && uvIndex > 8
+                    val isStorm = weatherStatus.weatherEmoji?.let { emoji ->
+                        emoji.contains("⛈") || emoji.contains("⚡")
+                    } ?: false
+                    val isStormByDescription = weatherStatus.description?.let { desc ->
+                        desc.contains("Tormenta", ignoreCase = true) ||
+                        desc.contains("granizo", ignoreCase = true) ||
+                        desc.contains("rayo", ignoreCase = true)
+                    } ?: false
+                    
+                    // Generar mensaje específico según las condiciones detectadas
+                    when {
+                        isStorm || isStormByDescription -> "Tormenta detectada"
+                        isExtremeGusts && isExtremeTemp -> "Ráfagas muy fuertes (${windGustsKmh.toInt()} km/h) y temp. extrema (${temperature.toInt()}°C)"
+                        isExtremeWind && isExtremeTemp -> "Viento fuerte (${windSpeedKmh.toInt()} km/h) y temp. extrema (${temperature.toInt()}°C)"
+                        isExtremeGusts -> "Ráfagas de viento muy fuertes (${windGustsKmh.toInt()} km/h)"
+                        isExtremeWind -> "Viento fuerte (${windSpeedKmh.toInt()} km/h)"
+                        isExtremeTemp -> {
+                            if (temperature > 35) {
+                                "Calor intenso (${temperature.toInt()}°C)"
+                            } else {
+                                "Temperaturas bajo cero (${temperature.toInt()}°C)"
+                            }
+                        }
+                        isExtremeUv && uvIndex != null -> "Índice UV muy alto (${uvIndex.toInt()})"
+                        else -> "Condiciones meteorológicas adversas"
+                    }
+                }
+                else -> "Ten precaución durante el trayecto."
+            }
+            
+            list.add(
+                WarningItem(
+                    icon = Icons.Default.Warning,
+                    title = "Condiciones extremas",
+                    subtitle = extremeSubtitle,
+                    iconColor = Color(0xFFB71C1C) // Rojo oscuro
+                )
+            )
+        }
+        
+        list
+    }
+
+    // Si no hay avisos, no mostramos nada
+    if (activeWarnings.isEmpty() || !shouldShow) return
+
+    // Determinar el color de fondo de la tarjeta según la prioridad
+    // Si hay lluvia -> Fondo azulado/rosa (TertiaryContainer)
+    // Si hay calzada mojada -> Fondo naranja/amarillo (ErrorContainer)
+    // Si hay condiciones extremas (solo o con lluvia/calzada) -> Fondo rojizo (ErrorContainer)
+    val containerColor = if (shouldShowExtremeWarning) {
+        MaterialTheme.colorScheme.errorContainer
+    } else if (isActiveRainWarning) {
+        MaterialTheme.colorScheme.tertiaryContainer
+    } else {
+        MaterialTheme.colorScheme.errorContainer // Calzada mojada
+    }
+    
+    val contentColor = if (shouldShowExtremeWarning) {
+        MaterialTheme.colorScheme.onErrorContainer
+    } else if (isActiveRainWarning) {
+        MaterialTheme.colorScheme.onTertiaryContainer
+    } else {
+        MaterialTheme.colorScheme.onErrorContainer
+    }
+
+    // Renderizado
+    AnimatedVisibility(
+        visible = shouldShow,
+        enter = fadeIn() + expandVertically(),
+        exit = fadeOut() + shrinkVertically()
+    ) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 16.dp),
+            colors = CardDefaults.cardColors(containerColor = containerColor),
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Box(modifier = Modifier.fillMaxWidth()) {
+                // Botón de cerrar (Uno solo para toda la tarjeta)
+                // Si hay múltiples avisos, cerramos todos a la vez
+                IconButton(
+                    onClick = {
+                        onDismissRainWarning()
+                        onDismissExtremeWarning()
+                    },
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(4.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "Cerrar avisos",
+                        tint = contentColor.copy(alpha = 0.7f)
+                    )
+                }
+
+                // Lista de avisos
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    activeWarnings.forEachIndexed { index, warning ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = warning.icon,
+                                contentDescription = null,
+                                tint = warning.iconColor,
+                                modifier = Modifier.size(28.dp)
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                ZipStatsText(
+                                    text = warning.title,
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = contentColor
+                                )
+                                ZipStatsText(
+                                    text = warning.subtitle,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = contentColor.copy(alpha = 0.9f)
+                                )
+                            }
+                            // Espacio para que el texto no se monte sobre la X en el primer elemento
+                            if (index == 0) {
+                                Spacer(modifier = Modifier.width(24.dp)) 
+                            }
+                        }
+                        
+                        // Si no es el último elemento, ponemos una línea divisoria sutil
+                        if (index < activeWarnings.lastIndex) {
+                            HorizontalDivider(
+                                modifier = Modifier.padding(top = 12.dp),
+                                color = contentColor.copy(alpha = 0.2f)
+                            )
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -421,9 +646,12 @@ fun IdleStateContent(
     weatherStatus: WeatherStatus,
     shouldShowRainWarning: Boolean,
     isActiveRainWarning: Boolean,
+    shouldShowExtremeWarning: Boolean,
+    isTracking: Boolean,
     onScooterClick: () -> Unit,
     onStartTracking: () -> Unit,
-    onDismissRainWarning: () -> Unit
+    onDismissRainWarning: () -> Unit,
+    onDismissExtremeWarning: () -> Unit
 ) {
     Column(
         modifier = Modifier.fillMaxWidth().padding(top = 32.dp),
@@ -521,94 +749,16 @@ fun IdleStateContent(
 
         Spacer(modifier = Modifier.height(32.dp))
         
-        // Aviso preventivo de lluvia (dinámico según tipo)
-        AnimatedVisibility(
-            visible = shouldShowRainWarning,
-            enter = fadeIn() + expandVertically(),
-            exit = fadeOut() + shrinkVertically()
-        ) {
-            // Determinar tipo de aviso y configuración visual
-            val containerColor = if (isActiveRainWarning) {
-                // CASO A: LLUVIA ACTIVA - Usar tertiaryContainer para diferenciarlo del aviso de calzada mojada
-                MaterialTheme.colorScheme.tertiaryContainer
-            } else {
-                // CASO B: CALZADA MOJADA (sin lluvia activa)
-                MaterialTheme.colorScheme.errorContainer
-            }
-            
-            val contentColor = if (isActiveRainWarning) {
-                MaterialTheme.colorScheme.onTertiaryContainer
-            } else {
-                MaterialTheme.colorScheme.onErrorContainer
-            }
-            
-            val icon = if (isActiveRainWarning) {
-                Icons.Default.WaterDrop
-            } else {
-                Icons.Default.Warning
-            }
-            
-            val title = if (isActiveRainWarning) {
-                "Lluvia detectada"
-            } else {
-                "Precaución: Calzada mojada"
-            }
-            
-            val subtitle = if (isActiveRainWarning) {
-                "El pavimento está resbaladizo."
-            } else {
-                "El pavimento puede estar resbaladizo."
-            }
-            
-            Surface(
-                shape = RoundedCornerShape(12.dp),
-                color = containerColor,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 16.dp)
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Row(
-                        modifier = Modifier.weight(1f),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = icon,
-                            contentDescription = null,
-                            tint = contentColor,
-                            modifier = Modifier.size(24.dp)
-                        )
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            ZipStatsText(
-                                text = title,
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = contentColor
-                            )
-                            ZipStatsText(
-                                text = subtitle,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = contentColor.copy(alpha = 0.8f)
-                            )
-                        }
-                    }
-                    IconButton(onClick = onDismissRainWarning) {
-                        Icon(
-                            imageVector = Icons.Default.Close,
-                            contentDescription = "Cerrar",
-                            tint = contentColor
-                        )
-                    }
-                }
-            }
-        }
+        // Centro de Notificaciones Unificado - Una sola tarjeta inteligente que agrupa todos los avisos
+        PreRideSmartWarning(
+            shouldShowRainWarning = shouldShowRainWarning,
+            isActiveRainWarning = isActiveRainWarning,
+            shouldShowExtremeWarning = shouldShowExtremeWarning,
+            isTracking = isTracking,
+            weatherStatus = weatherStatus,
+            onDismissRainWarning = onDismissRainWarning,
+            onDismissExtremeWarning = onDismissExtremeWarning
+        )
 
         Button(
             onClick = onStartTracking,
@@ -1029,7 +1179,7 @@ fun TrackingWeatherCard(
                         )
                         Spacer(modifier = Modifier.width(12.dp))
                         ZipStatsText(
-                            text = "${String.format("%.0f", weatherStatus.temperature)}°C",
+                            text = "${formatTemperature(weatherStatus.temperature, decimals = 0)}°C",
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface // <--- Blanco fuerte
@@ -1231,6 +1381,26 @@ fun formatDuration(millis: Long): String {
         String.format("%02d:%02d:%02d", hours, minutes, secs)
     } else {
         String.format("%02d:%02d", minutes, secs)
+    }
+}
+
+/**
+ * Formatea la temperatura asegurándose de que 0 se muestre sin signo menos
+ */
+private fun formatTemperature(temperature: Double, decimals: Int = 1): String {
+    // Si la temperatura es exactamente 0 o muy cercana a 0, mostrar sin signo menos
+    val absTemp = kotlin.math.abs(temperature)
+    val formatted = if (decimals == 0) {
+        String.format("%.0f", absTemp)
+    } else {
+        String.format("%.${decimals}f", absTemp)
+    }
+    
+    // Si la temperatura original es negativa (y no es 0), añadir el signo menos
+    return if (temperature < 0 && absTemp > 0.001) {
+        "-$formatted"
+    } else {
+        formatted
     }
 }
 

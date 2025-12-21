@@ -505,6 +505,7 @@ private fun addMarkers(context: Context, style: Style, points: List<Point>, isCo
 
 // --- Fit camera to entire route with padding ---
 
+@Suppress("DEPRECATION") // <--- Añade esto
 private fun fitCameraToRoute(mapView: MapView, points: List<Point>, isCompact: Boolean = false) {
     if (points.size < 2) return
 

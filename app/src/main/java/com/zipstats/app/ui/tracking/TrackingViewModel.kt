@@ -186,11 +186,22 @@ class TrackingViewModel @Inject constructor(
     private val _isActiveRainWarning = MutableStateFlow(false)
     val isActiveRainWarning: StateFlow<Boolean> = _isActiveRainWarning.asStateFlow()
     
+    // Estado para aviso preventivo de condiciones extremas
+    private val _shouldShowExtremeWarning = MutableStateFlow(false)
+    val shouldShowExtremeWarning: StateFlow<Boolean> = _shouldShowExtremeWarning.asStateFlow()
+    
     /**
      * Descarta el aviso preventivo de lluvia
      */
     fun dismissRainWarning() {
         _shouldShowRainWarning.value = false
+    }
+    
+    /**
+     * Descarta el aviso preventivo de condiciones extremas
+     */
+    fun dismissExtremeWarning() {
+        _shouldShowExtremeWarning.value = false
     }
     
     // Variables para detectar lluvia durante la ruta
@@ -202,6 +213,18 @@ class TrackingViewModel @Inject constructor(
     private var pendingRainConfirmation: Boolean = false
     private var pendingRainMinute: Int? = null
     private var pendingRainReason: String? = null
+    
+    // Variables para rastrear el estado más adverso durante la ruta (para badges)
+    // Prioridad: Condiciones extremas > Lluvia > Calzada mojada
+    private var weatherHadWetRoad = false // Calzada mojada detectada (sin lluvia activa)
+    private var weatherHadExtremeConditions = false // Condiciones extremas detectadas
+    
+    // Valores máximos/mínimos durante la ruta (para reflejar el estado más adverso en los badges)
+    private var maxWindSpeed = 0.0 // km/h
+    private var maxWindGusts = 0.0 // km/h
+    private var minTemperature = Double.MAX_VALUE // °C
+    private var maxTemperature = Double.MIN_VALUE // °C
+    private var maxUvIndex = 0.0
     
     // Estado del clima
     private val _weatherStatus = MutableStateFlow<WeatherStatus>(WeatherStatus.Idle)
@@ -507,66 +530,62 @@ class TrackingViewModel @Inject constructor(
                         weather.windSpeed
                     )
                     
-                    // Determinar si es lluvia activa (código WMO indica lluvia) o calzada mojada
-                    // Usar la MISMA lógica que checkWetRoadConditions en RouteDetailDialog.kt
-                    val rainCodes = listOf(51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82, 95, 96, 99)
-                    val isClearSky = weather.weatherCode == 0 || weather.weatherCode == 1
+                    // Determinar si es lluvia activa: Usar función compartida para garantizar umbrales idénticos
+                    val isActiveRain = checkActiveRain(
+                        weatherCode = weather.weatherCode,
+                        isRaining = isRaining,
+                        precipitation = weather.precipitation
+                    )
                     
-                    // 🔒 UX: Si el cielo está despejado, NUNCA mostrar como lluvia activa (aunque haya precipitación)
-                    // La precipitación con cielo despejado = llovizna pasada = calzada mojada, no lluvia activa
-                    val isActiveRain = if (isClearSky) {
-                        false // Cielo despejado = nunca lluvia activa (solo calzada mojada si hay precipitación)
+                    // Calzada mojada: Usar función compartida para garantizar umbrales idénticos
+                    // 🔒 EXCLUSIÓN: Si hay lluvia activa, NO mostrar calzada mojada (son excluyentes)
+                    val isWetRoad = if (isActiveRain) {
+                        false // Excluir calzada mojada si hay lluvia activa
                     } else {
-                        weather.weatherCode in rainCodes || (isRaining && weather.precipitation > 0.1)
+                        checkWetRoadConditions(
+                            weatherCode = weather.weatherCode,
+                            humidity = weather.humidity,
+                            rainProbability = weather.rainProbability,
+                            precipitation = weather.precipitation,
+                            isDay = weather.isDay,
+                            weatherEmoji = effectiveEmoji,
+                            hasActiveRain = isActiveRain
+                        )
                     }
                     
-                    // Calzada mojada: REPLICAR EXACTAMENTE la lógica de RouteDetailDialog.checkWetRoadConditions
-                    // Considerar día/noche porque la evaporación cambia significativamente
-                    // 🔒 IMPORTANTE: Solo evaluar si NO hay lluvia activa y el cielo NO está despejado
-                    val isWetRoad = if (!isActiveRain) {
-                        val isDay = weather.isDay
-                        var wetRoadDetected = false
-                        
-                        // Solo evaluar condiciones probabilísticas si el cielo NO está despejado
-                        if (!isClearSky) {
-                            // 2. Calzada mojada considerando día/noche (misma lógica que RouteDetailDialog)
-                            if (isDay) {
-                                // Día: necesita condiciones más extremas
-                                if (weather.humidity >= 90) {
-                                    wetRoadDetected = true
-                                }
-                                if (weather.rainProbability != null && weather.rainProbability > 40) {
-                                    wetRoadDetected = true
-                                }
-                            } else {
-                                // Noche: con humedad alta el suelo tarda mucho en secarse
-                                if (weather.humidity >= 85) {
-                                    wetRoadDetected = true
-                                }
-                                if (weather.rainProbability != null && weather.rainProbability > 35) {
-                                    wetRoadDetected = true
-                                }
-                            }
-                        }
-                        
-                        // 3. Si hay precipitación registrada pero no se detectó como "Lluvia activa"
-                        // (Ej: Llovió justo antes o llovizna muy fina que no activó el sensor pero mojó el suelo)
-                        // 🔒 UX: Precipitación con cielo despejado = calzada mojada (amarillo), no lluvia activa (azul)
-                        if (weather.precipitation > 0.1) {
-                            wetRoadDetected = true
-                        }
-                        
-                        wetRoadDetected
-                    } else {
-                        false
-                    }
-                    
+                    // Mostrar aviso si hay lluvia activa O calzada mojada (pero nunca ambos)
                     _shouldShowRainWarning.value = isActiveRain || isWetRoad
                     _isActiveRainWarning.value = isActiveRain
+                    
+                    // Detectar condiciones extremas (replicar lógica de checkExtremeConditions)
+                    val hasExtremeConditions = checkExtremeConditions(
+                        windSpeed = weather.windSpeed,
+                        windGusts = weather.windGusts,
+                        temperature = weather.temperature,
+                        uvIndex = weather.uvIndex,
+                        isDay = weather.isDay,
+                        weatherEmoji = effectiveEmoji,
+                        weatherDescription = effectiveDescription
+                    )
+                    _shouldShowExtremeWarning.value = hasExtremeConditions
+                    
+                    // 🔥 ACTUALIZAR ESTADO MÁS ADVERSO INICIAL (prioridad: extremas > lluvia > calzada mojada)
+                    if (hasExtremeConditions) {
+                        weatherHadExtremeConditions = true
+                    }
+                    if (isActiveRain) {
+                        weatherHadRain = true
+                        weatherHadWetRoad = false // Lluvia es más grave
+                    } else if (isWetRoad) {
+                        weatherHadWetRoad = true
+                    }
                     
                     Log.d(TAG, "✅ [Precarga] Clima inicial capturado: ${weather.temperature}°C $effectiveEmoji")
                     if (isRaining) {
                         Log.d(TAG, "🌧️ [Precarga] Lluvia detectada - mostrar aviso preventivo")
+                    }
+                    if (hasExtremeConditions) {
+                        Log.d(TAG, "⚠️ [Precarga] Condiciones extremas detectadas - mostrar aviso preventivo")
                     }
                 }.onFailure { error ->
                     Log.e(TAG, "❌ [Precarga] Error al capturar clima inicial: ${error.message}")
@@ -704,6 +723,9 @@ class TrackingViewModel @Inject constructor(
      * Inicia el seguimiento de la ruta
      */
     fun startTracking() {
+        // Ocultar preavisos cuando se inicia el tracking (solo se muestran en precarga GPS)
+        _shouldShowRainWarning.value = false
+        _shouldShowExtremeWarning.value = false
         val scooter = _selectedScooter.value
         if (scooter == null) {
             _message.value = "Por favor, selecciona un vehículo primero"
@@ -801,6 +823,140 @@ class TrackingViewModel @Inject constructor(
     }
 
     /**
+     * Determina si hay lluvia activa (replica EXACTAMENTE la lógica usada en preavisos y monitoreo)
+     * 🔒 IMPORTANTE: Esta función garantiza que los umbrales sean idénticos entre preavisos y badges
+     */
+    private fun checkActiveRain(
+        weatherCode: Int,
+        isRaining: Boolean,
+        precipitation: Double?
+    ): Boolean {
+        val rainCodes = listOf(51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82, 95, 96, 99)
+        val isClearSky = weatherCode == 0 || weatherCode == 1
+        
+        // 🔒 UX: Si el cielo está despejado, NUNCA mostrar como lluvia activa (aunque haya precipitación)
+        // La precipitación con cielo despejado = llovizna pasada = calzada mojada, no lluvia activa
+        return if (isClearSky) {
+            false // Cielo despejado = nunca lluvia activa (solo calzada mojada si hay precipitación)
+        } else {
+            weatherCode in rainCodes || (isRaining && (precipitation ?: 0.0) > 0.1)
+        }
+    }
+    
+    /**
+     * Verifica si hay calzada mojada (replica EXACTAMENTE la lógica de RouteDetailDialog.checkWetRoadConditions)
+     * 🔒 IMPORTANTE: Esta función garantiza que los umbrales sean idénticos entre preavisos y badges
+     */
+    private fun checkWetRoadConditions(
+        weatherCode: Int?,
+        humidity: Int?,
+        rainProbability: Int?,
+        precipitation: Double?,
+        isDay: Boolean,
+        weatherEmoji: String?,
+        hasActiveRain: Boolean
+    ): Boolean {
+        // 1. EXCLUSIÓN: Si hay lluvia activa, NO mostramos "Calzada Mojada"
+        if (hasActiveRain) {
+            return false
+        }
+        
+        // 🔒 Verificar si el cielo está despejado
+        val isClearSky = when {
+            weatherCode != null -> weatherCode == 0 || weatherCode == 1
+            weatherEmoji != null -> weatherEmoji == "☀️" || weatherEmoji == "🌙"
+            else -> false
+        }
+        
+        // 2. Calzada mojada considerando día/noche
+        // Día: humedad muy alta (>90%) o probabilidad alta (>40%) - suelo puede estar mojado pero seca más rápido
+        // Noche: humedad alta (>85%) es suficiente - el suelo tarda mucho más en secarse sin sol
+        // 🔒 Solo evaluar condiciones probabilísticas si el cielo NO está despejado
+        if (!isClearSky && humidity != null) {
+            if (isDay) {
+                // Día: necesita condiciones más extremas
+                if (humidity >= 90) {
+                    return true
+                }
+                if (rainProbability != null && rainProbability > 40) {
+                    return true
+                }
+            } else {
+                // Noche: con humedad alta el suelo tarda mucho en secarse
+                if (humidity >= 85) {
+                    return true
+                }
+                if (rainProbability != null && rainProbability > 35) {
+                    return true
+                }
+            }
+        }
+        
+        // 3. Si hay precipitación registrada pero no se detectó como "Lluvia activa"
+        // (Ej: Llovió justo antes o llovizna muy fina que no activó el sensor pero mojó el suelo)
+        // NOTA: Esta condición es independiente del estado del cielo (precipitación real medida)
+        if (precipitation != null && precipitation > 0.1) {
+            return true
+        }
+        
+        return false
+    }
+    
+    /**
+     * Verifica si hay condiciones extremas (replica lógica de RouteDetailDialog.checkExtremeConditions)
+     */
+    private fun checkExtremeConditions(
+        windSpeed: Double?,
+        windGusts: Double?,
+        temperature: Double?,
+        uvIndex: Double?,
+        isDay: Boolean,
+        weatherEmoji: String?,
+        weatherDescription: String?
+    ): Boolean {
+        // Viento fuerte (>40 km/h) - convertir de m/s a km/h
+        val windSpeedKmh = (windSpeed ?: 0.0) * 3.6
+        if (windSpeedKmh > 40) {
+            return true
+        }
+        
+        // Ráfagas de viento muy fuertes (>60 km/h) - convertir de m/s a km/h
+        val windGustsKmh = (windGusts ?: 0.0) * 3.6
+        if (windGustsKmh > 60) {
+            return true
+        }
+        
+        // Temperatura extrema (<0°C o >35°C)
+        if (temperature != null) {
+            if (temperature < 0 || temperature > 35) {
+                return true
+            }
+        }
+        
+        // Índice UV muy alto (>8) - solo de día
+        if (isDay && uvIndex != null && uvIndex > 8) {
+            return true
+        }
+        
+        // Tormenta (detectada por emoji o descripción)
+        val isStorm = weatherEmoji?.let { emoji ->
+            emoji.contains("⛈") || emoji.contains("⚡")
+        } ?: false
+        
+        val isStormByDescription = weatherDescription?.let { desc ->
+            desc.contains("Tormenta", ignoreCase = true) ||
+            desc.contains("granizo", ignoreCase = true) ||
+            desc.contains("rayo", ignoreCase = true)
+        } ?: false
+        
+        if (isStorm || isStormByDescription) {
+            return true
+        }
+        
+        return false
+    }
+
+    /**
      * Resuelve el código de clima efectivo basado en detección de lluvia efectiva
      * Si hay lluvia efectiva, fuerza código 61 (lluvia ligera)
      * Devuelve: (effectiveCode, reasonCode, userFriendlyReason, isDerived)
@@ -893,7 +1049,7 @@ class TrackingViewModel @Inject constructor(
                         )
                         
                         result.onSuccess { weather ->
-                            // Detectar lluvia usando la función
+                            // Detectar lluvia usando la función (para badge en resumen)
                             val (isRaining, rainReasonCode, rainUserReason) = isRainingForScooter(
                                 weather.weatherCode,
                                 weather.precipitation,
@@ -904,7 +1060,78 @@ class TrackingViewModel @Inject constructor(
                                 weather.windSpeed
                             )
                             
-                            // Lógica: solo actualizar si detecta lluvia nueva
+                            // Determinar si es lluvia activa: Usar función compartida para garantizar umbrales idénticos
+                            val isActiveRain = checkActiveRain(
+                                weatherCode = weather.weatherCode,
+                                isRaining = isRaining,
+                                precipitation = weather.precipitation
+                            )
+                            
+                            // Obtener emoji para detección de condiciones extremas y calzada mojada
+                            val effectiveEmoji = com.zipstats.app.repository.WeatherRepository.getEmojiForWeather(
+                                weather.weatherCode,
+                                if (weather.isDay) 1 else 0
+                            )
+                            
+                            // Calzada mojada: Usar función compartida para garantizar umbrales idénticos
+                            // 🔒 EXCLUSIÓN: Si hay lluvia activa, NO mostrar calzada mojada (son excluyentes)
+                            val isWetRoad = if (isActiveRain) {
+                                false // Excluir calzada mojada si hay lluvia activa
+                            } else {
+                                checkWetRoadConditions(
+                                    weatherCode = weather.weatherCode,
+                                    humidity = weather.humidity,
+                                    rainProbability = weather.rainProbability,
+                                    precipitation = weather.precipitation,
+                                    isDay = weather.isDay,
+                                    weatherEmoji = effectiveEmoji,
+                                    hasActiveRain = isActiveRain
+                                )
+                            }
+                            
+                            // Detectar condiciones extremas
+                            val hasExtremeConditions = checkExtremeConditions(
+                                windSpeed = weather.windSpeed,
+                                windGusts = weather.windGusts,
+                                temperature = weather.temperature,
+                                uvIndex = weather.uvIndex,
+                                isDay = weather.isDay,
+                                weatherEmoji = effectiveEmoji,
+                                weatherDescription = weather.description
+                            )
+                            
+                            // 🔥 ACTUALIZAR ESTADO MÁS ADVERSO (prioridad: extremas > lluvia > calzada mojada)
+                            // Si detectamos condiciones extremas, es el más grave
+                            if (hasExtremeConditions) {
+                                weatherHadExtremeConditions = true
+                                // Rastrear valores extremos para reflejarlos en los badges
+                                val windSpeedKmh = (weather.windSpeed ?: 0.0) * 3.6
+                                val windGustsKmh = (weather.windGusts ?: 0.0) * 3.6
+                                maxWindSpeed = maxOf(maxWindSpeed, windSpeedKmh)
+                                maxWindGusts = maxOf(maxWindGusts, windGustsKmh)
+                                if (weather.temperature != null) {
+                                    minTemperature = minOf(minTemperature, weather.temperature)
+                                    maxTemperature = maxOf(maxTemperature, weather.temperature)
+                                }
+                                if (weather.uvIndex != null && weather.isDay) {
+                                    maxUvIndex = maxOf(maxUvIndex, weather.uvIndex)
+                                }
+                            }
+                            
+                            // Si detectamos lluvia activa, es más grave que calzada mojada
+                            if (isActiveRain) {
+                                weatherHadRain = true
+                                weatherHadWetRoad = false // Lluvia es más grave, no calzada mojada
+                            } else if (isWetRoad) {
+                                // Solo marcar calzada mojada si NO hay lluvia activa
+                                weatherHadWetRoad = true
+                                // Asegurar que haya precipitación para que el badge se muestre
+                                if (weatherMaxPrecipitation < 0.1) {
+                                    weatherMaxPrecipitation = maxOf(weatherMaxPrecipitation, 0.15)
+                                }
+                            }
+                            
+                            // Lógica: solo actualizar si detecta lluvia nueva (para icono)
                             // Si ya había lluvia y ahora no, mantener el icono de lluvia
                             if (isRaining) {
                                 if (!weatherHadRain) {
@@ -914,6 +1141,7 @@ class TrackingViewModel @Inject constructor(
                                         Log.d(TAG, "🌧️ [Monitoreo continuo] Lluvia CONFIRMADA en minuto $elapsedMinutes (detectada primero en minuto $pendingRainMinute): $rainUserReason")
                                         
                                         weatherHadRain = true
+                                        weatherHadWetRoad = false // Lluvia es más grave que calzada mojada
                                         weatherRainStartMinute = pendingRainMinute // Usar el minuto del primer chequeo
                                         weatherRainReason = pendingRainReason ?: rainUserReason
                                         
@@ -1714,24 +1942,65 @@ class TrackingViewModel @Inject constructor(
                 }
                 
                 // Usar el clima capturado al INICIO de la ruta SOLO si es válido
+                // 🔥 Si detectamos condiciones extremas durante la ruta, usar los valores máximos/mínimos
+                // para que los badges reflejen el estado más adverso
+                val finalWindSpeed = if (weatherHadExtremeConditions && maxWindSpeed > 0.0) {
+                    maxOf(savedWindSpeed ?: 0.0, maxWindSpeed)
+                } else {
+                    savedWindSpeed
+                }
+                
+                val finalWindGusts = if (weatherHadExtremeConditions && maxWindGusts > 0.0) {
+                    maxOf(savedWindGusts ?: 0.0, maxWindGusts)
+                } else {
+                    savedWindGusts
+                }
+                
+                val finalTemperature = if (weatherHadExtremeConditions && 
+                    (minTemperature < Double.MAX_VALUE || maxTemperature > Double.MIN_VALUE)) {
+                    // Usar el valor más extremo (más bajo o más alto)
+                    when {
+                        minTemperature < 0 -> minTemperature // Temperatura bajo cero
+                        maxTemperature > 35 -> maxTemperature // Temperatura muy alta
+                        else -> savedWeatherTemp // Mantener temperatura inicial si no es extrema
+                    }
+                } else {
+                    savedWeatherTemp
+                }
+                
+                val finalUvIndex = if (weatherHadExtremeConditions && maxUvIndex > 0.0) {
+                    maxOf(savedUvIndex ?: 0.0, maxUvIndex)
+                } else {
+                    savedUvIndex
+                }
+                
                 val route = if (hasValidWeather) {
                     Log.d(TAG, "✅ Usando clima válido del INICIO de la ruta: ${savedWeatherTemp}°C ${savedWeatherEmoji}")
+                    if (weatherHadExtremeConditions) {
+                        Log.d(TAG, "⚠️ Ajustando datos de clima con valores extremos detectados durante la ruta")
+                    }
                     baseRoute.copy(
-                        weatherTemperature = savedWeatherTemp,
+                        weatherTemperature = finalTemperature,
                         weatherEmoji = savedWeatherEmoji,
                         weatherDescription = savedWeatherDesc,
                         weatherIsDay = savedIsDay,
                         weatherFeelsLike = savedFeelsLike,
                         weatherHumidity = savedHumidity,
-                        weatherWindSpeed = savedWindSpeed,
-                        weatherUvIndex = savedUvIndex,
+                        weatherWindSpeed = finalWindSpeed,
+                        weatherUvIndex = finalUvIndex,
                         weatherWindDirection = savedWindDirection,
-                        weatherWindGusts = savedWindGusts,
+                        weatherWindGusts = finalWindGusts,
                         weatherRainProbability = savedRainProbability,
                         weatherHadRain = if (weatherHadRain) true else null,
                         weatherRainStartMinute = weatherRainStartMinute,
-                        weatherMaxPrecipitation = if (weatherMaxPrecipitation > 0.0) weatherMaxPrecipitation else null,
-                        weatherRainReason = weatherRainReason
+                        // 🔥 Si detectamos calzada mojada durante la ruta, asegurar que haya precipitación para el badge
+                        weatherMaxPrecipitation = when {
+                            weatherMaxPrecipitation > 0.0 -> weatherMaxPrecipitation
+                            weatherHadWetRoad && !weatherHadRain -> 0.15 // Forzar precipitación si hubo calzada mojada
+                            else -> null
+                        },
+                        weatherRainReason = weatherRainReason,
+                        weatherHadExtremeConditions = if (weatherHadExtremeConditions) true else null
                     )
                 } else {
                     Log.w(TAG, "⚠️ No se capturó clima válido al inicio, guardando ruta SIN clima (temp=$savedWeatherTemp, emoji=$savedWeatherEmoji)")
@@ -1751,7 +2020,8 @@ class TrackingViewModel @Inject constructor(
                         weatherHadRain = null,
                         weatherRainStartMinute = null,
                         weatherMaxPrecipitation = null,
-                        weatherRainReason = null
+                        weatherRainReason = null,
+                        weatherHadExtremeConditions = null
                     )
                 }
                 
@@ -1769,6 +2039,16 @@ class TrackingViewModel @Inject constructor(
                     
                 // Limpiar datos de clima después de usar
                 _startWeatherTemperature = null
+                // Limpiar variables de estado más adverso
+                weatherHadRain = false
+                weatherHadWetRoad = false
+                weatherHadExtremeConditions = false
+                weatherMaxPrecipitation = 0.0
+                maxWindSpeed = 0.0
+                maxWindGusts = 0.0
+                minTemperature = Double.MAX_VALUE
+                maxTemperature = Double.MIN_VALUE
+                maxUvIndex = 0.0
                 _startWeatherEmoji = null
                 _startWeatherDescription = null
                 _startWeatherIsDay = null
@@ -1781,11 +2061,18 @@ class TrackingViewModel @Inject constructor(
                 _startWeatherRainProbability = null
                 _weatherStatus.value = WeatherStatus.Idle
                 
-                // Limpiar variables de detección de lluvia
+                // Limpiar variables de detección de lluvia y estado más adverso
                 weatherHadRain = false
                 weatherRainStartMinute = null
                 weatherMaxPrecipitation = 0.0
                 weatherRainReason = null
+                weatherHadWetRoad = false
+                weatherHadExtremeConditions = false
+                maxWindSpeed = 0.0
+                maxWindGusts = 0.0
+                minTemperature = Double.MAX_VALUE
+                maxTemperature = Double.MIN_VALUE
+                maxUvIndex = 0.0
                 
                 // Limpiar estado pendiente explícitamente
                 pendingRainConfirmation = false
@@ -1909,6 +2196,13 @@ class TrackingViewModel @Inject constructor(
         weatherRainStartMinute = null
         weatherMaxPrecipitation = 0.0
         weatherRainReason = null
+        weatherHadWetRoad = false
+        weatherHadExtremeConditions = false
+        maxWindSpeed = 0.0
+        maxWindGusts = 0.0
+        minTemperature = Double.MAX_VALUE
+        maxTemperature = Double.MIN_VALUE
+        maxUvIndex = 0.0
         pendingRainConfirmation = false
         pendingRainMinute = null
         pendingRainReason = null

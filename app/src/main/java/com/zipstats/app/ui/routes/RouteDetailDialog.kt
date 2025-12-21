@@ -46,6 +46,7 @@ import androidx.compose.material.icons.filled.WbSunny
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Text
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -584,13 +585,13 @@ private fun RouteTitle(route: Route) {
 private fun StatsChips(route: Route, onWeatherClick: () -> Unit) {
     val weatherClickInteractionSource = remember { MutableInteractionSource() }
     var weatherIconRes by remember(route.id) { mutableStateOf(getWeatherIconResId(route.weatherEmoji, route.weatherIsDay)) }
-    var weatherTemp by remember(route.id) { mutableStateOf(if (route.weatherTemperature != null) String.format("%.0f°C", route.weatherTemperature) else "--°C") }
+    var weatherTemp by remember(route.id) { mutableStateOf(if (route.weatherTemperature != null) "${formatTemperature(route.weatherTemperature, decimals = 0)}°C" else "--°C") }
     var isLoadingWeather by remember(route.id) { mutableStateOf(false) }
 
     LaunchedEffect(route.id) {
         if (route.weatherTemperature != null) {
             weatherIconRes = getWeatherIconResId(route.weatherEmoji, route.weatherIsDay)
-            weatherTemp = String.format("%.0f°C", route.weatherTemperature)
+                    weatherTemp = "${formatTemperature(route.weatherTemperature, decimals = 0)}°C"
             return@LaunchedEffect
         }
         if (route.points.isNotEmpty()) {
@@ -601,7 +602,7 @@ private fun StatsChips(route: Route, onWeatherClick: () -> Unit) {
                 val result = weatherRepository.getCurrentWeather(firstPoint.latitude, firstPoint.longitude)
                 result.onSuccess { weather ->
                     weatherIconRes = getWeatherIconResId(weather.weatherEmoji, weather.isDay)
-                    weatherTemp = String.format("%.0f°C", weather.temperature)
+                    weatherTemp = "${formatTemperature(weather.temperature, decimals = 0)}°C"
                 }
             } catch (e: Exception) {
                 // Ignorar
@@ -769,10 +770,40 @@ private fun WeatherInfoDialog(route: Route, onDismiss: () -> Unit) {
                 Spacer(modifier = Modifier.height(16.dp))
                 ZipStatsText(text = route.weatherDescription?.substringBefore("(")?.trim() ?: "Detalles del Clima", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
                 Spacer(modifier = Modifier.height(8.dp))
-                ZipStatsText(text = "${String.format("%.1f", route.weatherTemperature)}°C", style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                
+                // 🔥 Detectar qué parámetros activaron la alerta de condiciones extremas
+                val hasExtremeConditions = checkExtremeConditions(route)
+                val isExtremeWind = route.weatherWindSpeed != null && route.weatherWindSpeed > 40
+                val isExtremeGusts = route.weatherWindGusts != null && route.weatherWindGusts > 60
+                val isExtremeTemp = route.weatherTemperature != null && (route.weatherTemperature < 0 || route.weatherTemperature > 35)
+                val isExtremeUv = route.weatherIsDay && route.weatherUvIndex != null && route.weatherUvIndex > 8
+                val isStorm = route.weatherEmoji?.let { emoji ->
+                    emoji.contains("⛈") || emoji.contains("⚡")
+                } ?: false
+                val isStormByDescription = route.weatherDescription?.let { desc ->
+                    desc.contains("Tormenta", ignoreCase = true) ||
+                    desc.contains("granizo", ignoreCase = true) ||
+                    desc.contains("rayo", ignoreCase = true)
+                } ?: false
+                
+                // 🔥 Destacar temperatura si activó la alerta de condiciones extremas
+                val tempText = route.weatherTemperature?.let { temp ->
+                    if (hasExtremeConditions && isExtremeTemp) {
+                        "${formatTemperature(temp)}°C ⚠️"
+                    } else {
+                        "${formatTemperature(temp)}°C"
+                    }
+                } ?: "--°C"
+                ZipStatsText(
+                    text = tempText, 
+                    style = MaterialTheme.typography.displaySmall, 
+                    fontWeight = FontWeight.Bold, 
+                    color = if (hasExtremeConditions && isExtremeTemp) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+                )
                 Spacer(modifier = Modifier.height(24.dp))
                 Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                    route.weatherFeelsLike?.let { WeatherDetailRow(Icons.Default.Thermostat, "Sensación térmica", "${String.format("%.1f", it)}°C") }
+                    
+                    route.weatherFeelsLike?.let { WeatherDetailRow(Icons.Default.Thermostat, "Sensación térmica", "${formatTemperature(it)}°C") }
                     route.weatherHumidity?.let { WeatherDetailRow(Icons.Default.WaterDrop, "Humedad", "${it}%") }
                     
                     // LÓGICA INTELIGENTE: Precipitación vs Probabilidad
@@ -788,17 +819,40 @@ private fun WeatherInfoDialog(route: Route, onDismiss: () -> Unit) {
                         }
                     }
                     
-                    route.weatherWindSpeed?.let { WeatherDetailRow(Icons.Default.Air, "Viento", "${String.format("%.1f", it)} km/h (${convertWindDirectionToText(route.weatherWindDirection)})") }
-                    route.weatherWindGusts?.let { WeatherDetailRow(Icons.Default.Cyclone, "Ráfagas", "${String.format("%.1f", it)} km/h") }
+                    // 🔥 Destacar parámetros que activaron la alerta de condiciones extremas
+                    route.weatherWindSpeed?.let { 
+                        WeatherDetailRow(
+                            Icons.Default.Air, 
+                            "Viento", 
+                            "${String.format("%.1f", it)} km/h (${convertWindDirectionToText(route.weatherWindDirection)})",
+                            isExtreme = hasExtremeConditions && isExtremeWind
+                        ) 
+                    }
+                    route.weatherWindGusts?.let { 
+                        WeatherDetailRow(
+                            Icons.Default.Cyclone, 
+                            "Ráfagas", 
+                            "${String.format("%.1f", it)} km/h",
+                            isExtreme = hasExtremeConditions && isExtremeGusts
+                        ) 
+                    }
                     
                     if (route.weatherIsDay && route.weatherUvIndex != null && route.weatherUvIndex > 0) {
-                        WeatherDetailRow(Icons.Default.WbSunny, "Índice UV", String.format("%.0f", route.weatherUvIndex))
+                        WeatherDetailRow(
+                            Icons.Default.WbSunny, 
+                            "Índice UV", 
+                            String.format("%.0f", route.weatherUvIndex),
+                            isExtreme = hasExtremeConditions && isExtremeUv
+                        )
                     }
                     
                     // Badges de seguridad y condiciones
-                    val hasWetRoad = checkWetRoadConditions(route)
-                    val hasExtremeConditions = checkExtremeConditions(route)
+                    // 🔒 EXCLUSIÓN: Lluvia y calzada mojada son excluyentes
+                    // Si hubo lluvia, NO mostrar badge de calzada mojada
+                    // Prioridad de visualización: Lluvia/Calzada mojada > Condiciones extremas
                     val hadRain = route.weatherHadRain == true
+                    val hasWetRoad = if (hadRain) false else checkWetRoadConditions(route)
+                    val hasExtremeConditions = checkExtremeConditions(route)
                     
                     if (hasWetRoad || hasExtremeConditions || hadRain) {
                         Spacer(modifier = Modifier.height(8.dp))
@@ -807,60 +861,62 @@ private fun WeatherInfoDialog(route: Route, onDismiss: () -> Unit) {
                             modifier = Modifier.fillMaxWidth(),
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            // Badge: Calzada Mojada (Amarillo)
-                            if (hasWetRoad) {
-                                Surface(
-                                    shape = RoundedCornerShape(8.dp),
-                                    color = MaterialTheme.colorScheme.errorContainer,
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    ZipStatsText(
-                                        text = "🟡 Precaución: calzada mojada",
-                                        style = MaterialTheme.typography.labelLarge,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onErrorContainer,
-                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                                        textAlign = TextAlign.Center
-                                    )
-                                }
-                            }
+                            // Prioridad 1: Lluvia o Calzada Mojada (excluyentes)
+                            // 🔒 Misma paleta de colores que los preavisos
                             
-                            // Badge: Condiciones Extremas
-                            if (hasExtremeConditions) {
-                                Surface(
-                                    shape = RoundedCornerShape(8.dp),
-                                    color = MaterialTheme.colorScheme.errorContainer,
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    ZipStatsText(
-                                        text = "⚠️ Condiciones extremas",
-                                        style = MaterialTheme.typography.labelLarge,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onErrorContainer,
-                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                                        textAlign = TextAlign.Center
-                                    )
-                                }
-                            }
-
-                            // Badge: Lluvia (Azul/Rosa) - LIMPIO (Sin texto debajo)
+                            // Badge: Lluvia (Azul/Rosa) - Mismo color que preaviso: tertiaryContainer
                             if (hadRain) {
                                 Surface(
                                     shape = RoundedCornerShape(8.dp),
-                                    // Usamos un color distinto para diferenciar de "calzada mojada"
-                                    color = MaterialTheme.colorScheme.tertiaryContainer, 
+                                    color = MaterialTheme.colorScheme.tertiaryContainer, // Mismo que preaviso
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
                                     ZipStatsText(
                                         text = "🔵 Ruta realizada con lluvia",
                                         style = MaterialTheme.typography.labelLarge,
                                         fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onTertiaryContainer,
+                                        color = MaterialTheme.colorScheme.onTertiaryContainer, // Mismo que preaviso
                                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
                                         textAlign = TextAlign.Center
                                     )
                                 }
-                                // AQUI HEMOS BORRADO TODO EL TEXTO REDUNDANTE
+                            }
+                            
+                            // Badge: Calzada Mojada (Amarillo/Naranja) - Mismo color que preaviso: errorContainer
+                            if (hasWetRoad) {
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = MaterialTheme.colorScheme.errorContainer, // Mismo que preaviso
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    ZipStatsText(
+                                        text = "🟡 Precaución: calzada mojada",
+                                        style = MaterialTheme.typography.labelLarge,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onErrorContainer, // Mismo que preaviso
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                        textAlign = TextAlign.Center
+                                    )
+                                }
+                            }
+                            
+                            // Prioridad 2: Condiciones Extremas (complementario)
+                            // Mismo color que preaviso: errorContainer
+                            if (hasExtremeConditions) {
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = MaterialTheme.colorScheme.errorContainer, // Mismo que preaviso
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    ZipStatsText(
+                                        text = "⚠️ Condiciones extremas",
+                                        style = MaterialTheme.typography.labelLarge,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onErrorContainer, // Mismo que preaviso
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                        textAlign = TextAlign.Center
+                                    )
+                                }
                             }
                         }
                     }
@@ -873,12 +929,27 @@ private fun WeatherInfoDialog(route: Route, onDismiss: () -> Unit) {
 }
 
 @Composable
-private fun WeatherDetailRow(icon: ImageVector, label: String, value: String) {
+private fun WeatherDetailRow(
+    icon: ImageVector, 
+    label: String, 
+    value: String,
+    isExtreme: Boolean = false // 🔥 Si es true, destaca el valor (negrita + color)
+) {
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-        Icon(imageVector = icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
+        Icon(
+            imageVector = icon, 
+            contentDescription = null, 
+            tint = if (isExtreme) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary, 
+            modifier = Modifier.size(24.dp)
+        )
         Spacer(modifier = Modifier.width(16.dp))
         ZipStatsText(text = label, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
-        ZipStatsText(text = value, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold)
+        ZipStatsText(
+            text = value, 
+            style = MaterialTheme.typography.bodyLarge, 
+            fontWeight = FontWeight.Bold,
+            color = if (isExtreme) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
+        )
     }
 }
 
@@ -940,6 +1011,12 @@ private fun checkWetRoadConditions(route: Route): Boolean {
  * Verifica si hay condiciones extremas durante la ruta
  */
 private fun checkExtremeConditions(route: Route): Boolean {
+    // 🔥 PRIORIDAD: Si se detectó durante la ruta, mostrar badge (independientemente de valores guardados)
+    if (route.weatherHadExtremeConditions == true) {
+        return true
+    }
+    
+    // Si no hay flag, evaluar valores guardados (para compatibilidad con rutas antiguas)
     // Viento fuerte (>40 km/h)
     if (route.weatherWindSpeed != null && route.weatherWindSpeed > 40) {
         return true
@@ -1052,6 +1129,26 @@ private fun formatDurationWithUnits(durationMs: Long): String {
     val minutes = durationMs / 1000 / 60
     val hours = minutes / 60
     return if (hours > 0) String.format("%d h %d min", hours, minutes % 60) else String.format("%d min", minutes)
+}
+
+/**
+ * Formatea la temperatura asegurándose de que 0 se muestre sin signo menos
+ */
+private fun formatTemperature(temperature: Double, decimals: Int = 1): String {
+    // Si la temperatura es exactamente 0 o muy cercana a 0, mostrar sin signo menos
+    val absTemp = kotlin.math.abs(temperature)
+    val formatted = if (decimals == 0) {
+        String.format("%.0f", absTemp)
+    } else {
+        String.format("%.${decimals}f", absTemp)
+    }
+    
+    // Si la temperatura original es negativa (y no es 0), añadir el signo menos
+    return if (temperature < 0 && absTemp > 0.001) {
+        "-$formatted"
+    } else {
+        formatted
+    }
 }
 
 private fun convertWindDirectionToText(degrees: Int?): String {

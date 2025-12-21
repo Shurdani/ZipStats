@@ -145,7 +145,7 @@ fun RouteSummaryCard(
                         Spacer(modifier = Modifier.width(12.dp))
 
                         ZipStatsText(
-                            text = "${String.format("%.0f", temperature.toFloat())}°C",
+                            text = "${formatTemperature(temperature.toDouble(), decimals = 0)}°C",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                             color = androidx.compose.ui.graphics.Color.White,
@@ -198,6 +198,26 @@ private fun StatItemModern(
             color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.9f),
             maxLines = 1
         )
+    }
+}
+
+/**
+ * Formatea la temperatura asegurándose de que 0 se muestre sin signo menos
+ */
+private fun formatTemperature(temperature: Double, decimals: Int = 1): String {
+    // Si la temperatura es exactamente 0 o muy cercana a 0, mostrar sin signo menos
+    val absTemp = kotlin.math.abs(temperature)
+    val formatted = if (decimals == 0) {
+        String.format("%.0f", absTemp)
+    } else {
+        String.format("%.${decimals}f", absTemp)
+    }
+    
+    // Si la temperatura original es negativa (y no es 0), añadir el signo menos
+    return if (temperature < 0 && absTemp > 0.001) {
+        "-$formatted"
+    } else {
+        formatted
     }
 }
 

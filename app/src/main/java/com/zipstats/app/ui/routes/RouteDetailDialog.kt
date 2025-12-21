@@ -27,6 +27,7 @@ import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Air
 import androidx.compose.material.icons.filled.Analytics
 import androidx.compose.material.icons.filled.CalendarToday
+import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Cyclone
 import androidx.compose.material.icons.filled.Delete
@@ -773,31 +774,48 @@ private fun WeatherInfoDialog(route: Route, onDismiss: () -> Unit) {
                 Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                     route.weatherFeelsLike?.let { WeatherDetailRow(Icons.Default.Thermostat, "Sensación térmica", "${String.format("%.1f", it)}°C") }
                     route.weatherHumidity?.let { WeatherDetailRow(Icons.Default.WaterDrop, "Humedad", "${it}%") }
+                    
+                    // LÓGICA INTELIGENTE: Precipitación vs Probabilidad
+                    val precipitation = route.weatherMaxPrecipitation ?: 0.0
+                    
+                    if (precipitation > 0.0) {
+                        // CASO A: Ha llovido -> Mostramos el dato REAL (mm) y ocultamos la probabilidad
+                        WeatherDetailRow(Icons.Default.Grain, "Precipitación", "${String.format("%.1f", precipitation)} mm")
+                    } else {
+                        // CASO B: No ha llovido -> Mostramos la estimación de riesgo (%)
+                        route.weatherRainProbability?.let { 
+                            WeatherDetailRow(Icons.Default.Cloud, "Prob. de lluvia", "$it%") 
+                        }
+                    }
+                    
                     route.weatherWindSpeed?.let { WeatherDetailRow(Icons.Default.Air, "Viento", "${String.format("%.1f", it)} km/h (${convertWindDirectionToText(route.weatherWindDirection)})") }
                     route.weatherWindGusts?.let { WeatherDetailRow(Icons.Default.Cyclone, "Ráfagas", "${String.format("%.1f", it)} km/h") }
-                    route.weatherRainProbability?.let { WeatherDetailRow(Icons.Default.Grain, "Prob. de lluvia", "$it%") }
+                    
                     if (route.weatherIsDay && route.weatherUvIndex != null && route.weatherUvIndex > 0) {
                         WeatherDetailRow(Icons.Default.WbSunny, "Índice UV", String.format("%.0f", route.weatherUvIndex))
                     }
                     
-                    // Badges de seguridad y condiciones (justo después de la última línea)
+                    // Badges de seguridad y condiciones
                     val hasWetRoad = checkWetRoadConditions(route)
                     val hasExtremeConditions = checkExtremeConditions(route)
+                    val hadRain = route.weatherHadRain == true
                     
-                    if (hasWetRoad || hasExtremeConditions) {
+                    if (hasWetRoad || hasExtremeConditions || hadRain) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        
                         Column(
                             modifier = Modifier.fillMaxWidth(),
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
+                            // Badge: Calzada Mojada (Amarillo)
                             if (hasWetRoad) {
-                                // Badge de calzada mojada (solo si NO llovió durante la ruta)
                                 Surface(
                                     shape = RoundedCornerShape(8.dp),
                                     color = MaterialTheme.colorScheme.errorContainer,
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
                                     ZipStatsText(
-                                        text = "🟡 Calzada mojada",
+                                        text = "🟡 Precaución: calzada mojada",
                                         style = MaterialTheme.typography.labelLarge,
                                         fontWeight = FontWeight.Bold,
                                         color = MaterialTheme.colorScheme.onErrorContainer,
@@ -807,8 +825,8 @@ private fun WeatherInfoDialog(route: Route, onDismiss: () -> Unit) {
                                 }
                             }
                             
+                            // Badge: Condiciones Extremas
                             if (hasExtremeConditions) {
-                                // Badge de condiciones extremas
                                 Surface(
                                     shape = RoundedCornerShape(8.dp),
                                     color = MaterialTheme.colorScheme.errorContainer,
@@ -824,52 +842,25 @@ private fun WeatherInfoDialog(route: Route, onDismiss: () -> Unit) {
                                     )
                                 }
                             }
-                        }
-                    }
-                    
-                    // Mostrar información de lluvia detectada durante la ruta (justo después de la última línea o badges)
-                    if (route.weatherHadRain == true) {
-                        Column(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            // Badge de seguridad
-                            Surface(
-                                shape = RoundedCornerShape(8.dp),
-                                color = MaterialTheme.colorScheme.tertiaryContainer,
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                ZipStatsText(
-                                    text = "🔵 Ruta realizada con lluvia",
-                                    style = MaterialTheme.typography.labelLarge,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onTertiaryContainer,
-                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                                    textAlign = TextAlign.Center
-                                )
-                            }
-                            
-                            ZipStatsText(
-                                text = "Lluvia detectada durante la ruta",
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                            route.weatherRainStartMinute?.let { minute ->
-                                ZipStatsText(
-                                    text = "Desde el minuto $minute",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                            route.weatherMaxPrecipitation?.let { maxPrecip ->
-                                if (maxPrecip > 0.0) {
+
+                            // Badge: Lluvia (Azul/Rosa) - LIMPIO (Sin texto debajo)
+                            if (hadRain) {
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    // Usamos un color distinto para diferenciar de "calzada mojada"
+                                    color = MaterialTheme.colorScheme.tertiaryContainer, 
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
                                     ZipStatsText(
-                                        text = "Precipitación máxima: ${String.format("%.1f", maxPrecip)} mm",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        text = "🔵 Ruta realizada con lluvia",
+                                        style = MaterialTheme.typography.labelLarge,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onTertiaryContainer,
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                        textAlign = TextAlign.Center
                                     )
                                 }
+                                // AQUI HEMOS BORRADO TODO EL TEXTO REDUNDANTE
                             }
                         }
                     }

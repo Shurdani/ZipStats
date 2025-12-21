@@ -23,8 +23,7 @@ class RepairRepository @Inject constructor(
             .addSnapshotListener { snapshot, e ->
                 if (e != null) {
                     // Manejar PERMISSION_DENIED silenciosamente (típico al cerrar sesión)
-                    val isPermissionError = e is FirebaseFirestoreException &&
-                            e.code == FirebaseFirestoreException.Code.PERMISSION_DENIED
+                    val isPermissionError = e.code == FirebaseFirestoreException.Code.PERMISSION_DENIED
                     
                     if (isPermissionError) {
                         android.util.Log.w("RepairRepository", "Permiso denegado (probablemente durante logout). Cerrando listener silenciosamente.")

@@ -287,8 +287,7 @@ class RouteRepository @Inject constructor(
                 
                 if (error != null) {
                     // Manejar PERMISSION_DENIED silenciosamente (típico al cerrar sesión)
-                    val isPermissionError = error is FirebaseFirestoreException &&
-                            error.code == FirebaseFirestoreException.Code.PERMISSION_DENIED
+                    val isPermissionError = error.code == FirebaseFirestoreException.Code.PERMISSION_DENIED
                     
                     if (isPermissionError || auth.currentUser == null) {
                         Log.w(TAG, "Permiso denegado o usuario no autenticado (probablemente durante logout). Cerrando listener silenciosamente.")

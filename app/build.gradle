@@ -2,7 +2,7 @@ plugins {
     id 'com.android.application'
     id 'org.jetbrains.kotlin.android'
     id 'org.jetbrains.kotlin.plugin.compose'
-    id 'kotlin-kapt'
+    alias(libs.plugins.ksp)
     id 'dagger.hilt.android.plugin'
     id 'com.google.gms.google-services'
     
@@ -144,7 +144,7 @@ dependencies {
     // --- Hilt (actualizado y compatible con Kotlin 2.2.20) ---
     implementation "com.google.dagger:hilt-android:2.57.2"
     implementation libs.androidx.compose.ui
-    kapt "com.google.dagger:hilt-compiler:2.57.2"
+    ksp "com.google.dagger:hilt-compiler:2.57.2"
     implementation 'androidx.hilt:hilt-navigation-compose:1.2.0'
 
     // --- Mapbox Maps SDK ---
@@ -208,8 +208,8 @@ dependencies {
     debugImplementation 'androidx.compose.ui:ui-test-manifest:1.5.4'
 }
 
-kapt {
-    correctErrorTypes true
+ksp {
+    arg("dagger.hilt.shareTestComponents", "true")
 }
 
 hilt {

@@ -18,10 +18,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
@@ -279,9 +277,6 @@ fun RouteAnimationDialog(
     // Referencia mutable al estilo
     val mapStyleRef = remember { mutableStateOf<Style?>(null) }
 
-    // 🔥 Ocultar barras del sistema para grabación a pantalla completa
-    HideSystemBarsEffect()
-
     Dialog(
         onDismissRequest = onDismiss,
         properties = androidx.compose.ui.window.DialogProperties(
@@ -291,6 +286,10 @@ fun RouteAnimationDialog(
             decorFitsSystemWindows = false // Importante: permite que el contenido se expanda detrás de las barras
         )
     ) {
+        // 🔥 Ocultar barras del sistema para grabación a pantalla completa
+        // ✅ IMPORTANTE: Debe estar DENTRO del contenido del Dialog para detectar su ventana
+        HideSystemBarsEffect()
+        
         Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
             // Medir altura de la card para padding dinámico de la cámara (no del mapa)
             var cardHeightPx by remember { mutableStateOf(0) }
@@ -329,7 +328,7 @@ fun RouteAnimationDialog(
                         mapView.mapboxMap.setCamera(initialCamera)
                     }
                     
-                    mapView.mapboxMap.loadStyleUri(Style.SATELLITE) { style ->
+                    mapView.mapboxMap.loadStyle(Style.SATELLITE) { style ->
                         mapStyleRef.value = style
 
                         // Style.SATELLITE no incluye terreno por defecto, así que no es necesario desactivarlo
@@ -460,7 +459,7 @@ fun RouteAnimationDialog(
                     onClick = onDismiss,
                     modifier = Modifier
                         .align(Alignment.TopEnd)
-                        .statusBarsPadding()
+                        // ❌ Eliminado statusBarsPadding() - En modo inmersivo las barras están ocultas
                         .padding(16.dp)
                         .size(48.dp)
                         .background(Color.Black.copy(alpha = 0.5f), CircleShape)
@@ -494,7 +493,7 @@ fun RouteAnimationDialog(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
-                    .navigationBarsPadding()
+                    // ❌ Eliminado navigationBarsPadding() - En modo inmersivo las barras están ocultas
                     .padding(bottom = bottomPadding)
                     .zIndex(10f)
                     .onGloballyPositioned { coordinates ->
@@ -544,7 +543,7 @@ fun RouteAnimationDialog(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .navigationBarsPadding()
+                            // ❌ Eliminado navigationBarsPadding() - En modo inmersivo las barras están ocultas
                             .padding(bottom = 32.dp, start = 24.dp, end = 24.dp),
                         horizontalArrangement = Arrangement.SpaceBetween, // Controles separados
                         verticalAlignment = Alignment.CenterVertically
@@ -564,20 +563,22 @@ fun RouteAnimationDialog(
                                 if (wasPlaying) {
                                     // Pequeño delay para asegurar que la animación se reinicie completamente
                                     android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                                        if (mediaPlayer != null && !mediaPlayer!!.isPlaying && isPlaying) {
-                                            mediaPlayer?.start()
+                                        val player = mediaPlayer
+                                        if (player != null && !player.isPlaying && isPlaying) {
+                                            player.start()
                                         }
                                     }, 100) // Delay un poco mayor para asegurar estabilidad
                                 }
                             },
-                            containerColor = if (isSpeed2x) MaterialTheme.colorScheme.primary else Color.White.copy(alpha = 0.2f),
-                            contentColor = if (isSpeed2x) Color.Black else Color.White,
+                            containerColor = if (isSpeed2x) MaterialTheme.colorScheme.primary else Color.White.copy(alpha = 0.2f), // Mismo estilo que botón descarga
+                            contentColor = Color.White, // Mismo estilo que botón descarga
                             modifier = Modifier.size(56.dp),
                             shape = CircleShape
                         ) {
                             ZipStatsText(
                                 text = if (isSpeed2x) "2x" else "1x",
-                                fontWeight = FontWeight.Bold
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White // Mismo estilo que botón descarga
                             )
                         }
 

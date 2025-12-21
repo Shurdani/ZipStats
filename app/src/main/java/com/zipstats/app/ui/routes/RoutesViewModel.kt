@@ -262,7 +262,7 @@ class RoutesViewModel @Inject constructor(
      * Toma la snapshot del mapa y la comparte
      */
     private fun tomarSnapshotYCompartir(route: Route, mapView: com.mapbox.maps.MapView) {
-        val mapboxMap = mapView.getMapboxMap()
+        val mapboxMap = mapView.mapboxMap
         
         // En Mapbox, snapshot se llama desde MapView
         mapView.snapshot { snapshotBitmap ->

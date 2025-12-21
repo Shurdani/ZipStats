@@ -555,9 +555,9 @@ fun IdleStateContent(
             }
             
             val subtitle = if (isActiveRainWarning) {
-                "El pavimento está resbaladizo. Reduce la velocidad."
+                "El pavimento está resbaladizo."
             } else {
-                "Alta humedad o lluvia reciente detectada."
+                "El pavimento puede estar resbaladizo."
             }
             
             Surface(

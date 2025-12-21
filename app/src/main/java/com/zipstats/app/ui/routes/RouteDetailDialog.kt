@@ -895,6 +895,7 @@ private fun WeatherDetailRow(icon: ImageVector, label: String, value: String) {
  * Verifica si hay condiciones de calzada mojada (SIN lluvia activa).
  * Se usa para mostrar el aviso amarillo. Si llueve, se muestra el aviso de lluvia (azul/rosa) y este se oculta.
  * Considera día/noche porque la evaporación cambia significativamente.
+ * 🔒 IMPORTANTE: Solo evalúa condiciones probabilísticas si el cielo NO está despejado.
  */
 private fun checkWetRoadConditions(route: Route): Boolean {
     // 1. EXCLUSIÓN: Si llovió durante la ruta, NO mostramos "Calzada Mojada".
@@ -905,10 +906,16 @@ private fun checkWetRoadConditions(route: Route): Boolean {
     
     val isDay = route.weatherIsDay ?: true // Por defecto asumimos día si no está definido
     
+    // 🔒 Verificar si el cielo está despejado (usando emoji ya que Route no tiene weatherCode)
+    val isClearSky = route.weatherEmoji?.let { emoji ->
+        emoji == "☀️" || emoji == "🌙"
+    } ?: false
+    
     // 2. Calzada mojada considerando día/noche
     // Día: humedad muy alta (>90%) o probabilidad alta (>40%) - suelo puede estar mojado pero seca más rápido
     // Noche: humedad alta (>85%) es suficiente - el suelo tarda mucho más en secarse sin sol
-    if (route.weatherHumidity != null) {
+    // 🔒 Solo evaluar condiciones probabilísticas si el cielo NO está despejado
+    if (!isClearSky && route.weatherHumidity != null) {
         if (isDay) {
             // Día: necesita condiciones más extremas
             if (route.weatherHumidity >= 90) {
@@ -930,6 +937,7 @@ private fun checkWetRoadConditions(route: Route): Boolean {
     
     // 3. Si hay precipitación máxima registrada por la API pero no se detectó como "Lluvia activa"
     // (Ej: Llovió justo antes de salir o llovizna muy fina que no activó el sensor de lluvia pero mojó el suelo)
+    // NOTA: Esta condición es independiente del estado del cielo (precipitación real medida)
     if (route.weatherMaxPrecipitation != null && route.weatherMaxPrecipitation > 0.1) {
         return true
     }

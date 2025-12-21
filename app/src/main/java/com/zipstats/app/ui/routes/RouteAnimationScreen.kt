@@ -81,6 +81,7 @@ import com.mapbox.turf.TurfMeasurement
 import com.zipstats.app.R
 import com.zipstats.app.map.RouteAnimator
 import com.zipstats.app.model.Route
+import com.zipstats.app.ui.components.HideSystemBarsEffect
 import com.zipstats.app.ui.components.RouteSummaryCard
 import com.zipstats.app.ui.components.ZipStatsText
 import com.zipstats.app.utils.CityUtils
@@ -278,12 +279,16 @@ fun RouteAnimationDialog(
     // Referencia mutable al estilo
     val mapStyleRef = remember { mutableStateOf<Style?>(null) }
 
+    // 🔥 Ocultar barras del sistema para grabación a pantalla completa
+    HideSystemBarsEffect()
+
     Dialog(
         onDismissRequest = onDismiss,
         properties = androidx.compose.ui.window.DialogProperties(
             dismissOnBackPress = true,
             dismissOnClickOutside = false,
-            usePlatformDefaultWidth = false
+            usePlatformDefaultWidth = false,
+            decorFitsSystemWindows = false // Importante: permite que el contenido se expanda detrás de las barras
         )
     ) {
         Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {

@@ -510,34 +510,48 @@ class TrackingViewModel @Inject constructor(
                     // Determinar si es lluvia activa (código WMO indica lluvia) o calzada mojada
                     // Usar la MISMA lógica que checkWetRoadConditions en RouteDetailDialog.kt
                     val rainCodes = listOf(51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82, 95, 96, 99)
-                    val isActiveRain = weather.weatherCode in rainCodes || (isRaining && weather.precipitation > 0.1)
+                    val isClearSky = weather.weatherCode == 0 || weather.weatherCode == 1
+                    
+                    // 🔒 UX: Si el cielo está despejado, NUNCA mostrar como lluvia activa (aunque haya precipitación)
+                    // La precipitación con cielo despejado = llovizna pasada = calzada mojada, no lluvia activa
+                    val isActiveRain = if (isClearSky) {
+                        false // Cielo despejado = nunca lluvia activa (solo calzada mojada si hay precipitación)
+                    } else {
+                        weather.weatherCode in rainCodes || (isRaining && weather.precipitation > 0.1)
+                    }
                     
                     // Calzada mojada: REPLICAR EXACTAMENTE la lógica de RouteDetailDialog.checkWetRoadConditions
                     // Considerar día/noche porque la evaporación cambia significativamente
+                    // 🔒 IMPORTANTE: Solo evaluar si NO hay lluvia activa y el cielo NO está despejado
                     val isWetRoad = if (!isActiveRain) {
                         val isDay = weather.isDay
                         var wetRoadDetected = false
                         
-                        // 2. Calzada mojada considerando día/noche (misma lógica que RouteDetailDialog)
-                        if (isDay) {
-                            // Día: necesita condiciones más extremas
-                            if (weather.humidity >= 90) {
-                                wetRoadDetected = true
-                            }
-                            if (weather.rainProbability != null && weather.rainProbability > 40) {
-                                wetRoadDetected = true
-                            }
-                        } else {
-                            // Noche: con humedad alta el suelo tarda mucho en secarse
-                            if (weather.humidity >= 85) {
-                                wetRoadDetected = true
-                            }
-                            if (weather.rainProbability != null && weather.rainProbability > 35) {
-                                wetRoadDetected = true
+                        // Solo evaluar condiciones probabilísticas si el cielo NO está despejado
+                        if (!isClearSky) {
+                            // 2. Calzada mojada considerando día/noche (misma lógica que RouteDetailDialog)
+                            if (isDay) {
+                                // Día: necesita condiciones más extremas
+                                if (weather.humidity >= 90) {
+                                    wetRoadDetected = true
+                                }
+                                if (weather.rainProbability != null && weather.rainProbability > 40) {
+                                    wetRoadDetected = true
+                                }
+                            } else {
+                                // Noche: con humedad alta el suelo tarda mucho en secarse
+                                if (weather.humidity >= 85) {
+                                    wetRoadDetected = true
+                                }
+                                if (weather.rainProbability != null && weather.rainProbability > 35) {
+                                    wetRoadDetected = true
+                                }
                             }
                         }
                         
-                        // 3. Si hay precipitación máxima registrada pero no se detectó como "Lluvia activa"
+                        // 3. Si hay precipitación registrada pero no se detectó como "Lluvia activa"
+                        // (Ej: Llovió justo antes o llovizna muy fina que no activó el sensor pero mojó el suelo)
+                        // 🔒 UX: Precipitación con cielo despejado = calzada mojada (amarillo), no lluvia activa (azul)
                         if (weather.precipitation > 0.1) {
                             wetRoadDetected = true
                         }
@@ -760,7 +774,7 @@ class TrackingViewModel @Inject constructor(
             return Triple(true, "WEATHER_CODE", "Lluvia detectada por código meteorológico")
         }
 
-        // 2️⃣ Precipitación medida
+        // 2️⃣ Precipitación medida (señal directa, siempre válida)
         val effectiveRain = maxOf(
             precipitation ?: 0.0,
             rain ?: 0.0,
@@ -770,13 +784,16 @@ class TrackingViewModel @Inject constructor(
             return Triple(true, "PRECIPITATION", "Lluvia detectada por precipitación medida (${String.format("%.1f", effectiveRain)} mm)")
         }
 
-        // 3️⃣ Atmósfera lluviosa
-        if ((humidity ?: 0) >= 85 && (rainProbability ?: 0) >= 30) {
+        // 🔒 Regla de protección: condiciones probabilísticas solo si el cielo NO está despejado
+        val isClearSky = weatherCode == 0 || weatherCode == 1
+        
+        // 3️⃣ Atmósfera lluviosa (solo si no hay cielo despejado)
+        if (!isClearSky && (humidity ?: 0) >= 85 && (rainProbability ?: 0) >= 30) {
             return Triple(true, "HUMIDITY_PROBABILITY", "Lluvia detectada por humedad alta y riesgo de precipitación")
         }
 
-        // 4️⃣ Diluvio urbano mediterráneo (Barcelona, etc.)
-        if ((humidity ?: 0) >= 88 && (windSpeed ?: 99.0) <= 10.0) {
+        // 4️⃣ Diluvio urbano mediterráneo (solo si no hay cielo despejado)
+        if (!isClearSky && (humidity ?: 0) >= 88 && (windSpeed ?: 99.0) <= 10.0) {
             return Triple(true, "URBAN_DOWNPOUR", "Lluvia detectada por condiciones de diluvio urbano")
         }
 

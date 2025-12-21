@@ -9,6 +9,7 @@ package com.zipstats.app.ui.components
 import android.content.Context
 import android.graphics.Bitmap
 import android.view.LayoutInflater
+import android.view.View
 import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
@@ -95,19 +96,53 @@ fun CapturableMapView(
         route.points.map { p -> Point.fromLngLat(p.longitude, p.latitude) }
     }
     
-    // Handle lifecycle to reload map
-    DisposableEffect(lifecycleOwner) {
+    // Handle lifecycle to ensure MapView receives lifecycle events
+    // 🔥 IMPORTANTE: Solo manejar eventos del ciclo de vida, NO recargar el mapa
+    DisposableEffect(lifecycleOwner, mapViewRef) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) {
-                    isMapLoaded = false
-                    mapError = null
-                    showTimeout = false
-                mapKey++
-                shouldReloadMap = true
+            when (event) {
+                Lifecycle.Event.ON_START -> {
+                    // 🔥 CRÍTICO: Despertar el motor de renderizado del MapView
+                    // Esto soluciona el problema de "cold start" donde el mapa no carga los tiles
+                    // Solo llamar si el MapView está inicializado
+                    mapViewRef?.let { mapView ->
+                        try {
+                            mapView.onStart()
+                        } catch (e: Exception) {
+                            android.util.Log.e("CapturableMapView", "Error al llamar onStart: ${e.message}", e)
+                        }
+                    }
+                }
+                Lifecycle.Event.ON_STOP -> {
+                    mapViewRef?.let { mapView ->
+                        try {
+                            mapView.onStop()
+                        } catch (e: Exception) {
+                            android.util.Log.e("CapturableMapView", "Error al llamar onStop: ${e.message}", e)
+                        }
+                    }
+                }
+                // ❌ ELIMINADO: ON_RESUME ya no recarga el mapa para evitar bucles infinitos
+                // El mapa se carga una vez y se mantiene, solo se actualiza cuando cambia la ruta
+                else -> {} // Otros eventos no nos importan tanto
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+        
+        // Si el lifecycle ya está en START o más avanzado, llamar onStart inmediatamente
+        if (lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) {
+            mapViewRef?.let { mapView ->
+                try {
+                    mapView.onStart()
+                } catch (e: Exception) {
+                    android.util.Log.e("CapturableMapView", "Error al llamar onStart inicial: ${e.message}", e)
+                }
+            }
+        }
+        
+        onDispose { 
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
     }
 
     // Timeout warning
@@ -143,6 +178,10 @@ fun CapturableMapView(
                 factory = { ctx ->
                     val mapView = LayoutInflater.from(ctx)
                         .inflate(R.layout.mapview_no_attribution, null) as MapView
+
+                    // 🔥 TRUCO PRO: Forzar la aceleración de hardware para evitar parpadeos negros
+                    // y mejorar el rendimiento del renderizado
+                    mapView.setLayerType(View.LAYER_TYPE_HARDWARE, null)
 
                     mapViewRef = mapView
 

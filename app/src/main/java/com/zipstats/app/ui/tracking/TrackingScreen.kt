@@ -393,11 +393,14 @@ fun PreRideSmartWarning(
     // Solo mostrar en pantalla de precarga GPS (antes de iniciar), no durante el tracking
     val shouldShow = (shouldShowRainWarning || shouldShowExtremeWarning) && !isTracking
     
-    // Construir la lista de avisos activos (prioridad: lluvia/calzada mojada > condiciones extremas)
+    // Construir la lista de avisos activos
+    // 🔒 REGLAS: 
+    // 1. Lluvia y Calzada Mojada son EXCLUYENTES (nunca aparecen juntos)
+    // 2. Condiciones Extremas es COMPLEMENTARIO (puede aparecer solo o con lluvia/calzada)
     val activeWarnings = remember(shouldShowRainWarning, isActiveRainWarning, shouldShowExtremeWarning, weatherStatus) {
         val list = mutableListOf<WarningItem>()
 
-        // Prioridad 1: Lluvia o Calzada Mojada (Mutuamente excluyentes)
+        // Prioridad 1: Lluvia o Calzada Mojada (Mutuamente EXCLUYENTES)
         if (shouldShowRainWarning) {
             if (isActiveRainWarning) {
                 // Lluvia activa
@@ -422,7 +425,7 @@ fun PreRideSmartWarning(
             }
         }
 
-        // Prioridad 2: Condiciones Extremas (complementario)
+        // Prioridad 2: Condiciones Extremas (COMPLEMENTARIO - puede aparecer solo o con lluvia/calzada)
         // 🔥 Mensaje dinámico según la condición específica que activa la alerta
         if (shouldShowExtremeWarning) {
             val extremeSubtitle = when (weatherStatus) {
@@ -462,7 +465,7 @@ fun PreRideSmartWarning(
                                 "Temperaturas bajo cero (${temperature.toInt()}°C)"
                             }
                         }
-                        isExtremeUv && uvIndex != null -> "Índice UV muy alto (${uvIndex.toInt()})"
+                        isExtremeUv -> "Índice UV muy alto (${uvIndex?.toInt() ?: 0})"
                         else -> "Condiciones meteorológicas adversas"
                     }
                 }
@@ -1191,9 +1194,11 @@ fun TrackingWeatherCard(
                         Spacer(modifier = Modifier.width(4.dp))
 
                         val direction = convertWindDirectionToText(weatherStatus.windDirection)
+                        // Convertir viento de m/s a km/h (weatherStatus.windSpeed está en m/s)
+                        val windSpeedKmh = (weatherStatus.windSpeed ?: 0.0) * 3.6
 
                         ZipStatsText(
-                            text = "${String.format("%.0f", weatherStatus.windSpeed)} km/h ($direction)",
+                            text = "${String.format("%.0f", windSpeedKmh)} km/h ($direction)",
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurfaceVariant

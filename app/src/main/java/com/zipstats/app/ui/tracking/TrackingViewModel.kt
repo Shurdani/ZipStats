@@ -1109,10 +1109,9 @@ class TrackingViewModel @Inject constructor(
                                 val windGustsKmh = (weather.windGusts ?: 0.0) * 3.6
                                 maxWindSpeed = maxOf(maxWindSpeed, windSpeedKmh)
                                 maxWindGusts = maxOf(maxWindGusts, windGustsKmh)
-                                if (weather.temperature != null) {
-                                    minTemperature = minOf(minTemperature, weather.temperature)
-                                    maxTemperature = maxOf(maxTemperature, weather.temperature)
-                                }
+                                // weather.temperature es Double (no nullable), siempre tiene valor
+                                minTemperature = minOf(minTemperature, weather.temperature)
+                                maxTemperature = maxOf(maxTemperature, weather.temperature)
                                 if (weather.uvIndex != null && weather.isDay) {
                                     maxUvIndex = maxOf(maxUvIndex, weather.uvIndex)
                                 }
@@ -1944,16 +1943,41 @@ class TrackingViewModel @Inject constructor(
                 // Usar el clima capturado al INICIO de la ruta SOLO si es válido
                 // 🔥 Si detectamos condiciones extremas durante la ruta, usar los valores máximos/mínimos
                 // para que los badges reflejen el estado más adverso
-                val finalWindSpeed = if (weatherHadExtremeConditions && maxWindSpeed > 0.0) {
-                    maxOf(savedWindSpeed ?: 0.0, maxWindSpeed)
+                // NOTA: savedWindSpeed y savedWindGusts están en m/s, pero Route espera km/h
+                // Convertir a km/h antes de comparar y guardar
+                val savedWindSpeedKmh = (savedWindSpeed ?: 0.0) * 3.6
+                val savedWindGustsKmh = (savedWindGusts ?: 0.0) * 3.6
+                
+                // 🔥 LÓGICA DE VALORES DE VIENTO PARA BADGES:
+                // Si se detectaron condiciones extremas durante la ruta (valores máximos > 0), usar esos
+                // Si solo se detectaron en precarga (weatherHadExtremeConditions true pero maxWindSpeed = 0),
+                // usar los valores iniciales convertidos a km/h para reflejar el estado más adverso
+                val finalWindSpeed = if (weatherHadExtremeConditions) {
+                    if (maxWindSpeed > 0.0) {
+                        // Se detectaron durante la ruta: usar el máximo entre inicial y durante la ruta
+                        maxOf(savedWindSpeedKmh, maxWindSpeed)
+                    } else {
+                        // Solo se detectaron en precarga: usar el valor inicial convertido a km/h
+                        // Esto refleja el estado más adverso que ocurrió (al inicio de la ruta)
+                        if (savedWindSpeed != null) savedWindSpeedKmh else null
+                    }
                 } else {
-                    savedWindSpeed
+                    // No hubo condiciones extremas: usar el valor inicial convertido a km/h
+                    if (savedWindSpeed != null) savedWindSpeedKmh else null
                 }
                 
-                val finalWindGusts = if (weatherHadExtremeConditions && maxWindGusts > 0.0) {
-                    maxOf(savedWindGusts ?: 0.0, maxWindGusts)
+                val finalWindGusts = if (weatherHadExtremeConditions) {
+                    if (maxWindGusts > 0.0) {
+                        // Se detectaron durante la ruta: usar el máximo entre inicial y durante la ruta
+                        maxOf(savedWindGustsKmh, maxWindGusts)
+                    } else {
+                        // Solo se detectaron en precarga: usar el valor inicial convertido a km/h
+                        // Esto refleja el estado más adverso que ocurrió (al inicio de la ruta)
+                        if (savedWindGusts != null) savedWindGustsKmh else null
+                    }
                 } else {
-                    savedWindGusts
+                    // No hubo condiciones extremas: usar el valor inicial convertido a km/h
+                    if (savedWindGusts != null) savedWindGustsKmh else null
                 }
                 
                 val finalTemperature = if (weatherHadExtremeConditions && 
@@ -1974,10 +1998,27 @@ class TrackingViewModel @Inject constructor(
                     savedUvIndex
                 }
                 
+                // 🔥 LÓGICA DE BADGES: Reflejar el estado MÁS ADVERSO que ocurrió durante la ruta
+                // Si weatherHadExtremeConditions es true (ya sea en precarga o durante la ruta), 
+                // marcar como extremas. Esto asegura que:
+                // - Si empieza en condiciones extremas y luego acaba en normales → Badge de extremas
+                // - Si empieza en lluvia y acaba en seco → Badge de lluvia (ya manejado por weatherHadRain)
+                // - Si arranca en calzada mojada y acaba en lluvia → Badge de lluvia (ya manejado por weatherHadRain)
+                // Para los valores de viento, usar máximos si se detectaron durante la ruta, sino usar valores iniciales
+                val hadExtremeConditionsDuringRoute = weatherHadExtremeConditions
+                val useMaxValuesForExtremes = maxWindSpeed > 0.0 || maxWindGusts > 0.0 || 
+                    (minTemperature < Double.MAX_VALUE && (minTemperature < 0 || minTemperature > 35)) ||
+                    (maxTemperature > Double.MIN_VALUE && maxTemperature > 35) ||
+                    maxUvIndex > 8.0
+                
                 val route = if (hasValidWeather) {
                     Log.d(TAG, "✅ Usando clima válido del INICIO de la ruta: ${savedWeatherTemp}°C ${savedWeatherEmoji}")
-                    if (weatherHadExtremeConditions) {
-                        Log.d(TAG, "⚠️ Ajustando datos de clima con valores extremos detectados durante la ruta")
+                    if (hadExtremeConditionsDuringRoute) {
+                        if (useMaxValuesForExtremes) {
+                            Log.d(TAG, "⚠️ Ajustando datos de clima con valores extremos detectados durante la ruta")
+                        } else {
+                            Log.d(TAG, "⚠️ Condiciones extremas detectadas en precarga - badge reflejará estado más adverso")
+                        }
                     }
                     baseRoute.copy(
                         weatherTemperature = finalTemperature,
@@ -2000,7 +2041,7 @@ class TrackingViewModel @Inject constructor(
                             else -> null
                         },
                         weatherRainReason = weatherRainReason,
-                        weatherHadExtremeConditions = if (weatherHadExtremeConditions) true else null
+                        weatherHadExtremeConditions = if (hadExtremeConditionsDuringRoute) true else null
                     )
                 } else {
                     Log.w(TAG, "⚠️ No se capturó clima válido al inicio, guardando ruta SIN clima (temp=$savedWeatherTemp, emoji=$savedWeatherEmoji)")

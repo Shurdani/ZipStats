@@ -564,7 +564,9 @@ fun RouteAnimationDialog(
                                     // Pequeño delay para asegurar que la animación se reinicie completamente
                                     android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
                                         val player = mediaPlayer
-                                        if (player != null && !player.isPlaying && isPlaying) {
+                                        // Si wasPlaying era true, significa que estaba reproduciéndose antes del cambio
+                                        // Solo reiniciar si el player existe y no está reproduciéndose actualmente
+                                        if (player != null && !player.isPlaying) {
                                             player.start()
                                         }
                                     }, 100) // Delay un poco mayor para asegurar estabilidad

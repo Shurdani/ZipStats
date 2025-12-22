@@ -218,7 +218,9 @@ class WeatherRepository @Inject constructor() {
                 val params = "current=temperature_2m,apparent_temperature,relative_humidity_2m,is_day," +
                     "weather_code,wind_speed_10m,wind_direction_10m,wind_gusts_10m," +
                     "uv_index,precipitation,rain,showers,precipitation_probability"
-                val units = "temperature_unit=celsius&wind_speed_unit=kmh&timezone=auto&precipitation_unit=mm"
+                // 🔥 CORRECCIÓN: Pedir viento en m/s (ms) para mantener consistencia con el código
+                // El código espera m/s y luego convierte a km/h cuando es necesario
+                val units = "temperature_unit=celsius&wind_speed_unit=ms&timezone=auto&precipitation_unit=mm"
                 val urlString = "$BASE_URL/forecast?latitude=$latitude&longitude=$longitude&$params&$units"
 
                 Log.d(TAG, "URL: $urlString")

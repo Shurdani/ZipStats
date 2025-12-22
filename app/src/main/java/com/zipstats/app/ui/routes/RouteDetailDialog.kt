@@ -786,20 +786,35 @@ private fun WeatherInfoDialog(route: Route, onDismiss: () -> Unit) {
                     desc.contains("rayo", ignoreCase = true)
                 } ?: false
                 
-                // 🔥 Destacar temperatura si activó la alerta de condiciones extremas
-                val tempText = route.weatherTemperature?.let { temp ->
-                    if (hasExtremeConditions && isExtremeTemp) {
-                        "${formatTemperature(temp)}°C ⚠️"
-                    } else {
-                        "${formatTemperature(temp)}°C"
-                    }
+                // 🔥 Mostrar temperatura con cápsula si activó la alerta de condiciones extremas
+                val tempValue = route.weatherTemperature?.let { temp ->
+                    "${formatTemperature(temp)}°C"
                 } ?: "--°C"
-                ZipStatsText(
-                    text = tempText, 
-                    style = MaterialTheme.typography.displaySmall, 
-                    fontWeight = FontWeight.Bold, 
-                    color = if (hasExtremeConditions && isExtremeTemp) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
-                )
+                val shouldHighlightTemp = hasExtremeConditions && isExtremeTemp
+                
+                if (shouldHighlightTemp) {
+                    // Cápsula sutil solo en el valor
+                    Surface(
+                        shape = RoundedCornerShape(14.dp),
+                        color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.22f),
+                        modifier = Modifier.padding(vertical = 4.dp)
+                    ) {
+                        ZipStatsText(
+                            text = tempValue, 
+                            style = MaterialTheme.typography.displaySmall, 
+                            fontWeight = FontWeight.Bold, 
+                            color = MaterialTheme.colorScheme.onErrorContainer,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                        )
+                    }
+                } else {
+                    ZipStatsText(
+                        text = tempValue, 
+                        style = MaterialTheme.typography.displaySmall, 
+                        fontWeight = FontWeight.Bold, 
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
                 Spacer(modifier = Modifier.height(24.dp))
                 Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                     
@@ -847,9 +862,10 @@ private fun WeatherInfoDialog(route: Route, onDismiss: () -> Unit) {
                     }
                     
                     // Badges de seguridad y condiciones
-                    // 🔒 EXCLUSIÓN: Lluvia y calzada mojada son excluyentes
-                    // Si hubo lluvia, NO mostrar badge de calzada mojada
-                    // Prioridad de visualización: Lluvia/Calzada mojada > Condiciones extremas
+                    // 🔒 REGLAS:
+                    // 1. Lluvia y Calzada Mojada son EXCLUYENTES (nunca aparecen juntos)
+                    // 2. Condiciones Extremas es COMPLEMENTARIO (puede aparecer solo o con lluvia/calzada)
+                    // 3. Prioridad de visualización: Lluvia/Calzada mojada > Condiciones extremas
                     val hadRain = route.weatherHadRain == true
                     val hasWetRoad = if (hadRain) false else checkWetRoadConditions(route)
                     val hasExtremeConditions = checkExtremeConditions(route)
@@ -861,7 +877,7 @@ private fun WeatherInfoDialog(route: Route, onDismiss: () -> Unit) {
                             modifier = Modifier.fillMaxWidth(),
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            // Prioridad 1: Lluvia o Calzada Mojada (excluyentes)
+                            // Prioridad 1: Lluvia o Calzada Mojada (EXCLUYENTES - nunca aparecen juntos)
                             // 🔒 Misma paleta de colores que los preavisos
                             
                             // Badge: Lluvia (Azul/Rosa) - Mismo color que preaviso: tertiaryContainer
@@ -900,7 +916,7 @@ private fun WeatherInfoDialog(route: Route, onDismiss: () -> Unit) {
                                 }
                             }
                             
-                            // Prioridad 2: Condiciones Extremas (complementario)
+                            // Prioridad 2: Condiciones Extremas (COMPLEMENTARIO - puede aparecer solo o con lluvia/calzada)
                             // Mismo color que preaviso: errorContainer
                             if (hasExtremeConditions) {
                                 Surface(
@@ -933,23 +949,40 @@ private fun WeatherDetailRow(
     icon: ImageVector, 
     label: String, 
     value: String,
-    isExtreme: Boolean = false // 🔥 Si es true, destaca el valor (negrita + color)
+    isExtreme: Boolean = false // 🔥 Si es true, muestra el valor con cápsula sutil
 ) {
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
         Icon(
             imageVector = icon, 
             contentDescription = null, 
-            tint = if (isExtreme) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary, 
+            tint = MaterialTheme.colorScheme.primary, 
             modifier = Modifier.size(24.dp)
         )
         Spacer(modifier = Modifier.width(16.dp))
         ZipStatsText(text = label, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
-        ZipStatsText(
-            text = value, 
-            style = MaterialTheme.typography.bodyLarge, 
-            fontWeight = FontWeight.Bold,
-            color = if (isExtreme) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
-        )
+        
+        // Cápsula sutil solo en el valor cuando es extremo
+        if (isExtreme) {
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.22f)
+            ) {
+                ZipStatsText(
+                    text = value, 
+                    style = MaterialTheme.typography.bodyLarge, 
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onErrorContainer,
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+                )
+            }
+        } else {
+            ZipStatsText(
+                text = value, 
+                style = MaterialTheme.typography.bodyLarge, 
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+        }
     }
 }
 

@@ -2,7 +2,7 @@
 
 **Aplicación Android para tracking GPS de patinetes, bicicletas y otros vehículos personales.**
 
-[![Version](https://img.shields.io/badge/Version-4.6.5-brightgreen.svg)](https://github.com/shurdani/Patinetatrack/releases)
+[![Version](https://img.shields.io/badge/Version-4.6.6-brightgreen.svg)](https://github.com/shurdani/Patinetatrack/releases)
 [![Kotlin](https://img.shields.io/badge/Kotlin-2.0.0-blue.svg)](https://kotlinlang.org)
 [![Android](https://img.shields.io/badge/Android-API%2031%2B-green.svg)](https://developer.android.com)
 [![Jetpack Compose](https://img.shields.io/badge/Jetpack%20Compose-2024.02.00-blue.svg)](https://developer.android.com/jetpack/compose)
@@ -15,13 +15,19 @@
 ### 🗺️ **Tracking GPS en Tiempo Real**
 - ✅ Seguimiento preciso de rutas con GPS en tiempo real
 - ✅ Cálculo automático de distancia, velocidad y duración
-- ✅ Visualización interactiva de rutas en Google Maps con estilo personalizado
+- ✅ Visualización interactiva de rutas en Mapbox con estilo personalizado
 - ✅ Marcadores personalizados de inicio y final con orientación inteligente
 - ✅ Filtrado de ruido GPS para mayor precisión (precisión < 50m)
 - ✅ Velocidad = 0 cuando estás parado (filtro inteligente)
 - ✅ Servicio en foreground que continúa funcionando en segundo plano
 - ✅ Pausa y reanudación del tracking
+- ✅ Integración con OpenMeteo API para datos meteorológicos precisos
 - ✅ Captura automática del clima al inicio de la ruta
+- ✅ Monitoreo continuo del clima cada 10 minutos durante la ruta
+- ✅ Preavisos inteligentes de lluvia y condiciones extremas antes de iniciar
+- ✅ Detección automática de lluvia durante la ruta con actualización en tiempo real
+- ✅ Sistema de calzada mojada con detección probabilística
+- ✅ Badges de seguridad en rutas finalizadas (lluvia, calzada mojada, condiciones extremas)
 - ✅ Compartir rutas con imágenes de mapas profesionales
 
 ### 📊 **Gestión de Vehículos**
@@ -33,10 +39,36 @@
 ### 📈 **Estadísticas y Registros**
 - ✅ Historial completo de rutas con visualización en mapa
 - ✅ Estadísticas detalladas (distancia total, velocidad promedio/máxima, tiempo en movimiento)
+- ✅ Información meteorológica completa por ruta (temperatura, viento, humedad, UV, precipitación)
+- ✅ Badges de seguridad que reflejan condiciones adversas durante la ruta
 - ✅ Filtrado por fecha y vehículo con índices optimizados de Firebase
 - ✅ Análisis post-ruta (porcentaje de tiempo en movimiento, pausas detectadas)
 - ✅ Exportación de datos a Excel
 - ✅ Recarga automática de componentes cuando es necesario
+
+### 🌦️ **Sistema Meteorológico Inteligente**
+- ✅ Preavisos preventivos antes de iniciar la ruta
+  - Detección de lluvia activa con aviso azul/rosa
+  - Alerta de calzada mojada con aviso amarillo/naranja
+  - Advertencia de condiciones extremas (viento fuerte, temperatura extrema, UV alto, tormentas)
+- ✅ Monitoreo continuo durante la ruta
+  - Chequeo automático cada 10 minutos
+  - Actualización en tiempo real del clima cuando se detecta lluvia
+  - Confirmación de lluvia con doble verificación para evitar falsos positivos
+- ✅ Detección inteligente de lluvia con múltiples reglas:
+  - Códigos meteorológicos oficiales
+  - Precipitación medida directamente
+  - Análisis de humedad y probabilidad de lluvia
+  - Detección de diluvios urbanos mediterráneos
+- ✅ Badges de seguridad en rutas finalizadas:
+  - 🔵 Ruta realizada con lluvia
+  - 🟡 Precaución: calzada mojada
+  - ⚠️ Condiciones extremas
+- ✅ Detección de condiciones extremas:
+  - Viento fuerte (>40 km/h) y ráfagas (>60 km/h)
+  - Temperaturas extremas (<0°C o >35°C)
+  - Índice UV muy alto (>8)
+  - Tormentas y fenómenos meteorológicos adversos
 
 ### 🎨 **Interfaz Moderna**
 - ✅ Diseño Material Design 3
@@ -57,7 +89,8 @@
 - **Inyección de Dependencias:** Hilt (Dagger)
 
 ### **APIs y Servicios**
-- **Google Maps SDK:** Visualización de mapas y rutas
+- **Mapbox SDK:** Visualización de mapas y rutas
+- **OpenMeteo API:** Datos meteorológicos en tiempo real y pronósticos
 - **Firebase:**
   - Authentication (Email/Password/Google)
   - Firestore Database (Almacenamiento de datos)
@@ -88,18 +121,18 @@
 ### **1. Clonar el Repositorio**
 
 ```bash
-git clone https://github.com/shurdani/Patinetatrack.git
-cd Patinetatrack
+git clone https://github.com/shurdani/zipstats.git
+cd zipstats
 ```
 
 ### **2. Configurar Credenciales**
 
 Configura las siguientes credenciales en `local.properties`:
 
-- ✅ Google Maps API Key
+- ✅ Mapbox Access Token
 - ✅ Firebase (google-services.json)
 - ✅ Cloudinary Credentials
-- ✅ OpenWeather API Key
+- ✅ OpenMeteo API (gratuita, sin API key requerida)
 
 **⚠️ IMPORTANTE:** Copia `local.properties.example` a `local.properties` y configura tus credenciales.
 
@@ -116,20 +149,37 @@ Configura las siguientes credenciales en `local.properties`:
 
 ```
 app/src/main/java/com/zipstats/app/
+├── analysis/               # Análisis de datos GPS (filtrado de outliers, detección de pausas)
 ├── di/                     # Módulos de inyección de dependencias (Hilt)
-├── model/                  # Modelos de datos (Route, Scooter, RoutePoint)
-├── repository/             # Repositorios (capa de datos)
-├── service/                # Servicio de tracking GPS
-├── ui/                     # Interfaz de usuario (Compose)
-│   ├── components/         # Componentes reutilizables de mapas
-│   ├── tracking/           # Pantalla de tracking GPS
-│   ├── routes/             # Pantalla de rutas
-│   ├── records/            # Pantalla de registros
-│   ├── statistics/         # Pantalla de estadísticas
-│   └── profile/            # Pantalla de perfil
+├── map/                    # Animación y visualización de rutas
+├── model/                  # Modelos de datos (Route, Scooter, RoutePoint, User, etc.)
 ├── navigation/             # Navegación entre pantallas
+├── network/                # APIs de red (Cloudinary)
 ├── permission/             # Gestión de permisos
-└── util/                   # Utilidades
+├── repository/             # Repositorios (capa de datos)
+│   └── WeatherRepository   # Integración con OpenMeteo API
+├── service/                # Servicios en segundo plano
+│   ├── LocationTrackingService  # Servicio de tracking GPS
+│   ├── AchievementsService      # Gestión de logros
+│   └── NetworkMonitor           # Monitoreo de red
+├── tracking/               # Lógica de tracking GPS (LocationTracker, SpeedCalculator)
+├── ui/                     # Interfaz de usuario (Jetpack Compose)
+│   ├── achievements/       # Pantalla de logros
+│   ├── auth/              # Autenticación (login, registro, verificación)
+│   ├── components/        # Componentes reutilizables
+│   │   └── CapturableMapView  # Componente de mapas Mapbox
+│   ├── onboarding/        # Pantalla de bienvenida
+│   ├── permissions/       # Diálogos de permisos
+│   ├── profile/           # Perfil y gestión de vehículos
+│   ├── records/           # Historial de registros
+│   ├── repairs/           # Gestión de reparaciones
+│   ├── routes/            # Pantalla de rutas y detalles
+│   ├── shared/            # Componentes compartidos (overlays, estados)
+│   ├── splash/           # Pantalla de inicio
+│   ├── statistics/       # Estadísticas y análisis
+│   ├── theme/            # Sistema de temas Material Design 3
+│   └── tracking/         # Pantalla de tracking GPS en tiempo real
+└── utils/                 # Utilidades (formateo, exportación, análisis)
 ```
 
 ---
@@ -144,6 +194,21 @@ app/src/main/java/com/zipstats/app/
 - Cálculo preciso con fórmula Haversine
 - Actualización GPS cada 2 segundos
 - Media Móvil Exponencial (EMA) para respuesta instantánea del velocímetro
+
+### **🌦️ Sistema Meteorológico Avanzado**
+- Integración con OpenMeteo API para datos precisos (gratuita y open-source)
+- Captura automática del clima al inicio de cada ruta
+- Monitoreo continuo cada 10 minutos durante la ruta
+- Detección inteligente de lluvia con 4 reglas diferentes:
+  - Códigos meteorológicos oficiales
+  - Precipitación medida directamente
+  - Análisis probabilístico (humedad + probabilidad)
+  - Detección de diluvios urbanos mediterráneos
+- Sistema de calzada mojada con consideración día/noche
+- Detección de condiciones extremas (viento, temperatura, UV, tormentas)
+- Preavisos preventivos antes de iniciar la ruta
+- Actualización en tiempo real del clima cuando se detecta lluvia
+- Badges de seguridad que reflejan el estado más adverso durante la ruta
 
 ### **⚡ Rendimiento**
 - Carga lazy de imágenes con Coil
@@ -211,7 +276,8 @@ El nombre "ZipStats", su logotipo y elementos visuales están protegidos como id
 
 ## 🙏 **Agradecimientos**
 
-- Google Maps Platform por la API de mapas
+- Mapbox por la plataforma de mapas
+- OpenMeteo por los datos meteorológicos precisos y gratuitos
 - Firebase por los servicios backend
 - Cloudinary por la gestión de imágenes
 - La comunidad de Android y Jetpack Compose
@@ -236,6 +302,8 @@ El nombre "ZipStats", su logotipo y elementos visuales están protegidos como id
 - [ ] Integración con wearables (smartwatch)
 - [ ] Modo oscuro automático según hora del día
 - [ ] Notificaciones de recordatorios de mantenimiento
+- [ ] Historial meteorológico detallado por ruta
+- [ ] Alertas de condiciones meteorológicas adversas en tiempo real
 
 ---
 

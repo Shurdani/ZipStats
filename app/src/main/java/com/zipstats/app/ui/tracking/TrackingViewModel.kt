@@ -520,7 +520,7 @@ class TrackingViewModel @Inject constructor(
                     )
                     
                     // Detectar si hay lluvia para mostrar aviso preventivo
-                    val (isRaining, _, _) = isRainingForScooter(
+                    val (isRaining, _, rainUserReason) = isRainingForScooter(
                         weather.weatherCode,
                         weather.precipitation,
                         weather.rain,
@@ -575,6 +575,8 @@ class TrackingViewModel @Inject constructor(
                     }
                     if (isActiveRain) {
                         weatherHadRain = true
+                        weatherRainStartMinute = 0 // Al inicio de la ruta
+                        weatherRainReason = rainUserReason // Guardar razón amigable para el usuario
                         weatherHadWetRoad = false // Lluvia es más grave
                     } else if (isWetRoad) {
                         weatherHadWetRoad = true
@@ -1144,7 +1146,8 @@ class TrackingViewModel @Inject constructor(
                                         weatherRainStartMinute = pendingRainMinute // Usar el minuto del primer chequeo
                                         weatherRainReason = pendingRainReason ?: rainUserReason
                                         
-                                        // Actualizar el icono (NO la descripción durante tracking para evitar distracción)
+                                        // Actualizar solo los campos visibles en la tarjeta de clima durante tracking
+                                        // (icono, temperatura, viento y dirección) ya que al finalizar se guardan los datos del inicio
                                         val (effectiveWeatherCode, _, _, isDerived) = resolveEffectiveWeatherCode(
                                             weather.weatherCode,
                                             weather.precipitation,
@@ -1160,14 +1163,19 @@ class TrackingViewModel @Inject constructor(
                                             if (weather.isDay) 1 else 0
                                         )
                                         
-                                        // Actualizar estado de UI SOLO con icono (mantener descripción original)
+                                        // Actualizar solo campos visibles en TrackingWeatherCard: icono, temperatura, viento y dirección
                                         val currentStatus = _weatherStatus.value
                                         if (currentStatus is WeatherStatus.Success) {
                                             _weatherStatus.value = currentStatus.copy(
+                                                temperature = weather.temperature,
                                                 weatherEmoji = effectiveEmoji,
                                                 weatherCode = effectiveWeatherCode,
-                                                icon = effectiveWeatherCode.toString()
-                                                // NO cambiamos description, temperature, etc. para evitar distracción
+                                                icon = effectiveWeatherCode.toString(),
+                                                windSpeed = weather.windSpeed,
+                                                windDirection = weather.windDirection,
+                                                isDay = weather.isDay
+                                                // No actualizar: feelsLike, humidity, windGusts, uvIndex, description
+                                                // porque no se muestran en la tarjeta y al finalizar se guardan los datos del inicio
                                             )
                                         }
                                         

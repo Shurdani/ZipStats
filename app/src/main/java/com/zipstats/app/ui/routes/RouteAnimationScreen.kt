@@ -36,7 +36,10 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
@@ -92,6 +95,9 @@ fun RouteAnimationDialog(
     val context = LocalContext.current
     // Obtener Activity desde el contexto (necesario para servicios en primer plano en Android 12+)
     val activity = context as? ComponentActivity
+    
+    // Scope de corrutinas para delays
+    val scope = rememberCoroutineScope()
     
     // Convertir puntos con velocidad
     val routePoints = remember(route.points) {
@@ -564,9 +570,7 @@ fun RouteAnimationDialog(
                                     // Pequeño delay para asegurar que la animación se reinicie completamente
                                     android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
                                         val player = mediaPlayer
-                                        // Si wasPlaying era true, significa que estaba reproduciéndose antes del cambio
-                                        // Solo reiniciar si el player existe y no está reproduciéndose actualmente
-                                        if (player != null && !player.isPlaying) {
+                                        if (player != null && !player.isPlaying && isPlaying) {
                                             player.start()
                                         }
                                     }, 100) // Delay un poco mayor para asegurar estabilidad
@@ -636,17 +640,28 @@ fun RouteAnimationDialog(
                         // BOTÓN DESCARGA (NUEVO) - Reemplaza el botón de reiniciar
                         FloatingActionButton(
                             onClick = {
-                                // 1. Detenemos todo primero
-                                animator?.stopAnimation(resetIndex = true)
-                                mediaPlayer?.pause()
-                                mediaPlayer?.seekTo(0)
-                                isPlaying = false
-                                
-                                // 2. Pedimos permiso al sistema
-                                // Esto lanzará el popup "¿Desea iniciar grabación?"
-                                // Cuando el usuario acepte, el 'startMediaProjection' de arriba se ejecuta
-                                val mediaProjectionManager = context.getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
-                                startMediaProjection.launch(mediaProjectionManager.createScreenCaptureIntent())
+                                scope.launch {
+                                    // 1. Detenemos todo primero
+                                    animator?.stopAnimation(resetIndex = true)
+                                    mediaPlayer?.pause()
+                                    mediaPlayer?.seekTo(0)
+                                    isPlaying = false
+                                    
+                                    // 2. 🔥 OCULTAR UI ANTES DE GRABAR 🔥
+                                    // Establecemos isRecording = true para ocultar los botones inmediatamente
+                                    isRecording = true
+                                    
+                                    // 3. 🔥 RETARDO DE SEGURIDAD 🔥
+                                    // Esperamos 250ms para que Compose termine de actualizar la pantalla
+                                    // y los botones desaparezcan completamente del buffer antes de capturar el primer frame
+                                    delay(250)
+                                    
+                                    // 4. Pedimos permiso al sistema
+                                    // Esto lanzará el popup "¿Desea iniciar grabación?"
+                                    // Cuando el usuario acepte, el 'startMediaProjection' de arriba se ejecuta
+                                    val mediaProjectionManager = context.getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+                                    startMediaProjection.launch(mediaProjectionManager.createScreenCaptureIntent())
+                                }
                             },
                             containerColor = Color.White.copy(alpha = 0.2f),
                             contentColor = Color.White,

@@ -15,6 +15,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -506,6 +507,7 @@ fun ThemeOptionItem(
             .background(bgColor)
             .clickable(
                 interactionSource = interactionSource,
+                indication = null,
                 onClick = onClick
             )
             .padding(vertical = 12.dp),
@@ -553,6 +555,7 @@ fun SettingsSwitchRow(
         modifier = Modifier
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
+                indication = null,
                 enabled = enabled,
                 onClick = { onCheckedChange(!checked) }
             )
@@ -579,6 +582,7 @@ fun SettingsNavigationRow(
         modifier = Modifier
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
+                indication = null,
                 onClick = onClick
             )
     )
@@ -608,6 +612,7 @@ fun ExpandableSettingRow(
             modifier = Modifier
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
                     onClick = { onExpandChange(!expanded) }
                 )
         )

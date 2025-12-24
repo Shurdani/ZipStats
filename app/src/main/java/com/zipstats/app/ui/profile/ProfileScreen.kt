@@ -5,8 +5,10 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -47,6 +49,9 @@ import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.BottomSheetDefaults
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -54,15 +59,18 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
+import androidx.compose.material3.rememberModalBottomSheetState
 import com.zipstats.app.ui.components.ZipStatsText
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -86,6 +94,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import java.util.Locale
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
@@ -263,14 +272,30 @@ fun ProfileScreen(
         )
     }
 
+    val addScooterSheetState = rememberModalBottomSheetState()
+
     if (showAddScooterDialog) {
-        AddScooterDialog(
-            onDismiss = { showAddScooterDialog = false },
-            onConfirm = { nombre, marca, modelo, fechaCompra, vehicleType ->
-                viewModel.addScooter(nombre, marca, modelo, fechaCompra, vehicleType)
-                showAddScooterDialog = false
-            }
-        )
+        ModalBottomSheet(
+            onDismissRequest = { showAddScooterDialog = false },
+            sheetState = addScooterSheetState,
+            dragHandle = { BottomSheetDefaults.DragHandle() }
+        ) {
+            AddScooterBottomSheet(
+                onDismiss = {
+                    scope.launch {
+                        addScooterSheetState.hide()
+                        showAddScooterDialog = false
+                    }
+                },
+                onConfirm = { nombre, marca, modelo, fechaCompra, vehicleType ->
+                    viewModel.addScooter(nombre, marca, modelo, fechaCompra, vehicleType)
+                    scope.launch {
+                        addScooterSheetState.hide()
+                        showAddScooterDialog = false
+                    }
+                }
+            )
+        }
     }
 
     // --- CONTENIDO PRINCIPAL ---
@@ -332,7 +357,7 @@ fun ProfileScreen(
                             // Tarjeta KM (clickable - lleva a Estadísticas)
                             StatSummaryCard(
                                 title = "Distancia Total",
-                                value = String.format("%.1f", state.scooters.sumOf { it.kilometrajeActual ?: 0.0 }),
+                                value = formatNumberWithCommas(state.scooters.sumOf { it.kilometrajeActual ?: 0.0 }),
                                 unit = "en KM",
                                 icon = Icons.AutoMirrored.Filled.TrendingUp,
                                 containerColor = MaterialTheme.colorScheme.primaryContainer,
@@ -549,8 +574,18 @@ fun StatSummaryCard(
             Column(
                 modifier = Modifier.fillMaxWidth()
             ) {
+                // AUTO-FORMATO DE NÚMEROS
+                val formattedValue = try {
+                    // Intenta parsear si es un número simple para poner comas
+                    val number = value.toDoubleOrNull()
+                    if (number != null) {
+                        String.format(Locale.US, "%,.1f", number)
+                            .removeSuffix(".0") // Quitar decimal si es .0
+                    } else value
+                } catch (e: Exception) { value }
+
                 ZipStatsText(
-                    text = value,
+                    text = formattedValue, // Usamos el valor formateado
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Bold,
                     color = contentColor,
@@ -578,9 +613,18 @@ fun ScooterCardItem(
     scooter: com.zipstats.app.model.Scooter,
     onClick: () -> Unit
 ) {
-    ExpandableCard(
+    Card(
         onClick = onClick,
-        modifier = Modifier.fillMaxWidth()
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface // Fondo blanco
+        ),
+        border = BorderStroke(
+            1.dp,
+            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f) // Borde sutil
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp), // Sombra suave
+        shape = RoundedCornerShape(16.dp)
     ) {
         Row(
             modifier = Modifier
@@ -623,7 +667,7 @@ fun ScooterCardItem(
 
             Column(horizontalAlignment = Alignment.End) {
                 ZipStatsText(
-                    text = "${String.format("%.1f", scooter.kilometrajeActual ?: 0.0)} km",
+                    text = "${formatNumberWithCommas(scooter.kilometrajeActual ?: 0.0)} km",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary,
@@ -724,7 +768,7 @@ fun AvatarSelectionDialog(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AddScooterDialog(
+fun AddScooterBottomSheet(
     onDismiss: () -> Unit,
     onConfirm: (String, String, String, String, VehicleType) -> Unit
 ) {
@@ -742,110 +786,6 @@ fun AddScooterDialog(
         fechaTexto = DateUtils.formatForDisplay(selectedDate)
     }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { ZipStatsText("Añadir vehículo") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                ExposedDropdownMenuBox(
-                    expanded = vehicleTypeExpanded,
-                    onExpandedChange = { vehicleTypeExpanded = it }
-                ) {
-                    OutlinedTextField(
-                        value = selectedVehicleType.displayName,
-                        onValueChange = { },
-                        label = { ZipStatsText("Tipo de vehículo") },
-                        readOnly = true,
-                        leadingIcon = {
-                            Image(
-                                painter = getVehicleIcon(selectedVehicleType),
-                                contentDescription = null,
-                                modifier = Modifier.size(24.dp),
-                                colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.onSurface)
-                            )
-                        },
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = vehicleTypeExpanded) },
-                        modifier = Modifier.fillMaxWidth().menuAnchor()
-                    )
-                    ExposedDropdownMenu(
-                        expanded = vehicleTypeExpanded,
-                        onDismissRequest = { vehicleTypeExpanded = false }
-                    ) {
-                        VehicleType.values().forEach { type ->
-                            DropdownMenuItem(
-                                text = {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                                    ) {
-                                        Image(
-                                            painter = getVehicleIcon(type),
-                                            contentDescription = null,
-                                            modifier = Modifier.size(24.dp),
-                                            colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.onSurface)
-                                        )
-                                        ZipStatsText(type.displayName)
-                                    }
-                                },
-                                onClick = {
-                                    selectedVehicleType = type
-                                    vehicleTypeExpanded = false
-                                }
-                            )
-                        }
-                    }
-                }
-
-                OutlinedTextField(
-                    value = nombre,
-                    onValueChange = { nombre = it },
-                    label = { ZipStatsText("Nombre") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                OutlinedTextField(
-                    value = marca,
-                    onValueChange = { marca = it },
-                    label = { ZipStatsText("Marca") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                OutlinedTextField(
-                    value = modelo,
-                    onValueChange = { modelo = it },
-                    label = { ZipStatsText("Modelo") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                OutlinedTextField(
-                    value = fechaTexto,
-                    onValueChange = { },
-                    label = { ZipStatsText("Fecha de compra") },
-                    readOnly = true,
-                    trailingIcon = {
-                        IconButton(onClick = { showDatePicker = true }) {
-                            Icon(Icons.Default.CalendarMonth, contentDescription = null)
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-        },
-        confirmButton = {
-            DialogConfirmButton(
-                text = "Guardar",
-                enabled = nombre.isNotBlank() && marca.isNotBlank() && modelo.isNotBlank(),
-                onClick = {
-                    onConfirm(nombre, marca, modelo, fechaTexto, selectedVehicleType)
-                }
-            )
-        },
-        dismissButton = {
-            DialogCancelButton(text = "Cancelar", onClick = onDismiss)
-        },
-        shape = DialogShape
-    )
-
     if (showDatePicker) {
         StandardDatePickerDialogWithValidation(
             selectedDate = selectedDate,
@@ -855,6 +795,144 @@ fun AddScooterDialog(
             maxDate = LocalDate.now(),
             validateDate = { !it.isAfter(LocalDate.now()) }
         )
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp)
+            .padding(bottom = 32.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        ZipStatsText(
+            text = "Añadir vehículo",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold
+        )
+
+        ExposedDropdownMenuBox(
+            expanded = vehicleTypeExpanded,
+            onExpandedChange = { vehicleTypeExpanded = it }
+        ) {
+            OutlinedTextField(
+                value = selectedVehicleType.displayName,
+                onValueChange = { },
+                label = { ZipStatsText("Tipo de vehículo") },
+                readOnly = true,
+                leadingIcon = {
+                    Image(
+                        painter = getVehicleIcon(selectedVehicleType),
+                        contentDescription = null,
+                        modifier = Modifier.size(24.dp),
+                        colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.onSurface)
+                    )
+                },
+                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = vehicleTypeExpanded) },
+                modifier = Modifier.fillMaxWidth().menuAnchor(
+                    type = MenuAnchorType.PrimaryNotEditable,
+                    enabled = true
+                )
+            )
+            ExposedDropdownMenu(
+                expanded = vehicleTypeExpanded,
+                onDismissRequest = { vehicleTypeExpanded = false }
+            ) {
+                VehicleType.values().forEach { type ->
+                    DropdownMenuItem(
+                        text = {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Image(
+                                    painter = getVehicleIcon(type),
+                                    contentDescription = null,
+                                    modifier = Modifier.size(24.dp),
+                                    colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.onSurface)
+                                )
+                                ZipStatsText(type.displayName)
+                            }
+                        },
+                        onClick = {
+                            selectedVehicleType = type
+                            vehicleTypeExpanded = false
+                        }
+                    )
+                }
+            }
+        }
+
+        OutlinedTextField(
+            value = nombre,
+            onValueChange = { nombre = it },
+            label = { ZipStatsText("Nombre") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth()
+        )
+        OutlinedTextField(
+            value = marca,
+            onValueChange = { marca = it },
+            label = { ZipStatsText("Marca") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth()
+        )
+        OutlinedTextField(
+            value = modelo,
+            onValueChange = { modelo = it },
+            label = { ZipStatsText("Modelo") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth()
+        )
+        OutlinedTextField(
+            value = fechaTexto,
+            onValueChange = { },
+            label = { ZipStatsText("Fecha de compra") },
+            readOnly = true,
+            trailingIcon = {
+                IconButton(onClick = { showDatePicker = true }) {
+                    Icon(Icons.Default.CalendarMonth, contentDescription = null)
+                }
+            },
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        // Botones
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Button(
+                onClick = onDismiss,
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            ) {
+                ZipStatsText("Cancelar")
+            }
+            Button(
+                onClick = {
+                    onConfirm(nombre, marca, modelo, fechaTexto, selectedVehicleType)
+                },
+                modifier = Modifier.weight(1f),
+                enabled = nombre.isNotBlank() && marca.isNotBlank() && modelo.isNotBlank()
+            ) {
+                ZipStatsText("Guardar")
+            }
+        }
+    }
+}
+
+/**
+ * Helper para formatear números con separadores de miles
+ */
+private fun formatNumberWithCommas(value: Double): String {
+    return try {
+        String.format(Locale.US, "%,.1f", value)
+            .removeSuffix(".0") // Quitar decimal si es .0
+    } catch (e: Exception) {
+        String.format("%.1f", value)
     }
 }
 

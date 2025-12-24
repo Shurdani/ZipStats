@@ -1,6 +1,8 @@
 package com.zipstats.app.ui.routes
 
 import androidx.annotation.DrawableRes
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -13,6 +15,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -27,8 +30,8 @@ import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Air
 import androidx.compose.material.icons.filled.Analytics
 import androidx.compose.material.icons.filled.CalendarToday
-import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.Cyclone
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.ExpandLess
@@ -37,24 +40,21 @@ import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.Grain
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Share
-import androidx.compose.material.icons.filled.Speed
-import androidx.compose.material.icons.filled.Straighten
 import androidx.compose.material.icons.filled.Thermostat
-import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.WaterDrop
 import androidx.compose.material.icons.filled.WbSunny
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Text
-import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.Surface
-import com.zipstats.app.ui.components.ZipStatsText
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -63,11 +63,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -88,6 +90,7 @@ import com.zipstats.app.repository.WeatherRepository
 import com.zipstats.app.ui.components.CapturableMapView
 import com.zipstats.app.ui.components.MapSnapshotTrigger
 import com.zipstats.app.ui.components.RouteSummaryCard
+import com.zipstats.app.ui.components.ZipStatsText
 import com.zipstats.app.utils.CityUtils
 import com.zipstats.app.utils.DateUtils
 import com.zipstats.app.utils.ShareUtils
@@ -107,12 +110,9 @@ fun RouteDetailDialog(
 ) {
     val context = LocalContext.current
     
-    // Instancia única del repositorio usando remember para evitar crear múltiples instancias
+    // Repositorios y Estados (Mantenemos tu lógica intacta)
     val vehicleRepository = remember {
-        VehicleRepository(
-            FirebaseFirestore.getInstance(),
-            FirebaseAuth.getInstance()
-        )
+        VehicleRepository(FirebaseFirestore.getInstance(), FirebaseAuth.getInstance())
     }
     
     var mapboxMapRef by remember { mutableStateOf<com.mapbox.maps.MapView?>(null) }
@@ -124,30 +124,15 @@ fun RouteDetailDialog(
     var showAnimationDialog by remember { mutableStateOf(false) }
     var vehicleIconRes by remember { mutableStateOf(R.drawable.ic_electric_scooter_adaptive) }
     var vehicleModel by remember { mutableStateOf(route.scooterName) }
-
-    // Estado para el diálogo del clima
     var showWeatherDialog by remember(route.id) { mutableStateOf(false) }
 
-    if (showWeatherDialog) {
-        WeatherInfoDialog(
-            route = route,
-            onDismiss = { showWeatherDialog = false }
-        )
-    }
-    
-    // LaunchedEffect para manejar la lógica de compartir cuando el trigger esté listo
+    // Lógica de Compartir (Tu código original)
     LaunchedEffect(isCapturingForShare, mapSnapshotTrigger) {
-        // Solo entramos si el usuario quiere compartir Y el mapa ya nos dio el permiso para hacer fotos
         if (isCapturingForShare && mapSnapshotTrigger != null) {
             android.util.Log.d("RouteDetailDialog", "=== INICIANDO PROCESO DE COMPARTIR ===")
             android.util.Log.d("RouteDetailDialog", "Esperando a que el mapa esté completamente renderizado...")
-            
-            // Espera más larga para asegurar que el mapa esté completamente renderizado
-            // y que los tiles hayan cargado visualmente
-            kotlinx.coroutines.delay(2000) // Aumentado a 2 segundos
-            
+            kotlinx.coroutines.delay(2000) 
             android.util.Log.d("RouteDetailDialog", "Delay completado, llamando a ShareUtils...")
-            
             try {
                 ShareUtils.shareRouteImage(
                     context = context,
@@ -188,178 +173,212 @@ fun RouteDetailDialog(
         }
     }
 
+    if (showWeatherDialog) {
+        WeatherInfoDialog(route = route, onDismiss = { showWeatherDialog = false })
+    }
+
+    // --- UI PRINCIPAL (EL CAMBIO VISUAL) ---
     Dialog(
-        onDismissRequest = {
-            onDismiss()
-        },
+        onDismissRequest = onDismiss,
         properties = DialogProperties(
             dismissOnBackPress = true,
             dismissOnClickOutside = true,
-            usePlatformDefaultWidth = false
+            usePlatformDefaultWidth = false // Para poder controlar el ancho
         )
     ) {
-        Box(
-            modifier = Modifier.fillMaxSize()
+        Card(
+            modifier = Modifier
+                .fillMaxWidth(0.95f) // Margen lateral del 5%
+                .heightIn(max = 780.dp) // Altura máxima controlada
+                .clip(RoundedCornerShape(28.dp)),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surface // O Color(0xFF1E1E1E) si quieres forzar oscuro
+            ),
+            elevation = CardDefaults.cardElevation(8.dp)
         ) {
-            Card(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(12.dp),
-                elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
-                shape = com.zipstats.app.ui.theme.DialogShape
-            ) {
-                Box(modifier = Modifier.fillMaxSize()) {
-
-                    Column(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(12.dp)
-                    ) {
-                        // Header minimalista
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            onAddToRecords?.let { addToRecords ->
-                                IconButton(onClick = addToRecords) {
-                                    Icon(
-                                        imageVector = Icons.AutoMirrored.Filled.List,
-                                        contentDescription = "Añadir a registros",
-                                        tint = MaterialTheme.colorScheme.primary
-                                    )
-                                }
-                            }
-                            Spacer(modifier = Modifier.weight(1f))
-                            IconButton(onClick = onDismiss) {
-                                Icon(
-                                    imageVector = Icons.Default.Close,
-                                    contentDescription = "Cerrar"
-                                )
-                            }
+            Column(modifier = Modifier.fillMaxSize()) {
+                
+                // 1. ZONA HERO: EL MAPA (Ocupa la parte superior)
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(280.dp) // Mapa grande
+                ) {
+                    // El Mapa
+                    CapturableMapView(
+                        route = route,
+                        onMapReady = { mapboxMap -> mapboxMapRef = mapboxMap },
+                        modifier = Modifier.fillMaxSize(),
+                        isCompact = true,
+                        onStyleLoaded = { style ->
+                            style.getLayer("poi-label")?.visibility(Visibility.NONE)
+                            style.getLayer("transit-label")?.visibility(Visibility.NONE)
                         }
+                    )
 
-                        // Contenido scrolleable
-                        Column(
-                            modifier = Modifier
-                                .weight(1f)
-                                .verticalScroll(rememberScrollState())
-                        ) {
-                            CompactHeader(route = route, vehicleIconRes = vehicleIconRes, vehicleName = vehicleModel)
-
-                            Spacer(modifier = Modifier.height(8.dp))
-
-                            RouteTitle(route = route)
-
-                            Spacer(modifier = Modifier.height(12.dp))
-
-                            // Mapa compacto
-                            val mapClickInteractionSource = remember { MutableInteractionSource() }
-                            Box(modifier = Modifier.fillMaxWidth()) {
-                                Card(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clickable(
-                                            interactionSource = mapClickInteractionSource,
-                                            indication = null,
-                                            onClick = { showFullscreenMap = true }
-                                        ),
-                                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                                    elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-                                    shape = com.zipstats.app.ui.theme.SmallCardShape
-                                ) {
-                                    CapturableMapView(
-                                        route = route,
-                                        onMapReady = { mapboxMap -> mapboxMapRef = mapboxMap },
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .height(280.dp),
-                                        isCompact = true, // Mapa pequeño, usar marcadores más grandes
-                                        onStyleLoaded = { style ->
-                                            // 1. Ocultar POIs (Tiendas, restaurantes, bancos...)
-                                            style.getLayer("poi-label")?.visibility(Visibility.NONE)
-                                            
-                                            // 2. Ocultar transporte público (Paradas de bus, metro...) 
-                                            // Queda mucho más limpio si lo quitas también.
-                                            style.getLayer("transit-label")?.visibility(Visibility.NONE)
-                                        }
-                                    )
-                                }
-
-                                Surface(
-                                    modifier = Modifier
-                                        .align(Alignment.TopEnd)
-                                        .padding(12.dp),
-                                    shape = CircleShape,
-                                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
-                                    shadowElevation = 4.dp
-                                ) {
-                                    IconButton(
-                                        onClick = { showFullscreenMap = true },
-                                        modifier = Modifier.size(36.dp)
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Fullscreen,
-                                            contentDescription = "Ver en pantalla completa",
-                                            modifier = Modifier.size(20.dp)
-                                        )
-                                    }
-                                }
-                            }
-
-                            Spacer(modifier = Modifier.height(12.dp))
-
-                            StatsChips(
-                                route = route,
-                                onWeatherClick = { showWeatherDialog = true }
-                            )
-
-                            Spacer(modifier = Modifier.height(12.dp))
-
-                            if (route.movingTime > 0 || route.pauseCount > 0) {
-                                CollapsibleAdvancedDetails(
-                                    route = route,
-                                    expanded = showAdvancedDetails,
-                                    onToggle = { showAdvancedDetails = !showAdvancedDetails }
+                    // Sombra gradiente inferior para legibilidad
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .fillMaxWidth()
+                            .height(80.dp)
+                            .background(
+                                Brush.verticalGradient(
+                                    colors = listOf(Color.Transparent, Color.Black.copy(alpha=0.4f))
                                 )
-                            }
+                            )
+                    )
 
-                            Spacer(modifier = Modifier.height(80.dp))
+                    // Botones Flotantes sobre el mapa
+                    
+                    // Cerrar (X)
+                    IconButton(
+                        onClick = onDismiss,
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(12.dp)
+                            .background(Color.Black.copy(alpha=0.3f), CircleShape)
+                            .size(32.dp)
+                    ) {
+                        Icon(Icons.Default.Close, "Cerrar", tint = Color.White, modifier = Modifier.size(18.dp))
+                    }
+
+                    // Añadir a Registros (Lista)
+                    onAddToRecords?.let { addToRecords ->
+                        IconButton(
+                            onClick = addToRecords,
+                            modifier = Modifier
+                                .align(Alignment.TopStart)
+                                .padding(12.dp)
+                                .background(Color.Black.copy(alpha=0.3f), CircleShape)
+                                .size(32.dp)
+                        ) {
+                            Icon(Icons.AutoMirrored.Filled.List, "Añadir", tint = Color.White, modifier = Modifier.size(18.dp))
                         }
                     }
 
-                    // Botones flotantes
-                    Row(
+                    // Expandir (Fullscreen)
+                    IconButton(
+                        onClick = { showFullscreenMap = true },
                         modifier = Modifier
                             .align(Alignment.BottomEnd)
-                            .padding(24.dp),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            .padding(12.dp)
+                            .background(MaterialTheme.colorScheme.surface, CircleShape)
+                            .size(40.dp)
                     ) {
-                        SmallFloatingActionButton(
+                        Icon(Icons.Default.Fullscreen, "Expandir", tint = MaterialTheme.colorScheme.onSurface)
+                    }
+                }
+
+                // 2. CONTENIDO DE DATOS (Scrollable)
+                Column(
+                    modifier = Modifier
+                        .weight(1f) // Ocupa el espacio restante
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 20.dp, vertical = 20.dp)
+                ) {
+                    // Cabecera: Título y Vehículo
+                    val title = CityUtils.getRouteTitleText(route)
+                    ZipStatsText(
+                        text = title,
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    
+                    Spacer(modifier = Modifier.height(4.dp))
+                    
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            painter = painterResource(id = vehicleIconRes),
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp),
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        ZipStatsText(
+                            text = "$vehicleModel • ${DateUtils.formatForDisplay(java.time.LocalDate.ofEpochDay(route.startTime / (1000 * 60 * 60 * 24)))}",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(24.dp))
+
+                    // MÉTRICAS PRINCIPALES (Row limpio sin tarjetas)
+                    CleanMetricsRow(
+                        route = route,
+                        onWeatherClick = { showWeatherDialog = true }
+                    )
+
+                    Spacer(modifier = Modifier.height(24.dp))
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // DETALLES AVANZADOS (Acordeón)
+                    if (route.movingTime > 0 || route.pauseCount > 0) {
+                        AdvancedDetailsSection(
+                            route = route,
+                            expanded = showAdvancedDetails,
+                            onToggle = { showAdvancedDetails = !showAdvancedDetails }
+                        )
+                    }
+                }
+
+                // 3. BARRA DE ACCIONES (Footer Fijo)
+                Surface(
+                    color = MaterialTheme.colorScheme.surface,
+                    shadowElevation = 16.dp, // Sombra para separar del scroll
+                    modifier = Modifier.fillMaxWidth().zIndex(1f)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp)
+                            .navigationBarsPadding(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // Borrar (Pequeño)
+                        FilledTonalIconButton(
                             onClick = onDelete,
-                            containerColor = MaterialTheme.colorScheme.errorContainer,
-                            contentColor = MaterialTheme.colorScheme.onErrorContainer
+                            colors = IconButtonDefaults.filledTonalIconButtonColors(
+                                containerColor = MaterialTheme.colorScheme.errorContainer,
+                                contentColor = MaterialTheme.colorScheme.onErrorContainer
+                            ),
+                            modifier = Modifier.size(50.dp)
                         ) {
-                            Icon(imageVector = Icons.Default.Delete, contentDescription = "Eliminar")
+                            Icon(Icons.Default.Delete, "Eliminar")
                         }
 
-                        SmallFloatingActionButton(
+                        // ANIMAR (Grande - Principal)
+                        Button(
                             onClick = { showAnimationDialog = true },
-                            containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                            contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(50.dp),
+                            shape = RoundedCornerShape(16.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                         ) {
-                            Icon(imageVector = Icons.Default.PlayArrow, contentDescription = "Animar ruta")
+                            Icon(Icons.Default.PlayArrow, null)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Ver Animación")
                         }
 
-                        FloatingActionButton(
+                        // Compartir (Pequeño)
+                        FilledTonalIconButton(
                             onClick = {
                                 isCapturingForShare = true
                                 showFullscreenMap = true
                             },
-                            containerColor = MaterialTheme.colorScheme.primaryContainer,
-                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                            colors = IconButtonDefaults.filledTonalIconButtonColors(
+                                containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                                contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                            ),
+                            modifier = Modifier.size(50.dp)
                         ) {
-                            Icon(imageVector = Icons.Default.Share, contentDescription = "Compartir")
+                            Icon(Icons.Default.Share, "Compartir")
                         }
                     }
                 }
@@ -367,7 +386,7 @@ fun RouteDetailDialog(
         }
     }
 
-    // Modal Fullscreen para Captura
+    // Modales auxiliares (Fullscreen y Animación)
     if (showFullscreenMap) {
         FullscreenMapDialog(
             route = route,
@@ -376,22 +395,13 @@ fun RouteDetailDialog(
                 isCapturingForShare = false
                 mapSnapshotTrigger = null
             },
-            onSnapshotHandlerReady = { trigger ->
-                // Guardamos el trigger en el estado
-                mapSnapshotTrigger = trigger
-            },
-            onMapReady = { mapView ->
-                fullscreenMapRef = mapView
-            }
+            onSnapshotHandlerReady = { trigger -> mapSnapshotTrigger = trigger },
+            onMapReady = { mapView -> fullscreenMapRef = mapView }
         )
     }
     
-    // Modal de Animación
     if (showAnimationDialog) {
-        RouteAnimationDialog(
-            route = route,
-            onDismiss = { showAnimationDialog = false }
-        )
+        RouteAnimationDialog(route = route, onDismiss = { showAnimationDialog = false })
     }
 }
 
@@ -522,6 +532,226 @@ fun TripDetailsOverlay(
 }
 
 // -------------------------------------------------------------------------
+// COMPONENTES VISUALES NUEVOS (Estilo Limpio)
+// -------------------------------------------------------------------------
+
+@Composable
+fun CleanMetricsRow(route: Route, onWeatherClick: () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // Distancia
+        MetricColumn(
+            value = String.format("%.1f", route.totalDistance),
+            unit = "km",
+            label = "Distancia",
+            color = MaterialTheme.colorScheme.primary
+        )
+
+        // Divisor Vertical
+        Box(
+            modifier = Modifier
+                .height(40.dp)
+                .width(1.dp)
+                .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+        )
+
+        // Duración
+        val durationText = formatDurationShort(route.totalDuration)
+        val durationParts = durationText.split(" ")
+        val (durationValue, durationUnit) = if (durationParts.size > 1) {
+            // Formato: "45 min"
+            durationParts[0] to durationParts[1]
+        } else {
+            // Formato: "1:30" (sin espacio) - mostrar solo el valor
+            durationText to ""
+        }
+        MetricColumn(
+            value = durationValue,
+            unit = durationUnit,
+            label = "Tiempo",
+            color = MaterialTheme.colorScheme.primary
+        )
+
+        // Divisor Vertical
+        Box(
+            modifier = Modifier
+                .height(40.dp)
+                .width(1.dp)
+                .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+        )
+
+        // Clima (Interactivo)
+        val weatherTemp = route.weatherTemperature?.let { "${formatTemperature(it, 0)}°" } ?: "--"
+        val weatherIconRes = remember(route.weatherEmoji, route.weatherIsDay) {
+            getWeatherIconResId(route.weatherEmoji, route.weatherIsDay ?: true)
+        }
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null, // Sin ripple para evitar conflictos
+                    onClick = onWeatherClick
+                )
+                .background(MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
+                .padding(horizontal = 16.dp, vertical = 8.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center
+            ) {
+                Image(
+                    painter = painterResource(id = weatherIconRes),
+                    contentDescription = null,
+                    modifier = Modifier.size(24.dp),
+                    colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.onSurface)
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                ZipStatsText(
+                    text = weatherTemp,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+            ZipStatsText(
+                text = "Clima",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.primary
+            )
+        }
+    }
+}
+
+@Composable
+fun MetricColumn(value: String, unit: String, label: String, color: Color) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Row(verticalAlignment = Alignment.Bottom) {
+            ZipStatsText(
+                text = value,
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold,
+                color = color
+            )
+            Spacer(modifier = Modifier.width(2.dp))
+            ZipStatsText(
+                text = unit,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Bold,
+                color = color,
+                modifier = Modifier.padding(bottom = 4.dp)
+            )
+        }
+        ZipStatsText(
+            text = label,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+@Composable
+fun AdvancedDetailsSection(route: Route, expanded: Boolean, onToggle: () -> Unit) {
+    val rotationState by animateFloatAsState(targetValue = if (expanded) 180f else 0f, label = "rotation")
+    
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .animateContentSize()
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null, // Sin ripple para evitar conflictos
+                onClick = onToggle
+            )
+    ) {
+        // Cabecera
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 8.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Default.Analytics, 
+                    contentDescription = null, 
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                ZipStatsText(
+                    text = "Métricas avanzadas",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+            Icon(
+                imageVector = Icons.Default.ExpandMore,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.rotate(rotationState)
+            )
+        }
+
+        // Contenido
+        if (expanded) {
+            Column(modifier = Modifier.padding(top = 8.dp, bottom = 16.dp)) {
+                AdvancedStatRow("Velocidad Real", String.format("%.1f km/h", route.averageMovingSpeed), true)
+                Spacer(modifier = Modifier.height(12.dp))
+                AdvancedStatRow("Velocidad Máxima", String.format("%.1f km/h", route.maxSpeed), false)
+                Spacer(modifier = Modifier.height(12.dp))
+                AdvancedStatRow("Velocidad Media", String.format("%.1f km/h", route.averageSpeed), false)
+                Spacer(modifier = Modifier.height(12.dp))
+                AdvancedStatRow("En Movimiento (${String.format("%.0f%%", route.movingPercentage)})", formatDuration(route.movingTime), false)
+                Spacer(modifier = Modifier.height(12.dp))
+                AdvancedStatRow("Hora de Inicio", formatTime(route.startTime), false)
+                Spacer(modifier = Modifier.height(12.dp))
+                AdvancedStatRow("Hora de Fin", if (route.endTime != null) formatTime(route.endTime!!) else "--:--", false)
+            }
+        }
+    }
+}
+
+@Composable
+fun SafetyBadgesSection(route: Route) {
+    // Reutilizamos tu lógica de badges existente
+    val hadRain = route.weatherHadRain == true
+    val hasWetRoad = if (hadRain) false else checkWetRoadConditions(route)
+    val hasExtremeConditions = checkExtremeConditions(route)
+
+    if (hadRain || hasWetRoad || hasExtremeConditions) {
+        Spacer(modifier = Modifier.height(16.dp))
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (hadRain) SafetyBadge("🔵 Ruta realizada con lluvia", MaterialTheme.colorScheme.tertiaryContainer, MaterialTheme.colorScheme.onTertiaryContainer)
+            if (hasWetRoad) SafetyBadge("🟡 Precaución: calzada mojada", MaterialTheme.colorScheme.errorContainer, MaterialTheme.colorScheme.onErrorContainer)
+            if (hasExtremeConditions) SafetyBadge("⚠️ Condiciones extremas", MaterialTheme.colorScheme.errorContainer, MaterialTheme.colorScheme.onErrorContainer)
+        }
+    }
+}
+
+@Composable
+fun SafetyBadge(text: String, containerColor: Color, contentColor: Color) {
+    Surface(
+        shape = RoundedCornerShape(8.dp),
+        color = containerColor,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        ZipStatsText(
+            text = text,
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.Bold,
+            color = contentColor,
+            modifier = Modifier.padding(12.dp),
+            textAlign = TextAlign.Center
+        )
+    }
+}
+
+// -------------------------------------------------------------------------
 // COMPONENTES UI AUXILIARES RESTANTES (CompactHeader, RouteTitle, StatsChips, etc.)
 // (Se mantienen iguales que antes, omites para brevedad si ya están)
 // -------------------------------------------------------------------------
@@ -583,7 +813,6 @@ private fun RouteTitle(route: Route) {
 
 @Composable
 private fun StatsChips(route: Route, onWeatherClick: () -> Unit) {
-    val weatherClickInteractionSource = remember { MutableInteractionSource() }
     var weatherIconRes by remember(route.id) { mutableStateOf(getWeatherIconResId(route.weatherEmoji, route.weatherIsDay)) }
     var weatherTemp by remember(route.id) { mutableStateOf(if (route.weatherTemperature != null) "${formatTemperature(route.weatherTemperature, decimals = 0)}°C" else "--°C") }
     var isLoadingWeather by remember(route.id) { mutableStateOf(false) }
@@ -623,8 +852,6 @@ private fun StatsChips(route: Route, onWeatherClick: () -> Unit) {
             label = "Clima",
             iconRes = weatherIconRes,
             modifier = Modifier.weight(1f).clickable(
-                interactionSource = weatherClickInteractionSource,
-                indication = null,
                 enabled = route.weatherTemperature != null,
                 onClick = onWeatherClick
             )
@@ -677,7 +904,6 @@ private fun StatChip(value: String, label: String, iconRes: Int? = null, modifie
 
 @Composable
 private fun CollapsibleAdvancedDetails(route: Route, expanded: Boolean, onToggle: () -> Unit) {
-    val toggleInteractionSource = remember { MutableInteractionSource() }
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
@@ -686,8 +912,6 @@ private fun CollapsibleAdvancedDetails(route: Route, expanded: Boolean, onToggle
         Column {
             Row(
                 modifier = Modifier.fillMaxWidth().clickable(
-                    interactionSource = toggleInteractionSource,
-                    indication = null,
                     onClick = { onToggle() }
                 ).padding(16.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -731,16 +955,13 @@ private fun AdvancedStatRow(label: String, value: String, highlight: Boolean) {
         ZipStatsText(
             text = label,
             style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 1
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         ZipStatsText(
             text = value,
-            style = if (highlight) MaterialTheme.typography.titleLarge else MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-            color = if (highlight) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-            maxLines = 1,
-            textAlign = TextAlign.End
+            style = if (highlight) MaterialTheme.typography.titleMedium else MaterialTheme.typography.bodyLarge,
+            fontWeight = if (highlight) FontWeight.Bold else FontWeight.Normal,
+            color = if (highlight) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
         )
     }
 }
@@ -753,193 +974,172 @@ private fun WeatherInfoDialog(route: Route, onDismiss: () -> Unit) {
     ) {
         Card(
             shape = RoundedCornerShape(28.dp),
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp),
+            modifier = Modifier
+                .fillMaxWidth(0.9f) // Un poco más estrecho para que se vea el fondo
+                .padding(16.dp),
             elevation = CardDefaults.cardElevation(8.dp),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
         ) {
-            Column(
-                modifier = Modifier.padding(vertical = 24.dp, horizontal = 20.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Image(
-                    painter = painterResource(id = getWeatherIconResId(route.weatherEmoji, route.weatherIsDay)),
-                    contentDescription = null,
-                    modifier = Modifier.size(64.dp),
-                    colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.primary)
-                )
-                Spacer(modifier = Modifier.height(16.dp))
-                ZipStatsText(text = route.weatherDescription?.substringBefore("(")?.trim() ?: "Detalles del Clima", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
-                Spacer(modifier = Modifier.height(8.dp))
-                
-                // 🔥 Detectar qué parámetros activaron la alerta de condiciones extremas
-                val hasExtremeConditions = checkExtremeConditions(route)
-                val isExtremeWind = route.weatherWindSpeed != null && route.weatherWindSpeed > 40
-                val isExtremeGusts = route.weatherWindGusts != null && route.weatherWindGusts > 60
-                val isExtremeTemp = route.weatherTemperature != null && (route.weatherTemperature < 0 || route.weatherTemperature > 35)
-                val isExtremeUv = route.weatherIsDay && route.weatherUvIndex != null && route.weatherUvIndex > 8
-                val isStorm = route.weatherEmoji?.let { emoji ->
-                    emoji.contains("⛈") || emoji.contains("⚡")
-                } ?: false
-                val isStormByDescription = route.weatherDescription?.let { desc ->
-                    desc.contains("Tormenta", ignoreCase = true) ||
-                    desc.contains("granizo", ignoreCase = true) ||
-                    desc.contains("rayo", ignoreCase = true)
-                } ?: false
-                
-                // 🔥 Mostrar temperatura con cápsula si activó la alerta de condiciones extremas
-                val tempValue = route.weatherTemperature?.let { temp ->
-                    "${formatTemperature(temp)}°C"
-                } ?: "--°C"
-                val shouldHighlightTemp = hasExtremeConditions && isExtremeTemp
-                
-                if (shouldHighlightTemp) {
-                    // Cápsula sutil solo en el valor
-                    Surface(
-                        shape = RoundedCornerShape(14.dp),
-                        color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.22f),
-                        modifier = Modifier.padding(vertical = 4.dp)
-                    ) {
-                        ZipStatsText(
-                            text = tempValue, 
-                            style = MaterialTheme.typography.displaySmall, 
-                            fontWeight = FontWeight.Bold, 
-                            color = MaterialTheme.colorScheme.onErrorContainer,
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-                        )
-                    }
-                } else {
+            Box {
+                // Botón Cerrar (X) discreto en la esquina
+                IconButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.align(Alignment.TopEnd).padding(8.dp)
+                ) {
+                    Icon(Icons.Default.Close, "Cerrar", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+
+                Column(
+                    modifier = Modifier.padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    // 1. HEADER (Icono + Temp)
+                    Image(
+                        painter = painterResource(id = getWeatherIconResId(route.weatherEmoji, route.weatherIsDay ?: true)),
+                        contentDescription = null,
+                        modifier = Modifier.size(72.dp), // Un pelín más grande
+                        colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.primary)
+                    )
+                    
+                    Spacer(modifier = Modifier.height(8.dp))
+                    
                     ZipStatsText(
-                        text = tempValue, 
-                        style = MaterialTheme.typography.displaySmall, 
-                        fontWeight = FontWeight.Bold, 
+                        text = route.weatherDescription?.substringBefore("(")?.trim() ?: "Clima",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold,
+                        textAlign = TextAlign.Center
+                    )
+                    
+                    ZipStatsText(
+                        text = route.weatherTemperature?.let { "${formatTemperature(it)}°C" } ?: "--°C",
+                        style = MaterialTheme.typography.displayMedium, // Número grande e impactante
+                        fontWeight = FontWeight.Black, // Extra Bold
                         color = MaterialTheme.colorScheme.primary
                     )
-                }
-                Spacer(modifier = Modifier.height(24.dp))
-                Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                    
-                    route.weatherFeelsLike?.let { WeatherDetailRow(Icons.Default.Thermostat, "Sensación térmica", "${formatTemperature(it)}°C") }
-                    route.weatherHumidity?.let { WeatherDetailRow(Icons.Default.WaterDrop, "Humedad", "${it}%") }
-                    
-                    // LÓGICA INTELIGENTE: Precipitación vs Probabilidad
-                    val precipitation = route.weatherMaxPrecipitation ?: 0.0
-                    
-                    if (precipitation > 0.0) {
-                        // CASO A: Ha llovido -> Mostramos el dato REAL (mm) y ocultamos la probabilidad
-                        WeatherDetailRow(Icons.Default.Grain, "Precipitación", "${String.format("%.1f", precipitation)} mm")
-                    } else {
-                        // CASO B: No ha llovido -> Mostramos la estimación de riesgo (%)
-                        route.weatherRainProbability?.let { 
-                            WeatherDetailRow(Icons.Default.Cloud, "Prob. de lluvia", "$it%") 
+
+                    Spacer(modifier = Modifier.height(24.dp))
+
+                    // 2. GRID DE DETALLES (2 Columnas)
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        // Columna Izquierda
+                        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                            route.weatherFeelsLike?.let {
+                                WeatherGridItem(
+                                    icon = Icons.Default.Thermostat,
+                                    label = "Sensación",
+                                    value = "${formatTemperature(it)}°C"
+                                )
+                            }
+                            route.weatherHumidity?.let {
+                                WeatherGridItem(
+                                    icon = Icons.Default.WaterDrop,
+                                    label = "Humedad",
+                                    value = "${it}%"
+                                )
+                            }
+                            route.weatherWindSpeed?.let {
+                                WeatherGridItem(
+                                    icon = Icons.Default.Air,
+                                    label = "Viento",
+                                    value = "${String.format("%.1f", it)} km/h"
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.width(16.dp))
+
+                        // Columna Derecha
+                        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                            // Lógica inteligente precipitación vs probabilidad
+                            val precip = route.weatherMaxPrecipitation ?: 0.0
+                            if (precip > 0.0) {
+                                WeatherGridItem(Icons.Default.Grain, "Lluvia", "${String.format("%.1f", precip)} mm")
+                            } else {
+                                route.weatherRainProbability?.let {
+                                    WeatherGridItem(Icons.Default.Cloud, "Prob. Lluvia", "$it%")
+                                }
+                            }
+                            
+                            // Índice UV (Solo si es de día) o Ráfagas
+                            if (route.weatherIsDay && (route.weatherUvIndex ?: 0.0) > 0) {
+                                WeatherGridItem(Icons.Default.WbSunny, "Índice UV", String.format("%.0f", route.weatherUvIndex!!))
+                            } else {
+                                route.weatherWindGusts?.let {
+                                    WeatherGridItem(Icons.Default.Cyclone, "Ráfagas", "${String.format("%.1f", it)} km/h")
+                                }
+                            }
                         }
                     }
-                    
-                    // 🔥 Destacar parámetros que activaron la alerta de condiciones extremas
-                    route.weatherWindSpeed?.let { 
-                        WeatherDetailRow(
-                            Icons.Default.Air, 
-                            "Viento", 
-                            "${String.format("%.1f", it)} km/h (${convertWindDirectionToText(route.weatherWindDirection)})",
-                            isExtreme = hasExtremeConditions && isExtremeWind
-                        ) 
-                    }
-                    route.weatherWindGusts?.let { 
-                        WeatherDetailRow(
-                            Icons.Default.Cyclone, 
-                            "Ráfagas", 
-                            "${String.format("%.1f", it)} km/h",
-                            isExtreme = hasExtremeConditions && isExtremeGusts
-                        ) 
-                    }
-                    
-                    if (route.weatherIsDay && route.weatherUvIndex != null && route.weatherUvIndex > 0) {
-                        WeatherDetailRow(
-                            Icons.Default.WbSunny, 
-                            "Índice UV", 
-                            String.format("%.0f", route.weatherUvIndex),
-                            isExtreme = hasExtremeConditions && isExtremeUv
-                        )
-                    }
-                    
-                    // Badges de seguridad y condiciones
-                    // 🔒 REGLAS:
-                    // 1. Lluvia y Calzada Mojada son EXCLUYENTES (nunca aparecen juntos)
-                    // 2. Condiciones Extremas es COMPLEMENTARIO (puede aparecer solo o con lluvia/calzada)
-                    // 3. Prioridad de visualización: Lluvia/Calzada mojada > Condiciones extremas
+
+                    // 3. BADGE DE SEGURIDAD (Si aplica)
+                    val hasWetRoad = if (route.weatherHadRain == true) false else checkWetRoadConditions(route)
                     val hadRain = route.weatherHadRain == true
-                    val hasWetRoad = if (hadRain) false else checkWetRoadConditions(route)
                     val hasExtremeConditions = checkExtremeConditions(route)
                     
-                    if (hasWetRoad || hasExtremeConditions || hadRain) {
-                        Spacer(modifier = Modifier.height(8.dp))
-                        
-                        Column(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            // Prioridad 1: Lluvia o Calzada Mojada (EXCLUYENTES - nunca aparecen juntos)
-                            // 🔒 Misma paleta de colores que los preavisos
-                            
-                            // Badge: Lluvia (Azul/Rosa) - Mismo color que preaviso: tertiaryContainer
+                    if (hasWetRoad || hadRain || hasExtremeConditions) {
+                        Spacer(modifier = Modifier.height(24.dp))
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             if (hadRain) {
-                                Surface(
-                                    shape = RoundedCornerShape(8.dp),
-                                    color = MaterialTheme.colorScheme.tertiaryContainer, // Mismo que preaviso
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    ZipStatsText(
-                                        text = "🔵 Ruta realizada con lluvia",
-                                        style = MaterialTheme.typography.labelLarge,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onTertiaryContainer, // Mismo que preaviso
-                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                                        textAlign = TextAlign.Center
-                                    )
-                                }
+                                SafetyBadge(
+                                    text = "🔵 Ruta con lluvia",
+                                    containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                                    contentColor = MaterialTheme.colorScheme.onTertiaryContainer
+                                )
                             }
-                            
-                            // Badge: Calzada Mojada (Amarillo/Naranja) - Mismo color que preaviso: errorContainer
                             if (hasWetRoad) {
-                                Surface(
-                                    shape = RoundedCornerShape(8.dp),
-                                    color = MaterialTheme.colorScheme.errorContainer, // Mismo que preaviso
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    ZipStatsText(
-                                        text = "🟡 Precaución: calzada mojada",
-                                        style = MaterialTheme.typography.labelLarge,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onErrorContainer, // Mismo que preaviso
-                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                                        textAlign = TextAlign.Center
-                                    )
-                                }
+                                SafetyBadge(
+                                    text = "🟡 Precaución: calzada mojada",
+                                    containerColor = MaterialTheme.colorScheme.errorContainer,
+                                    contentColor = MaterialTheme.colorScheme.onErrorContainer
+                                )
                             }
-                            
-                            // Prioridad 2: Condiciones Extremas (COMPLEMENTARIO - puede aparecer solo o con lluvia/calzada)
-                            // Mismo color que preaviso: errorContainer
                             if (hasExtremeConditions) {
-                                Surface(
-                                    shape = RoundedCornerShape(8.dp),
-                                    color = MaterialTheme.colorScheme.errorContainer, // Mismo que preaviso
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    ZipStatsText(
-                                        text = "⚠️ Condiciones extremas",
-                                        style = MaterialTheme.typography.labelLarge,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onErrorContainer, // Mismo que preaviso
-                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                                        textAlign = TextAlign.Center
-                                    )
-                                }
+                                SafetyBadge(
+                                    text = "⚠️ Condiciones extremas",
+                                    containerColor = MaterialTheme.colorScheme.errorContainer,
+                                    contentColor = MaterialTheme.colorScheme.onErrorContainer
+                                )
                             }
                         }
                     }
                 }
-                Spacer(modifier = Modifier.height(24.dp))
-                Button(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) { ZipStatsText("Cerrar") }
             }
+        }
+    }
+}
+
+// Helper para los items del grid (Más compacto)
+@Composable
+private fun WeatherGridItem(icon: ImageVector, label: String, value: String) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        // Icono con fondo circular suave
+        Surface(
+            shape = CircleShape,
+            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+            modifier = Modifier.size(36.dp)
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+        Spacer(modifier = Modifier.width(12.dp))
+        Column {
+            ZipStatsText(
+                text = label,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.outline
+            )
+            ZipStatsText(
+                text = value,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
         }
     }
 }
@@ -1096,39 +1296,47 @@ private fun checkExtremeConditions(route: Route): Boolean {
 private fun getWeatherIconResId(emoji: String?, isDay: Boolean): Int {
     if (emoji.isNullOrBlank()) return R.drawable.help_outline
 
-    return when (emoji) {
+    // Mapeo de emoji a código de Open-Meteo para usar WeatherRepository
+    val weatherCode = when (emoji) {
         // ☀️ Cielo Despejado
-        "☀️" -> R.drawable.wb_sunny
-        "🌙" -> R.drawable.nightlight
+        "☀️" -> 0
+        "🌙" -> 0
 
         // ⛅ Nubes Parciales
-        "🌤️", "🌥️","☁️🌙" -> if (isDay) R.drawable.partly_cloudy_day else R.drawable.partly_cloudy_night
+        "🌤️", "🌥️" -> if (isDay) 1 else 2
+        "☁️🌙" -> 2
 
-        // ☁️ Nublado (A veces la API manda esto de noche también)
-        "☁️" -> R.drawable.cloud
+        // ☁️ Nublado
+        "☁️" -> 3
 
         // 🌫️ Niebla
-        "🌫️" -> R.drawable.foggy
+        "🌫️" -> 45
 
-        // 🌦️ Lluvia Ligera / Chubascos leves (Sol con lluvia) -> Icono Normal
-        "🌦️" -> R.drawable.rainy
+        // 🌦️ Lluvia Ligera / Chubascos leves
+        "🌦️" -> if (isDay) 61 else 61
 
-        // 🌧️ Lluvia Fuerte / Densa (Solo nube) -> Icono HEAVY (Nuevo)
-        "🌧️" -> R.drawable.rainy_heavy
+        // 🌧️ Lluvia Fuerte / Densa
+        "🌧️" -> 65
 
-        // 🥶 Aguanieve / Hielo (Cara de frío) -> Icono SNOWY RAINY (Nuevo)
-        "🥶" -> R.drawable.rainy_snow
+        // 🥶 Aguanieve / Hielo
+        "🥶" -> 66
 
         // ❄️ Nieve
-        "❄️" -> R.drawable.snowing
+        "❄️" -> 71
 
         // ⛈️ Tormenta / Granizo / Rayo
-        "⛈️", "⚡" -> R.drawable.thunderstorm
-        // Nota: Si tienes R.drawable.hail, puedes asignar "⛈️" a ese.
+        "⚡" -> 95
+        "⛈️" -> 96
 
-        // 🤷 Default
-        else -> R.drawable.help_outline
+        // Default: código desconocido
+        else -> -1
     }
+
+    // Si no encontramos el código, usar icono por defecto
+    if (weatherCode == -1) return R.drawable.help_outline
+
+    // Usar WeatherRepository para obtener el icono correcto
+    return WeatherRepository.getIconResIdForWeather(weatherCode, if (isDay) 1 else 0)
 }
 
 private fun getVehicleIconResource(vehicleType: VehicleType?): Int {

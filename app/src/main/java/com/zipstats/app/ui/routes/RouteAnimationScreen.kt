@@ -12,24 +12,30 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -38,11 +44,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
@@ -84,8 +87,9 @@ import com.zipstats.app.map.RouteAnimator
 import com.zipstats.app.model.Route
 import com.zipstats.app.ui.components.HideSystemBarsEffect
 import com.zipstats.app.ui.components.RouteSummaryCard
-import com.zipstats.app.ui.components.ZipStatsText
 import com.zipstats.app.utils.CityUtils
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @Composable
 fun RouteAnimationDialog(
@@ -529,149 +533,97 @@ fun RouteAnimationDialog(
             }
             
             /* =========================
-             * BARRA CINEMÁTICA
+             * BARRA DE CONTROL UNIFICADA
              * ========================= */
             // 3. UI SUPERPUESTA (Solo visible si NO grabamos)
             if (!isRecording) {
-                // BARRA DE CONTROL CINEMÁTICA (Bottom)
-                Box(
+                AnimationControlBar(
+                    isPlaying = isPlaying,
+                    playbackSpeed = if (isSpeed2x) 2f else 1f,
+                    onTogglePlay = {
+                        if (isPlaying) {
+                            animator?.pauseAnimation()
+                            if (mediaPlayer?.isPlaying == true) mediaPlayer.pause()
+                            isPlaying = false
+                        } else {
+                            // Si la animación ya terminó, reiniciar desde el principio
+                            if (animator?.isAnimationComplete() == true) {
+                                animator?.stopAnimation(resetIndex = true)
+                                // Reiniciar marcador y trail a posición inicial
+                                if (routePoints.isNotEmpty()) {
+                                    mapStyleRef.value?.let { currentStyle ->
+                                        val vehicleSource = currentStyle.getSource("vehicle-marker-source") as? GeoJsonSource
+                                        vehicleSource?.feature(Feature.fromGeometry(routePoints.first()))
+                                        
+                                        val vehicleLayer = currentStyle.getLayer("vehicle-marker-layer") as? SymbolLayer
+                                        if (routePoints.size > 1) {
+                                            val initialBearing = TurfMeasurement.bearing(routePoints[0], routePoints[1])
+                                            vehicleLayer?.iconRotate(initialBearing)
+                                        }
+                                        
+                                        // Reiniciar trail (con primer punto duplicado, no se verá como línea)
+                                        val trailSource = currentStyle.getSource("trail-source") as? GeoJsonSource
+                                        val firstPoint = routePoints.first()
+                                        trailSource?.geometry(com.mapbox.geojson.LineString.fromLngLats(listOf(firstPoint, firstPoint)))
+                                    }
+                                }
+                                animator?.startAnimation(0f)
+                            } else {
+                                animator?.resumeAnimation()
+                            }
+                            mediaPlayer?.start()
+                            isPlaying = true
+                        }
+                    },
+                    onChangeSpeed = {
+                        // Guardar el estado de reproducción ANTES de cambiar velocidad
+                        val wasPlaying = isPlaying && (mediaPlayer?.isPlaying == true)
+                        
+                        isSpeed2x = !isSpeed2x
+                        animator?.toggleSpeed()
+                        
+                        // Mantener el estado de reproducción - no cambiar isPlaying
+                        // Solo asegurarse de que el MediaPlayer continúe si estaba reproduciéndose
+                        if (wasPlaying) {
+                            // Pequeño delay para asegurar que la animación se reinicie completamente
+                            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                                val player = mediaPlayer
+                                // isPlaying siempre es true aquí porque wasPlaying = isPlaying && ...
+                                if (player != null && !player.isPlaying) {
+                                    player.start()
+                                }
+                            }, 100) // Delay un poco mayor para asegurar estabilidad
+                        }
+                    },
+                    onSave = {
+                        scope.launch {
+                            // 1. Detenemos todo primero
+                            animator?.stopAnimation(resetIndex = true)
+                            mediaPlayer?.pause()
+                            mediaPlayer?.seekTo(0)
+                            isPlaying = false
+                            
+                            // 2. 🔥 OCULTAR UI ANTES DE GRABAR 🔥
+                            // Establecemos isRecording = true para ocultar los botones inmediatamente
+                            isRecording = true
+                            
+                            // 3. 🔥 RETARDO DE SEGURIDAD 🔥
+                            // Esperamos 250ms para que Compose termine de actualizar la pantalla
+                            // y los botones desaparezcan completamente del buffer antes de capturar el primer frame
+                            delay(250)
+                            
+                            // 4. Pedimos permiso al sistema
+                            // Esto lanzará el popup "¿Desea iniciar grabación?"
+                            // Cuando el usuario acepte, el 'startMediaProjection' de arriba se ejecuta
+                            val mediaProjectionManager = context.getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+                            startMediaProjection.launch(mediaProjectionManager.createScreenCaptureIntent())
+                        }
+                    },
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
-                        .fillMaxWidth()
-                        .height(180.dp) // Altura del degradado
-                        .background(
-                            Brush.verticalGradient(
-                                colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.9f))
-                            )
-                        ),
-                    contentAlignment = Alignment.BottomCenter
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            // ❌ Eliminado navigationBarsPadding() - En modo inmersivo las barras están ocultas
-                            .padding(bottom = 32.dp, start = 24.dp, end = 24.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween, // Controles separados
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        
-                        // BOTÓN VELOCIDAD (Izquierda)
-                        FloatingActionButton(
-                            onClick = {
-                                // Guardar el estado de reproducción ANTES de cambiar velocidad
-                                val wasPlaying = isPlaying && (mediaPlayer?.isPlaying == true)
-                                
-                                isSpeed2x = !isSpeed2x
-                                animator?.toggleSpeed()
-                                
-                                // Mantener el estado de reproducción - no cambiar isPlaying
-                                // Solo asegurarse de que el MediaPlayer continúe si estaba reproduciéndose
-                                if (wasPlaying) {
-                                    // Pequeño delay para asegurar que la animación se reinicie completamente
-                                    android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                                        val player = mediaPlayer
-                                        if (player != null && !player.isPlaying && isPlaying) {
-                                            player.start()
-                                        }
-                                    }, 100) // Delay un poco mayor para asegurar estabilidad
-                                }
-                            },
-                            containerColor = if (isSpeed2x) MaterialTheme.colorScheme.primary else Color.White.copy(alpha = 0.2f), // Mismo estilo que botón descarga
-                            contentColor = Color.White, // Mismo estilo que botón descarga
-                            modifier = Modifier.size(56.dp),
-                            shape = CircleShape
-                        ) {
-                            ZipStatsText(
-                                text = if (isSpeed2x) "2x" else "1x",
-                                fontWeight = FontWeight.Bold,
-                                color = Color.White // Mismo estilo que botón descarga
-                            )
-                        }
-
-                        // BOTÓN PLAY/PAUSE (Centro - Grande)
-                        FloatingActionButton(
-                            onClick = {
-                                if (isPlaying) {
-                                    animator?.pauseAnimation()
-                                    if (mediaPlayer?.isPlaying == true) mediaPlayer.pause()
-                                    isPlaying = false
-                                } else {
-                                    // Si la animación ya terminó, reiniciar desde el principio
-                                    if (animator?.isAnimationComplete() == true) {
-                                        animator?.stopAnimation(resetIndex = true)
-                                        // Reiniciar marcador y trail a posición inicial
-                                        if (routePoints.isNotEmpty()) {
-                                            mapStyleRef.value?.let { currentStyle ->
-                                                val vehicleSource = currentStyle.getSource("vehicle-marker-source") as? GeoJsonSource
-                                                vehicleSource?.feature(Feature.fromGeometry(routePoints.first()))
-                                                
-                                                val vehicleLayer = currentStyle.getLayer("vehicle-marker-layer") as? SymbolLayer
-                                                if (routePoints.size > 1) {
-                                                    val initialBearing = TurfMeasurement.bearing(routePoints[0], routePoints[1])
-                                                    vehicleLayer?.iconRotate(initialBearing)
-                                                }
-                                                
-                                                // Reiniciar trail (con primer punto duplicado, no se verá como línea)
-                                                val trailSource = currentStyle.getSource("trail-source") as? GeoJsonSource
-                                                val firstPoint = routePoints.first()
-                                                trailSource?.geometry(com.mapbox.geojson.LineString.fromLngLats(listOf(firstPoint, firstPoint)))
-                                            }
-                                        }
-                                        animator?.startAnimation(0f)
-                                    } else {
-                                        animator?.resumeAnimation()
-                                    }
-                                    mediaPlayer?.start()
-                                    isPlaying = true
-                                }
-                            },
-                            containerColor = Color.White,
-                            contentColor = Color.Black,
-                            modifier = Modifier.size(72.dp),
-                            shape = CircleShape
-                        ) {
-                            Icon(
-                                imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                                contentDescription = null,
-                                modifier = Modifier.size(36.dp)
-                            )
-                        }
-
-                        // BOTÓN DESCARGA (NUEVO) - Reemplaza el botón de reiniciar
-                        FloatingActionButton(
-                            onClick = {
-                                scope.launch {
-                                    // 1. Detenemos todo primero
-                                    animator?.stopAnimation(resetIndex = true)
-                                    mediaPlayer?.pause()
-                                    mediaPlayer?.seekTo(0)
-                                    isPlaying = false
-                                    
-                                    // 2. 🔥 OCULTAR UI ANTES DE GRABAR 🔥
-                                    // Establecemos isRecording = true para ocultar los botones inmediatamente
-                                    isRecording = true
-                                    
-                                    // 3. 🔥 RETARDO DE SEGURIDAD 🔥
-                                    // Esperamos 250ms para que Compose termine de actualizar la pantalla
-                                    // y los botones desaparezcan completamente del buffer antes de capturar el primer frame
-                                    delay(250)
-                                    
-                                    // 4. Pedimos permiso al sistema
-                                    // Esto lanzará el popup "¿Desea iniciar grabación?"
-                                    // Cuando el usuario acepte, el 'startMediaProjection' de arriba se ejecuta
-                                    val mediaProjectionManager = context.getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
-                                    startMediaProjection.launch(mediaProjectionManager.createScreenCaptureIntent())
-                                }
-                            },
-                            containerColor = Color.White.copy(alpha = 0.2f),
-                            contentColor = Color.White,
-                            modifier = Modifier.size(56.dp),
-                            shape = CircleShape
-                        ) {
-                            Icon(Icons.Default.Download, "Guardar Vídeo")
-                        }
-                    }
-                }
+                        .padding(bottom = 32.dp)
+                        .navigationBarsPadding()
+                )
             }
         }
     }
@@ -690,6 +642,73 @@ fun RouteAnimationDialog(
                 mediaPlayer?.release()
             } catch (e: Exception) {
                 android.util.Log.e("RouteAnimation", "Error al liberar recursos: ${e.message}", e)
+            }
+        }
+    }
+}
+
+// Componente: Barra de Control Unificada (Playback Pill)
+@Composable
+fun AnimationControlBar(
+    isPlaying: Boolean,
+    playbackSpeed: Float,
+    onTogglePlay: () -> Unit,
+    onChangeSpeed: () -> Unit,
+    onSave: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    // Contenedor tipo "Pastilla" (Stadium Shape)
+    Surface(
+        modifier = modifier
+            .height(72.dp) // Altura cómoda
+            .padding(horizontal = 16.dp) // Margen lateral
+            .border(1.dp, Color.White.copy(alpha = 0.1f), CircleShape), // Borde sutil
+        shape = CircleShape, // Bordes totalmente redondos
+        color = Color(0xFF1E1E1E).copy(alpha = 0.9f), // Fondo oscuro casi opaco
+        shadowElevation = 8.dp
+    ) {
+        Row(
+            modifier = Modifier
+                .padding(horizontal = 24.dp) // Padding interno
+                .widthIn(min = 280.dp), // Ancho mínimo para que no quede muy pequeña
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            // 1. VELOCIDAD (Izquierda)
+            TextButton(
+                onClick = onChangeSpeed,
+                colors = ButtonDefaults.textButtonColors(contentColor = Color.White)
+            ) {
+                Text(
+                    text = "${playbackSpeed.toInt()}x",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+
+            // 2. PLAY/PAUSE (Centro - Destacado)
+            // Usamos un Box para darle un fondo circular blanco al botón principal
+            IconButton(
+                onClick = onTogglePlay,
+                modifier = Modifier
+                    .size(56.dp)
+                    .background(Color.White, CircleShape)
+            ) {
+                Icon(
+                    imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                    contentDescription = if (isPlaying) "Pausar" else "Reproducir",
+                    tint = Color.Black, // Icono negro sobre fondo blanco
+                    modifier = Modifier.size(32.dp)
+                )
+            }
+
+            // 3. GUARDAR/DESCARGAR (Derecha)
+            IconButton(onClick = onSave) {
+                Icon(
+                    imageVector = Icons.Default.Download,
+                    contentDescription = "Guardar video",
+                    tint = Color.White
+                )
             }
         }
     }

@@ -26,6 +26,8 @@ import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.BottomSheetDefaults
+import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -34,18 +36,21 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -69,6 +74,7 @@ import com.zipstats.app.ui.components.StandardDatePickerDialog
 import com.zipstats.app.ui.components.ZipStatsText
 import com.zipstats.app.ui.theme.DialogShape
 import com.zipstats.app.utils.DateUtils
+import kotlinx.coroutines.launch
 import java.time.LocalDate
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -80,14 +86,19 @@ fun RepairsScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     var scooter by remember { mutableStateOf<Scooter?>(null) }
+    val scope = rememberCoroutineScope()
 
     // Estados UI
-    var showAddDialog by rememberSaveable { mutableStateOf(false) }
+    var showAddSheet by rememberSaveable { mutableStateOf(false) }
     var selectedRepair by remember { mutableStateOf<Repair?>(null) }
 
-    // Estado secundario para diálogos de edición/borrado derivados de la selección
-    var showEditDialog by rememberSaveable { mutableStateOf(false) }
+    // Estado secundario para bottom sheet de edición/borrado derivados de la selección
+    var showEditSheet by rememberSaveable { mutableStateOf(false) }
     var showDeleteDialog by rememberSaveable { mutableStateOf(false) }
+    
+    // Estado del bottom sheet
+    val addSheetState = rememberModalBottomSheetState()
+    val editSheetState = rememberModalBottomSheetState()
 
     // Fecha actual por defecto
     val today = LocalDate.now()
@@ -108,13 +119,13 @@ fun RepairsScreen(
         scooter = loadedScooter
     }
 
-    // Efecto para abrir el diálogo de edición cuando se selecciona una reparación
+    // Efecto para abrir el bottom sheet de edición cuando se selecciona una reparación
     LaunchedEffect(selectedRepair) {
         if (selectedRepair != null) {
             tempDate = selectedRepair!!.date
             tempDesc = selectedRepair!!.description
             tempMileage = selectedRepair!!.mileage?.toString() ?: ""
-            showEditDialog = true
+            showEditSheet = true
         }
     }
 
@@ -155,7 +166,7 @@ fun RepairsScreen(
                     tempDate = LocalDate.now()
                     tempDesc = ""
                     tempMileage = "" // Opcional: pre-cargar kilometraje actual del scooter
-                    showAddDialog = true
+                    showAddSheet = true
                 },
                 containerColor = MaterialTheme.colorScheme.primary
             ) {
@@ -189,7 +200,7 @@ fun RepairsScreen(
                                 tempDate = LocalDate.now()
                                 tempDesc = ""
                                 tempMileage = ""
-                                showAddDialog = true
+                                showAddSheet = true
                             }
                         )
                     } else {
@@ -226,129 +237,104 @@ fun RepairsScreen(
         }
     }
 
-    // --- DIÁLOGOS ---
+    // --- BOTTOM SHEETS ---
 
-    // 1. DIÁLOGO AÑADIR / EDITAR (Reutilizable)
-    if (showAddDialog || showEditDialog) {
-        val isEditing = showEditDialog
-        val titleText = if (isEditing) "Editar reparación" else "Nueva reparación"
-
-        AlertDialog(
-            onDismissRequest = {
-                showAddDialog = false
-                showEditDialog = false
-                if (isEditing) selectedRepair = null
-            },
-            title = { ZipStatsText(titleText) },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                    // Selector de Fecha
-                    OutlinedTextField(
-                        value = DateUtils.formatForDisplay(tempDate),
-                        onValueChange = {},
-                        label = { ZipStatsText("Fecha") },
-                        readOnly = true,
-                        trailingIcon = {
-                            IconButton(onClick = { showDatePicker = true }) {
-                                Icon(Icons.Default.CalendarMonth, null)
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-
-                    // Descripción
-                    OutlinedTextField(
-                        value = tempDesc,
-                        onValueChange = { tempDesc = it },
-                        label = { ZipStatsText("Descripción") },
-                        placeholder = { ZipStatsText("Ej: Cambio de pastillas de freno") },
-                        modifier = Modifier.fillMaxWidth(),
-                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
-                        minLines = 2,
-                        maxLines = 4
-                    )
-
-                    // Kilometraje
-                    OutlinedTextField(
-                        value = tempMileage,
-                        onValueChange = {
-                            // Solo permitir números y un punto decimal
-                            if (it.all { char -> char.isDigit() || char == '.' || char == ',' }) {
-                                tempMileage = it.replace(',', '.')
-                            }
-                        },
-                        label = { ZipStatsText("Kilometraje (Opcional)") },
-                        placeholder = { ZipStatsText("Km al momento de la reparación") },
-                        modifier = Modifier.fillMaxWidth(),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Done),
-                        trailingIcon = { ZipStatsText("km ", style = MaterialTheme.typography.bodySmall) }
-                    )
-                }
-            },
-            confirmButton = {
-                DialogSaveButton(
-                    text = "Guardar",
-                    enabled = tempDesc.isNotBlank(),
-                    onClick = {
-                        val mileage = tempMileage.toDoubleOrNull()
-
-                        if (isEditing && selectedRepair != null) {
-                            viewModel.updateRepair(
-                                selectedRepair!!.copy(
-                                    date = tempDate,
-                                    description = tempDesc,
-                                    mileage = mileage
-                                )
-                            )
-                        } else {
-                            scooter?.let { loaded ->
-                                viewModel.addRepair(
-                                    date = tempDate,
-                                    description = tempDesc,
-                                    mileage = mileage,
-                                    scooterName = loaded.nombre,
-                                    scooterId = loaded.id
-                                )
-                            }
-                        }
-
-                        // Cerrar y limpiar
-                        showAddDialog = false
-                        showEditDialog = false
-                        selectedRepair = null
-                        tempDesc = ""
-                        tempMileage = ""
-                    }
-                )
-            },
-            dismissButton = {
-                if (isEditing) {
-                    Row {
-                        // Botón especial para borrar dentro del diálogo de edición
-                        TextButton(
-                            onClick = { showDeleteDialog = true },
-                            colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
-                        ) {
-                            ZipStatsText("Eliminar")
-                        }
-                        Spacer(modifier = Modifier.width(8.dp))
-                        DialogNeutralButton(
-                            text = "Cancelar",
-                            onClick = {
-                                showEditDialog = false
-                                selectedRepair = null
-                            }
+    // 1. BOTTOM SHEET AÑADIR REPARACIÓN
+    if (showAddSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showAddSheet = false },
+            sheetState = addSheetState,
+            dragHandle = { BottomSheetDefaults.DragHandle() }
+        ) {
+            AddRepairBottomSheet(
+                tempDate = tempDate,
+                tempDesc = tempDesc,
+                tempMileage = tempMileage,
+                onDateChange = { tempDate = it },
+                onDescChange = { tempDesc = it },
+                onMileageChange = { tempMileage = it },
+                onSave = {
+                    val mileage = tempMileage.toDoubleOrNull()
+                    scooter?.let { loaded ->
+                        viewModel.addRepair(
+                            date = tempDate,
+                            description = tempDesc,
+                            mileage = mileage,
+                            scooterName = loaded.nombre,
+                            scooterId = loaded.id
                         )
                     }
-                } else {
-                    DialogNeutralButton(
-                        text = "Cancelar",
-                        onClick = { showAddDialog = false }
-                    )
-                }
+                    scope.launch {
+                        addSheetState.hide()
+                        showAddSheet = false
+                    }
+                    // Limpiar campos
+                    tempDesc = ""
+                    tempMileage = ""
+                },
+                onCancel = {
+                    scope.launch {
+                        addSheetState.hide()
+                        showAddSheet = false
+                    }
+                },
+                onDatePickerClick = { showDatePicker = true }
+            )
+        }
+    }
+
+    // 2. BOTTOM SHEET EDITAR REPARACIÓN
+    if (showEditSheet && selectedRepair != null) {
+        ModalBottomSheet(
+            onDismissRequest = {
+                showEditSheet = false
+                selectedRepair = null
             },
-            shape = DialogShape
-        )
+            sheetState = editSheetState,
+            dragHandle = { BottomSheetDefaults.DragHandle() }
+        ) {
+            EditRepairBottomSheet(
+                tempDate = tempDate,
+                tempDesc = tempDesc,
+                tempMileage = tempMileage,
+                onDateChange = { tempDate = it },
+                onDescChange = { tempDesc = it },
+                onMileageChange = { tempMileage = it },
+                onSave = {
+                    val mileage = tempMileage.toDoubleOrNull()
+                    viewModel.updateRepair(
+                        selectedRepair!!.copy(
+                            date = tempDate,
+                            description = tempDesc,
+                            mileage = mileage
+                        )
+                    )
+                    scope.launch {
+                        editSheetState.hide()
+                        showEditSheet = false
+                        selectedRepair = null
+                    }
+                    // Limpiar campos
+                    tempDesc = ""
+                    tempMileage = ""
+                },
+                onCancel = {
+                    scope.launch {
+                        editSheetState.hide()
+                        showEditSheet = false
+                        selectedRepair = null
+                    }
+                },
+                onDelete = {
+                    scope.launch {
+                        editSheetState.hide()
+                        showEditSheet = false
+                    }
+                    showDeleteDialog = true
+                },
+                onDatePickerClick = { showDatePicker = true }
+            )
+        }
     }
 
     // 2. DATE PICKER
@@ -376,7 +362,7 @@ fun RepairsScreen(
                     onClick = {
                         viewModel.deleteRepair(selectedRepair!!.id)
                         selectedRepair = null
-                        showEditDialog = false // También cerramos el de edición si estaba abierto
+                        showEditSheet = false // También cerramos el bottom sheet de edición si estaba abierto
                         showDeleteDialog = false
                     }
                 )
@@ -395,6 +381,200 @@ fun RepairsScreen(
 // ============================================================
 // COMPONENTES UI
 // ============================================================
+
+@Composable
+fun AddRepairBottomSheet(
+    tempDate: LocalDate,
+    tempDesc: String,
+    tempMileage: String,
+    onDateChange: (LocalDate) -> Unit,
+    onDescChange: (String) -> Unit,
+    onMileageChange: (String) -> Unit,
+    onSave: () -> Unit,
+    onCancel: () -> Unit,
+    onDatePickerClick: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp)
+            .padding(bottom = 32.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        ZipStatsText(
+            text = "Nueva reparación",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold
+        )
+
+        // Selector de Fecha
+        OutlinedTextField(
+            value = DateUtils.formatForDisplay(tempDate),
+            onValueChange = {},
+            label = { ZipStatsText("Fecha") },
+            readOnly = true,
+            trailingIcon = {
+                IconButton(onClick = onDatePickerClick) {
+                    Icon(Icons.Default.CalendarMonth, null)
+                }
+            },
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        // Descripción
+        OutlinedTextField(
+            value = tempDesc,
+            onValueChange = onDescChange,
+            label = { ZipStatsText("Descripción") },
+            placeholder = { ZipStatsText("Ej: Cambio de pastillas de freno") },
+            modifier = Modifier.fillMaxWidth(),
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+            minLines = 2,
+            maxLines = 4
+        )
+
+        // Kilometraje
+        OutlinedTextField(
+            value = tempMileage,
+            onValueChange = {
+                // Solo permitir números y un punto decimal
+                if (it.all { char -> char.isDigit() || char == '.' || char == ',' }) {
+                    onMileageChange(it.replace(',', '.'))
+                }
+            },
+            label = { ZipStatsText("Kilometraje (Opcional)") },
+            placeholder = { ZipStatsText("Km al momento de la reparación") },
+            modifier = Modifier.fillMaxWidth(),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Done),
+            trailingIcon = { ZipStatsText("km ", style = MaterialTheme.typography.bodySmall) }
+        )
+
+        // Botones
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Button(
+                onClick = onCancel,
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            ) {
+                ZipStatsText("Cancelar")
+            }
+            Button(
+                onClick = onSave,
+                modifier = Modifier.weight(1f),
+                enabled = tempDesc.isNotBlank()
+            ) {
+                ZipStatsText("Guardar")
+            }
+        }
+    }
+}
+
+@Composable
+fun EditRepairBottomSheet(
+    tempDate: LocalDate,
+    tempDesc: String,
+    tempMileage: String,
+    onDateChange: (LocalDate) -> Unit,
+    onDescChange: (String) -> Unit,
+    onMileageChange: (String) -> Unit,
+    onSave: () -> Unit,
+    onCancel: () -> Unit,
+    onDelete: () -> Unit,
+    onDatePickerClick: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp)
+            .padding(bottom = 32.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        ZipStatsText(
+            text = "Editar reparación",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold
+        )
+
+        // Selector de Fecha
+        OutlinedTextField(
+            value = DateUtils.formatForDisplay(tempDate),
+            onValueChange = {},
+            label = { ZipStatsText("Fecha") },
+            readOnly = true,
+            trailingIcon = {
+                IconButton(onClick = onDatePickerClick) {
+                    Icon(Icons.Default.CalendarMonth, null)
+                }
+            },
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        // Descripción
+        OutlinedTextField(
+            value = tempDesc,
+            onValueChange = onDescChange,
+            label = { ZipStatsText("Descripción") },
+            placeholder = { ZipStatsText("Ej: Cambio de pastillas de freno") },
+            modifier = Modifier.fillMaxWidth(),
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+            minLines = 2,
+            maxLines = 4
+        )
+
+        // Kilometraje
+        OutlinedTextField(
+            value = tempMileage,
+            onValueChange = {
+                // Solo permitir números y un punto decimal
+                if (it.all { char -> char.isDigit() || char == '.' || char == ',' }) {
+                    onMileageChange(it.replace(',', '.'))
+                }
+            },
+            label = { ZipStatsText("Kilometraje (Opcional)") },
+            placeholder = { ZipStatsText("Km al momento de la reparación") },
+            modifier = Modifier.fillMaxWidth(),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Done),
+            trailingIcon = { ZipStatsText("km ", style = MaterialTheme.typography.bodySmall) }
+        )
+
+        // Botones
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            TextButton(
+                onClick = onDelete,
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+            ) {
+                ZipStatsText("Eliminar")
+            }
+            Button(
+                onClick = onCancel,
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            ) {
+                ZipStatsText("Cancelar")
+            }
+            Button(
+                onClick = onSave,
+                modifier = Modifier.weight(1f),
+                enabled = tempDesc.isNotBlank()
+            ) {
+                ZipStatsText("Guardar")
+            }
+        }
+    }
+}
 
 @Composable
 fun RepairItemCard(

@@ -516,9 +516,10 @@ private fun fitCameraToRoute(mapView: MapView, points: List<Point>, isCompact: B
     
     // En mapa compacto (pequeño) usar padding uniforme y pequeño para ver toda la ruta
     // En pantalla completa, usar más padding inferior por la tarjeta superpuesta
-    val topPadding = if (isCompact) 16.0 * pixelDensity else 32.0 * pixelDensity
-    val sidePadding = if (isCompact) 16.0 * pixelDensity else 32.0 * pixelDensity
-    val bottomPadding = if (isCompact) 16.0 * pixelDensity else 200.0 * pixelDensity
+    // Ajuste sutil solo en compacto: aumentado ligeramente para que la ruta no toque los bordes
+    val topPadding = if (isCompact) 20.0 * pixelDensity else 32.0 * pixelDensity
+    val sidePadding = if (isCompact) 24.0 * pixelDensity else 32.0 * pixelDensity // Aumentado solo en compacto para evitar que toque los bordes laterales
+    val bottomPadding = if (isCompact) 20.0 * pixelDensity else 200.0 * pixelDensity
     
     // 2. CÁLCULO DE ROTACIÓN INTELIGENTE (solo para rutas verticales)
     val start = points.first()

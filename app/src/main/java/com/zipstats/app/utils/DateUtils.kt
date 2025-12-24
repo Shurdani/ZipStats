@@ -30,5 +30,24 @@ object DateUtils {
         return dateTime.format(dateTimeFormatter)
     }
     
+    /**
+     * Formatea la fecha de forma más humana: "Hoy, 09:32", "Ayer, 15:41" o "23/12/25 09:32"
+     */
+    fun formatHumanDateWithTime(timestampMs: Long): String {
+        val dateTime = java.time.Instant.ofEpochMilli(timestampMs)
+            .atZone(ZoneId.systemDefault())
+            .toLocalDateTime()
+        val today = LocalDate.now()
+        val date = dateTime.toLocalDate()
+        val timeFormatter = DateTimeFormatter.ofPattern("HH:mm")
+        val time = dateTime.format(timeFormatter)
+        
+        return when {
+            date == today -> "Hoy, $time"
+            date == today.minusDays(1) -> "Ayer, $time"
+            else -> dateTime.format(dateTimeFormatter)
+        }
+    }
+    
     fun parseDisplayDate(dateStr: String): LocalDate = LocalDate.parse(dateStr, dateFormatter)
 } 

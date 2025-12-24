@@ -51,9 +51,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -404,35 +406,44 @@ private fun AchievementGridCard(
                 )
                 Spacer(modifier = Modifier.height(4.dp))
 
-                // Barra de progreso
-                val progress = (achievement.progress.toFloat() / 100f).coerceIn(0f, 1f)
-                LinearProgressIndicator(
-                    progress = { progress },
-                    modifier = Modifier
-                        .fillMaxWidth(0.8f) // No ocupar todo el ancho
-                        .height(6.dp)
-                        .clip(RoundedCornerShape(3.dp)),
-                    color = if (isUnlocked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
-                    trackColor = MaterialTheme.colorScheme.surfaceVariant
-                )
-
-                Spacer(modifier = Modifier.height(4.dp))
-
-                // Texto de progreso (Opcional, si quieres que se vea el %)
+                // BARRA DE PROGRESO
                 if (!isUnlocked) {
-                    // FIX: Formatear a 1 decimal máximo para evitar números largos (ej: 58.1%)
+                    val progressAnim by animateFloatAsState(
+                        targetValue = achievement.progress.toFloat() / 100f,
+                        label = "progress"
+                    )
+                    LinearProgressIndicator(
+                        progress = { progressAnim },
+                        modifier = Modifier
+                            .fillMaxWidth(0.8f)
+                            .height(6.dp)
+                            .clip(RoundedCornerShape(3.dp)),
+                        color = MaterialTheme.colorScheme.primary,
+                        trackColor = MaterialTheme.colorScheme.surfaceVariant,
+                        strokeCap = StrokeCap.Round
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
                     ZipStatsText(
-                        text = "${String.format("%.1f", achievement.progress)}%",
+                        text = "${achievement.progress.toInt()}%",
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.outline
                     )
                 } else {
-                    ZipStatsText(
-                        text = "Completado",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.Bold
-                    )
+                    // Badge "Conseguido"
+                    Surface(
+                        color = MaterialTheme.colorScheme.primaryContainer,
+                        shape = CircleShape
+                    ) {
+                        ZipStatsText(
+                            text = "¡Conseguido!",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                        )
+                    }
+                    // Espacio extra para alinear con la barra de progreso de los otros
+                    Spacer(modifier = Modifier.height(18.dp))
                 }
             }
         }
@@ -514,7 +525,7 @@ fun AchievementDetailDialog(
                 // Descripción e Historia
                 ZipStatsText(
                     text = achievement.description,
-                    style = MaterialTheme.typography.bodyLarge,
+                    style = MaterialTheme.typography.titleMedium,
                     textAlign = TextAlign.Center,
                     color = MaterialTheme.colorScheme.onSurface
                 )

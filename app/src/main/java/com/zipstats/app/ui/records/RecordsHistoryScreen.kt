@@ -1,5 +1,8 @@
 package com.zipstats.app.ui.records
 
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -8,6 +11,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -17,53 +21,65 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.BottomSheetDefaults
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.PrimaryScrollableTabRow
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Tab
-import com.zipstats.app.ui.components.ZipStatsText
+import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
+import com.zipstats.app.di.AppOverlayRepositoryEntryPoint
 import com.zipstats.app.model.Record
 import com.zipstats.app.navigation.Screen
+import com.zipstats.app.repository.AppOverlayRepository
 import com.zipstats.app.ui.components.AnimatedFloatingActionButton
 import com.zipstats.app.ui.components.DialogCancelButton
 import com.zipstats.app.ui.components.DialogDeleteButton
 import com.zipstats.app.ui.components.DialogSaveButton
 import com.zipstats.app.ui.components.EmptyStateRecords
-import com.zipstats.app.ui.components.ExpandableRow
 import com.zipstats.app.ui.components.StandardDatePickerDialogWithValidation
-import com.zipstats.app.di.AppOverlayRepositoryEntryPoint
-import com.zipstats.app.repository.AppOverlayRepository
+import com.zipstats.app.ui.components.ZipStatsText
 import com.zipstats.app.ui.onboarding.OnboardingDialog
 import com.zipstats.app.ui.theme.DialogShape
 import com.zipstats.app.utils.DateUtils
 import dagger.hilt.android.EntryPointAccessors
+import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.ZoneId
 
@@ -195,10 +211,10 @@ fun RecordsHistoryScreen(
     }
 
     if (showBottomSheet) {
-        NewRecordDialog(
+        NewRecordBottomSheet(
             userScooters = userScooters,
-            records = records, // Pasamos los registros para calcular el kilometraje anterior
-            defaultScooter = lastUsedScooterName, // Pasamos el último usado
+            records = records,
+            defaultScooter = lastUsedScooterName,
             onDismiss = { showBottomSheet = false },
             onConfirm = { patinete, kilometraje, fecha ->
                 viewModel.addRecord(patinete, kilometraje, fecha)
@@ -207,20 +223,40 @@ fun RecordsHistoryScreen(
         )
     }
 
+    val editRecordSheetState = rememberModalBottomSheetState()
+    val scope = rememberCoroutineScope()
+    
     if (recordToEdit != null) {
-        EditRecordDialog(
-            record = recordToEdit!!,
-            userScooters = userScooters,
-            onDismiss = { recordToEdit = null },
-            onSave = { patinete, kilometraje, fecha ->
-                viewModel.updateRecord(recordToEdit!!.id, patinete, kilometraje, fecha)
-                recordToEdit = null
-            },
-            onDelete = {
-                recordToDelete = recordToEdit
-                recordToEdit = null
-            }
-        )
+        ModalBottomSheet(
+            onDismissRequest = { recordToEdit = null },
+            sheetState = editRecordSheetState,
+            dragHandle = { BottomSheetDefaults.DragHandle() }
+        ) {
+            EditRecordBottomSheet(
+                record = recordToEdit!!,
+                userScooters = userScooters,
+                onDismiss = {
+                    scope.launch {
+                        editRecordSheetState.hide()
+                        recordToEdit = null
+                    }
+                },
+                onSave = { patinete, kilometraje, fecha ->
+                    viewModel.updateRecord(recordToEdit!!.id, patinete, kilometraje, fecha)
+                    scope.launch {
+                        editRecordSheetState.hide()
+                        recordToEdit = null
+                    }
+                },
+                onDelete = {
+                    scope.launch {
+                        editRecordSheetState.hide()
+                    }
+                    recordToDelete = recordToEdit
+                    recordToEdit = null
+                }
+            )
+        }
     }
 
     Scaffold(
@@ -329,74 +365,76 @@ fun RecordsHistoryScreen(
                     modifier = Modifier.weight(1f)
                 )
             } else {
-            LazyColumn(
-                state = listState,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f)
-            ) {
-                itemsIndexed(
-                    items = filteredRecords,
-                    key = { _, record -> record.id }
-                ) { index, record ->
-                    Column {
-                        ExpandableRow(
-                            onClick = { recordToEdit = record },
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
+                ) {
+                    itemsIndexed(
+                        items = filteredRecords,
+                        key = { _, record -> record.id }
+                    ) { _, record -> // Ya no necesitamos el index para el color
+                        val interactionSource = remember { MutableInteractionSource() }
+                        
+                        // 1. Contenedor CLICKABLE limpio
+                        Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 12.dp),
-                            backgroundAlpha = if (index % 2 == 0) 0f else 0.3f
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            // COLUMNA IZQUIERDA: Vehículo y Fecha
-                            Column(
-                                modifier = Modifier.weight(1f),
-                                verticalArrangement = Arrangement.Center
-                            ) {
-                                ZipStatsText(
-                                    text = userScooters.find { it.nombre == record.patinete }?.modelo ?: record.patinete,
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    maxLines = 1
+                                .clickable(
+                                    interactionSource = interactionSource,
+                                    indication = null,
+                                    onClick = { recordToEdit = record }
                                 )
-                                ZipStatsText(
-                                    text = DateUtils.formatForDisplay(DateUtils.parseApiDate(record.fecha)),
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.padding(top = 4.dp)
+                        ) {
+                            ListItem(
+                                // 2. HEADLINE: El dato principal (Nombre del vehículo)
+                                headlineContent = {
+                                    ZipStatsText(
+                                        text = userScooters.find { it.nombre == record.patinete }?.modelo ?: record.patinete,
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                },
+                                // 3. SUPPORTING: Fecha (dato secundario)
+                                supportingContent = {
+                                    ZipStatsText(
+                                        text = DateUtils.formatForDisplay(DateUtils.parseApiDate(record.fecha)),
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                },
+                                // 4. TRAILING: Los datos numéricos a la derecha
+                                trailingContent = {
+                                    Column(horizontalAlignment = Alignment.End) {
+                                        // El dato "héroe": La distancia recorrida
+                                        ZipStatsText(
+                                            text = String.format("+%.1f km", record.diferencia),
+                                            style = MaterialTheme.typography.titleMedium,
+                                            color = MaterialTheme.colorScheme.primary,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                        // El metadato: Total acumulado
+                                        ZipStatsText(
+                                            text = String.format("Total: %.1f km", record.kilometraje),
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.outline
+                                        )
+                                    }
+                                },
+                                // 5. COLORES: Fondo transparente para respetar el tema
+                                colors = ListItemDefaults.colors(
+                                    containerColor = Color.Transparent
                                 )
-                            }
+                            )
 
-                            // COLUMNA DERECHA: Diferencia y Total
-                            Column(
-                                horizontalAlignment = Alignment.End,
-                                verticalArrangement = Arrangement.Center
-                            ) {
-                                ZipStatsText(
-                                    text = String.format("+%.1f km", record.diferencia),
-                                    style = MaterialTheme.typography.titleMedium,
-                                    color = MaterialTheme.colorScheme.primary,
-                                    fontWeight = FontWeight.ExtraBold
-                                )
-                                ZipStatsText(
-                                    text = String.format("%.1f total", record.kilometraje),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.padding(top = 4.dp)
-                                )
-                            }
-                            }
+                            // 6. DIVISOR: Sutil y elegante
+                            HorizontalDivider(
+                                modifier = Modifier.padding(horizontal = 16.dp), // Indentado para look moderno
+                                thickness = 0.5.dp,
+                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                            )
                         }
-                        HorizontalDivider(
-                            modifier = Modifier.fillMaxWidth(),
-                            thickness = 1.dp,
-                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f)
-                        )
-                    }
                     }
                 }
             }
@@ -406,37 +444,44 @@ fun RecordsHistoryScreen(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun NewRecordDialog(
+fun NewRecordBottomSheet(
     userScooters: List<com.zipstats.app.model.Scooter>,
-    records: List<Record>, // Nuevo parámetro para buscar historial
-    defaultScooter: String?, // Nuevo parámetro para selección por defecto
+    records: List<Record>,
+    defaultScooter: String?,
     onDismiss: () -> Unit,
     onConfirm: (String, String, String) -> Unit
 ) {
+    // Estado de la hoja inferior
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val scope = rememberCoroutineScope() // Necesario para animar el cierre
+    
+    // Estados del formulario
     var selectedScooter by remember { mutableStateOf(defaultScooter ?: "") }
     var kilometraje by remember { mutableStateOf("") }
-    var expanded by remember { mutableStateOf(false) }
+    var isVehicleDropdownExpanded by remember { mutableStateOf(false) }
     var showDatePicker by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
+    // Fechas
     val millis = System.currentTimeMillis()
     val today = Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()).toLocalDate()
     var selectedDate by remember { mutableStateOf(today) }
 
-    // Fallback: Si no hay default, seleccionamos el primer vehículo disponible
+    // Lógica de autoselección
     LaunchedEffect(userScooters) {
         if (selectedScooter.isEmpty() && userScooters.isNotEmpty()) {
             selectedScooter = userScooters.first().nombre
         }
     }
 
-    // UX: Calcular kilometraje anterior para mostrar como ayuda
+    // Cálculo de kilometraje anterior (Helper visual)
     val previousMileage = remember(selectedScooter, records) {
         records
             .filter { it.patinete == selectedScooter }
             .maxByOrNull { it.fecha }?.kilometraje
     }
 
+    // Date Picker (Se muestra por encima del BottomSheet)
     if (showDatePicker) {
         StandardDatePickerDialogWithValidation(
             selectedDate = selectedDate,
@@ -448,124 +493,173 @@ fun NewRecordDialog(
         )
     }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { ZipStatsText("Nuevo registro") },
-        text = {
-            Column(
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                // Selector de vehículo
-                ExposedDropdownMenuBox(
-                    expanded = expanded,
-                    onExpandedChange = { expanded = it }
-                ) {
-                    OutlinedTextField(
-                        value = userScooters.find { it.nombre == selectedScooter }
-                            ?.let { "${it.modelo} (${it.nombre})" } ?: "",
-                        onValueChange = {},
-                        label = { ZipStatsText("Vehículo") },
-                        readOnly = true,
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .menuAnchor()
-                    )
-                    ExposedDropdownMenu(
-                        expanded = expanded,
-                        onDismissRequest = { expanded = false }
-                    ) {
-                        userScooters.forEach { scooter ->
-                            DropdownMenuItem(
-                                text = { ZipStatsText("${scooter.modelo} (${scooter.nombre})") },
-                                onClick = {
-                                    selectedScooter = scooter.nombre
-                                    expanded = false
-                                    errorMessage = null
-                                }
-                            )
-                        }
-                    }
-                }
+    ModalBottomSheet(
+        onDismissRequest = { onDismiss() },
+        sheetState = sheetState,
+        containerColor = MaterialTheme.colorScheme.surface,
+        dragHandle = { BottomSheetDefaults.DragHandle() }
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp) // Márgenes laterales estándar MD3
+                .padding(bottom = 24.dp) // Margen inferior extra para seguridad
+                .navigationBarsPadding(), // Respetar barra de navegación del sistema
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            // CABECERA
+            Text(
+                text = "Nuevo registro",
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
 
-                // Campo de kilometraje con ayuda visual
-                Column {
-                    OutlinedTextField(
-                        value = kilometraje,
-                        onValueChange = {
-                            kilometraje = it
-                            errorMessage = null
-                        },
-                        label = { ZipStatsText("Kilometraje") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    // Chivato de kilometraje anterior
-                    if (previousMileage != null) {
-                        ZipStatsText(
-                            text = "Anterior: $previousMileage km",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(start = 4.dp, top = 4.dp)
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // 1. SELECTOR DE VEHÍCULO
+            ExposedDropdownMenuBox(
+                expanded = isVehicleDropdownExpanded,
+                onExpandedChange = { isVehicleDropdownExpanded = it },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                OutlinedTextField(
+                    value = userScooters.find { it.nombre == selectedScooter }
+                        ?.let { "${it.modelo} (${it.nombre})" } ?: "",
+                    onValueChange = {},
+                    label = { Text("Vehículo") },
+                    readOnly = true,
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isVehicleDropdownExpanded) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .menuAnchor(
+                            type = MenuAnchorType.PrimaryNotEditable,
+                            enabled = true
+                        ), // Importante para anclar el menú
+                    shape = MaterialTheme.shapes.medium
+                )
+                ExposedDropdownMenu(
+                    expanded = isVehicleDropdownExpanded,
+                    onDismissRequest = { isVehicleDropdownExpanded = false }
+                ) {
+                    userScooters.forEach { scooter ->
+                        DropdownMenuItem(
+                            text = { Text("${scooter.modelo} (${scooter.nombre})") },
+                            onClick = {
+                                selectedScooter = scooter.nombre
+                                isVehicleDropdownExpanded = false
+                                errorMessage = null
+                            }
                         )
                     }
                 }
+            }
 
-                // Selector de fecha
+            // 2. INPUT KILOMETRAJE
+            Column {
+                OutlinedTextField(
+                    value = kilometraje,
+                    onValueChange = {
+                        kilometraje = it
+                        errorMessage = null
+                    },
+                    label = { Text("Kilometraje actual") },
+                    placeholder = { Text("Ej. 1250.5") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = MaterialTheme.shapes.medium,
+                    supportingText = {
+                        // Aquí mostramos el kilometraje anterior de forma elegante
+                        if (previousMileage != null) {
+                            Text(
+                                text = "Anterior: $previousMileage km",
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    },
+                    isError = errorMessage != null
+                )
+            }
+
+            // 3. SELECTOR DE FECHA
+            val dateInteractionSource = remember { MutableInteractionSource() }
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(
+                        interactionSource = dateInteractionSource,
+                        indication = null,
+                        onClick = { showDatePicker = true }
+                    )
+            ) {
                 OutlinedTextField(
                     value = DateUtils.formatForDisplay(selectedDate),
                     onValueChange = {},
-                    label = { ZipStatsText("Fecha") },
+                    label = { Text("Fecha") },
                     readOnly = true,
                     trailingIcon = {
                         IconButton(onClick = { showDatePicker = true }) {
-                            Icon(Icons.Default.CalendarMonth, contentDescription = "Seleccionar fecha")
+                            Icon(Icons.Default.CalendarMonth, contentDescription = "Cambiar fecha")
                         }
                     },
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = false, // Deshabilitamos input manual para forzar click
+                    colors = OutlinedTextFieldDefaults.colors(
+                        disabledTextColor = MaterialTheme.colorScheme.onSurface,
+                        disabledBorderColor = MaterialTheme.colorScheme.outline,
+                        disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        disabledTrailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                    ),
+                    shape = MaterialTheme.shapes.medium
                 )
-
-                errorMessage?.let { error ->
-                    ZipStatsText(
-                        text = error,
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                }
             }
-        },
 
-        confirmButton = {
-            DialogSaveButton(
-                text = "Guardar",
+            // MENSAJE DE ERROR
+            if (errorMessage != null) {
+                Text(
+                    text = errorMessage!!,
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(start = 8.dp)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // BOTÓN DE ACCIÓN PRINCIPAL (Full Width)
+            Button(
                 onClick = {
                     if (selectedScooter.isEmpty() || kilometraje.isEmpty()) {
                         errorMessage = "Por favor, complete todos los campos"
                     } else {
-                        onConfirm(
-                            selectedScooter,
-                            kilometraje,
-                            DateUtils.formatForApi(selectedDate)
-                        )
+                        // Animación de cierre segura
+                        scope.launch {
+                            sheetState.hide()
+                            if (!sheetState.isVisible) {
+                                onConfirm(
+                                    selectedScooter,
+                                    kilometraje,
+                                    DateUtils.formatForApi(selectedDate)
+                                )
+                            }
+                        }
                     }
-                }
-            )
-        },
-
-        dismissButton = {
-            DialogCancelButton(
-                text = "Cancelar",
-                onClick = onDismiss
-            )
-        },
-
-        shape = DialogShape
-    )
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp), // Altura cómoda para el pulgar
+                shape = MaterialTheme.shapes.large
+            ) {
+                Text("Guardar Registro", fontSize = 16.sp)
+            }
+        }
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun EditRecordDialog(
+fun EditRecordBottomSheet(
     record: Record,
     userScooters: List<com.zipstats.app.model.Scooter>,
     onDismiss: () -> Unit,
@@ -593,85 +687,115 @@ fun EditRecordDialog(
         )
     }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { ZipStatsText("Editar registro") },
-        text = {
-            Column(
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                // Selector de vehículo
-                ExposedDropdownMenuBox(
-                    expanded = expanded,
-                    onExpandedChange = { expanded = it }
-                ) {
-                    OutlinedTextField(
-                        value = userScooters.find { it.nombre == selectedScooter }
-                            ?.let { "${it.modelo} (${it.nombre})" } ?: "",
-                        onValueChange = {},
-                        label = { ZipStatsText("Vehículo") },
-                        readOnly = true,
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .menuAnchor()
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp)
+            .padding(bottom = 32.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        ZipStatsText(
+            text = "Editar registro",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold
+        )
+
+        // Selector de vehículo
+        ExposedDropdownMenuBox(
+            expanded = expanded,
+            onExpandedChange = { expanded = it }
+        ) {
+            OutlinedTextField(
+                value = userScooters.find { it.nombre == selectedScooter }
+                    ?.let { "${it.modelo} (${it.nombre})" } ?: "",
+                onValueChange = {},
+                label = { ZipStatsText("Vehículo") },
+                readOnly = true,
+                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .menuAnchor(
+                        type = MenuAnchorType.PrimaryNotEditable,
+                        enabled = true
                     )
-                    ExposedDropdownMenu(
-                        expanded = expanded,
-                        onDismissRequest = { expanded = false }
-                    ) {
-                        userScooters.forEach { scooter ->
-                            DropdownMenuItem(
-                                text = { ZipStatsText("${scooter.modelo} (${scooter.nombre})") },
-                                onClick = {
-                                    selectedScooter = scooter.nombre
-                                    expanded = false
-                                    errorMessage = null
-                                }
-                            )
+            )
+            ExposedDropdownMenu(
+                expanded = expanded,
+                onDismissRequest = { expanded = false }
+            ) {
+                userScooters.forEach { scooter ->
+                    DropdownMenuItem(
+                        text = { ZipStatsText("${scooter.modelo} (${scooter.nombre})") },
+                        onClick = {
+                            selectedScooter = scooter.nombre
+                            expanded = false
+                            errorMessage = null
                         }
-                    }
-                }
-
-                // Campo de kilometraje
-                OutlinedTextField(
-                    value = kilometraje,
-                    onValueChange = {
-                        kilometraje = it
-                        errorMessage = null
-                    },
-                    label = { ZipStatsText("Kilometraje") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                // Selector de fecha
-                OutlinedTextField(
-                    value = DateUtils.formatForDisplay(selectedDate),
-                    onValueChange = {},
-                    label = { ZipStatsText("Fecha") },
-                    readOnly = true,
-                    trailingIcon = {
-                        IconButton(onClick = { showDatePicker = true }) {
-                            Icon(Icons.Default.CalendarMonth, contentDescription = "Seleccionar fecha")
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                errorMessage?.let { error ->
-                    ZipStatsText(
-                        text = error,
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodySmall
                     )
                 }
             }
-        },
+        }
 
-        confirmButton = {
-            DialogSaveButton(
-                text = "Guardar",
+        // Campo de kilometraje
+        OutlinedTextField(
+            value = kilometraje,
+            onValueChange = {
+                kilometraje = it
+                errorMessage = null
+            },
+            label = { ZipStatsText("Kilometraje") },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        // Selector de fecha
+        OutlinedTextField(
+            value = DateUtils.formatForDisplay(selectedDate),
+            onValueChange = {},
+            label = { ZipStatsText("Fecha") },
+            readOnly = true,
+            trailingIcon = {
+                IconButton(onClick = { showDatePicker = true }) {
+                    Icon(Icons.Default.CalendarMonth, contentDescription = "Seleccionar fecha")
+                }
+            },
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        errorMessage?.let { error ->
+            ZipStatsText(
+                text = error,
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodySmall
+            )
+        }
+
+        // Botones
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Button(
+                onClick = onDelete,
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.errorContainer,
+                    contentColor = MaterialTheme.colorScheme.onErrorContainer
+                )
+            ) {
+                ZipStatsText("Eliminar")
+            }
+            Button(
+                onClick = onDismiss,
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            ) {
+                ZipStatsText("Cancelar")
+            }
+            Button(
                 onClick = {
                     if (selectedScooter.isEmpty() || kilometraje.isEmpty()) {
                         errorMessage = "Por favor, complete todos los campos"
@@ -682,23 +806,11 @@ fun EditRecordDialog(
                             DateUtils.formatForApi(selectedDate)
                         )
                     }
-                }
-            )
-        },
-
-        dismissButton = {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                DialogDeleteButton(
-                    text = "Eliminar",
-                    onClick = onDelete
-                )
-                DialogCancelButton(
-                    text = "Cancelar",
-                    onClick = onDismiss
-                )
+                },
+                modifier = Modifier.weight(1f)
+            ) {
+                ZipStatsText("Guardar")
             }
-        },
-
-        shape = DialogShape
-    )
+        }
+    }
 }

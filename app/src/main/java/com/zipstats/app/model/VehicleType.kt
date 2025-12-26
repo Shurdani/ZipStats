@@ -43,12 +43,12 @@ enum class VehicleType(
     MONOCICLO(
         displayName = "Monociclo", 
         emoji = "🛞",
-        minSpeed = 5f,        // Reducido de 6f a 5f
-        maxSpeed = 60f,
-        pauseRadius = 10f,
-        minPauseDuration = 3000L,  // Reducido de 5000L a 3000L
-        pauseSpeedThreshold = 5f,  // Nuevo
-        minPointsForPause = 3      // Nuevo
+        minSpeed = 4f,        // Igualado a patinete
+        maxSpeed = 35f,       // Igualado a patinete
+        pauseRadius = 8f,    // Igualado a patinete
+        minPauseDuration = 3000L,  // Igualado a patinete
+        pauseSpeedThreshold = 4f,  // Igualado a patinete
+        minPointsForPause = 3      // Igualado a patinete
     );
     
     companion object {

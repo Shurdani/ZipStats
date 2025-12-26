@@ -2,6 +2,7 @@ package com.zipstats.app.ui.tracking
 
 import android.app.Activity
 import android.view.WindowManager
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
@@ -14,6 +15,9 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -23,6 +27,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -53,10 +58,12 @@ import androidx.compose.material.icons.filled.TwoWheeler
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.WaterDrop
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalIconButton
@@ -66,9 +73,11 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -78,10 +87,12 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
@@ -96,6 +107,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.zipstats.app.R
 import com.zipstats.app.di.AppOverlayRepositoryEntryPoint
@@ -113,6 +125,7 @@ import com.zipstats.app.ui.theme.DialogShape
 import com.zipstats.app.utils.LocationUtils
 import dagger.hilt.android.EntryPointAccessors
 import kotlin.math.roundToInt
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -251,8 +264,10 @@ fun TrackingScreen(
             TopAppBar(
                 title = {
                     ZipStatsText(
-                        "Seguimiento GPS",
-                        fontWeight = FontWeight.Bold
+                        text = "Seguimiento GPS",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1
                     )
                 },
                 navigationIcon = {
@@ -341,19 +356,36 @@ fun TrackingScreen(
         )
     }
 
+    val finishSheetState = rememberModalBottomSheetState()
+    val scope = rememberCoroutineScope()
+    
     if (showFinishDialog) {
-        FinishRouteDialog(
-            distance = currentDistance,
-            duration = duration,
-            onConfirm = { notes, addToRecords ->
-                // Activar flag de cierre ANTES de cualquier estado
-                // Esto congela la UI y evita cualquier flash
-                isClosing = true
-                viewModel.finishTracking(notes, addToRecords)
-                showFinishDialog = false
-            },
-            onDismiss = { showFinishDialog = false }
-        )
+        ModalBottomSheet(
+            onDismissRequest = { showFinishDialog = false },
+            sheetState = finishSheetState,
+            dragHandle = { BottomSheetDefaults.DragHandle() }
+        ) {
+            FinishRouteBottomSheet(
+                distance = currentDistance,
+                duration = duration,
+                onConfirm = { notes, addToRecords ->
+                    // Activar flag de cierre ANTES de cualquier estado
+                    // Esto congela la UI y evita cualquier flash
+                    isClosing = true
+                    viewModel.finishTracking(notes, addToRecords)
+                    scope.launch {
+                        finishSheetState.hide()
+                        showFinishDialog = false
+                    }
+                },
+                onDismiss = {
+                    scope.launch {
+                        finishSheetState.hide()
+                        showFinishDialog = false
+                    }
+                }
+            )
+        }
     }
 
     if (showCancelDialog) {
@@ -413,13 +445,13 @@ fun PreRideSmartWarning(
                     )
                 )
             } else {
-                // Calzada mojada (sin lluvia activa)
+                // Calzada mojada (sin lluvia activa) - Usar icono de lluvia en lugar de Warning
                 list.add(
                     WarningItem(
-                        icon = Icons.Default.Warning,
-                        title = "Precaución: Calzada mojada",
+                        icon = Icons.Default.WaterDrop,
+                        title = "Calzada mojada",
                         subtitle = "El pavimento puede estar resbaladizo.",
-                        iconColor = Color(0xFFE65100) // Naranja oscuro
+                        iconColor = Color(0xFFF57C00) // Naranja fuerte para precaución, no error
                     )
                 )
             }
@@ -489,23 +521,25 @@ fun PreRideSmartWarning(
     if (activeWarnings.isEmpty() || !shouldShow) return
 
     // Determinar el color de fondo de la tarjeta según la prioridad
-    // Si hay lluvia -> Fondo azulado/rosa (TertiaryContainer)
-    // Si hay calzada mojada -> Fondo naranja/amarillo (ErrorContainer)
-    // Si hay condiciones extremas (solo o con lluvia/calzada) -> Fondo rojizo (ErrorContainer)
+    // Si hay lluvia -> Fondo azul suave (no errorContainer)
+    // Si hay calzada mojada -> Fondo naranja/ámbar suave
+    // Si hay condiciones extremas -> Fondo rojo suave (no errorContainer puro para evitar confusión)
     val containerColor = if (shouldShowExtremeWarning) {
-        MaterialTheme.colorScheme.errorContainer
+        Color(0xFFFFEBEE) // Rojo claro suave (no errorContainer puro)
     } else if (isActiveRainWarning) {
-        MaterialTheme.colorScheme.tertiaryContainer
+        Color(0xFFE3F2FD) // Azul claro suave (no tertiaryContainer puro)
     } else {
-        MaterialTheme.colorScheme.errorContainer // Calzada mojada
+        // Calzada mojada: usar un color naranja/ámbar suave
+        Color(0xFFFFF8E1) // Ámbar claro suave
     }
     
     val contentColor = if (shouldShowExtremeWarning) {
-        MaterialTheme.colorScheme.onErrorContainer
+        Color(0xFFB71C1C) // Rojo oscuro para buen contraste
     } else if (isActiveRainWarning) {
-        MaterialTheme.colorScheme.onTertiaryContainer
+        Color(0xFF0D47A1) // Azul oscuro para buen contraste
     } else {
-        MaterialTheme.colorScheme.onErrorContainer
+        // Calzada mojada: texto naranja oscuro para buen contraste
+        Color(0xFFE65100) // Naranja oscuro
     }
 
     // Renderizado
@@ -517,7 +551,17 @@ fun PreRideSmartWarning(
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(bottom = 16.dp),
+                .padding(bottom = 16.dp)
+                // Agregar borde sutil para todos los tipos de avisos
+                .border(
+                    width = 1.dp,
+                    color = when {
+                        shouldShowExtremeWarning -> Color(0xFFEF5350).copy(alpha = 0.5f) // Rojo suave
+                        isActiveRainWarning -> Color(0xFF42A5F5).copy(alpha = 0.5f) // Azul suave
+                        else -> Color(0xFFFFB74D).copy(alpha = 0.5f) // Naranja suave (calzada mojada)
+                    },
+                    shape = RoundedCornerShape(16.dp)
+                ),
             colors = CardDefaults.cardColors(containerColor = containerColor),
             shape = RoundedCornerShape(16.dp)
         ) {
@@ -550,12 +594,42 @@ fun PreRideSmartWarning(
                             modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(
-                                imageVector = warning.icon,
-                                contentDescription = null,
-                                tint = warning.iconColor,
-                                modifier = Modifier.size(28.dp)
-                            )
+                            // Icono con fondo circular para todos los tipos de avisos (diseño consistente)
+                            val iconBackgroundColor = when {
+                                shouldShowExtremeWarning && warning.icon == Icons.Default.Warning -> 
+                                    Color(0xFFEF5350).copy(alpha = 0.2f) // Rojo suave para condiciones extremas
+                                isActiveRainWarning && warning.icon == Icons.Default.WaterDrop -> 
+                                    Color(0xFF42A5F5).copy(alpha = 0.2f) // Azul suave para lluvia
+                                !shouldShowExtremeWarning && !isActiveRainWarning && warning.icon == Icons.Default.WaterDrop -> 
+                                    Color(0xFFFFB74D).copy(alpha = 0.2f) // Naranja suave para calzada mojada
+                                else -> null // Sin fondo para otros casos
+                            }
+                            
+                            if (iconBackgroundColor != null) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(40.dp)
+                                        .background(
+                                            iconBackgroundColor,
+                                            CircleShape
+                                        ),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = warning.icon,
+                                        contentDescription = null,
+                                        tint = warning.iconColor,
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                }
+                            } else {
+                                Icon(
+                                    imageVector = warning.icon,
+                                    contentDescription = null,
+                                    tint = warning.iconColor,
+                                    modifier = Modifier.size(28.dp)
+                                )
+                            }
                             Spacer(modifier = Modifier.width(12.dp))
                             Column(modifier = Modifier.weight(1f)) {
                                 ZipStatsText(
@@ -668,8 +742,15 @@ fun IdleStateContent(
 
         Spacer(modifier = Modifier.height(32.dp))
 
+        // Texto condicional según el estado del GPS
+        val titleText = when (gpsPreLocationState) {
+            is TrackingViewModel.GpsPreLocationState.Searching -> "Preparando tu ruta"
+            is TrackingViewModel.GpsPreLocationState.Found -> "Listo para grabar tu ruta"
+            is TrackingViewModel.GpsPreLocationState.Ready -> "Listo para grabar tu ruta"
+        }
+        
         ZipStatsText(
-            text = "Listo para grabar tu ruta",
+            text = titleText,
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.Bold,
             textAlign = TextAlign.Center
@@ -781,7 +862,7 @@ fun IdleStateContent(
             )
             Spacer(modifier = Modifier.width(8.dp))
             ZipStatsText(
-                text = if (hasValidGpsSignal) "INICIAR SEGUIMIENTO" else "ESPERANDO GPS...",
+                text = if (hasValidGpsSignal) "Iniciar seguimiento" else "Buscando señal GPS...",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold
             )
@@ -849,24 +930,47 @@ fun GpsPreLocationIcon(
 
 @Composable
 fun GpsPreLocationStatusText(gpsPreLocationState: TrackingViewModel.GpsPreLocationState) {
-    val (text, color) = when (gpsPreLocationState) {
-        is TrackingViewModel.GpsPreLocationState.Ready -> "Señal GPS Excelente" to Color(0xFF4CAF50)
+    val (text, containerColor, textColor) = when (gpsPreLocationState) {
+        is TrackingViewModel.GpsPreLocationState.Ready -> {
+            Triple(
+                "Señal GPS Excelente",
+                MaterialTheme.colorScheme.primaryContainer,
+                MaterialTheme.colorScheme.onPrimaryContainer
+            )
+        }
         is TrackingViewModel.GpsPreLocationState.Found -> {
             val acc = gpsPreLocationState.accuracy.roundToInt()
-            if (acc <= 10) "Señal Buena (±${acc}m)" to Color(0xFFFBC02D) // Amarillo oscuro
-            else "Señal Débil (±${acc}m)" to Color(0xFFFF9800)
+            if (acc <= 10) {
+                Triple(
+                    "Señal Buena (±${acc}m)",
+                    MaterialTheme.colorScheme.tertiaryContainer,
+                    MaterialTheme.colorScheme.onTertiaryContainer
+                )
+            } else {
+                Triple(
+                    "Señal Débil (±${acc}m)",
+                    MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.6f),
+                    MaterialTheme.colorScheme.onErrorContainer
+                )
+            }
         }
-        is TrackingViewModel.GpsPreLocationState.Searching -> "Buscando satélites..." to MaterialTheme.colorScheme.error
+        is TrackingViewModel.GpsPreLocationState.Searching -> {
+            Triple(
+                "Buscando satélites...",
+                MaterialTheme.colorScheme.errorContainer,
+                MaterialTheme.colorScheme.onErrorContainer
+            )
+        }
     }
 
     Surface(
-        color = color.copy(alpha = 0.1f),
+        color = containerColor,
         shape = RoundedCornerShape(16.dp)
     ) {
         ZipStatsText(
             text = text,
             style = MaterialTheme.typography.labelLarge,
-            color = color,
+            color = textColor,
             fontWeight = FontWeight.Bold,
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
         )
@@ -891,19 +995,21 @@ fun TrackingActiveContent(
     val isPaused = trackingState is TrackingState.Paused
     val isSaving = trackingState is TrackingState.Saving
 
-    val configuration = LocalConfiguration.current
-    val isSmallScreen = configuration.screenWidthDp < 360
-
     Column(
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // 1. Indicador GPS Animado (Más compacto)
-        AnimatedTrackingIndicator(isPaused = isPaused, signalStrength = gpsSignalStrength)
+        
+        // 1. ZONA HERO: VELOCIDAD (Limpia, sin nada encima)
+        // Damos buen margen superior para que respire
+        HeroSpeedometer(
+            speed = currentSpeed, 
+            modifier = Modifier.padding(top = 40.dp) 
+        )
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(24.dp))
 
-        // 2. Tarjeta del Clima (Rediseñada para coincidir con RouteDetail)
+        // 2. Tarjeta Clima
         TrackingWeatherCard(
             weatherStatus = weatherStatus,
             onFetchWeatherClick = onFetchWeather
@@ -911,78 +1017,80 @@ fun TrackingActiveContent(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // 3. Grid de Estadísticas (Más legible)
-        StatsGrid(
+        // 3. Grid Datos
+        StatsGridCompact(
             distance = currentDistance,
-            speed = currentSpeed,
             duration = duration,
-            pointsCount = pointsCount
+            gpsSignalStrength = gpsSignalStrength // Lo pasamos aunque no se use visualmente aquí
         )
 
-        Spacer(modifier = Modifier.height(32.dp))
+        // 🛑 CAMBIO: En lugar de weight(1f) que puede fallar en pantallas pequeñas,
+        // usamos un Spacer fijo para garantizar separación mínima.
+        Spacer(modifier = Modifier.height(48.dp))
 
-        // 4. Controles Grandes
-        if (!isSaving) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // Cancelar (Pequeño, izquierda)
-                FilledTonalIconButton(
-                    onClick = onCancel,
-                    colors = IconButtonDefaults.filledTonalIconButtonColors(
-                        containerColor = MaterialTheme.colorScheme.errorContainer,
-                        contentColor = MaterialTheme.colorScheme.error
-                    ),
-                    modifier = Modifier.size(56.dp)
-                ) {
-                    Icon(Icons.Default.Close, "Cancelar")
-                }
-
-                // Pausar/Reanudar (Grande, centro)
-                FloatingActionButton(
-                    onClick = { if (isPaused) onResume() else onPause() },
-                    containerColor = if (isPaused) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.tertiaryContainer,
-                    contentColor = if (isPaused) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onTertiaryContainer,
-                    modifier = Modifier.size(80.dp)
-                ) {
-                    Icon(
-                        imageVector = if (isPaused) Icons.Default.PlayArrow else Icons.Default.Pause,
-                        contentDescription = if (isPaused) "Reanudar" else "Pausar",
-                        modifier = Modifier.size(40.dp)
-                    )
-                }
-
-                // Finalizar (Pequeño, derecha)
-                FilledTonalIconButton(
-                    onClick = onFinish,
-                    colors = IconButtonDefaults.filledTonalIconButtonColors(
-                        containerColor = MaterialTheme.colorScheme.primaryContainer,
-                        contentColor = MaterialTheme.colorScheme.primary
-                    ),
-                    modifier = Modifier.size(56.dp)
-                ) {
-                    Icon(Icons.Default.Check, "Finalizar")
-                }
+        // 4. CONTROLES INTEGRADOS
+        if (isSaving) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                CircularProgressIndicator()
+                Spacer(modifier = Modifier.height(16.dp))
+                ZipStatsText("Guardando ruta...", style = MaterialTheme.typography.bodyMedium)
             }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // Etiquetas debajo de los botones
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
-            ) {
-                ZipStatsText("Cancelar", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
-                ZipStatsText(if (isPaused) "Reanudar" else "Pausar", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
-                ZipStatsText("Guardar", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
-            }
-
         } else {
-            CircularProgressIndicator()
-            Spacer(modifier = Modifier.height(16.dp))
-            ZipStatsText("Guardando ruta...", style = MaterialTheme.typography.bodyMedium)
+            AnimatedContent(
+                targetState = isPaused,
+                label = "controls"
+            ) { paused ->
+                if (paused) {
+                    // --- MODO PAUSADO (Gestión) ---
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp),
+                        horizontalArrangement = Arrangement.SpaceEvenly,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        ControlActionButton(
+                            icon = Icons.Default.Close,
+                            label = "Cancelar",
+                            containerColor = MaterialTheme.colorScheme.errorContainer,
+                            contentColor = MaterialTheme.colorScheme.error,
+                            onClick = onCancel
+                        )
+                        
+                        // Botón Reanudar (Grande)
+                        FloatingActionButton(
+                            onClick = onResume,
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor = MaterialTheme.colorScheme.onPrimary,
+                            modifier = Modifier.size(88.dp),
+                            shape = CircleShape
+                        ) {
+                            Icon(Icons.Default.PlayArrow, "Reanudar", modifier = Modifier.size(40.dp))
+                        }
+
+                        ControlActionButton(
+                            icon = Icons.Default.Check,
+                            label = "Guardar",
+                            containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+                            onClick = onFinish
+                        )
+                    }
+                } else {
+                    // --- MODO GRABANDO (Botón "Halo" Vivo) ---
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 24.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        // Usamos el nuevo componente aquí
+                        PulsingGpsPauseButton(
+                            signalStrength = gpsSignalStrength,
+                            onClick = onPause,
+                            modifier = Modifier.size(96.dp) // Tamaño generoso
+                        )
+                    }
+                }
+            }
         }
     }
 }
@@ -1281,7 +1389,7 @@ fun ScooterPickerDialog(
 }
 
 @Composable
-fun FinishRouteDialog(
+fun FinishRouteBottomSheet(
     distance: Double,
     duration: Long,
     onConfirm: (String, Boolean) -> Unit,
@@ -1290,65 +1398,76 @@ fun FinishRouteDialog(
     var notes by remember { mutableStateOf("") }
     var addToRecords by remember { mutableStateOf(false) }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { ZipStatsText("Finalizar ruta") },
-        text = {
-            Column {
-                ZipStatsText("¿Deseas guardar esta ruta?")
-                Spacer(modifier = Modifier.height(16.dp))
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp)
+            .padding(bottom = 32.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        ZipStatsText(
+            text = "Finalizar ruta",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold
+        )
 
-                ZipStatsText(
-                    text = "Distancia: ${LocationUtils.formatDistance(distance)}",
-                    style = MaterialTheme.typography.bodyMedium
+        ZipStatsText("¿Deseas guardar esta ruta?")
+
+        ZipStatsText(
+            text = "Distancia: ${LocationUtils.formatDistance(distance)}",
+            style = MaterialTheme.typography.bodyMedium
+        )
+        ZipStatsText(
+            text = "Duración: ${formatDuration(duration)}",
+            style = MaterialTheme.typography.bodyMedium
+        )
+
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Checkbox(
+                checked = addToRecords,
+                onCheckedChange = { addToRecords = it }
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            ZipStatsText(
+                text = "Añadir ${String.format("%.1f", distance)} km a registros",
+                style = MaterialTheme.typography.bodyMedium
+            )
+        }
+
+        OutlinedTextField(
+            value = notes,
+            onValueChange = { notes = it },
+            label = { ZipStatsText("Título (opcional)") },
+            modifier = Modifier.fillMaxWidth(),
+            maxLines = 3
+        )
+
+        // Botones
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Button(
+                onClick = onDismiss,
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                ZipStatsText(
-                    text = "Duración: ${formatDuration(duration)}",
-                    style = MaterialTheme.typography.bodyMedium
-                )
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    androidx.compose.material3.Checkbox(
-                        checked = addToRecords,
-                        onCheckedChange = { addToRecords = it }
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    ZipStatsText(
-                        text = "Añadir ${String.format("%.1f", distance)} km a registros",
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                OutlinedTextField(
-                    value = notes,
-                    onValueChange = { notes = it },
-                    label = { ZipStatsText("Título (opcional)") },
-                    modifier = Modifier.fillMaxWidth(),
-                    maxLines = 3
-                )
+            ) {
+                ZipStatsText("Cancelar")
             }
-        },
-        confirmButton = {
-            DialogConfirmButton(
-                text = "Guardar",
-                onClick = { onConfirm(notes, addToRecords) }
-            )
-        },
-        dismissButton = {
-            DialogCancelButton(
-                text = "Cancelar",
-                onClick = onDismiss
-            )
-        },
-        shape = DialogShape
-    )
+            Button(
+                onClick = { onConfirm(notes, addToRecords) },
+                modifier = Modifier.weight(1f)
+            ) {
+                ZipStatsText("Guardar")
+            }
+        }
+    }
 }
 
 @Composable
@@ -1418,36 +1537,257 @@ fun GpsIconWithSignalRing(
     val ringColor = getSignalColor(signalStrength)
     val ringAlpha = (signalStrength / 100f).coerceIn(0.3f, 1f)
 
-    // OPTIMIZACIÓN: Calculamos dimensiones fuera del draw loop si es posible,
-    // o usamos las del drawScope sin convertir dp cada vez si no es necesario,
-    // pero aquí 'dp.toPx()' es aceptable si no animamos el grosor.
+    // Animación pulsante cuando está grabando (no pausado)
+    val infiniteTransition = rememberInfiniteTransition(label = "gps_signal_pulse")
+    val pulseScale by infiniteTransition.animateFloat(
+        initialValue = 1f,
+        targetValue = if (isPaused) 1f else 1.15f, // Solo anima si no está pausado
+        animationSpec = infiniteRepeatable(
+            animation = tween(1200, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "pulse_scale"
+    )
+    
+    val pulseAlpha by infiniteTransition.animateFloat(
+        initialValue = 0.6f,
+        targetValue = if (isPaused) 0.6f else 0.3f, // Solo anima si no está pausado
+        animationSpec = infiniteRepeatable(
+            animation = tween(1200, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "pulse_alpha"
+    )
 
     Box(
-        modifier = modifier
-            .drawBehind {
-                // Cacheamos valores para limpieza visual
-                val radiusMain = size.minDimension / 2 - 8.dp.toPx()
-                val radiusSecondary = size.minDimension / 2 - 4.dp.toPx()
-
-                drawCircle(
-                    color = ringColor.copy(alpha = ringAlpha),
-                    radius = radiusMain,
-                    style = Stroke(width = 8.dp.toPx())
-                )
-                drawCircle(
-                    color = ringColor.copy(alpha = ringAlpha * 0.3f),
-                    radius = radiusSecondary,
-                    style = Stroke(width = 2.dp.toPx())
-                )
-            },
+        modifier = modifier,
         contentAlignment = Alignment.Center
     ) {
+        // Anillo pulsante animado (solo cuando está grabando)
+        if (!isPaused) {
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .scale(pulseScale)
+                    .alpha(pulseAlpha)
+                    .drawBehind {
+                        // Anillo principal pulsante que sale directamente del borde del botón
+                        // El botón tiene 96dp, así que su radio es 48dp desde el centro del Box
+                        // El anillo debe empezar exactamente en el borde del botón
+                        val botonRadius = 48.dp.toPx() // Radio del botón (96dp / 2)
+                        // El radio del anillo es el borde del botón (el stroke se dibuja hacia afuera)
+                        val radiusMain = botonRadius
+
+                        drawCircle(
+                            color = ringColor.copy(alpha = ringAlpha),
+                            radius = radiusMain,
+                            style = Stroke(width = 10.dp.toPx()) // El stroke se dibuja hacia afuera desde el radio
+                        )
+                    }
+            )
+        } else {
+            // Cuando está pausado, mostrar anillo estático sin animación
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .drawBehind {
+                        // Anillo estático cuando está pausado - sale del borde del botón
+                        val botonRadius = 48.dp.toPx() // Radio del botón (96dp / 2)
+                        // El radio del anillo es el borde del botón (el stroke se dibuja hacia afuera)
+                        val radiusMain = botonRadius
+
+                        drawCircle(
+                            color = ringColor.copy(alpha = ringAlpha),
+                            radius = radiusMain,
+                            style = Stroke(width = 10.dp.toPx()) // El stroke se dibuja hacia afuera desde el radio
+                        )
+                    }
+            )
+        }
+
         Icon(
             imageVector = if (isPaused) Icons.Default.Pause else Icons.Default.GpsFixed,
-            contentDescription = "GPS Status", // Accesibilidad: Nunca null si es interactivo o informativo
+            contentDescription = "GPS Status",
             modifier = Modifier.size(40.dp),
             tint = MaterialTheme.colorScheme.onSurface
         )
+    }
+}
+
+@Composable
+fun HeroSpeedometer(
+    speed: Double,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = modifier
+    ) {
+        ZipStatsText(
+            text = "VELOCIDAD",
+            style = MaterialTheme.typography.labelMedium.copy(
+                letterSpacing = 2.sp
+            ),
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Row(
+            verticalAlignment = Alignment.Bottom
+        ) {
+            // El número gigante - usa autoResize para que se ajuste si no cabe
+            ZipStatsText(
+                text = LocationUtils.formatSpeed(speed).replace(" km/h", ""),
+                style = MaterialTheme.typography.displayLarge.copy(
+                    fontSize = 96.sp, // Tamaño heroico
+                    fontWeight = FontWeight.Black,
+                    // "tnum" asegura que los números tengan el mismo ancho y no "bailen" al cambiar
+                    fontFeatureSettings = "tnum",
+                    lineHeight = 90.sp
+                ),
+                color = MaterialTheme.colorScheme.onSurface,
+                autoResize = true // 🔥 Reduce tamaño si no cabe
+            )
+            // La unidad más pequeña al lado
+            ZipStatsText(
+                text = "km/h",
+                style = MaterialTheme.typography.headlineSmall,
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(bottom = 14.dp, start = 4.dp)
+            )
+        }
+    }
+}
+
+@Composable
+fun StatsGridCompact(
+    distance: Double,
+    duration: Long,
+    gpsSignalStrength: Float
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        // Tarjeta Distancia
+        StatCard(
+            title = "Distancia",
+            value = LocationUtils.formatDistance(distance),
+            icon = Icons.Default.Route,
+            modifier = Modifier.weight(1f)
+        )
+        
+        // Tarjeta Tiempo
+        StatCard(
+            title = "Tiempo",
+            value = formatDuration(duration),
+            icon = Icons.Default.Timer,
+            modifier = Modifier.weight(1f)
+        )
+    }
+}
+
+@Composable
+fun ControlActionButton(
+    icon: ImageVector,
+    label: String,
+    containerColor: Color,
+    contentColor: Color,
+    onClick: () -> Unit
+) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        FilledTonalIconButton(
+            onClick = onClick,
+            colors = IconButtonDefaults.filledTonalIconButtonColors(
+                containerColor = containerColor,
+                contentColor = contentColor
+            ),
+            modifier = Modifier.size(64.dp)
+        ) {
+            Icon(icon, label, modifier = Modifier.size(28.dp))
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        ZipStatsText(label, style = MaterialTheme.typography.labelSmall)
+    }
+}
+
+@Composable
+fun PulsingGpsPauseButton(
+    signalStrength: Float,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    // 1. Determinar el color del "Estado GPS" usando la misma función que los otros iconos GPS
+    // Esto mantiene coherencia visual con GpsPreLocationIcon y GpsIconWithSignalRing
+    val signalColor = getSignalColor(signalStrength)
+
+    // 2. Animación del Halo (Onda expansiva)
+    val infiniteTransition = rememberInfiniteTransition(label = "gps_pulse")
+    
+    // Escala: Crece hacia afuera
+    val scale by infiniteTransition.animateFloat(
+        initialValue = 1f, // Empieza pegado al borde del botón
+        targetValue = 1.5f, // Se expande un 50% extra
+        animationSpec = infiniteRepeatable(
+            animation = tween(1500, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "scale"
+    )
+    
+    // Opacidad: Se desvanece mientras crece
+    val alpha by infiniteTransition.animateFloat(
+        initialValue = 0.5f,
+        targetValue = 0f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1500, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "alpha"
+    )
+
+    // Usamos Box para apilar el halo detrás del botón
+    Box(
+        contentAlignment = Alignment.Center, 
+        modifier = modifier
+    ) {
+        // CAPA 1: EL HALO (Detrás)
+        // Es un círculo del mismo color que el borde, que se expande
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .scale(scale)
+                .background(signalColor.copy(alpha = alpha), CircleShape)
+        )
+
+        // CAPA 2: EL BOTÓN DE PAUSA (Delante)
+        Button(
+            onClick = onClick,
+            modifier = Modifier.fillMaxSize(),
+            shape = CircleShape,
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.surface, // Fondo blanco/oscuro
+                contentColor = signalColor // Icono y texto del color de la señal
+            ),
+            // 🔥 El borde sólido conecta visualmente con el halo (más ancho para mejor visibilidad)
+            border = BorderStroke(8.dp, signalColor), 
+            contentPadding = PaddingValues(0.dp) // Sin padding extra
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Icon(
+                    imageVector = Icons.Default.Pause,
+                    contentDescription = "Pausar",
+                    modifier = Modifier.size(32.dp),
+                    tint = signalColor
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                ZipStatsText(
+                    text = "PAUSAR",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = signalColor
+                )
+            }
+        }
     }
 }
 

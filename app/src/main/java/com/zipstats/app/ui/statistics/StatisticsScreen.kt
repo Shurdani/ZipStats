@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -24,6 +25,7 @@ import androidx.compose.material.icons.automirrored.filled.TrendingDown
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.outlined.Cloud
@@ -32,6 +34,8 @@ import androidx.compose.material.icons.outlined.EmojiEvents
 import androidx.compose.material.icons.outlined.Forest
 import androidx.compose.material.icons.outlined.LocalGasStation
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.BottomSheetDefaults
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -39,17 +43,22 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.MenuAnchorType
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Tab
-import com.zipstats.app.ui.components.ZipStatsText
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.VerticalDivider
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -57,10 +66,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -69,15 +80,15 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.zipstats.app.R
-import com.zipstats.app.ui.components.DialogApplyButton
-import com.zipstats.app.ui.components.DialogCancelButton
 import com.zipstats.app.ui.components.DialogConfirmButton
+import com.zipstats.app.ui.components.ZipStatsText
 import com.zipstats.app.ui.theme.DialogShape
+import kotlinx.coroutines.launch
 import java.time.LocalDate
 import kotlin.math.roundToInt
 
@@ -133,41 +144,16 @@ fun StatisticsScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    Column {
-                        ZipStatsText("Estadísticas", fontWeight = FontWeight.Bold)
-                        periodTitle?.let { title ->
-                            ZipStatsText(
-                                text = title,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-                            )
-                        }
-                    }
-                },
-                actions = {
-                    IconButton(onClick = { showMonthYearPicker = true }) {
-                        Icon(
-                            imageVector = Icons.Default.CalendarMonth,
-                            contentDescription = "Seleccionar período"
-                        )
-                    }
-                    if ((selectedMonth != null && selectedYear != null) || (selectedYear != null && selectedMonth == null)) {
-                        IconButton(onClick = {
-                            viewModel.clearSelectedPeriod()
-                            // Volver a la pestaña por defecto (Este Mes)
-                            selectedPeriod = 0
-                        }) {
-                            Icon(
-                                imageVector = Icons.Default.Close,
-                                contentDescription = "Limpiar filtro"
-                            )
-                        }
-                    }
+                    ZipStatsText(
+                        text = "Estadísticas",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1
+                    )
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface,
-                    titleContentColor = MaterialTheme.colorScheme.onSurface,
-                    actionIconContentColor = MaterialTheme.colorScheme.onSurface
+                    titleContentColor = MaterialTheme.colorScheme.onSurface
                 )
             )
         }
@@ -217,6 +203,75 @@ fun StatisticsScreen(
                         )
                     }
                 )
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // ZONA DE CHIPS DE FILTRO
+            // Solo mostramos filtros si NO estamos en la pestaña "Todo" (index 2)
+            if (selectedPeriod != 2) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    // Texto del filtro actual
+                    val monthNames = listOf("Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic")
+                    val filterLabel = if (selectedMonth != null && selectedYear != null) {
+                        "${monthNames[selectedMonth!! - 1]} ${selectedYear}"
+                    } else if (selectedYear != null) {
+                        "${selectedYear}"
+                    } else {
+                        "Filtrar fecha"
+                    }
+
+                    val isFilterActive = selectedYear != null
+
+                    FilterChip(
+                        selected = isFilterActive,
+                        onClick = { showMonthYearPicker = true },
+                        label = { ZipStatsText(filterLabel) },
+                        leadingIcon = {
+                            if (isFilterActive) {
+                                Icon(
+                                    imageVector = Icons.Default.Check,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            } else {
+                                Icon(
+                                    imageVector = Icons.Default.CalendarMonth,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        },
+                        trailingIcon = if (isFilterActive) {
+                            {
+                                IconButton(
+                                    onClick = {
+                                        viewModel.clearSelectedPeriod()
+                                        // Volver a la pestaña por defecto (Este Mes)
+                                        selectedPeriod = 0
+                                    },
+                                    modifier = Modifier.size(20.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Close,
+                                        contentDescription = "Borrar filtro",
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                            }
+                        } else null,
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                            selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                        ),
+                        shape = CircleShape
+                    )
+                }
             }
 
             // Contenido
@@ -389,21 +444,25 @@ fun EcologicalImpactCardEnhanced(
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
-            // Fondo con opacidad para que no sea tan pesado
             containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.4f)
         ),
-        shape = RoundedCornerShape(24.dp) // Más redondeado estilo M3
+        shape = RoundedCornerShape(24.dp)
     ) {
-        Column(modifier = Modifier.padding(20.dp)) {
+        Column(
+            modifier = Modifier.padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
             // Título con icono
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
                 Icon(
                     imageVector = Icons.Outlined.Eco,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(20.dp)
+                    modifier = Modifier.size(24.dp)
                 )
-                Spacer(modifier = Modifier.width(8.dp))
                 ZipStatsText(
                     text = "Impacto Ecológico",
                     style = MaterialTheme.typography.titleMedium,
@@ -412,29 +471,43 @@ fun EcologicalImpactCardEnhanced(
                 )
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
-
-            // Los 3 Datos en Fila
+            // Los 3 Pilares de datos con divisores
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 ImpactItem(
                     value = "$co2Saved",
                     unit = "kg CO₂",
                     icon = Icons.Outlined.Cloud,
+                    color = Color(0xFF65C466), // Verde suave
                     modifier = Modifier.weight(1f)
                 )
+                
+                VerticalDivider(
+                    modifier = Modifier.height(60.dp),
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                )
+
                 ImpactItem(
                     value = "$treesEquivalent",
                     unit = "Árboles",
-                    icon = Icons.Outlined.Forest, // O Park
+                    icon = Icons.Outlined.Forest,
+                    color = Color(0xFF4CAF50), // Verde más intenso
                     modifier = Modifier.weight(1f)
                 )
+
+                VerticalDivider(
+                    modifier = Modifier.height(60.dp),
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                )
+
                 ImpactItem(
                     value = "$gasSaved",
                     unit = "L Gasolina",
                     icon = Icons.Outlined.LocalGasStation,
+                    color = Color(0xFFFFA726), // Naranja
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -447,18 +520,20 @@ fun ImpactItem(
     value: String,
     unit: String,
     icon: ImageVector,
+    color: Color,
     modifier: Modifier = Modifier
 ) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(8.dp),
         modifier = modifier
     ) {
-        // Círculo decorativo para el icono
+        // Círculo de fondo para el icono con color personalizado
         Box(
             modifier = Modifier
-                .size(48.dp)
+                .size(56.dp) // Más grande para mejor visibilidad
                 .background(
-                    MaterialTheme.colorScheme.surface,
+                    color.copy(alpha = 0.2f),
                     CircleShape
                 ),
             contentAlignment = Alignment.Center
@@ -466,17 +541,15 @@ fun ImpactItem(
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(24.dp)
+                tint = color,
+                modifier = Modifier.size(28.dp)
             )
         }
 
-        Spacer(modifier = Modifier.height(12.dp))
-
-        // EL NÚMERO GRANDE
+        // El número grande - HeadlineMedium para más impacto
         ZipStatsText(
             text = value,
-            style = MaterialTheme.typography.headlineSmall, // Más grande
+            style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.ExtraBold,
             color = MaterialTheme.colorScheme.onSurface,
             maxLines = 1
@@ -485,7 +558,7 @@ fun ImpactItem(
         // La unidad pequeña
         ZipStatsText(
             text = unit,
-            style = MaterialTheme.typography.labelMedium, // Pequeño y legible
+            style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
             maxLines = 1
@@ -581,7 +654,7 @@ fun StatMetric(
     modifier: Modifier = Modifier
 ) {
     Column(
-        modifier = modifier,
+        modifier = modifier.padding(horizontal = 4.dp), // Padding horizontal para balance visual
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
@@ -595,13 +668,15 @@ fun StatMetric(
             text = value + (if (unit.isNotEmpty()) " $unit" else ""),
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
-            maxLines = 1
+            maxLines = 1,
+            textAlign = TextAlign.Center // Asegurar centrado del texto
         )
         ZipStatsText(
             text = label,
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f),
-            maxLines = 1
+            maxLines = 1,
+            textAlign = TextAlign.Center // Asegurar centrado del label
         )
     }
 }
@@ -615,7 +690,7 @@ fun StatMetricWithDrawable(
     modifier: Modifier = Modifier
 ) {
     Column(
-        modifier = modifier,
+        modifier = modifier.padding(horizontal = 4.dp), // Padding horizontal para balance visual
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
@@ -629,13 +704,15 @@ fun StatMetricWithDrawable(
             text = value + (if (unit.isNotEmpty()) " $unit" else ""),
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
-            maxLines = 1
+            maxLines = 1,
+            textAlign = TextAlign.Center // Asegurar centrado del texto
         )
         ZipStatsText(
             text = label,
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f),
-            maxLines = 1
+            maxLines = 1,
+            textAlign = TextAlign.Center // Asegurar centrado del label
         )
     }
 }
@@ -657,10 +734,22 @@ fun ComparisonCard(
     }
 
     val colorScheme = MaterialTheme.colorScheme
-    // Usamos colores semánticos más suaves pero claros
-    val containerColor = if (comparison.isPositive) colorScheme.tertiaryContainer else colorScheme.errorContainer
-    val contentColor = if (comparison.isPositive) colorScheme.onTertiaryContainer else colorScheme.onErrorContainer
-    val iconColor = if (comparison.isPositive) colorScheme.tertiary else colorScheme.error
+    // Usamos colores semánticos más suaves - ErrorContainer es un rosa pastel suave
+    val containerColor = if (comparison.isPositive) {
+        colorScheme.tertiaryContainer.copy(alpha = 0.6f)
+    } else {
+        colorScheme.errorContainer.copy(alpha = 0.5f) // Más suave para no asustar
+    }
+    val contentColor = if (comparison.isPositive) {
+        colorScheme.onTertiaryContainer
+    } else {
+        colorScheme.onErrorContainer.copy(alpha = 0.9f) // Texto más suave
+    }
+    val iconColor = if (comparison.isPositive) {
+        colorScheme.tertiary
+    } else {
+        colorScheme.error.copy(alpha = 0.8f) // Icono menos agresivo
+    }
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -796,6 +885,9 @@ fun MonthYearPickerDialog(
     onDismiss: () -> Unit,
     onConfirm: (month: Int, year: Int, isYearOnly: Boolean) -> Unit
 ) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val scope = rememberCoroutineScope()
+
     if (availableMonthYears.isEmpty()) {
         AlertDialog(
             onDismissRequest = onDismiss,
@@ -840,133 +932,177 @@ fun MonthYearPickerDialog(
         }
     }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { ZipStatsText("Seleccionar Período") },
-        text = {
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+    ModalBottomSheet(
+        onDismissRequest = { onDismiss() },
+        sheetState = sheetState,
+        containerColor = MaterialTheme.colorScheme.surface,
+        dragHandle = { BottomSheetDefaults.DragHandle() }
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp)
+                .padding(bottom = 24.dp)
+                .navigationBarsPadding(),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            // Título
+            ZipStatsText(
+                text = "Seleccionar Período",
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Tipo de período
+            ExposedDropdownMenuBox(
+                expanded = showModeDropdown,
+                onExpandedChange = { showModeDropdown = it },
+                modifier = Modifier.fillMaxWidth()
             ) {
-                ExposedDropdownMenuBox(
+                OutlinedTextField(
+                    value = when (selectedMode) {
+                        is SelectionMode.Month -> "Mes"
+                        is SelectionMode.Year -> "Año"
+                        null -> "Seleccionar tipo"
+                        else -> "Seleccionar tipo"
+                    },
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { ZipStatsText("Tipo de período") },
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = showModeDropdown) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .menuAnchor(
+                            type = MenuAnchorType.PrimaryNotEditable,
+                            enabled = true
+                        ),
+                    shape = MaterialTheme.shapes.medium
+                )
+
+                ExposedDropdownMenu(
                     expanded = showModeDropdown,
-                    onExpandedChange = { showModeDropdown = it }
+                    onDismissRequest = { showModeDropdown = false }
                 ) {
-                    OutlinedTextField(
-                        value = when (selectedMode) {
-                            is SelectionMode.Month -> "Mes"
-                            is SelectionMode.Year -> "Año"
-                            null -> "Seleccionar tipo"
-                            else -> "Seleccionar tipo"
-                        },
-                        onValueChange = {},
-                        readOnly = true,
-                        label = { ZipStatsText("Tipo de período") },
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = showModeDropdown) },
-                        modifier = Modifier.fillMaxWidth().menuAnchor()
-                    )
-
-                    ExposedDropdownMenu(
-                        expanded = showModeDropdown,
-                        onDismissRequest = { showModeDropdown = false }
-                    ) {
-                        DropdownMenuItem(
-                            text = { ZipStatsText("Mes") },
-                            onClick = {
-                                selectedMode = SelectionMode.Month
-                                showModeDropdown = false
-                            }
-                        )
-                        DropdownMenuItem(
-                            text = { ZipStatsText("Año") },
-                            onClick = {
-                                selectedMode = SelectionMode.Year
-                                showModeDropdown = false
-                            }
-                        )
-                    }
-                }
-
-                if (selectedMode is SelectionMode.Month) {
-                    ExposedDropdownMenuBox(
-                        expanded = showMonthDropdown,
-                        onExpandedChange = { showMonthDropdown = it }
-                    ) {
-                        OutlinedTextField(
-                            value = monthNames[selectedMonth - 1],
-                            onValueChange = {},
-                            readOnly = true,
-                            label = { ZipStatsText("Mes") },
-                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = showMonthDropdown) },
-                            modifier = Modifier.fillMaxWidth().menuAnchor()
-                        )
-
-                        ExposedDropdownMenu(
-                            expanded = showMonthDropdown,
-                            onDismissRequest = { showMonthDropdown = false }
-                        ) {
-                            availableMonthsForYear.forEach { monthNumber ->
-                                DropdownMenuItem(
-                                    text = { ZipStatsText(monthNames[monthNumber - 1]) },
-                                    onClick = {
-                                        selectedMonth = monthNumber
-                                        showMonthDropdown = false
-                                    }
-                                )
-                            }
+                    DropdownMenuItem(
+                        text = { ZipStatsText("Mes") },
+                        onClick = {
+                            selectedMode = SelectionMode.Month
+                            showModeDropdown = false
                         }
-                    }
+                    )
+                    DropdownMenuItem(
+                        text = { ZipStatsText("Año") },
+                        onClick = {
+                            selectedMode = SelectionMode.Year
+                            showModeDropdown = false
+                        }
+                    )
                 }
+            }
 
+            // Selector de mes (solo si el modo es Month)
+            if (selectedMode is SelectionMode.Month) {
                 ExposedDropdownMenuBox(
-                    expanded = showYearDropdown,
-                    onExpandedChange = { showYearDropdown = it }
+                    expanded = showMonthDropdown,
+                    onExpandedChange = { showMonthDropdown = it },
+                    modifier = Modifier.fillMaxWidth()
                 ) {
                     OutlinedTextField(
-                        value = selectedYear.toString(),
+                        value = monthNames[selectedMonth - 1],
                         onValueChange = {},
                         readOnly = true,
-                        label = { ZipStatsText("Año") },
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = showYearDropdown) },
-                        modifier = Modifier.fillMaxWidth().menuAnchor()
+                        label = { ZipStatsText("Mes") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = showMonthDropdown) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .menuAnchor(
+                                type = MenuAnchorType.PrimaryNotEditable,
+                                enabled = true
+                            ),
+                        shape = MaterialTheme.shapes.medium
                     )
 
                     ExposedDropdownMenu(
-                        expanded = showYearDropdown,
-                        onDismissRequest = { showYearDropdown = false }
+                        expanded = showMonthDropdown,
+                        onDismissRequest = { showMonthDropdown = false }
                     ) {
-                        availableYears.forEach { year ->
+                        availableMonthsForYear.forEach { monthNumber ->
                             DropdownMenuItem(
-                                text = { ZipStatsText(year.toString()) },
+                                text = { ZipStatsText(monthNames[monthNumber - 1]) },
                                 onClick = {
-                                    selectedYear = year
-                                    showYearDropdown = false
+                                    selectedMonth = monthNumber
+                                    showMonthDropdown = false
                                 }
                             )
                         }
                     }
                 }
             }
-        },
-        confirmButton = {
-            DialogApplyButton(
-                text = "Aplicar",
+
+            // Selector de año
+            ExposedDropdownMenuBox(
+                expanded = showYearDropdown,
+                onExpandedChange = { showYearDropdown = it },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                OutlinedTextField(
+                    value = selectedYear.toString(),
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { ZipStatsText("Año") },
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = showYearDropdown) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .menuAnchor(
+                            type = MenuAnchorType.PrimaryNotEditable,
+                            enabled = true
+                        ),
+                    shape = MaterialTheme.shapes.medium
+                )
+
+                ExposedDropdownMenu(
+                    expanded = showYearDropdown,
+                    onDismissRequest = { showYearDropdown = false }
+                ) {
+                    availableYears.forEach { year ->
+                        DropdownMenuItem(
+                            text = { ZipStatsText(year.toString()) },
+                            onClick = {
+                                selectedYear = year
+                                showYearDropdown = false
+                            }
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Botón de acción principal
+            Button(
                 onClick = {
-                    when (selectedMode) {
-                        is SelectionMode.Month -> onConfirm(selectedMonth, selectedYear, false)
-                        is SelectionMode.Year -> onConfirm(selectedMonth, selectedYear, true)
-                        null -> {}
+                    scope.launch {
+                        sheetState.hide()
+                        if (!sheetState.isVisible) {
+                            when (selectedMode) {
+                                is SelectionMode.Month -> onConfirm(selectedMonth, selectedYear, false)
+                                is SelectionMode.Year -> onConfirm(selectedMonth, selectedYear, true)
+                                null -> {}
+                            }
+                        }
                     }
                 },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp),
+                shape = MaterialTheme.shapes.large,
                 enabled = selectedMode != null
-            )
-        },
-        dismissButton = {
-            DialogCancelButton(
-                text = "Cancelar",
-                onClick = onDismiss
-            )
-        },
-        shape = DialogShape
-    )
+            ) {
+                ZipStatsText("Aplicar", fontSize = 16.sp)
+            }
+        }
+    }
 }

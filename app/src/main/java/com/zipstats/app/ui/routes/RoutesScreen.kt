@@ -1,5 +1,7 @@
 package com.zipstats.app.ui.routes
 
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,13 +15,19 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.GpsFixed
+import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.PrimaryScrollableTabRow
 import androidx.compose.material3.Scaffold
@@ -36,20 +44,24 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.zipstats.app.model.Route
+import com.zipstats.app.model.VehicleType
 import com.zipstats.app.navigation.Screen
+import com.zipstats.app.R
 import com.zipstats.app.ui.components.AnimatedFloatingActionButton
 import com.zipstats.app.ui.components.DialogCancelButton
 import com.zipstats.app.ui.components.DialogConfirmButton
 import com.zipstats.app.ui.components.EmptyStateRoutes
-import com.zipstats.app.ui.components.ExpandableRow
 import com.zipstats.app.di.AppOverlayRepositoryEntryPoint
 import com.zipstats.app.repository.AppOverlayRepository
 import com.zipstats.app.ui.onboarding.OnboardingDialog
@@ -241,8 +253,10 @@ fun RoutesScreen(
             TopAppBar(
                 title = {
                     ZipStatsText(
-                        "Historial de Rutas",
-                        fontWeight = FontWeight.Bold
+                        text = "Historial de Rutas",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1
                     )
                 },
                 // Estilo moderno 'Surface' igual que Historial de Registros
@@ -363,72 +377,114 @@ fun RoutesScreen(
                     itemsIndexed(
                         items = filteredRoutes,
                         key = { _, route -> route.id }
-                    ) { index, route ->
-                        Column {
-                            ExpandableRow(
-                                onClick = { routeToView = route },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                                backgroundAlpha = if (index % 2 == 0) 0f else 0.3f
-                            ) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                // COLUMNA IZQUIERDA: Vehículo y Fecha
-                                Column(
-                                    modifier = Modifier.weight(1f),
-                                    verticalArrangement = Arrangement.Center
-                                ) {
-                                    // Nombre del vehículo (Grande)
+                    ) { _, route -> // Ya no necesitamos el index para el color
+                        val interactionSource = remember { MutableInteractionSource() }
+                        val scooter = userScooters.find { it.id == route.scooterId }
+                        
+                        // 1. Contenedor CLICKABLE limpio
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable(
+                                    interactionSource = interactionSource,
+                                    indication = null,
+                                    onClick = { routeToView = route }
+                                )
+                        ) {
+                            ListItem(
+                                // 1. LEADING: Icono del vehículo con fondo circular
+                                leadingContent = {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(40.dp)
+                                            .background(
+                                                MaterialTheme.colorScheme.surfaceVariant,
+                                                CircleShape
+                                            ),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Image(
+                                            painter = getVehicleIcon(scooter?.vehicleType ?: VehicleType.PATINETE),
+                                            contentDescription = null,
+                                            modifier = Modifier.size(24.dp),
+                                            colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.onSurfaceVariant)
+                                        )
+                                    }
+                                },
+                                // 2. HEADLINE: El dato principal (Nombre del vehículo)
+                                headlineContent = {
                                     ZipStatsText(
-                                        text = userScooters.find { it.id == route.scooterId }?.modelo ?: route.scooterName,
+                                        text = scooter?.modelo ?: route.scooterName,
                                         style = MaterialTheme.typography.titleMedium,
-                                        fontWeight = FontWeight.Bold,
-                                        maxLines = 1
+                                        fontWeight = FontWeight.SemiBold
                                     )
-                                    // Fecha y hora (Pequeña y gris)
+                                },
+                                // 3. SUPPORTING: Fecha y hora (dato secundario) - Formato humano
+                                supportingContent = {
                                     ZipStatsText(
-                                        text = DateUtils.formatForDisplayWithTime(route.startTime),
+                                        text = DateUtils.formatHumanDateWithTime(route.startTime),
                                         style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.padding(top = 4.dp)
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
-                                }
+                                },
+                                // 4. TRAILING: Los datos numéricos a la derecha
+                                trailingContent = {
+                                    Column(horizontalAlignment = Alignment.End) {
+                                        // El dato "héroe": La distancia recorrida
+                                        ZipStatsText(
+                                            text = String.format("%.1f km", route.totalDistance),
+                                            style = MaterialTheme.typography.titleMedium,
+                                            color = MaterialTheme.colorScheme.primary,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                        // El metadato: Duración con icono de cronómetro
+                                        Row(
+                                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Filled.Timer,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(12.dp),
+                                                tint = MaterialTheme.colorScheme.outline
+                                            )
+                                            ZipStatsText(
+                                                text = route.durationFormatted,
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.outline
+                                            )
+                                        }
+                                    }
+                                },
+                                // 5. COLORES: Fondo transparente para respetar el tema
+                                colors = ListItemDefaults.colors(
+                                    containerColor = Color.Transparent
+                                )
+                            )
 
-                                // COLUMNA DERECHA: Distancia y Tiempo
-                                Column(
-                                    horizontalAlignment = Alignment.End,
-                                    verticalArrangement = Arrangement.Center
-                                ) {
-                                    // Distancia (El dato "Héroe")
-                                    ZipStatsText(
-                                        text = String.format("%.1f km", route.totalDistance),
-                                        style = MaterialTheme.typography.titleMedium,
-                                        color = MaterialTheme.colorScheme.primary,
-                                        fontWeight = FontWeight.ExtraBold
-                                    )
-                                    // Duración (Dato secundario)
-                                    ZipStatsText(
-                                        text = route.durationFormatted,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.padding(top = 4.dp)
-                                    )
-                                }
-                                }
-                            }
+                            // 6. DIVISOR: Sutil y elegante
                             HorizontalDivider(
-                                modifier = Modifier.fillMaxWidth(),
-                                thickness = 1.dp,
-                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f)
+                                modifier = Modifier.padding(horizontal = 16.dp), // Indentado para look moderno
+                                thickness = 0.5.dp,
+                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
                             )
                         }
                     }
                 }
             }
         }
+    }
+}
+
+/**
+ * Obtiene el icono del vehículo según su tipo
+ */
+@Composable
+fun getVehicleIcon(vehicleType: VehicleType): Painter {
+    return when (vehicleType) {
+        VehicleType.PATINETE -> painterResource(id = R.drawable.ic_electric_scooter_adaptive)
+        VehicleType.BICICLETA -> painterResource(id = R.drawable.ic_ciclismo_adaptive)
+        VehicleType.E_BIKE -> painterResource(id = R.drawable.ic_bicicleta_electrica_adaptive)
+        VehicleType.MONOCICLO -> painterResource(id = R.drawable.ic_unicycle_adaptive)
     }
 }

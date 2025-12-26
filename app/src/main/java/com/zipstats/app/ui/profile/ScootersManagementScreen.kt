@@ -114,7 +114,14 @@ fun ScootersManagementScreen(
         modifier = Modifier.fillMaxSize(),
         topBar = {
             TopAppBar(
-                title = { ZipStatsText("Mis Vehículos") },
+                title = { 
+                    ZipStatsText(
+                        text = "Mis Vehículos",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1
+                    ) 
+                },
                 navigationIcon = {
                     IconButton(onClick = { navController.navigateUp() }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Volver")

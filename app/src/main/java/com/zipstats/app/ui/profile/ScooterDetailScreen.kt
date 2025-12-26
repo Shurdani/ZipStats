@@ -30,6 +30,9 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.outlined.Build
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.BottomSheetDefaults
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -39,9 +42,11 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
+import androidx.compose.material3.rememberModalBottomSheetState
 import com.zipstats.app.ui.components.ZipStatsText
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -124,7 +129,14 @@ fun ScooterDetailScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { ZipStatsText("Detalles del Vehículo", fontWeight = FontWeight.Bold) },
+                title = { 
+                    ZipStatsText(
+                        text = "Detalles del Vehículo",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1
+                    ) 
+                },
                 navigationIcon = {
                     IconButton(onClick = { navController.navigateUp() }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Volver")
@@ -204,24 +216,37 @@ fun ScooterDetailScreen(
         }
     }
 
-    // Diálogo de EDICIÓN
+    // Bottom Sheet de EDICIÓN
+    val editSheetState = rememberModalBottomSheetState()
     if (showEditDialog && scooter != null) {
-        EditScooterDialog(
-            scooter = scooter,
-            onDismiss = { showEditDialog = false },
-            onConfirm = { nombre, marca, modelo, fecha ->
-                scope.launch {
-                    viewModel.updateScooter(scooter.id, nombre, marca, modelo, fecha)
-                    // Esperar un momento para que se actualice el estado
-                    kotlinx.coroutines.delay(300)
-                    // Recargar los datos usando scooterId (permanente, no cambia con el nombre)
-                    lastRepair = viewModel.getLastRepair(scooterId)
-                    lastRecord = viewModel.getLastRecord(scooterId = scooterId, vehicleName = nombre)
-                    usagePercentage = viewModel.getVehicleUsagePercentage(scooterId = scooterId, vehicleName = nombre)
-                    showEditDialog = false
+        ModalBottomSheet(
+            onDismissRequest = { showEditDialog = false },
+            sheetState = editSheetState,
+            dragHandle = { BottomSheetDefaults.DragHandle() }
+        ) {
+            EditScooterBottomSheet(
+                scooter = scooter,
+                onDismiss = {
+                    scope.launch {
+                        editSheetState.hide()
+                        showEditDialog = false
+                    }
+                },
+                onConfirm = { nombre, marca, modelo, fecha ->
+                    scope.launch {
+                        viewModel.updateScooter(scooter.id, nombre, marca, modelo, fecha)
+                        // Esperar un momento para que se actualice el estado
+                        kotlinx.coroutines.delay(300)
+                        // Recargar los datos usando scooterId (permanente, no cambia con el nombre)
+                        lastRepair = viewModel.getLastRepair(scooterId)
+                        lastRecord = viewModel.getLastRecord(scooterId = scooterId, vehicleName = nombre)
+                        usagePercentage = viewModel.getVehicleUsagePercentage(scooterId = scooterId, vehicleName = nombre)
+                        editSheetState.hide()
+                        showEditDialog = false
+                    }
                 }
-            }
-        )
+            )
+        }
     }
 
     // Diálogo de USO RELATIVO (fuera de la estructura visual)
@@ -665,7 +690,7 @@ fun MaintenanceSection(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun EditScooterDialog(
+fun EditScooterBottomSheet(
     scooter: Scooter,
     onDismiss: () -> Unit,
     onConfirm: (String, String, String, String) -> Unit
@@ -693,60 +718,6 @@ fun EditScooterDialog(
         fechaTexto = DateUtils.formatForDisplay(selectedDate)
     }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { ZipStatsText("Editar vehículo") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedTextField(
-                    value = nombre,
-                    onValueChange = { nombre = it },
-                    label = { ZipStatsText("Nombre") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                OutlinedTextField(
-                    value = marca,
-                    onValueChange = { marca = it },
-                    label = { ZipStatsText("Marca") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                OutlinedTextField(
-                    value = modelo,
-                    onValueChange = { modelo = it },
-                    label = { ZipStatsText("Modelo") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                OutlinedTextField(
-                    value = fechaTexto,
-                    onValueChange = { },
-                    label = { ZipStatsText("Fecha de compra") },
-                    readOnly = true,
-                    trailingIcon = {
-                        IconButton(onClick = { showDatePicker = true }) {
-                            Icon(Icons.Default.CalendarMonth, contentDescription = null)
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-        },
-        confirmButton = {
-            DialogConfirmButton(
-                text = "Guardar",
-                enabled = nombre.isNotBlank() && marca.isNotBlank() && modelo.isNotBlank(),
-                onClick = {
-                    onConfirm(nombre, marca, modelo, fechaTexto)
-                }
-            )
-        },
-        dismissButton = {
-            DialogCancelButton(text = "Cancelar", onClick = onDismiss)
-        }
-    )
-
     if (showDatePicker) {
         StandardDatePickerDialogWithValidation(
             selectedDate = selectedDate,
@@ -756,5 +727,79 @@ fun EditScooterDialog(
             maxDate = LocalDate.now(),
             validateDate = { !it.isAfter(LocalDate.now()) }
         )
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp)
+            .padding(bottom = 32.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        ZipStatsText(
+            text = "Editar vehículo",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold
+        )
+
+        OutlinedTextField(
+            value = nombre,
+            onValueChange = { nombre = it },
+            label = { ZipStatsText("Nombre") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth()
+        )
+        OutlinedTextField(
+            value = marca,
+            onValueChange = { marca = it },
+            label = { ZipStatsText("Marca") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth()
+        )
+        OutlinedTextField(
+            value = modelo,
+            onValueChange = { modelo = it },
+            label = { ZipStatsText("Modelo") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth()
+        )
+        OutlinedTextField(
+            value = fechaTexto,
+            onValueChange = { },
+            label = { ZipStatsText("Fecha de compra") },
+            readOnly = true,
+            trailingIcon = {
+                IconButton(onClick = { showDatePicker = true }) {
+                    Icon(Icons.Default.CalendarMonth, contentDescription = null)
+                }
+            },
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        // Botones
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Button(
+                onClick = onDismiss,
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            ) {
+                ZipStatsText("Cancelar")
+            }
+            Button(
+                onClick = {
+                    onConfirm(nombre, marca, modelo, fechaTexto)
+                },
+                modifier = Modifier.weight(1f),
+                enabled = nombre.isNotBlank() && marca.isNotBlank() && modelo.isNotBlank()
+            ) {
+                ZipStatsText("Guardar")
+            }
+        }
     }
 }

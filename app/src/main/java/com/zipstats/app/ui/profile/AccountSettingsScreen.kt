@@ -1,6 +1,5 @@
 package com.zipstats.app.ui.profile
 
-import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
@@ -12,10 +11,8 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -45,7 +42,6 @@ import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.ScreenLockPortrait
@@ -66,7 +62,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
-import com.zipstats.app.ui.components.ZipStatsText
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -90,12 +85,14 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
+import com.zipstats.app.BuildConfig
 import com.zipstats.app.navigation.Screen
 import com.zipstats.app.permission.PermissionManager
 import com.zipstats.app.repository.SettingsRepository
 import com.zipstats.app.ui.components.DialogDeleteButton
 import com.zipstats.app.ui.components.DialogNeutralButton
 import com.zipstats.app.ui.components.DialogSaveButton
+import com.zipstats.app.ui.components.ZipStatsText
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalAnimationApi::class)
@@ -245,8 +242,10 @@ fun AccountSettingsScreen(
             TopAppBar(
                 title = {
                     ZipStatsText(
-                        "Ajustes",
-                        fontWeight = FontWeight.Bold
+                        text = "Ajustes",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1
                     )
                 },
                 navigationIcon = {
@@ -445,9 +444,9 @@ fun AccountSettingsScreen(
                 )
             }
             
-            // Versión de la app
+            // Versión de la app (dinámica desde BuildConfig)
             ZipStatsText(
-                text = "Versión 4.6.5",
+                text = "Versión ${BuildConfig.VERSION_NAME}",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
                 modifier = Modifier.fillMaxWidth(),

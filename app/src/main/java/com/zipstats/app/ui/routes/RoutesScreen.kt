@@ -51,7 +51,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
@@ -69,6 +68,7 @@ import com.zipstats.app.ui.onboarding.OnboardingDialog
 import com.zipstats.app.ui.records.OnboardingViewModel
 import com.zipstats.app.ui.theme.DialogShape
 import com.zipstats.app.utils.DateUtils
+import com.zipstats.app.utils.LocationUtils
 import dagger.hilt.android.EntryPointAccessors
 import java.time.Instant
 import java.time.ZoneId
@@ -254,8 +254,10 @@ fun RoutesScreen(
             TopAppBar(
                 title = {
                     ZipStatsText(
-                        "Historial de Rutas",
-                        fontWeight = FontWeight.Bold
+                        text = "Historial de Rutas",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1
                     )
                 },
                 // Estilo moderno 'Surface' igual que Historial de Registros
@@ -431,7 +433,7 @@ fun RoutesScreen(
                                     Column(horizontalAlignment = Alignment.End) {
                                         // El dato "héroe": La distancia recorrida
                                         ZipStatsText(
-                                            text = String.format("%.1f km", route.totalDistance),
+                                            text = "${LocationUtils.formatNumberSpanish(route.totalDistance)} km",
                                             style = MaterialTheme.typography.titleMedium,
                                             color = MaterialTheme.colorScheme.primary,
                                             fontWeight = FontWeight.Bold

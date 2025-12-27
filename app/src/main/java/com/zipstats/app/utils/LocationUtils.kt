@@ -244,25 +244,60 @@ object LocationUtils {
     }
     
     /**
-     * Formatea la distancia para mostrar
+     * Formatea la distancia para mostrar (formato español: punto para miles, coma para decimales)
      * @param distanceKm Distancia en kilómetros
-     * @return String formateado (ej: "1.5 km" o "250 m")
+     * @return String formateado (ej: "1,5 km" o "250 m")
      */
     fun formatDistance(distanceKm: Double): String {
         return if (distanceKm < 1.0) {
             "${(distanceKm * 1000).roundToInt()} m"
         } else {
-            "%.1f km".format(distanceKm)
+            // Formato español: coma para decimales
+            val formatter = java.text.DecimalFormat("#,##0.0", java.text.DecimalFormatSymbols(java.util.Locale("es", "ES")))
+            "${formatter.format(distanceKm).removeSuffix(",0")} km"
         }
     }
     
     /**
-     * Formatea la velocidad para mostrar
+     * Formatea la velocidad para mostrar (formato español: punto para miles, coma para decimales)
      * @param speedKmh Velocidad en km/h
-     * @return String formateado (ej: "15.5 km/h")
+     * @return String formateado (ej: "15,5 km/h")
      */
     fun formatSpeed(speedKmh: Double): String {
-        return "%.1f km/h".format(speedKmh)
+        // Formato español: coma para decimales
+        val formatter = java.text.DecimalFormat("#,##0.0", java.text.DecimalFormatSymbols(java.util.Locale("es", "ES")))
+        return "${formatter.format(speedKmh).removeSuffix(",0")} km/h"
+    }
+    
+    /**
+     * Formatea un número en formato español (punto para miles, coma para decimales)
+     * @param value Número a formatear
+     * @param decimals Número de decimales (por defecto 1)
+     * @return String formateado (ej: "23.525,25" o "15,5")
+     */
+    fun formatNumberSpanish(value: Double, decimals: Int = 1): String {
+        return try {
+            val pattern = when (decimals) {
+                0 -> "#,##0"
+                1 -> "#,##0.0"
+                2 -> "#,##0.00"
+                else -> "#,##0.${"0".repeat(decimals)}"
+            }
+            val formatter = java.text.DecimalFormat(pattern, java.text.DecimalFormatSymbols(java.util.Locale("es", "ES")))
+            val formatted = formatter.format(value)
+            // Quitar decimal si es ,0
+            if (decimals == 1) formatted.removeSuffix(",0") else formatted
+        } catch (e: Exception) {
+            // Fallback: formatear manualmente
+            val formatPattern = "%.${decimals}f"
+            val parts = String.format(formatPattern, value).split(".")
+            if (parts.size == 2) {
+                val integerPart = parts[0].reversed().chunked(3).joinToString(".").reversed()
+                "$integerPart,${parts[1]}"
+            } else {
+                parts[0].reversed().chunked(3).joinToString(".").reversed()
+            }
+        }
     }
     
     /**

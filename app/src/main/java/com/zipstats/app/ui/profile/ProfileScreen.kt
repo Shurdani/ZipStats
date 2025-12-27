@@ -91,7 +91,6 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import java.util.Locale
@@ -303,7 +302,14 @@ fun ProfileScreen(
         modifier = Modifier.fillMaxSize(),
         topBar = {
             TopAppBar(
-                title = { ZipStatsText("Perfil", fontWeight = FontWeight.Bold) },
+                title = { 
+                    ZipStatsText(
+                        text = "Perfil",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1
+                    ) 
+                },
                 actions = {
                     AnimatedIconButton(onClick = { navController.navigate(Screen.AccountSettings.route) }) {
                         Icon(imageVector = Icons.Default.Settings, contentDescription = "Ajustes")
@@ -574,13 +580,15 @@ fun StatSummaryCard(
             Column(
                 modifier = Modifier.fillMaxWidth()
             ) {
-                // AUTO-FORMATO DE NÚMEROS
+                // AUTO-FORMATO DE NÚMEROS (formato español)
                 val formattedValue = try {
-                    // Intenta parsear si es un número simple para poner comas
+                    // Intenta parsear si es un número simple para poner formato español
                     val number = value.toDoubleOrNull()
                     if (number != null) {
-                        String.format(Locale.US, "%,.1f", number)
-                            .removeSuffix(".0") // Quitar decimal si es .0
+                        // Formatear con Locale español: punto para miles, coma para decimales
+                        val formatter = java.text.DecimalFormat("#,##0.0", java.text.DecimalFormatSymbols(java.util.Locale("es", "ES")))
+                        val formatted = formatter.format(number)
+                        formatted.removeSuffix(",0") // Quitar decimal si es ,0
                     } else value
                 } catch (e: Exception) { value }
 
@@ -589,7 +597,7 @@ fun StatSummaryCard(
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Bold,
                     color = contentColor,
-                    maxLines = 1
+                    autoResize = true // Ajusta el tamaño automáticamente para que no se corte
                 )
                 ZipStatsText(
                     text = title,
@@ -925,14 +933,25 @@ fun AddScooterBottomSheet(
 }
 
 /**
- * Helper para formatear números con separadores de miles
+ * Helper para formatear números con separadores de miles en formato español
+ * Formato español: punto (.) para miles, coma (,) para decimales
+ * Ejemplo: 23.525,25
  */
 private fun formatNumberWithCommas(value: Double): String {
     return try {
-        String.format(Locale.US, "%,.1f", value)
-            .removeSuffix(".0") // Quitar decimal si es .0
+        // Formatear con Locale español para obtener el formato correcto
+        val formatter = java.text.DecimalFormat("#,##0.0", java.text.DecimalFormatSymbols(java.util.Locale("es", "ES")))
+        val formatted = formatter.format(value)
+        formatted.removeSuffix(",0") // Quitar decimal si es ,0
     } catch (e: Exception) {
-        String.format("%.1f", value)
+        // Fallback: formatear manualmente
+        val parts = String.format("%.1f", value).split(".")
+        if (parts.size == 2) {
+            val integerPart = parts[0].reversed().chunked(3).joinToString(".").reversed()
+            "$integerPart,${parts[1]}"
+        } else {
+            parts[0].reversed().chunked(3).joinToString(".").reversed()
+        }
     }
 }
 

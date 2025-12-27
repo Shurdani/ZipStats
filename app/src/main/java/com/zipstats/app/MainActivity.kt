@@ -35,6 +35,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
@@ -72,6 +73,12 @@ class MainActivity : ComponentActivity() {
     private val CHANNEL_ID = "export_channel"
     private val NOTIFICATION_ID = 1
     
+    // --- ESTADO REACTIVO GESTIONADO POR LA ACTIVIDAD ---
+    // Usamos mutableStateOf para que Compose reaccione a los cambios sin recrear la UI
+    private var showErrorDialogState by mutableStateOf(false)
+    private var errorMessageState by mutableStateOf<String?>(null)
+    private var shouldOpenTrackingState by mutableStateOf(false)
+    private var navigateToRouteState by mutableStateOf<String?>(null)
 
     private val requestPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -140,17 +147,30 @@ class MainActivity : ComponentActivity() {
         createNotificationChannel()
         // No pedir permisos al inicio - solo cuando se necesiten (al exportar)
 
-        val showErrorDialog = intent.getBooleanExtra("SHOW_ERROR_DIALOG", false)
-        val errorMessage = intent.getStringExtra("ERROR_MESSAGE")
-        val shouldOpenTracking = intent.action == LocationTrackingService.ACTION_OPEN_TRACKING
-        val navigateToRoute = intent.getStringExtra("navigate_to")
+        // --- CORRECCIÓN CRÍTICA: GESTIÓN DE ESTADO ---
+        // Solo procesamos el Intent si NO estamos recuperando estado (savedInstanceState == null).
+        // Si savedInstanceState != null, significa que la app fue matada y se está restaurando.
+        // En ese caso, dejamos que el NavController restaure su pila por sí solo.
+        if (savedInstanceState == null) {
+            processIntent(intent)
+        }
 
         setContent {
+            // Pasamos el estado reactivo a MainContent
             MainContent(
-                showErrorDialog = showErrorDialog,
-                errorMessage = errorMessage,
-                shouldOpenTracking = shouldOpenTracking,
-                navigateToRoute = navigateToRoute
+                showErrorDialog = showErrorDialogState,
+                errorMessage = errorMessageState,
+                shouldOpenTracking = shouldOpenTrackingState,
+                navigateToRoute = navigateToRouteState,
+                // Callback para limpiar el estado una vez consumido
+                onNavigationConsumed = {
+                    shouldOpenTrackingState = false
+                    navigateToRouteState = null
+                },
+                onErrorDialogDismissed = {
+                    showErrorDialogState = false
+                    errorMessageState = null
+                }
             )
         }
     }
@@ -158,30 +178,28 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        // Si llega un nuevo intent mientras la app está abierta
+        
+        // --- CORRECCIÓN CRÍTICA ---
+        // NO llamamos a setContent aquí. Simplemente actualizamos el estado
+        // y Compose recompondrá automáticamente.
+        processIntent(intent)
+    }
+
+    // Función auxiliar para procesar intents y actualizar el estado
+    private fun processIntent(intent: Intent) {
+        if (intent.getBooleanExtra("SHOW_ERROR_DIALOG", false)) {
+            showErrorDialogState = true
+            errorMessageState = intent.getStringExtra("ERROR_MESSAGE")
+        }
+
         if (intent.action == LocationTrackingService.ACTION_OPEN_TRACKING) {
-            // Usar un enfoque más robusto: agregar flag para forzar navegación
+            shouldOpenTrackingState = true
+            // Importante: agregar el flag para evitar bucles si es necesario
             intent.putExtra("FORCE_NAVIGATE_TO_TRACKING", true)
-            // Re-crear el contenido para manejar la navegación
-            setContent {
-                MainContent(
-                    showErrorDialog = false,
-                    errorMessage = null,
-                    shouldOpenTracking = true,
-                    navigateToRoute = null
-                )
-            }
         } else {
-            val navigateToRoute = intent.getStringExtra("navigate_to")
-            if (navigateToRoute != null) {
-                setContent {
-                    MainContent(
-                        showErrorDialog = false,
-                        errorMessage = null,
-                        shouldOpenTracking = false,
-                        navigateToRoute = navigateToRoute
-                    )
-                }
+            val route = intent.getStringExtra("navigate_to")
+            if (route != null) {
+                navigateToRouteState = route
             }
         }
     }
@@ -190,41 +208,45 @@ class MainActivity : ComponentActivity() {
     private fun MainContent(
         showErrorDialog: Boolean,
         errorMessage: String?,
-        shouldOpenTracking: Boolean = false,
-        navigateToRoute: String? = null
+        shouldOpenTracking: Boolean,
+        navigateToRoute: String?,
+        onNavigationConsumed: () -> Unit,
+        onErrorDialogDismissed: () -> Unit
     ) {
         val navController = rememberNavController()
         
-        // Navegar a tracking si viene desde la notificación
+        // --- NAVEGACIÓN REACTIVA ---
+        
+        // Navegar a tracking
         LaunchedEffect(shouldOpenTracking) {
             if (shouldOpenTracking) {
-                // Esperar un momento para asegurar que el NavController esté listo
+                // Esperar a que el grafo esté listo
                 kotlinx.coroutines.delay(100)
                 
-                // Obtener la ruta de inicio del grafo de navegación
                 val startRoute = navController.graph.startDestinationRoute ?: Screen.Records.route
                 
-                // Limpiar el back stack hasta la ruta inicial y navegar directamente a Tracking
                 navController.navigate(Screen.Tracking.route) {
-                    // Pop hasta la ruta inicial pero NO inclusive (para mantener la base)
                     popUpTo(startRoute) {
                         inclusive = false
-                        saveState = false
+                        saveState = false // A veces saveState=true causa problemas en recreación
                     }
-                    // Forzar navegación única top - si Tracking ya está en el stack, reutilizarlo
                     launchSingleTop = true
-                    restoreState = false
+                    restoreState = false // Importante false aquí para forzar vista fresca del tracking
                 }
+                
+                // Consumir el evento para que no se repita al rotar pantalla
+                onNavigationConsumed()
             }
         }
         
-        // Navegar a una ruta específica si viene desde una notificación
+        // Navegar a ruta específica
         LaunchedEffect(navigateToRoute) {
             navigateToRoute?.let { route ->
                 kotlinx.coroutines.delay(100)
                 navController.navigate(route) {
                     launchSingleTop = true
                 }
+                onNavigationConsumed()
             }
         }
         var currentThemeMode by remember { mutableStateOf(ThemeMode.SYSTEM) }
@@ -274,16 +296,15 @@ class MainActivity : ComponentActivity() {
                 settingsRepository.setDynamicColor(false)
             }
         }
-        var showDialog by remember { mutableStateOf(showErrorDialog) }
-        
         // Sistema de permisos centralizado
         val permissionManager = remember { PermissionManager(applicationContext) }
         var showPermissionsDialog by remember { mutableStateOf(false) }
         val allPermissions = remember { permissionManager.getAllPermissions() }
-        val permissionLauncher = rememberLauncherForActivityResult(
+        
+        // Launcher para permisos (definido localmente para acceder al estado)
+        val permissionLauncherLocal = rememberLauncherForActivityResult(
             ActivityResultContracts.RequestMultiplePermissions()
-        ) { permissions ->
-            // Los permisos se han solicitado, el diálogo se cerrará automáticamente
+        ) { 
             showPermissionsDialog = false
         }
         
@@ -314,7 +335,7 @@ class MainActivity : ComponentActivity() {
                     onConfirm = {
                         val permissionsToRequest = permissionManager.getRequiredStartupPermissions()
                         if (permissionsToRequest.isNotEmpty()) {
-                            permissionLauncher.launch(permissionsToRequest)
+                            permissionLauncherLocal.launch(permissionsToRequest)
                         } else {
                             showPermissionsDialog = false
                         }
@@ -325,19 +346,19 @@ class MainActivity : ComponentActivity() {
                 )
             }
             
-            if (showDialog && errorMessage != null) {
+            // Usamos el estado pasado por parámetro
+            if (showErrorDialog && errorMessage != null) {
                 AlertDialog(
-                    onDismissRequest = { showDialog = false },
+                    onDismissRequest = { onErrorDialogDismissed() },
                     title = { ZipStatsText("Error en la importación") },
                     text = { ZipStatsText(errorMessage) },
                     confirmButton = {
                         DialogNeutralButton(
                             text = "Aceptar",
-                            onClick = { showDialog = false }
+                            onClick = { onErrorDialogDismissed() }
                         )
                     }
                 )
-
             }
 
             Box(modifier = Modifier.fillMaxSize()) {

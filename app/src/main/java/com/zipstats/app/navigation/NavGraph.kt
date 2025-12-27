@@ -6,8 +6,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavHostController
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.navArgument
 import com.zipstats.app.di.AppOverlayRepositoryEntryPoint
 import com.zipstats.app.repository.AppOverlayRepository
 import com.zipstats.app.ui.achievements.AchievementsScreen
@@ -21,7 +23,6 @@ import com.zipstats.app.ui.profile.ScootersManagementScreen
 import com.zipstats.app.ui.records.RecordsHistoryScreen
 import com.zipstats.app.ui.repairs.RepairsScreen
 import com.zipstats.app.ui.routes.RoutesScreen
-import com.zipstats.app.ui.shared.AppOverlayState
 import com.zipstats.app.ui.splash.SplashScreen
 import com.zipstats.app.ui.statistics.StatisticsScreen
 import com.zipstats.app.ui.theme.ColorTheme
@@ -39,10 +40,22 @@ fun NavGraph(
     dynamicColorEnabled: Boolean,
     onDynamicColorChange: (Boolean) -> Unit,
     pureBlackOledEnabled: Boolean,
-    onPureBlackOledChange: (Boolean) -> Unit,
-    // authViewModel: com.zipstats.app.ui.auth.AuthViewModel // No se usa en el código, se puede quitar si quieres
+    onPureBlackOledChange: (Boolean) -> Unit
 ) {
-    // Usamos NavHost estándar (que soporta animaciones desde la versión 2.7.0+)
+    val context = LocalContext.current
+    
+    // OPTIMIZACIÓN: Obtener el repositorio UNA SOLA VEZ para todo el grafo
+    // En lugar de obtenerlo dentro de cada composable repetidamente.
+    val appOverlayRepository: AppOverlayRepository = remember {
+        EntryPointAccessors.fromApplication(
+            context.applicationContext,
+            AppOverlayRepositoryEntryPoint::class.java
+        ).appOverlayRepository()
+    }
+    
+    // Este estado se comparte y observa una sola vez
+    val vehiclesReady by appOverlayRepository.vehiclesReady.collectAsState()
+
     NavHost(
         navController = navController,
         startDestination = Screen.Splash.route
@@ -91,16 +104,7 @@ fun NavGraph(
 
         // 5. Records
         composable(route = Screen.Records.route) {
-            val context = LocalContext.current
-            val appOverlayRepository: AppOverlayRepository = remember {
-                EntryPointAccessors.fromApplication(
-                    context.applicationContext,
-                    AppOverlayRepositoryEntryPoint::class.java
-                ).appOverlayRepository()
-            }
-            val vehiclesReady by appOverlayRepository.vehiclesReady.collectAsState()
-
-            // Renderizar siempre para que el ViewModel se cree, pero solo mostrar contenido cuando vehiclesReady
+            // Usamos la variable 'vehiclesReady' que ya calculamos arriba
             if (vehiclesReady) {
                 RecordsHistoryScreen(navController = navController)
             }
@@ -108,16 +112,6 @@ fun NavGraph(
 
         // 6. Statistics
         composable(route = Screen.Statistics.route) {
-            val context = LocalContext.current
-            val appOverlayRepository: AppOverlayRepository = remember {
-                EntryPointAccessors.fromApplication(
-                    context.applicationContext,
-                    AppOverlayRepositoryEntryPoint::class.java
-                ).appOverlayRepository()
-            }
-            val vehiclesReady by appOverlayRepository.vehiclesReady.collectAsState()
-
-            // Renderizar siempre para que el ViewModel se cree, pero solo mostrar contenido cuando vehiclesReady
             if (vehiclesReady) {
                 StatisticsScreen(navController = navController)
             }
@@ -125,19 +119,6 @@ fun NavGraph(
 
         // 7. Routes (Home)
         composable(route = Screen.Routes.route) {
-            val context = LocalContext.current
-            val appOverlayRepository: AppOverlayRepository = remember {
-                EntryPointAccessors.fromApplication(
-                    context.applicationContext,
-                    AppOverlayRepositoryEntryPoint::class.java
-                ).appOverlayRepository()
-            }
-            val vehiclesReady by appOverlayRepository.vehiclesReady.collectAsState()
-
-            // Solo renderizar cuando vehiclesReady para evitar el flash del nombre "crudo"
-            // El ViewModel se creará cuando se renderice la pantalla y cargará los vehículos
-            // Si vehiclesReady es false, el ViewModel no se crea, pero esto está bien porque
-            // vehiclesReady se marca como true en SplashViewModel o cuando se cargan los vehículos
             if (vehiclesReady) {
                 RoutesScreen(navController = navController)
             }
@@ -154,17 +135,19 @@ fun NavGraph(
             AchievementsScreen(navController = navController)
         }
 
-        // 10. Profile (con argumentos)
+        // 10. Profile (UNIFICADO)
+        // Este bloque maneja TANTO la navegación normal como la que lleva parámetros
         composable(
             route = "${Screen.Profile.route}?openAddVehicle={openAddVehicle}",
             arguments = listOf(
-                androidx.navigation.navArgument("openAddVehicle") {
-                    type = androidx.navigation.NavType.BoolType
-                    defaultValue = false
+                navArgument("openAddVehicle") {
+                    type = NavType.BoolType
+                    defaultValue = false // Esto hace que el argumento sea opcional
                 }
             )
         ) { backStackEntry ->
             val openAddVehicle = backStackEntry.arguments?.getBoolean("openAddVehicle") ?: false
+            
             ProfileScreen(
                 navController = navController,
                 currentThemeMode = currentThemeMode,
@@ -172,18 +155,6 @@ fun NavGraph(
                 dynamicColorEnabled = dynamicColorEnabled,
                 onDynamicColorChange = onDynamicColorChange,
                 openAddVehicleDialog = openAddVehicle
-            )
-        }
-
-        // 11. Profile (sin argumentos - compatibilidad)
-        composable(route = Screen.Profile.route) {
-            ProfileScreen(
-                navController = navController,
-                currentThemeMode = currentThemeMode,
-                onThemeModeChange = onThemeModeChange,
-                dynamicColorEnabled = dynamicColorEnabled,
-                onDynamicColorChange = onDynamicColorChange,
-                openAddVehicleDialog = false
             )
         }
 
@@ -218,15 +189,13 @@ fun NavGraph(
 
         // 15. Tracking
         composable(route = Screen.Tracking.route) {
-            // TrackingScreen siempre debe existir en el árbol de UI mientras estemos en esta ruta
-            // El overlay se maneja a nivel global y debe tapar la pantalla, no destruirla
             TrackingScreen(
                 onNavigateBack = {
                     navController.popBackStack()
                 },
                 onNavigateToRoutes = {
                     navController.navigate(Screen.Routes.route) {
-                        // Limpiar historial hasta Routes
+                        // Limpiar historial hasta Routes para evitar volver atrás al tracking
                         popUpTo(Screen.Routes.route) {
                             inclusive = true
                             saveState = false

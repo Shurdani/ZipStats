@@ -42,7 +42,6 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.PrimaryScrollableTabRow
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Tab
-import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -78,6 +77,7 @@ import com.zipstats.app.ui.components.ZipStatsText
 import com.zipstats.app.ui.onboarding.OnboardingDialog
 import com.zipstats.app.ui.theme.DialogShape
 import com.zipstats.app.utils.DateUtils
+import com.zipstats.app.utils.LocationUtils
 import dagger.hilt.android.EntryPointAccessors
 import kotlinx.coroutines.launch
 import java.time.Instant
@@ -265,8 +265,10 @@ fun RecordsHistoryScreen(
             TopAppBar(
                 title = {
                     ZipStatsText(
-                        "Historial de Viajes",
-                        fontWeight = FontWeight.Bold
+                        text = "Historial de Viajes",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1
                     )
                 },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
@@ -409,14 +411,14 @@ fun RecordsHistoryScreen(
                                     Column(horizontalAlignment = Alignment.End) {
                                         // El dato "héroe": La distancia recorrida
                                         ZipStatsText(
-                                            text = String.format("+%.1f km", record.diferencia),
+                                            text = "+${LocationUtils.formatNumberSpanish(record.diferencia)} km",
                                             style = MaterialTheme.typography.titleMedium,
                                             color = MaterialTheme.colorScheme.primary,
                                             fontWeight = FontWeight.Bold
                                         )
                                         // El metadato: Total acumulado
                                         ZipStatsText(
-                                            text = String.format("Total: %.1f km", record.kilometraje),
+                                            text = "Total: ${LocationUtils.formatNumberSpanish(record.kilometraje)} km",
                                             style = MaterialTheme.typography.labelSmall,
                                             color = MaterialTheme.colorScheme.outline
                                         )
@@ -508,7 +510,7 @@ fun NewRecordBottomSheet(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             // CABECERA
-            Text(
+            ZipStatsText(
                 text = "Nuevo registro",
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold,
@@ -527,7 +529,7 @@ fun NewRecordBottomSheet(
                     value = userScooters.find { it.nombre == selectedScooter }
                         ?.let { "${it.modelo} (${it.nombre})" } ?: "",
                     onValueChange = {},
-                    label = { Text("Vehículo") },
+                    label = { ZipStatsText("Vehículo") },
                     readOnly = true,
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isVehicleDropdownExpanded) },
                     modifier = Modifier
@@ -544,7 +546,7 @@ fun NewRecordBottomSheet(
                 ) {
                     userScooters.forEach { scooter ->
                         DropdownMenuItem(
-                            text = { Text("${scooter.modelo} (${scooter.nombre})") },
+                            text = { ZipStatsText("${scooter.modelo} (${scooter.nombre})") },
                             onClick = {
                                 selectedScooter = scooter.nombre
                                 isVehicleDropdownExpanded = false
@@ -563,8 +565,8 @@ fun NewRecordBottomSheet(
                         kilometraje = it
                         errorMessage = null
                     },
-                    label = { Text("Kilometraje actual") },
-                    placeholder = { Text("Ej. 1250.5") },
+                    label = { ZipStatsText("Kilometraje actual") },
+                    placeholder = { ZipStatsText("Ej. 1250.5") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
@@ -572,7 +574,7 @@ fun NewRecordBottomSheet(
                     supportingText = {
                         // Aquí mostramos el kilometraje anterior de forma elegante
                         if (previousMileage != null) {
-                            Text(
+                            ZipStatsText(
                                 text = "Anterior: $previousMileage km",
                                 color = MaterialTheme.colorScheme.primary
                             )
@@ -596,7 +598,7 @@ fun NewRecordBottomSheet(
                 OutlinedTextField(
                     value = DateUtils.formatForDisplay(selectedDate),
                     onValueChange = {},
-                    label = { Text("Fecha") },
+                    label = { ZipStatsText("Fecha") },
                     readOnly = true,
                     trailingIcon = {
                         IconButton(onClick = { showDatePicker = true }) {
@@ -617,7 +619,7 @@ fun NewRecordBottomSheet(
 
             // MENSAJE DE ERROR
             if (errorMessage != null) {
-                Text(
+                ZipStatsText(
                     text = errorMessage!!,
                     color = MaterialTheme.colorScheme.error,
                     style = MaterialTheme.typography.bodySmall,
@@ -651,7 +653,7 @@ fun NewRecordBottomSheet(
                     .height(56.dp), // Altura cómoda para el pulgar
                 shape = MaterialTheme.shapes.large
             ) {
-                Text("Guardar Registro", fontSize = 16.sp)
+                ZipStatsText("Guardar Registro", fontSize = 16.sp)
             }
         }
     }

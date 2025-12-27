@@ -30,6 +30,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.zipstats.app.utils.LocationUtils
 
 /**
  * Tarjeta reutilizable que muestra un resumen de la ruta con:
@@ -103,7 +104,7 @@ fun RouteSummaryCard(
                 Box(modifier = Modifier.weight(1f)) {
                     StatItemModern(
                         icon = Icons.Default.Straighten,
-                        value = String.format("%.1f km", distanceKm),
+                        value = "${LocationUtils.formatNumberSpanish(distanceKm.toDouble())} km",
                         label = "Distancia"
                     )
                 }
@@ -117,7 +118,7 @@ fun RouteSummaryCard(
                 Box(modifier = Modifier.weight(1f)) {
                     StatItemModern(
                         icon = Icons.Default.Speed,
-                        value = String.format("%.1f km/h", avgSpeed),
+                        value = "${LocationUtils.formatNumberSpanish(avgSpeed.toDouble())} km/h",
                         label = "Vel. Media"
                     )
                 }
@@ -207,11 +208,7 @@ private fun StatItemModern(
 private fun formatTemperature(temperature: Double, decimals: Int = 1): String {
     // Si la temperatura es exactamente 0 o muy cercana a 0, mostrar sin signo menos
     val absTemp = kotlin.math.abs(temperature)
-    val formatted = if (decimals == 0) {
-        String.format("%.0f", absTemp)
-    } else {
-        String.format("%.${decimals}f", absTemp)
-    }
+    val formatted = LocationUtils.formatNumberSpanish(absTemp, decimals)
     
     // Si la temperatura original es negativa (y no es 0), añadir el signo menos
     return if (temperature < 0 && absTemp > 0.001) {

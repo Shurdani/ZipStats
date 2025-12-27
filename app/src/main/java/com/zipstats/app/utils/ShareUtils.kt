@@ -151,11 +151,11 @@ object ShareUtils {
 
         // Configurar métricas
         cardView.findViewById<android.widget.TextView>(R.id.distanceValue).text =
-            String.format("%.1f km", route.totalDistance)
+            "${LocationUtils.formatNumberSpanish(route.totalDistance)} km"
         cardView.findViewById<android.widget.TextView>(R.id.timeValue).text =
             formatDurationWithUnits(route.totalDuration)
         cardView.findViewById<android.widget.TextView>(R.id.speedValue).text =
-            String.format("%.1f km/h", route.averageSpeed)
+            "${LocationUtils.formatNumberSpanish(route.averageSpeed)} km/h"
 
         // Configurar clima si está disponible
         if (route.weatherEmoji != null && route.weatherTemperature != null) {
@@ -163,7 +163,7 @@ object ShareUtils {
             cardView.findViewById<android.widget.ImageView>(R.id.weatherIcon).setImageResource(weatherIconRes)
             cardView.findViewById<android.widget.ImageView>(R.id.weatherIcon).setColorFilter(android.graphics.Color.WHITE)
             cardView.findViewById<android.widget.TextView>(R.id.weatherTemp).text =
-                String.format("%.0f°C", route.weatherTemperature)
+                "${LocationUtils.formatNumberSpanish(route.weatherTemperature, 0)}°C"
             cardView.findViewById<android.widget.LinearLayout>(R.id.weatherContainer).visibility = android.view.View.VISIBLE
         } else {
             cardView.findViewById<android.widget.LinearLayout>(R.id.weatherContainer).visibility = android.view.View.GONE

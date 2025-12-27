@@ -114,7 +114,14 @@ fun ScootersManagementScreen(
         modifier = Modifier.fillMaxSize(),
         topBar = {
             TopAppBar(
-                title = { ZipStatsText("Mis Vehículos") },
+                title = { 
+                    ZipStatsText(
+                        text = "Mis Vehículos",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1
+                    ) 
+                },
                 navigationIcon = {
                     IconButton(onClick = { navController.navigateUp() }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Volver")
@@ -243,7 +250,7 @@ fun ScooterManagementItem(
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                     )
                     ZipStatsText(
-                        text = "${String.format("%.1f", scooterWithStats.totalKm)} km",
+                        text = "${com.zipstats.app.utils.LocationUtils.formatNumberSpanish(scooterWithStats.totalKm)} km",
                         style = MaterialTheme.typography.bodyLarge,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.primary

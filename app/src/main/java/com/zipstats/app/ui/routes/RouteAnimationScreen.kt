@@ -34,7 +34,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -54,6 +53,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
+import com.zipstats.app.ui.components.ZipStatsText
 import androidx.compose.ui.zIndex
 import androidx.core.content.res.ResourcesCompat
 import androidx.core.graphics.drawable.toBitmap
@@ -680,10 +680,11 @@ fun AnimationControlBar(
                 onClick = onChangeSpeed,
                 colors = ButtonDefaults.textButtonColors(contentColor = Color.White)
             ) {
-                Text(
+                ZipStatsText(
                     text = "${playbackSpeed.toInt()}x",
                     style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
+                    fontWeight = FontWeight.Bold,
+                    autoResize = true // 🔥 Métrica numérica, reduce si no cabe
                 )
             }
 

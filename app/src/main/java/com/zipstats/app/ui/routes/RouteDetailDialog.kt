@@ -54,7 +54,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -73,7 +72,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -93,6 +91,7 @@ import com.zipstats.app.ui.components.RouteSummaryCard
 import com.zipstats.app.ui.components.ZipStatsText
 import com.zipstats.app.utils.CityUtils
 import com.zipstats.app.utils.DateUtils
+import com.zipstats.app.utils.LocationUtils
 import com.zipstats.app.utils.ShareUtils
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -283,8 +282,7 @@ fun RouteDetailDialog(
                         text = title,
                         style = MaterialTheme.typography.headlineSmall,
                         fontWeight = FontWeight.Bold,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis
+                        maxLines = 2
                     )
                     
                     Spacer(modifier = Modifier.height(4.dp))
@@ -363,7 +361,7 @@ fun RouteDetailDialog(
                         ) {
                             Icon(Icons.Default.PlayArrow, null)
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("Ver Animación")
+                            ZipStatsText("Ver Animación")
                         }
 
                         // Compartir (Pequeño)
@@ -544,7 +542,7 @@ fun CleanMetricsRow(route: Route, onWeatherClick: () -> Unit) {
     ) {
         // Distancia
         MetricColumn(
-            value = String.format("%.1f", route.totalDistance),
+            value = LocationUtils.formatNumberSpanish(route.totalDistance),
             unit = "km",
             label = "Distancia",
             color = MaterialTheme.colorScheme.primary
@@ -700,13 +698,13 @@ fun AdvancedDetailsSection(route: Route, expanded: Boolean, onToggle: () -> Unit
         // Contenido
         if (expanded) {
             Column(modifier = Modifier.padding(top = 8.dp, bottom = 16.dp)) {
-                AdvancedStatRow("Velocidad Real", String.format("%.1f km/h", route.averageMovingSpeed), true)
+                AdvancedStatRow("Velocidad Real", "${LocationUtils.formatNumberSpanish(route.averageMovingSpeed)} km/h", true)
                 Spacer(modifier = Modifier.height(12.dp))
-                AdvancedStatRow("Velocidad Máxima", String.format("%.1f km/h", route.maxSpeed), false)
+                AdvancedStatRow("Velocidad Máxima", "${LocationUtils.formatNumberSpanish(route.maxSpeed)} km/h", false)
                 Spacer(modifier = Modifier.height(12.dp))
-                AdvancedStatRow("Velocidad Media", String.format("%.1f km/h", route.averageSpeed), false)
+                AdvancedStatRow("Velocidad Media", "${LocationUtils.formatNumberSpanish(route.averageSpeed)} km/h", false)
                 Spacer(modifier = Modifier.height(12.dp))
-                AdvancedStatRow("En Movimiento (${String.format("%.0f%%", route.movingPercentage)})", formatDuration(route.movingTime), false)
+                AdvancedStatRow("En Movimiento (${LocationUtils.formatNumberSpanish(route.movingPercentage.toDouble(), 0)}%)", formatDuration(route.movingTime), false)
                 Spacer(modifier = Modifier.height(12.dp))
                 AdvancedStatRow("Hora de Inicio", formatTime(route.startTime), false)
                 Spacer(modifier = Modifier.height(12.dp))
@@ -806,8 +804,7 @@ private fun RouteTitle(route: Route) {
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         textAlign = TextAlign.Center,
         modifier = Modifier.fillMaxWidth(),
-        maxLines = 2,
-        overflow = TextOverflow.Ellipsis
+        maxLines = 2
     )
 }
 
@@ -845,7 +842,7 @@ private fun StatsChips(route: Route, onWeatherClick: () -> Unit) {
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceEvenly
     ) {
-        StatChip(value = String.format("%.1f km", route.totalDistance), label = "Distancia", modifier = Modifier.weight(1f))
+        StatChip(value = "${LocationUtils.formatNumberSpanish(route.totalDistance)} km", label = "Distancia", modifier = Modifier.weight(1f))
         StatChip(value = formatDurationWithUnits(route.totalDuration), label = "Duración", modifier = Modifier.weight(1f))
         StatChip(
             value = if (isLoadingWeather) "..." else weatherTemp,
@@ -928,13 +925,13 @@ private fun CollapsibleAdvancedDetails(route: Route, expanded: Boolean, onToggle
             if (expanded) {
                 HorizontalDivider()
                 Column(modifier = Modifier.padding(16.dp)) {
-                    AdvancedStatRow("Velocidad Real", String.format("%.1f km/h", route.averageMovingSpeed), true)
+                    AdvancedStatRow("Velocidad Real", "${LocationUtils.formatNumberSpanish(route.averageMovingSpeed)} km/h", true)
                     Spacer(modifier = Modifier.height(8.dp))
-                    AdvancedStatRow("Velocidad Máxima", String.format("%.1f km/h", route.maxSpeed), false)
+                    AdvancedStatRow("Velocidad Máxima", "${LocationUtils.formatNumberSpanish(route.maxSpeed)} km/h", false)
                     Spacer(modifier = Modifier.height(8.dp))
-                    AdvancedStatRow("Velocidad Media", String.format("%.1f km/h", route.averageSpeed), false)
+                    AdvancedStatRow("Velocidad Media", "${LocationUtils.formatNumberSpanish(route.averageSpeed)} km/h", false)
                     Spacer(modifier = Modifier.height(8.dp))
-                    AdvancedStatRow("En Movimiento (${String.format("%.0f%%", route.movingPercentage)})", formatDuration(route.movingTime), false)
+                    AdvancedStatRow("En Movimiento (${LocationUtils.formatNumberSpanish(route.movingPercentage.toDouble(), 0)}%)", formatDuration(route.movingTime), false)
                     Spacer(modifier = Modifier.height(8.dp))
                     AdvancedStatRow("Hora de Inicio", formatTime(route.startTime), false)
                     Spacer(modifier = Modifier.height(8.dp))
@@ -993,9 +990,41 @@ private fun WeatherInfoDialog(route: Route, onDismiss: () -> Unit) {
                     modifier = Modifier.padding(24.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
+                    // 🔥 JERARQUÍA DE BADGES (Calcular primero)
+                    // 1. Lluvia activa durante la ruta (prioridad máxima)
+                    val hadRain = route.weatherHadRain == true
+                    // 2. Calzada mojada (solo si NO hubo lluvia activa)
+                    // Si hay lluvia, NUNCA mostrar badge de calzada mojada
+                    val hasWetRoad = if (hadRain) false else checkWetRoadConditions(route)
+                    // 3. Condiciones extremas (complementario)
+                    val hasExtremeConditions = checkExtremeConditions(route)
+                    
                     // 1. HEADER (Icono + Temp)
+                    // 🔥 LÓGICA: Si hubo lluvia durante la ruta, icono y descripción DEBEN reflejar lluvia
+                    // No puede haber "soleado y despejado" si llovió durante la ruta
+                    val (effectiveEmoji, effectiveDescription) = if (hadRain) {
+                        // Si hay una descripción guardada en Firebase, usarla (es la fuente de verdad)
+                        val savedDescription = route.weatherDescription?.substringBefore("(")?.trim()
+                        if (!savedDescription.isNullOrBlank()) {
+                            // Usar la descripción guardada y el emoji guardado
+                            route.weatherEmoji to savedDescription
+                        } else {
+                            // Si no hay descripción guardada, calcular una basada en precipitación
+                            val precip = route.weatherMaxPrecipitation ?: 0.0
+                            val isDay = route.weatherIsDay ?: true
+                            // Si precipitación > 2mm, considerar lluvia fuerte, sino ligera
+                            val rainCode = if (precip > 2.0) 63 else 61 // 63 = lluvia moderada, 61 = lluvia ligera
+                            val emoji = WeatherRepository.getEmojiForWeather(rainCode, if (isDay) 1 else 0)
+                            val description = WeatherRepository.getDescriptionForWeather(rainCode, if (isDay) 1 else 0)
+                            emoji to description
+                        }
+                    } else {
+                        // Sin lluvia: usar icono y descripción originales del clima inicial
+                        route.weatherEmoji to (route.weatherDescription?.substringBefore("(")?.trim() ?: "Clima")
+                    }
+                    
                     Image(
-                        painter = painterResource(id = getWeatherIconResId(route.weatherEmoji, route.weatherIsDay ?: true)),
+                        painter = painterResource(id = getWeatherIconResId(effectiveEmoji, route.weatherIsDay ?: true)),
                         contentDescription = null,
                         modifier = Modifier.size(72.dp), // Un pelín más grande
                         colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.primary)
@@ -1004,7 +1033,7 @@ private fun WeatherInfoDialog(route: Route, onDismiss: () -> Unit) {
                     Spacer(modifier = Modifier.height(8.dp))
                     
                     ZipStatsText(
-                        text = route.weatherDescription?.substringBefore("(")?.trim() ?: "Clima",
+                        text = effectiveDescription,
                         style = MaterialTheme.typography.headlineSmall,
                         fontWeight = FontWeight.Bold,
                         textAlign = TextAlign.Center
@@ -1034,14 +1063,14 @@ private fun WeatherInfoDialog(route: Route, onDismiss: () -> Unit) {
                                 WeatherGridItem(
                                     icon = Icons.Default.WaterDrop,
                                     label = "Humedad",
-                                    value = "${it}%"
+                                    value = "$it%"
                                 )
                             }
                             route.weatherWindSpeed?.let {
                                 WeatherGridItem(
                                     icon = Icons.Default.Air,
                                     label = "Viento",
-                                    value = "${String.format("%.1f", it)} km/h"
+                                    value = "${LocationUtils.formatNumberSpanish(it)} km/h"
                                 )
                             }
                         }
@@ -1051,30 +1080,40 @@ private fun WeatherInfoDialog(route: Route, onDismiss: () -> Unit) {
                         // Columna Derecha
                         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                             // Lógica inteligente precipitación vs probabilidad
+                            // 🔒 REGLA: Si hay precipitación medida (> 0), mostrar precipitación
+                            // Si hay lluvia detectada pero sin precipitación medida, mostrar probabilidad
                             val precip = route.weatherMaxPrecipitation ?: 0.0
                             if (precip > 0.0) {
-                                WeatherGridItem(Icons.Default.Grain, "Lluvia", "${String.format("%.1f", precip)} mm")
+                                // Hay precipitación medida → mostrar precipitación
+                                WeatherGridItem(Icons.Default.Grain, "Lluvia", "${LocationUtils.formatNumberSpanish(precip)} mm")
+                            } else if (hadRain && route.weatherRainProbability != null) {
+                                // Lluvia detectada por condiciones pero sin precipitación medida → mostrar probabilidad
+                                WeatherGridItem(Icons.Default.Cloud, "Prob. Lluvia", "${route.weatherRainProbability}%")
+                            } else if (hadRain) {
+                                // Lluvia detectada pero sin datos de precipitación ni probabilidad → mostrar "Detectada"
+                                WeatherGridItem(Icons.Default.Grain, "Lluvia", "Detectada")
                             } else {
+                                // No hay lluvia → mostrar probabilidad (si está disponible)
                                 route.weatherRainProbability?.let {
                                     WeatherGridItem(Icons.Default.Cloud, "Prob. Lluvia", "$it%")
                                 }
                             }
                             
-                            // Índice UV (Solo si es de día) o Ráfagas
+                            // Índice UV (Solo si es de día Y tiene valor)
+                            // 🔒 REGLA: UV solo de día, no se muestra de noche
                             if (route.weatherIsDay && (route.weatherUvIndex ?: 0.0) > 0) {
-                                WeatherGridItem(Icons.Default.WbSunny, "Índice UV", String.format("%.0f", route.weatherUvIndex!!))
-                            } else {
-                                route.weatherWindGusts?.let {
-                                    WeatherGridItem(Icons.Default.Cyclone, "Ráfagas", "${String.format("%.1f", it)} km/h")
-                                }
+                                WeatherGridItem(Icons.Default.WbSunny, "Índice UV", LocationUtils.formatNumberSpanish(route.weatherUvIndex!!, 0))
+                            }
+                            
+                            // Ráfagas (siempre mostrar si hay datos, independientemente de UV)
+                            // 🔒 REGLA: Ráfagas no son excluyentes con UV, se muestran si hay datos
+                            route.weatherWindGusts?.let {
+                                WeatherGridItem(Icons.Default.Cyclone, "Ráfagas", "${LocationUtils.formatNumberSpanish(it)} km/h")
                             }
                         }
                     }
 
                     // 3. BADGE DE SEGURIDAD (Si aplica)
-                    val hasWetRoad = if (route.weatherHadRain == true) false else checkWetRoadConditions(route)
-                    val hadRain = route.weatherHadRain == true
-                    val hasExtremeConditions = checkExtremeConditions(route)
                     
                     if (hasWetRoad || hadRain || hasExtremeConditions) {
                         Spacer(modifier = Modifier.height(24.dp))
@@ -1378,11 +1417,7 @@ private fun formatDurationWithUnits(durationMs: Long): String {
 private fun formatTemperature(temperature: Double, decimals: Int = 1): String {
     // Si la temperatura es exactamente 0 o muy cercana a 0, mostrar sin signo menos
     val absTemp = kotlin.math.abs(temperature)
-    val formatted = if (decimals == 0) {
-        String.format("%.0f", absTemp)
-    } else {
-        String.format("%.${decimals}f", absTemp)
-    }
+    val formatted = LocationUtils.formatNumberSpanish(absTemp, decimals)
     
     // Si la temperatura original es negativa (y no es 0), añadir el signo menos
     return if (temperature < 0 && absTemp > 0.001) {

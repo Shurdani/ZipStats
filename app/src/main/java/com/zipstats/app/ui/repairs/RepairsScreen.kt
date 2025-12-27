@@ -134,12 +134,18 @@ fun RepairsScreen(
             TopAppBar(
                 title = {
                     Column {
-                        ZipStatsText("Mantenimiento", fontWeight = FontWeight.Bold)
+                        ZipStatsText(
+                            text = "Mantenimiento",
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1
+                        )
                         scooter?.let {
                             ZipStatsText(
                                 text = "${it.marca} ${it.modelo}",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                                maxLines = 1
                             )
                         }
                     }
@@ -646,7 +652,7 @@ fun RepairItemCard(
                                 )
                                 Spacer(modifier = Modifier.width(4.dp))
                                 ZipStatsText(
-                                    text = "${String.format("%.0f", km)} km",
+                                    text = "${com.zipstats.app.utils.LocationUtils.formatNumberSpanish(km, 0)} km",
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )

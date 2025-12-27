@@ -1,153 +1,120 @@
-[4.7.0] — 2024-12-25
-🌦️ Mejoras en la detección de lluvia y calzada mojada
-Corrección de falsos positivos
+# Changelog
+
+## [Versión Actual] - 2024
+
+### 🔧 Mejoras y Correcciones (Última Actualización)
+
+#### 🌍 Formato de Números en Español
+- **Formato Unificado**: Todos los números de la aplicación ahora usan formato español:
+  - Separador de miles: punto (.) → Ejemplo: 23.525
+  - Separador decimal: coma (,) → Ejemplo: 23.525,25
+- **Función Centralizada**: Nueva función `formatNumberSpanish()` en `LocationUtils.kt` para formateo consistente
+- **Archivos Actualizados**:
+  - Pantallas: RouteDetailDialog, RoutesScreen, StatisticsScreen, RecordsHistoryScreen, TrackingScreen, AchievementsScreen, RepairsScreen
+  - Componentes: RouteSummaryCard, ProfileScreen
+  - ViewModels: TrackingViewModel, RoutesViewModel
+  - Utilidades: ShareUtils, LocationUtils
+  - Perfil: ScooterDetailScreen, ScootersManagementScreen
+
+#### 🌧️ Mejoras en Diálogo de Clima
+- **Descripción de Lluvia**: Corregido para mostrar la descripción guardada en Firebase ("Lluvia") en lugar de calcular automáticamente
+- **Lógica de Precipitación**: Mejorada para mostrar probabilidad de lluvia cuando no hay precipitación medida pero hay lluvia detectada por condiciones
+- **Dirección del Viento**: Eliminada de la tarjeta del clima para evitar cortes de texto (solo se muestra velocidad)
+
+#### 📱 Mejoras de UI/UX
+- **Diálogo de Logros**: Título y descripción ahora permiten múltiples líneas para evitar cortes
+- **Tarjeta Comparativa**: Texto de comparación ahora se adapta y no se corta, mostrando siempre el período completo
+- **Tarjeta de Distancia Total**: Números ahora usan autoResize para ajustarse automáticamente sin cortarse
+
+#### 🐛 Correcciones de Tipos
+- Corregido error de tipo: `route.movingPercentage` (Float) convertido a Double para formateo
+
+---
+
+## [Versión Anterior] - 2024
+
+### ✨ Nuevas Funcionalidades
+
+#### 🎯 Sistema de Insights Dinámicos Aleatorios
+- **Tarjetas de Comparación Inteligentes**: Implementado un sistema que muestra métricas aleatorias en cada carga de la pantalla de estadísticas
+- **7 Métricas Disponibles**:
+  - 📏 **Distancia**: Comparación de kilómetros recorridos
+  - 🌱 **CO₂ Ahorrado**: Impacto ambiental en kilogramos de CO₂
+  - 🌳 **Árboles**: Equivalente en árboles salvados
+  - ⛽ **Gasolina**: Litros de combustible ahorrados
+  - 💧 **Rutas con Lluvia**: Kilómetros recorridos bajo condiciones de lluvia
+  - 🌊 **Calzada Mojada**: Kilómetros con calzada mojada (sin lluvia activa)
+  - 🌡️ **Clima Extremo**: Kilómetros en condiciones climáticas extremas
+
+#### 🎨 Rediseño de Tarjeta Comparativa
+- **Diseño Visual Mejorado**: Nueva tarjeta comparativa con:
+  - Icono circular con color temático según la métrica
+  - Comparación lado a lado (Actual vs Anterior)
+  - Barra visual de diferencia proporcional
+  - Badge de porcentaje con icono de tendencia
+  - Colores adaptados a Material 3 (tema claro/oscuro)
+
+#### 🏆 Mensajes Motivacionales
+- Mensajes personalizados para métricas aventureras: "¡Espíritu aventurero!"
+- Filtrado inteligente: Solo muestra métricas con datos válidos (>0.1 km)
+
+### 🔧 Mejoras y Correcciones
+
+#### 📊 Gestión de Filtros por Pestañas
+- **Lógica Mejorada**: Los filtros se ajustan automáticamente al cambiar de pestaña:
+  - Al cambiar a "Este Mes": Se limpia el filtro de solo año
+  - Al cambiar a "Este Año": Se mantiene el año pero se elimina el mes específico
+  - Al cambiar a "Todo": Se limpian todos los filtros
+
+#### 🎯 Cálculo de Métricas Climáticas
+- Integración con `RouteRepository` para acceder a datos de rutas
+- Cálculo automático de distancias con condiciones climáticas según período seleccionado
+- Detección inteligente de calzada mojada (considera día/noche, humedad, precipitación)
+
+### 🛠️ Cambios Técnicos
+
+#### ViewModel (`StatisticsViewModel.kt`)
+- Añadido `RouteRepository` como dependencia
+- Nuevo enum `InsightMetric` con 7 métricas configuradas
+- Nueva función `generateRandomInsight()` con lógica de filtrado inteligente
+- Funciones auxiliares:
+  - `calculateWeatherDistances()`: Calcula distancias con condiciones climáticas
+  - `checkWetRoadConditions()`: Verifica condiciones de calzada mojada
+- Nuevo StateFlow `weatherDistances` para almacenar métricas climáticas
+- Actualizado `loadStatistics()` para incluir cálculo de métricas climáticas
+
+#### UI (`StatisticsScreen.kt`)
+- Nuevo componente `SmartInsightCard`: Tarjeta visual para insights dinámicos
+- Actualizado `ComparisonCard`: Rediseño completo con mejor UX
+- Integración de `LaunchedEffect` para generar insights al cambiar período
+- Observación de `weatherDistances` StateFlow
+
+#### Modelos de Datos
+- Nuevo `RandomInsightData`: Estructura de datos para insights
+- Extendido `ComparisonData`: Añadidos campos para tipo de métrica, título, unidad e icono
+- Nuevo `Quintuple` helper class: Para retornar múltiples valores
+
+### 🎨 Mejoras de UI/UX
+
+- **Colores Temáticos**: Cada métrica tiene su color distintivo:
+  - Distancia: Azul (#2979FF)
+  - CO₂: Verde (#4CAF50)
+  - Árboles: Verde claro (#8BC34A)
+  - Gasolina: Naranja (#FFA726)
+  - Lluvia: Azul cian (#00B0FF)
+  - Calzada Mojada: Naranja/Ámbar (#FF9100)
+  - Clima Extremo: Rojo (#D50000)
 
-Verificación de cielo despejado
-Las condiciones probabilísticas (humedad + probabilidad de lluvia) solo se evalúan cuando el cielo no está despejado.
+- **Adaptación a Material 3**: Todos los colores se adaptan automáticamente a temas claro/oscuro
+- **Iconografía Mejorada**: Uso de iconos Material Icons para cada métrica
 
-Eliminación de detecciones erróneas
-Ya no se detecta lluvia en días soleados con alta humedad (caso habitual en zonas costeras como Barcelona).
+### 📝 Notas
 
-Lógica de detección refinada
+- Las métricas climáticas solo se muestran si hay datos válidos (>0.1 km)
+- El sistema selecciona aleatoriamente entre métricas válidas disponibles
+- Los cálculos de comparación histórica son aproximados para métricas climáticas (basados en tendencia general)
 
-Precipitación medida > 0.1 mm → detección directa.
+---
 
-Humedad ≥ 85% + probabilidad ≥ 30% → solo con cielo nublado.
+**Desarrollado con ❤️ para ZipStats**
 
-Humedad ≥ 88% + viento ≤ 10 km/h → solo con cielo nublado.
-
-Mejora de experiencia de usuario
-
-Precipitación con cielo despejado
-Si hay precipitación medida pero el cielo está despejado, se muestra “Calzada mojada” (amarillo) en lugar de “Lluvia detectada” (azul/rosa).
-
-Consistencia entre pantallas
-La lógica de detección es idéntica tanto en la pantalla de precarga como en los badges del diálogo de detalles.
-
-🗺️ Corrección del problema de carga del mapa
-Solución definitiva al “cold start”
-
-Gestión correcta del ciclo de vida del MapView (onStart() / onStop()).
-
-Activación de aceleración de hardware para mejorar rendimiento y evitar parpadeos.
-
-Eliminación de recargas innecesarias causadas por un bucle infinito.
-
-Carga inicial fiable desde la primera apertura de la app, sin necesidad de abrir pantalla completa.
-
-🎬 Modo inmersivo para grabación de vídeo
-Experiencia de pantalla completa
-
-Ocultación completa de la barra de estado y navegación durante la grabación.
-
-Detección automática de ventana, incluso dentro de Dialog.
-
-Ocultación de iconos del sistema (hora, batería, notificaciones).
-
-Restauración automática del sistema UI al cerrar el diálogo.
-
-Eliminación de paddings de barras del sistema para un layout preciso.
-
-Mejoras visuales
-
-Unificación del estilo del botón de velocidad (1x / 2x) con el botón de descarga.
-
-Mejora de contraste y legibilidad del control de velocidad.
-
-🚀 Migración a KSP (Kotlin Symbol Processing)
-Rendimiento y mantenimiento
-
-Migración completa de KAPT → KSP.
-
-Reducción significativa de tiempos de compilación.
-
-Eliminación del warning de deprecación de KAPT.
-
-Configuración modernizada con Version Catalogs.
-
-🌦️ Mejoras en el diálogo de información meteorológica
-Interfaz más clara y profesional
-
-Precipitación integrada en la lista principal de parámetros.
-
-Lógica de visualización inteligente:
-
-Si ha llovido → Precipitación: X mm.
-
-Si no ha llovido → Prob. de lluvia: X%.
-
-Nunca se muestran ambos valores simultáneamente.
-
-Eliminación de textos redundantes.
-
-Badge visual limpio: “Ruta realizada con lluvia”.
-
-🌦️ Sistema de preavisos meteorológicos mejorado
-Centro de alertas unificado
-
-Tarjeta inteligente única (PreRideSmartWarning) para todos los preavisos.
-
-Priorización clara:
-
-Lluvia / calzada mojada → prioridad alta.
-
-Condiciones extremas → complementarias.
-
-Colores diferenciados por gravedad (azul/rosa, naranja, rojo).
-
-Mensajes dinámicos según la condición detectada:
-
-Viento fuerte, ráfagas intensas, calor extremo, frío bajo cero, UV muy alto o tormenta.
-
-Preavisos visibles solo antes de iniciar la ruta (pantalla de precarga GPS).
-
-🏆 Badges de resumen de ruta
-Mejoras de visualización
-
-Soporte para múltiples badges simultáneos.
-
-Orden coherente con los preavisos.
-
-Paleta de colores unificada en toda la app.
-
-Destacado de condiciones extremas
-
-Parámetros críticos resaltados en los detalles:
-
-Texto en negrita.
-
-Color rojo.
-
-Indicador visual ⚠️ cuando corresponde.
-
-Sin duplicación de información entre badges y detalles.
-
-🔧 Correcciones y mejoras técnicas
-Limpieza y consistencia
-
-Eliminación de imports no utilizados.
-
-Corrección de verificaciones redundantes en repositorios.
-
-Simplificación de condiciones siempre verdaderas.
-
-Supresión controlada de deprecaciones necesarias.
-
-Manejo seguro de MediaPlayer (eliminado uso de !!).
-
-Formato de temperatura
-
-Función unificada formatTemperature() para evitar mostrar -0°C.
-
-Aplicación global del formato correcto en toda la app.
-
-Umbrales compartidos
-
-Funciones comunes checkActiveRain() y checkWetRoadConditions().
-
-Criterios idénticos entre preavisos y badges.
-
-Versiones anteriores
-
-Consulta el historial completo en los releases de GitHub:
-https://github.com/shurdani/Patinetatrack/releases

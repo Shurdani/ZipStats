@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -54,8 +55,8 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
-import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.VerticalDivider
@@ -91,6 +92,7 @@ import com.zipstats.app.ui.components.ZipStatsText
 import com.zipstats.app.ui.theme.DialogShape
 import kotlinx.coroutines.launch
 import java.time.LocalDate
+import kotlin.math.abs
 import kotlin.math.roundToInt
 
 
@@ -114,6 +116,10 @@ fun StatisticsScreen(
     val selectedYear by viewModel.selectedYear.collectAsState()
     val availableMonthYears by viewModel.availableMonthYears.collectAsState()
     val periodTitle by viewModel.selectedPeriodTitle.collectAsState()
+    // Recoge el estado del insight
+    val randomInsight by viewModel.insightState.collectAsState()
+    // Recoge las distancias con condiciones climáticas
+    val weatherDistances by viewModel.weatherDistances.collectAsState()
     val context = LocalContext.current
     var selectedPeriod by remember { mutableIntStateOf(0) }
     var showMonthYearPicker by remember { mutableStateOf(false) }
@@ -145,7 +151,12 @@ fun StatisticsScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    ZipStatsText("Estadísticas", fontWeight = FontWeight.Bold)
+                    ZipStatsText(
+                        text = "Estadísticas",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1
+                    )
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface,
@@ -168,7 +179,13 @@ fun StatisticsScreen(
             PrimaryTabRow(selectedTabIndex = selectedPeriod) {
                 Tab(
                     selected = selectedPeriod == 0,
-                    onClick = { selectedPeriod = 0 },
+                    onClick = { 
+                        selectedPeriod = 0
+                        // Si hay filtro de solo año (sin mes), limpiarlo al cambiar a "Este Mes"
+                        if (selectedYear != null && selectedMonth == null) {
+                            viewModel.clearSelectedPeriod()
+                        }
+                    },
                     text = {
                         ZipStatsText(
                             "Este Mes",
@@ -179,7 +196,13 @@ fun StatisticsScreen(
                 )
                 Tab(
                     selected = selectedPeriod == 1,
-                    onClick = { selectedPeriod = 1 },
+                    onClick = { 
+                        selectedPeriod = 1
+                        // Si hay filtro de mes, limpiar el mes pero mantener el año si existe
+                        if (selectedMonth != null) {
+                            viewModel.setSelectedPeriod(null, selectedYear)
+                        }
+                    },
                     text = {
                         ZipStatsText(
                             "Este Año",
@@ -190,7 +213,11 @@ fun StatisticsScreen(
                 )
                 Tab(
                     selected = selectedPeriod == 2,
-                    onClick = { selectedPeriod = 2 },
+                    onClick = { 
+                        selectedPeriod = 2
+                        // Al cambiar a "Todo", limpiar todos los filtros
+                        viewModel.clearSelectedPeriod()
+                    },
                     text = {
                         ZipStatsText(
                             "Todo",
@@ -227,7 +254,7 @@ fun StatisticsScreen(
                     FilterChip(
                         selected = isFilterActive,
                         onClick = { showMonthYearPicker = true },
-                        label = { Text(filterLabel) },
+                        label = { ZipStatsText(filterLabel) },
                         leadingIcon = {
                             if (isFilterActive) {
                                 Icon(
@@ -341,6 +368,25 @@ fun StatisticsScreen(
                             )
                         }
 
+                        // TRIGGER PARA GENERAR INSIGHT
+                        // Se ejecuta cada vez que 'displayData' cambia (al cambiar de mes/año)
+                        LaunchedEffect(displayData, weatherDistances) {
+                            val periodLabel = when (selectedPeriod) {
+                                0 -> "Mes anterior" // Mensual
+                                1 -> "Año anterior" // Anual
+                                else -> "Histórico"
+                            }
+                            // Llamamos al ViewModel para que calcule una nueva tarjeta aleatoria
+                            viewModel.generateRandomInsight(
+                                currentDistanceKm = displayData.totalDistance,
+                                comparison = displayData.comparison,
+                                periodName = periodLabel,
+                                rainKm = weatherDistances.first,
+                                wetRoadKm = weatherDistances.second,
+                                extremeKm = weatherDistances.third
+                            )
+                        }
+
                         Column(
                             modifier = Modifier
                                 .fillMaxSize()
@@ -382,12 +428,21 @@ fun StatisticsScreen(
                                 }
                             )
 
-                            // 3. Tarjeta de Comparación (si existe)
-                            displayData.comparison?.let { comparison ->
-                                ComparisonCard(
-                                    horizontalPadding = 16.dp,
-                                    comparison = comparison
-                                )
+                            // 3. >>> TARJETA DE INSIGHT ALEATORIO <<<
+                            // Si el ViewModel ya generó el insight aleatorio, lo mostramos
+                            if (displayData.comparison != null) {
+                                if (randomInsight != null) {
+                                    SmartInsightCard(
+                                        data = randomInsight!!,
+                                        horizontalPadding = 16.dp
+                                    )
+                                } else {
+                                    // Fallback: Si aún carga, mostramos la clásica
+                                    ComparisonCard(
+                                        horizontalPadding = 16.dp,
+                                        comparison = displayData.comparison!!
+                                    )
+                                }
                             }
 
                             // 4. Tarjeta "Tu Próximo Logro" (Rediseñada)
@@ -607,14 +662,14 @@ fun SummaryStatsCard(
                 horizontalArrangement = Arrangement.SpaceEvenly
             ) {
                 StatMetric(
-                    value = String.format("%.1f", periodData.totalDistance),
+                    value = formatNumberSpanish(periodData.totalDistance),
                     unit = "km",
                     label = "Total",
                     icon = Icons.AutoMirrored.Filled.TrendingUp,
                     modifier = Modifier.weight(1f)
                 )
                 StatMetricWithDrawable(
-                    value = String.format("%.1f", periodData.averageDistance),
+                    value = formatNumberSpanish(periodData.averageDistance),
                     unit = "km",
                     label = "Promedio",
                     iconPainter = painterResource(id = R.drawable.distancia),
@@ -622,7 +677,7 @@ fun SummaryStatsCard(
                 )
                 if (showMaxDistance) {
                     StatMetric(
-                        value = String.format("%.1f", periodData.maxDistance),
+                        value = formatNumberSpanish(periodData.maxDistance),
                         unit = "km",
                         label = "Máximo",
                         icon = Icons.Filled.BarChart,
@@ -730,67 +785,373 @@ fun ComparisonCard(
     }
 
     val colorScheme = MaterialTheme.colorScheme
-    // Usamos colores semánticos más suaves - ErrorContainer es un rosa pastel suave
-    val containerColor = if (comparison.isPositive) {
-        colorScheme.tertiaryContainer.copy(alpha = 0.6f)
+    
+    // Colores adaptados a Material 3
+    val accentColor = if (comparison.isPositive) {
+        colorScheme.primary
     } else {
-        colorScheme.errorContainer.copy(alpha = 0.5f) // Más suave para no asustar
+        colorScheme.error
     }
-    val contentColor = if (comparison.isPositive) {
-        colorScheme.onTertiaryContainer
+    
+    val accentContainerColor = if (comparison.isPositive) {
+        colorScheme.primaryContainer
     } else {
-        colorScheme.onErrorContainer.copy(alpha = 0.9f) // Texto más suave
+        colorScheme.errorContainer
     }
-    val iconColor = if (comparison.isPositive) {
-        colorScheme.tertiary
+    
+    val onAccentColor = if (comparison.isPositive) {
+        colorScheme.onPrimaryContainer
     } else {
-        colorScheme.error.copy(alpha = 0.8f) // Icono menos agresivo
+        colorScheme.onErrorContainer
+    }
+    
+    // Color de fondo suave
+    val backgroundColor = if (comparison.isPositive) {
+        colorScheme.primaryContainer.copy(alpha = 0.3f)
+    } else {
+        colorScheme.errorContainer.copy(alpha = 0.2f)
     }
 
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
-            containerColor = containerColor,
-            contentColor = contentColor
+            containerColor = backgroundColor
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         shape = RoundedCornerShape(16.dp)
     ) {
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = horizontalPadding, vertical = 16.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+                .padding(horizontal = horizontalPadding, vertical = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Column(modifier = Modifier.weight(1f)) {
-                ZipStatsText(
-                    text = "Comparación con $comparisonText",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = contentColor
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                ZipStatsText(
-                    text = if (comparison.isPositive) "Mejor rendimiento" else "Menos rendimiento",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = contentColor.copy(alpha = 0.8f)
-                )
+            // Título con icono de métrica
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    // Icono de la métrica (emoji)
+                    ZipStatsText(
+                        text = comparison.icon,
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontSize = 28.sp
+                    )
+                    ZipStatsText(
+                        text = comparison.title.ifEmpty { "Comparación con $comparisonText" },
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 2
+                    )
+                }
+                
+                // Badge con porcentaje
+                Box(
+                    modifier = Modifier
+                        .background(
+                            accentContainerColor,
+                            RoundedCornerShape(12.dp)
+                        )
+                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Icon(
+                            imageVector = if (comparison.isPositive) 
+                                Icons.AutoMirrored.Filled.TrendingUp 
+                            else 
+                                Icons.AutoMirrored.Filled.TrendingDown,
+                            contentDescription = null,
+                            tint = accentColor,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        ZipStatsText(
+                            text = "${if (comparison.isPositive) "+" else ""}${comparison.percentageChange.roundToInt()}%",
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = onAccentColor
+                        )
+                    }
+                }
             }
 
-            Column(horizontalAlignment = Alignment.End) {
-                Icon(
-                    imageVector = if (comparison.isPositive) Icons.AutoMirrored.Filled.TrendingUp else Icons.AutoMirrored.Filled.TrendingDown,
-                    contentDescription = null,
-                    tint = iconColor,
-                    modifier = Modifier.size(32.dp)
+            // Comparación visual: Actual vs Anterior
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                // Columna Actual
+                ComparisonValueColumn(
+                    label = "Actual",
+                    value = formatNumberSpanish(comparison.currentValue),
+                    unit = comparison.unit.ifEmpty { "km" },
+                    isHighlighted = true,
+                    accentColor = accentColor,
+                    accentContainerColor = accentContainerColor,
+                    modifier = Modifier.weight(1f)
+                )
+                
+                // Divisor vertical
+                VerticalDivider(
+                    modifier = Modifier.height(80.dp),
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
+                )
+                
+                // Columna Anterior
+                ComparisonValueColumn(
+                    label = "Anterior",
+                    value = formatNumberSpanish(comparison.previousValue),
+                    unit = comparison.unit.ifEmpty { "km" },
+                    isHighlighted = false,
+                    accentColor = accentColor,
+                    accentContainerColor = accentContainerColor,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+            
+            // Barra de diferencia visual
+            val maxValue = maxOf(comparison.currentValue, comparison.previousValue)
+            val currentRatio = if (maxValue > 0) comparison.currentValue / maxValue else 0.0
+            val previousRatio = if (maxValue > 0) comparison.previousValue / maxValue else 0.0
+            
+            Column(
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                ZipStatsText(
+                    text = "Diferencia visual",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontWeight = FontWeight.Medium
+                )
+                
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(8.dp)
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                ) {
+                    // Barra del valor anterior (gris)
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(previousRatio.toFloat())
+                            .fillMaxHeight()
+                            .background(
+                                MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+                                RoundedCornerShape(4.dp)
+                            )
+                    )
+                    
+                    // Barra del valor actual (color destacado)
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(currentRatio.toFloat())
+                            .fillMaxHeight()
+                            .background(
+                                accentColor.copy(alpha = 0.7f),
+                                RoundedCornerShape(4.dp)
+                            )
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ComparisonValueColumn(
+    label: String,
+    value: String,
+    unit: String,
+    isHighlighted: Boolean,
+    accentColor: Color,
+    accentContainerColor: Color,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier,
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        ZipStatsText(
+            text = label,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontWeight = if (isHighlighted) FontWeight.Bold else FontWeight.Normal
+        )
+        
+        if (isHighlighted) {
+            Box(
+                modifier = Modifier
+                    .background(
+                        accentContainerColor,
+                        RoundedCornerShape(8.dp)
+                    )
+                    .padding(horizontal = 12.dp, vertical = 8.dp)
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    ZipStatsText(
+                        text = value,
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = accentColor
+                    )
+                    ZipStatsText(
+                        text = unit,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        } else {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
+                ZipStatsText(
+                    text = value,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface
                 )
                 ZipStatsText(
-                    text = "${if (comparison.isPositive) "+" else ""}${comparison.percentageChange.roundToInt()}%",
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Black, // Extra negrita
-                    color = iconColor
+                    text = unit,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+            }
+        }
+    }
+}
+
+@Composable
+fun SmartInsightCard(
+    data: RandomInsightData,
+    horizontalPadding: androidx.compose.ui.unit.Dp = 16.dp
+) {
+    val themeColor = data.metric.color
+    // Fondo muy suave basado en el color de la métrica
+    val containerColor = themeColor.copy(alpha = 0.12f) 
+    
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = containerColor),
+        shape = RoundedCornerShape(16.dp),
+        elevation = CardDefaults.cardElevation(0.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = horizontalPadding, vertical = 20.dp)
+        ) {
+            // HEADER: Icono circular y Título
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(42.dp)
+                        .background(themeColor.copy(alpha = 0.2f), CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = data.metric.icon,
+                        contentDescription = null,
+                        tint = themeColor,
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
+                
+                Spacer(modifier = Modifier.width(12.dp))
+                
+                Column {
+                    ZipStatsText(
+                        text = data.metric.label, // Ej: "Gasolina"
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    ZipStatsText(
+                        text = data.periodLabel, // Ej: "vs Mes anterior"
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // DATOS: Valor grande y Porcentaje
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.Bottom
+            ) {
+                // Columna Izquierda: Valor numérico grande
+                Column(modifier = Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.Bottom) {
+                        ZipStatsText(
+                            text = String.format("%.1f", data.currentValue), 
+                            style = MaterialTheme.typography.headlineMedium,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = themeColor // El número toma el color del tema
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        ZipStatsText(
+                            text = data.metric.unit, // Ej: "L"
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = themeColor.copy(alpha = 0.8f),
+                            modifier = Modifier.padding(bottom = 5.dp)
+                        )
+                    }
+                    
+                    // Texto diferencial (ej: "+2.4 L extra")
+                    val diff = abs(data.currentValue - data.previousValue)
+                    val diffFormatted = String.format("%.1f", diff)
+                    val diffText = if (data.isPositive) 
+                        "+$diffFormatted ${data.metric.unit} extra" 
+                    else 
+                        "$diffFormatted ${data.metric.unit} menos"
+
+                    ZipStatsText(
+                        text = diffText,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                    )
+                }
+
+                // Columna Derecha: Chip de Porcentaje
+                Surface(
+                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.6f),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = if (data.isPositive) Icons.AutoMirrored.Filled.TrendingUp else Icons.AutoMirrored.Filled.TrendingDown,
+                            contentDescription = null,
+                            tint = if (data.isPositive) Color(0xFF4CAF50) else MaterialTheme.colorScheme.error,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        ZipStatsText(
+                            text = "${data.percentageChange.roundToInt()}%",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = if (data.isPositive) Color(0xFF4CAF50) else MaterialTheme.colorScheme.error
+                        )
+                    }
+                }
             }
         }
     }
@@ -943,7 +1304,7 @@ fun MonthYearPickerDialog(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             // Título
-            Text(
+            ZipStatsText(
                 text = "Seleccionar Período",
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold,
@@ -967,7 +1328,7 @@ fun MonthYearPickerDialog(
                     },
                     onValueChange = {},
                     readOnly = true,
-                    label = { Text("Tipo de período") },
+                    label = { ZipStatsText("Tipo de período") },
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = showModeDropdown) },
                     modifier = Modifier
                         .fillMaxWidth()
@@ -983,14 +1344,14 @@ fun MonthYearPickerDialog(
                     onDismissRequest = { showModeDropdown = false }
                 ) {
                     DropdownMenuItem(
-                        text = { Text("Mes") },
+                        text = { ZipStatsText("Mes") },
                         onClick = {
                             selectedMode = SelectionMode.Month
                             showModeDropdown = false
                         }
                     )
                     DropdownMenuItem(
-                        text = { Text("Año") },
+                        text = { ZipStatsText("Año") },
                         onClick = {
                             selectedMode = SelectionMode.Year
                             showModeDropdown = false
@@ -1010,7 +1371,7 @@ fun MonthYearPickerDialog(
                         value = monthNames[selectedMonth - 1],
                         onValueChange = {},
                         readOnly = true,
-                        label = { Text("Mes") },
+                        label = { ZipStatsText("Mes") },
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = showMonthDropdown) },
                         modifier = Modifier
                             .fillMaxWidth()
@@ -1027,7 +1388,7 @@ fun MonthYearPickerDialog(
                     ) {
                         availableMonthsForYear.forEach { monthNumber ->
                             DropdownMenuItem(
-                                text = { Text(monthNames[monthNumber - 1]) },
+                                text = { ZipStatsText(monthNames[monthNumber - 1]) },
                                 onClick = {
                                     selectedMonth = monthNumber
                                     showMonthDropdown = false
@@ -1048,7 +1409,7 @@ fun MonthYearPickerDialog(
                     value = selectedYear.toString(),
                     onValueChange = {},
                     readOnly = true,
-                    label = { Text("Año") },
+                    label = { ZipStatsText("Año") },
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = showYearDropdown) },
                     modifier = Modifier
                         .fillMaxWidth()
@@ -1065,7 +1426,7 @@ fun MonthYearPickerDialog(
                 ) {
                     availableYears.forEach { year ->
                         DropdownMenuItem(
-                            text = { Text(year.toString()) },
+                            text = { ZipStatsText(year.toString()) },
                             onClick = {
                                 selectedYear = year
                                 showYearDropdown = false
@@ -1097,8 +1458,31 @@ fun MonthYearPickerDialog(
                 shape = MaterialTheme.shapes.large,
                 enabled = selectedMode != null
             ) {
-                Text("Aplicar", fontSize = 16.sp)
+                ZipStatsText("Aplicar", fontSize = 16.sp)
             }
+        }
+    }
+}
+
+/**
+ * Helper para formatear números en formato español
+ * Formato español: punto (.) para miles, coma (,) para decimales
+ * Ejemplo: 23.525,25
+ */
+private fun formatNumberSpanish(value: Double): String {
+    return try {
+        // Formatear con Locale español para obtener el formato correcto
+        val formatter = java.text.DecimalFormat("#,##0.0", java.text.DecimalFormatSymbols(java.util.Locale("es", "ES")))
+        val formatted = formatter.format(value)
+        formatted.removeSuffix(",0") // Quitar decimal si es ,0
+    } catch (e: Exception) {
+        // Fallback: formatear manualmente
+        val parts = String.format("%.1f", value).split(".")
+        if (parts.size == 2) {
+            val integerPart = parts[0].reversed().chunked(3).joinToString(".").reversed()
+            "$integerPart,${parts[1]}"
+        } else {
+            parts[0].reversed().chunked(3).joinToString(".").reversed()
         }
     }
 }

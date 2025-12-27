@@ -61,7 +61,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -115,7 +114,14 @@ fun AchievementsScreen(
         modifier = Modifier.fillMaxSize(),
         topBar = {
             TopAppBar(
-                title = { ZipStatsText("Logros", fontWeight = FontWeight.Bold) },
+                title = { 
+                    ZipStatsText(
+                        text = "Logros",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1
+                    ) 
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface, // Moderno (Surface)
                     titleContentColor = MaterialTheme.colorScheme.onSurface,
@@ -401,8 +407,7 @@ private fun AchievementGridCard(
                     fontWeight = FontWeight.Bold,
                     textAlign = TextAlign.Center,
                     color = textColor,
-                    maxLines = 2,
-                    softWrap = true
+                    maxLines = 2
                 )
                 Spacer(modifier = Modifier.height(4.dp))
 
@@ -488,7 +493,8 @@ fun AchievementDetailDialog(
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Bold,
                     textAlign = TextAlign.Center,
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = Int.MAX_VALUE
                 )
 
                 Spacer(modifier = Modifier.height(24.dp))
@@ -527,7 +533,8 @@ fun AchievementDetailDialog(
                     text = achievement.description,
                     style = MaterialTheme.typography.titleMedium,
                     textAlign = TextAlign.Center,
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = Int.MAX_VALUE
                 )
 
                 Spacer(modifier = Modifier.height(8.dp))
@@ -536,7 +543,7 @@ fun AchievementDetailDialog(
                 if (!achievement.isUnlocked) {
                     // FIX: Formatear a 1 decimal máximo
                     ZipStatsText(
-                        text = "Progreso: ${String.format("%.1f", achievement.progress)}%",
+                        text = "Progreso: ${com.zipstats.app.utils.LocationUtils.formatNumberSpanish(achievement.progress)}%",
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.secondary
                     )

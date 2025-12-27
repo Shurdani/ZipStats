@@ -82,6 +82,7 @@ import com.zipstats.app.ui.components.DialogConfirmButton
 import com.zipstats.app.ui.components.DialogDeleteButton
 import com.zipstats.app.ui.components.StandardDatePickerDialogWithValidation
 import com.zipstats.app.utils.DateUtils
+import com.zipstats.app.utils.LocationUtils
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.time.LocalDate
@@ -129,7 +130,14 @@ fun ScooterDetailScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { ZipStatsText("Detalles del Vehículo", fontWeight = FontWeight.Bold) },
+                title = { 
+                    ZipStatsText(
+                        text = "Detalles del Vehículo",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1
+                    ) 
+                },
                 navigationIcon = {
                     IconButton(onClick = { navController.navigateUp() }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Volver")
@@ -373,7 +381,7 @@ fun VehicleHeroCard(
                             modifier = Modifier.padding(bottom = 4.dp)
                         )
                         ZipStatsText(
-                            text = "${String.format("%.1f", scooter.kilometrajeActual ?: 0.0)} km",
+                            text = "${com.zipstats.app.utils.LocationUtils.formatNumberSpanish(scooter.kilometrajeActual ?: 0.0)} km",
                             style = MaterialTheme.typography.displaySmall,
                             fontWeight = FontWeight.ExtraBold,
                             color = MaterialTheme.colorScheme.onPrimaryContainer
@@ -489,7 +497,7 @@ fun UsageExplanationDialog(
         },
         text = {
             ZipStatsText(
-                text = "Este vehículo ($vehicleName) ha recorrido ${String.format("%.1f", vehicleKm)} km que representan un $usagePercentage% del total de $userName.",
+                text = "Este vehículo ($vehicleName) ha recorrido ${LocationUtils.formatNumberSpanish(vehicleKm)} km que representan un $usagePercentage% del total de $userName.",
                 style = MaterialTheme.typography.bodyMedium
             )
         },
@@ -652,7 +660,7 @@ fun MaintenanceSection(
                         )
                         Spacer(modifier = Modifier.height(2.dp))
                         ZipStatsText(
-                            text = "${DateUtils.formatForDisplay(lastRepair.date)} • ${String.format("%.0f", lastRepair.mileage ?: 0.0)} km",
+                            text = "${DateUtils.formatForDisplay(lastRepair.date)} • ${LocationUtils.formatNumberSpanish(lastRepair.mileage ?: 0.0, 0)} km",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.primary
                         )

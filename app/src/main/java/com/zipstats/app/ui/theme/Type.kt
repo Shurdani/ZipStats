@@ -1,49 +1,24 @@
 package com.zipstats.app.ui.theme
 
 import androidx.compose.material3.Typography
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.sp
 import com.zipstats.app.R
 
-/**
- * Función adaptativa para escalar tamaños de fuente según el fontScale del sistema.
- * Limita el escalado entre minScale y maxScale para mantener la legibilidad.
- * 
- * @param baseSp Tamaño base en sp
- * @param minScale Escala mínima (por defecto 0.9f = 90%)
- * @param maxScale Escala máxima (por defecto 1.15f = 115%)
- * @return TextUnit escalado y limitado
- */
-@Composable
-fun adaptiveSp(
-    baseSp: Float,
-    minScale: Float = 0.9f,
-    maxScale: Float = 1.15f
-): TextUnit {
-    val density = LocalDensity.current
-    val scale = density.fontScale.coerceIn(minScale, maxScale)
-    return (baseSp * scale).sp
-}
-
-// Familia de fuentes Montserrat
-// Nota: Solo tenemos light, regular y bold disponibles.
-// El sistema puede sintetizar Medium y SemiBold si es necesario.
+// Definición de la familia de fuentes
 val Montserrat = FontFamily(
     Font(R.font.montserrat_regular, FontWeight.Normal),
-    Font(R.font.montserrat_regular, FontWeight.Medium), // Mapeado a regular
-    Font(R.font.montserrat_regular, FontWeight.SemiBold), // Mapeado a regular (sintetizado)
+    Font(R.font.montserrat_regular, FontWeight.Medium), // Fallback a regular
+    Font(R.font.montserrat_regular, FontWeight.SemiBold), // Fallback a regular
     Font(R.font.montserrat_bold, FontWeight.Bold)
 )
 
 /**
- * Tipografías adaptativas de MaterialTheme usando Montserrat.
- * Los tamaños se escalan automáticamente con adaptiveSp() cuando se usan con ZipStatsText.
+ * Tipografías de MaterialTheme usando Montserrat.
+ * El escalado adaptativo y el comportamiento de overflow se manejan en ZipStatsText.
  */
 val ZipStatsTypography = Typography(
     displayLarge = TextStyle(

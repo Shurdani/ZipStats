@@ -20,6 +20,7 @@ import com.zipstats.app.repository.AppOverlayRepository
 import com.zipstats.app.repository.RecordRepository
 import com.zipstats.app.repository.RouteRepository
 import com.zipstats.app.repository.VehicleRepository
+import com.zipstats.app.utils.LocationUtils
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
@@ -223,7 +224,7 @@ class RoutesViewModel @Inject constructor(
                     kilometraje = newKilometraje,
                     fecha = formattedDate
                 ).onSuccess {
-                    _message.value = "Ruta añadida a registros: ${String.format("%.1f", route.totalDistance)} km"
+                    _message.value = "Ruta añadida a registros: ${LocationUtils.formatNumberSpanish(route.totalDistance)} km"
                 }.onFailure { e ->
                     _errorMessage.value = "Error al añadir a registros: ${e.message}"
                 }
@@ -308,10 +309,10 @@ class RoutesViewModel @Inject constructor(
                             🛴 Mi ruta en ${route.scooterName}
                             
                             📅 Fecha: $date
-                            📍 Distancia: ${String.format("%.1f", route.totalDistance)} km
+                            📍 Distancia: ${LocationUtils.formatNumberSpanish(route.totalDistance)} km
                             ⏱️ Duración: ${route.durationFormatted}
-                            ⚡ Velocidad media: ${String.format("%.1f", route.averageSpeed)} km/h
-                            🚀 Velocidad máxima: ${String.format("%.1f", route.maxSpeed)} km/h
+                            ⚡ Velocidad media: ${LocationUtils.formatNumberSpanish(route.averageSpeed)} km/h
+                            🚀 Velocidad máxima: ${LocationUtils.formatNumberSpanish(route.maxSpeed)} km/h
                             
                             #ZipStats
                         """.trimIndent()
@@ -437,10 +438,10 @@ class RoutesViewModel @Inject constructor(
                         🛴 Mi ruta en ${route.scooterName}
                         
                         📅 Fecha: $date
-                        📍 Distancia: ${String.format("%.1f", route.totalDistance)} km
+                        📍 Distancia: ${LocationUtils.formatNumberSpanish(route.totalDistance)} km
                         ⏱️ Duración: ${route.durationFormatted}
-                        ⚡ Velocidad media: ${String.format("%.1f", route.averageSpeed)} km/h
-                        🚀 Velocidad máxima: ${String.format("%.1f", route.maxSpeed)} km/h
+                        ⚡ Velocidad media: ${LocationUtils.formatNumberSpanish(route.averageSpeed)} km/h
+                        🚀 Velocidad máxima: ${LocationUtils.formatNumberSpanish(route.maxSpeed)} km/h
                         
                         #ZipStats
                     """.trimIndent()
@@ -766,15 +767,15 @@ class RoutesViewModel @Inject constructor(
         val col1X = width * 0.25f
         val col2X = width * 0.5f
         val col3X = width * 0.75f
-        canvas.drawText(String.format("%.2f", route.totalDistance), col1X, yPos, statPaint)
+        canvas.drawText(LocationUtils.formatNumberSpanish(route.totalDistance, 2), col1X, yPos, statPaint)
         canvas.drawText("km", col1X, yPos + 60f, labelPaint)
         canvas.drawText(formatDurationShort(route.totalDuration), col2X, yPos, statPaint)
         canvas.drawText("tiempo", col2X, yPos + 60f, labelPaint)
-        canvas.drawText(String.format("%.1f", route.averageSpeed), col3X, yPos, statPaint)
+        canvas.drawText(LocationUtils.formatNumberSpanish(route.averageSpeed), col3X, yPos, statPaint)
         canvas.drawText("km/h media", col3X, yPos + 60f, labelPaint)
 
         yPos += 120f
-        canvas.drawText("Vel. máxima: ${String.format("%.1f", route.maxSpeed)} km/h", width / 2f, yPos, infoPaint)
+        canvas.drawText("Vel. máxima: ${LocationUtils.formatNumberSpanish(route.maxSpeed)} km/h", width / 2f, yPos, infoPaint)
         yPos += 80f
         val watermarkPaint = Paint().apply {
             color = Color.rgb(180, 180, 180)

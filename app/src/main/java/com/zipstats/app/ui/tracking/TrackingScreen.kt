@@ -75,7 +75,6 @@ import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Text
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -265,8 +264,10 @@ fun TrackingScreen(
             TopAppBar(
                 title = {
                     ZipStatsText(
-                        "Seguimiento GPS",
-                        fontWeight = FontWeight.Bold
+                        text = "Seguimiento GPS",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1
                     )
                 },
                 navigationIcon = {
@@ -1305,7 +1306,7 @@ fun TrackingWeatherCard(
                         val windSpeedKmh = (weatherStatus.windSpeed ?: 0.0) * 3.6
 
                         ZipStatsText(
-                            text = "${String.format("%.0f", windSpeedKmh)} km/h ($direction)",
+                            text = "${com.zipstats.app.utils.LocationUtils.formatNumberSpanish(windSpeedKmh, 0)} km/h ($direction)",
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -1431,7 +1432,7 @@ fun FinishRouteBottomSheet(
             )
             Spacer(modifier = Modifier.width(8.dp))
             ZipStatsText(
-                text = "Añadir ${String.format("%.1f", distance)} km a registros",
+                text = "Añadir ${com.zipstats.app.utils.LocationUtils.formatNumberSpanish(distance)} km a registros",
                 style = MaterialTheme.typography.bodyMedium
             )
         }
@@ -1513,11 +1514,7 @@ fun formatDuration(millis: Long): String {
 private fun formatTemperature(temperature: Double, decimals: Int = 1): String {
     // Si la temperatura es exactamente 0 o muy cercana a 0, mostrar sin signo menos
     val absTemp = kotlin.math.abs(temperature)
-    val formatted = if (decimals == 0) {
-        String.format("%.0f", absTemp)
-    } else {
-        String.format("%.${decimals}f", absTemp)
-    }
+    val formatted = com.zipstats.app.utils.LocationUtils.formatNumberSpanish(absTemp, decimals)
     
     // Si la temperatura original es negativa (y no es 0), añadir el signo menos
     return if (temperature < 0 && absTemp > 0.001) {
@@ -1622,7 +1619,7 @@ fun HeroSpeedometer(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = modifier
     ) {
-        Text(
+        ZipStatsText(
             text = "VELOCIDAD",
             style = MaterialTheme.typography.labelMedium.copy(
                 letterSpacing = 2.sp
@@ -1632,8 +1629,8 @@ fun HeroSpeedometer(
         Row(
             verticalAlignment = Alignment.Bottom
         ) {
-            // El número gigante
-            Text(
+            // El número gigante - usa autoResize para que se ajuste si no cabe
+            ZipStatsText(
                 text = LocationUtils.formatSpeed(speed).replace(" km/h", ""),
                 style = MaterialTheme.typography.displayLarge.copy(
                     fontSize = 96.sp, // Tamaño heroico
@@ -1642,7 +1639,8 @@ fun HeroSpeedometer(
                     fontFeatureSettings = "tnum",
                     lineHeight = 90.sp
                 ),
-                color = MaterialTheme.colorScheme.onSurface
+                color = MaterialTheme.colorScheme.onSurface,
+                autoResize = true // 🔥 Reduce tamaño si no cabe
             )
             // La unidad más pequeña al lado
             ZipStatsText(

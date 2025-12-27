@@ -26,6 +26,7 @@ import com.zipstats.app.repository.VehicleRepository
 import com.zipstats.app.service.LocationTrackingService
 import com.zipstats.app.service.TrackingStateManager
 import com.zipstats.app.tracking.LocationTracker
+import com.zipstats.app.utils.LocationUtils
 import com.zipstats.app.utils.PreferencesManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -805,7 +806,7 @@ class TrackingViewModel @Inject constructor(
             showers ?: 0.0
         )
         if (effectiveRain > 0.1) {
-            return Triple(true, "PRECIPITATION", "Lluvia detectada por precipitación medida (${String.format("%.1f", effectiveRain)} mm)")
+            return Triple(true, "PRECIPITATION", "Lluvia detectada por precipitación medida (${LocationUtils.formatNumberSpanish(effectiveRain)} mm)")
         }
 
         // 🔒 Regla de protección: condiciones probabilísticas solo si el cielo NO está despejado
@@ -1706,7 +1707,7 @@ class TrackingViewModel @Inject constructor(
                         showers = weather.showers
                     )
                     Log.d(TAG, "✅ Clima obtenido manualmente: ${weather.temperature}°C $effectiveEmoji")
-                    _message.value = "Clima obtenido: ${String.format("%.0f", weather.temperature)}°C $effectiveEmoji"
+                    _message.value = "Clima obtenido: ${LocationUtils.formatNumberSpanish(weather.temperature, 0)}°C $effectiveEmoji"
                 }.onFailure { error ->
                     Log.e(TAG, "❌ Error al obtener clima manualmente: ${error.message}")
                     _weatherStatus.value = WeatherStatus.Error(error.message ?: "Error al obtener clima")
@@ -2135,7 +2136,7 @@ class TrackingViewModel @Inject constructor(
 
                 routeRepository.clearTempWeather()
                     
-                    var message = "Ruta guardada exitosamente: ${String.format("%.1f", route.totalDistance.roundToOneDecimal())} km"
+                    var message = "Ruta guardada exitosamente: ${LocationUtils.formatNumberSpanish(route.totalDistance.roundToOneDecimal())} km"
                     
                     // Si se solicita añadir a registros
                     if (addToRecords) {
@@ -2172,7 +2173,7 @@ class TrackingViewModel @Inject constructor(
                             
                             if (addResult.isSuccess) {
                                 Log.d(TAG, "Registro añadido exitosamente")
-                                message += "\nDistancia añadida a registros: ${String.format("%.1f", route.totalDistance.roundToOneDecimal())} km"
+                                message += "\nDistancia añadida a registros: ${LocationUtils.formatNumberSpanish(route.totalDistance.roundToOneDecimal())} km"
                             } else {
                                 Log.w(TAG, "Error al añadir a registros: ${addResult.exceptionOrNull()?.message}")
                                 message += "\nRuta guardada, pero error al añadir a registros"

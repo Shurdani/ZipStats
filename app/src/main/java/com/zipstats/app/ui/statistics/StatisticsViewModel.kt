@@ -7,6 +7,7 @@ import com.zipstats.app.model.AchievementLevel
 import com.zipstats.app.model.AchievementRequirementType
 import com.zipstats.app.model.Scooter
 import com.zipstats.app.repository.RecordRepository
+import com.zipstats.app.repository.RouteRepository
 import com.zipstats.app.repository.VehicleRepository
 import com.zipstats.app.repository.UserRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -20,7 +21,18 @@ import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.util.Date
 import javax.inject.Inject
+import kotlin.math.abs
 import kotlin.math.roundToInt
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.DirectionsBike
+import androidx.compose.material.icons.filled.Thermostat
+import androidx.compose.material.icons.filled.WaterDrop
+import androidx.compose.material.icons.outlined.Cloud
+import androidx.compose.material.icons.outlined.Forest
+import androidx.compose.material.icons.outlined.LocalGasStation
+import androidx.compose.material.icons.outlined.Water
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 
 data class Statistics(
     val totalDistance: Double,
@@ -43,13 +55,57 @@ data class ChartDataPoint(
     val value: Double
 )
 
+enum class ComparisonMetricType {
+    DISTANCE, CO2, TREES, GAS
+}
+
+// Configuración de cada métrica (Icono, Color, Factor de conversión)
+enum class InsightMetric(
+    val label: String,
+    val icon: ImageVector,
+    val color: Color,
+    val unit: String,
+    val factor: Double // Factor para convertir KM a esta unidad (Solo se usa para los derivados del total)
+) {
+    // --- Métricas derivadas del Total (Factor > 0) ---
+    DISTANCE("Distancia", Icons.Default.DirectionsBike, Color(0xFF2979FF), "km", 1.0),
+    
+    // 150g de CO2 por km (media coche)
+    CO2("CO2 Ahorrado", Icons.Outlined.Cloud, Color(0xFF4CAF50), "kg", 0.15), 
+    
+    // 1 árbol absorbe aprox 20kg CO2/año -> simplificado: 1 árbol cada 200km
+    TREES("Árboles", Icons.Outlined.Forest, Color(0xFF8BC34A), "u.", 0.005), 
+    
+    // 7 Litros/100km (media coche urbano) -> 0.07 L/km
+    FUEL("Gasolina", Icons.Outlined.LocalGasStation, Color(0xFFFFA726), "L", 0.07),
+    
+    // --- Nuevas Métricas Específicas (Factor 1.0 porque pasaremos el valor directo) ---
+    RAIN("Rutas con Lluvia", Icons.Filled.WaterDrop, Color(0xFF00B0FF), "km", 1.0), // Azul Cian
+    WET_ROAD("Calzada Mojada", Icons.Outlined.Water, Color(0xFFFF9100), "km", 1.0), // Naranja/Ámbar
+    EXTREME("Clima Extremo", Icons.Filled.Thermostat, Color(0xFFD50000), "km", 1.0) // Rojo
+}
+
+// Datos listos para pintar en la tarjeta
+data class RandomInsightData(
+    val metric: InsightMetric,
+    val periodLabel: String,    // Ej: "vs Mes anterior"
+    val currentValue: Double,   // Valor calculado (ej: 5.4 Litros)
+    val previousValue: Double,
+    val percentageChange: Double,
+    val isPositive: Boolean     // True si has mejorado (más distancia o más ahorro)
+)
+
 data class ComparisonData(
     val currentValue: Double,
     val previousValue: Double,
     val percentageChange: Double,
     val isPositive: Boolean,
     val comparisonMonth: Int? = null,
-    val comparisonYear: Int
+    val comparisonYear: Int,
+    val metricType: ComparisonMetricType = ComparisonMetricType.DISTANCE,
+    val title: String = "",
+    val unit: String = "",
+    val icon: String = ""
 )
 
 data class NextAchievementData(
@@ -102,6 +158,7 @@ sealed class StatisticsUiState {
 @HiltViewModel
 class StatisticsViewModel @Inject constructor(
     private val recordRepository: RecordRepository,
+    private val routeRepository: RouteRepository,
     private val scooterRepository: VehicleRepository,
     private val userRepository: UserRepository,
     private val achievementsService: com.zipstats.app.service.AchievementsService
@@ -142,6 +199,14 @@ class StatisticsViewModel @Inject constructor(
     // Obtener la lista de logros del servicio centralizado
     private val allAchievements get() = achievementsService.allAchievements
     
+    // --- NUEVO: Estado del Insight Aleatorio ---
+    private val _insightState = MutableStateFlow<RandomInsightData?>(null)
+    val insightState: StateFlow<RandomInsightData?> = _insightState.asStateFlow()
+    
+    // --- Estado de distancias con condiciones climáticas ---
+    private val _weatherDistances = MutableStateFlow<Triple<Double, Double, Double>>(Triple(0.0, 0.0, 0.0))
+    val weatherDistances: StateFlow<Triple<Double, Double, Double>> = _weatherDistances.asStateFlow()
+    
     init {
         loadStatistics()
         loadScooters()
@@ -160,6 +225,10 @@ class StatisticsViewModel @Inject constructor(
         viewModelScope.launch {
             _statistics.value = StatisticsUiState.Loading
             try {
+                // Obtener rutas para calcular distancias con condiciones climáticas
+                val routesResult = routeRepository.getUserRoutes()
+                val allRoutes = routesResult.getOrNull() ?: emptyList()
+                
                 scooterRepository.getScooters().collect { scooters ->
                     recordRepository.getRecords().collect { records ->
                         // Calcular los meses/años disponibles
@@ -251,6 +320,14 @@ class StatisticsViewModel @Inject constructor(
                         
                         // Comparación anual (año actual vs año anterior)
                         val yearlyComparison = calculateYearlyComparison(records, currentYear)
+                        
+                        // Calcular distancias con condiciones climáticas
+                        val (rainKm, wetRoadKm, extremeKm) = calculateWeatherDistances(
+                            routes = allRoutes,
+                            currentMonth = _selectedMonth.value,
+                            currentYear = currentYear
+                        )
+                        _weatherDistances.value = Triple(rainKm, wetRoadKm, extremeKm)
                         
                         // Calcular el siguiente logro (ahora basado en múltiples métricas)
                         val nextAchievement = try {
@@ -460,9 +537,9 @@ ${scooterTexts.joinToString("\n")}
     private fun calculateMonthlyComparison(records: List<com.zipstats.app.model.Record>, currentMonth: Int, currentYear: Int): ComparisonData? {
         val today = LocalDate.now()
         val isCurrentMonth = currentMonth == today.monthValue && currentYear == today.year
-        val currentDayOfMonth = if (isCurrentMonth) today.dayOfMonth else 31 // Si es histórico, tomar el mes completo
+        val currentDayOfMonth = if (isCurrentMonth) today.dayOfMonth else 31
         
-        // Obtener registros del mes/año actual (hasta hoy si es el mes en curso, todo el mes si es histórico)
+        // Obtener registros del mes/año actual
         val currentMonthRecords = records.filter {
             try {
                 val recordDate = LocalDate.parse(it.fecha)
@@ -474,11 +551,11 @@ ${scooterTexts.joinToString("\n")}
             }
         }
         
-        val currentValue = currentMonthRecords.sumOf { it.diferencia }
+        val currentDistance = currentMonthRecords.sumOf { it.diferencia }
         
-        // Buscar el mismo mes en años anteriores hasta el mismo día (empezando por el más cercano)
+        // Buscar el mismo mes en años anteriores
         var comparisonYear: Int? = null
-        var previousValue = 0.0
+        var previousDistance = 0.0
         
         for (yearOffset in 1..10) {
             val yearToCheck = currentYear - yearOffset
@@ -494,33 +571,56 @@ ${scooterTexts.joinToString("\n")}
             }
             
             if (previousYearRecords.isNotEmpty()) {
-                previousValue = previousYearRecords.sumOf { it.diferencia }
+                previousDistance = previousYearRecords.sumOf { it.diferencia }
                 comparisonYear = yearToCheck
                 break
             }
         }
         
-        // Solo retornar si encontramos datos para comparar
-        if (comparisonYear == null || previousValue == 0.0) return null
+        if (comparisonYear == null || previousDistance == 0.0) return null
         
-        val percentageChange = ((currentValue - previousValue) / previousValue * 100).roundToOneDecimal()
+        // Calcular todas las métricas posibles
+        val allComparisons = listOf(
+            createComparisonMetric(
+                currentDistance = currentDistance,
+                previousDistance = previousDistance,
+                metricType = ComparisonMetricType.DISTANCE,
+                comparisonMonth = currentMonth,
+                comparisonYear = comparisonYear
+            ),
+            createComparisonMetric(
+                currentDistance = currentDistance,
+                previousDistance = previousDistance,
+                metricType = ComparisonMetricType.CO2,
+                comparisonMonth = currentMonth,
+                comparisonYear = comparisonYear
+            ),
+            createComparisonMetric(
+                currentDistance = currentDistance,
+                previousDistance = previousDistance,
+                metricType = ComparisonMetricType.TREES,
+                comparisonMonth = currentMonth,
+                comparisonYear = comparisonYear
+            ),
+            createComparisonMetric(
+                currentDistance = currentDistance,
+                previousDistance = previousDistance,
+                metricType = ComparisonMetricType.GAS,
+                comparisonMonth = currentMonth,
+                comparisonYear = comparisonYear
+            )
+        ).filterNotNull()
         
-        return ComparisonData(
-            currentValue = currentValue.roundToOneDecimal(),
-            previousValue = previousValue.roundToOneDecimal(),
-            percentageChange = kotlin.math.abs(percentageChange),
-            isPositive = percentageChange >= 0,
-            comparisonMonth = currentMonth,
-            comparisonYear = comparisonYear
-        )
+        // Seleccionar una aleatoriamente
+        return allComparisons.randomOrNull()
     }
     
     private fun calculateYearlyComparison(records: List<com.zipstats.app.model.Record>, currentYear: Int): ComparisonData? {
         val today = LocalDate.now()
         val isCurrentYear = currentYear == today.year
-        val currentDayOfYear = if (isCurrentYear) today.dayOfYear else 366 // Si es histórico, tomar el año completo
+        val currentDayOfYear = if (isCurrentYear) today.dayOfYear else 366
         
-        // Obtener registros del año actual (hasta hoy si es el año en curso, todo el año si es histórico)
+        // Obtener registros del año actual
         val currentYearRecords = records.filter {
             try {
                 val recordDate = LocalDate.parse(it.fecha)
@@ -531,11 +631,11 @@ ${scooterTexts.joinToString("\n")}
             }
         }
         
-        val currentValue = currentYearRecords.sumOf { it.diferencia }
+        val currentDistance = currentYearRecords.sumOf { it.diferencia }
         
-        // Buscar el año más próximo con datos hasta el mismo día del año
+        // Buscar el año más próximo con datos
         var comparisonYear: Int? = null
-        var previousValue = 0.0
+        var previousDistance = 0.0
         
         for (yearOffset in 1..10) {
             val yearToCheck = currentYear - yearOffset
@@ -550,26 +650,142 @@ ${scooterTexts.joinToString("\n")}
             }
             
             if (previousYearRecords.isNotEmpty()) {
-                previousValue = previousYearRecords.sumOf { it.diferencia }
+                previousDistance = previousYearRecords.sumOf { it.diferencia }
                 comparisonYear = yearToCheck
                 break
             }
         }
         
-        // Solo retornar si encontramos datos para comparar
-        if (comparisonYear == null || previousValue == 0.0) return null
+        if (comparisonYear == null || previousDistance == 0.0) return null
+        
+        // Calcular todas las métricas posibles
+        val allComparisons = listOf(
+            createComparisonMetric(
+                currentDistance = currentDistance,
+                previousDistance = previousDistance,
+                metricType = ComparisonMetricType.DISTANCE,
+                comparisonMonth = null,
+                comparisonYear = comparisonYear
+            ),
+            createComparisonMetric(
+                currentDistance = currentDistance,
+                previousDistance = previousDistance,
+                metricType = ComparisonMetricType.CO2,
+                comparisonMonth = null,
+                comparisonYear = comparisonYear
+            ),
+            createComparisonMetric(
+                currentDistance = currentDistance,
+                previousDistance = previousDistance,
+                metricType = ComparisonMetricType.TREES,
+                comparisonMonth = null,
+                comparisonYear = comparisonYear
+            ),
+            createComparisonMetric(
+                currentDistance = currentDistance,
+                previousDistance = previousDistance,
+                metricType = ComparisonMetricType.GAS,
+                comparisonMonth = null,
+                comparisonYear = comparisonYear
+            )
+        ).filterNotNull()
+        
+        // Seleccionar una aleatoriamente
+        return allComparisons.randomOrNull()
+    }
+    
+    private fun createComparisonMetric(
+        currentDistance: Double,
+        previousDistance: Double,
+        metricType: ComparisonMetricType,
+        comparisonMonth: Int?,
+        comparisonYear: Int
+    ): ComparisonData? {
+        if (previousDistance == 0.0) return null
+        
+        val (currentValue, previousValue, title, unit, icon) = when (metricType) {
+            ComparisonMetricType.DISTANCE -> {
+                val curr = currentDistance.roundToOneDecimal()
+                val prev = previousDistance.roundToOneDecimal()
+                val title = if (comparisonMonth != null) {
+                    val monthNames = listOf(
+                        "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+                        "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
+                    )
+                    "Distancia recorrida vs ${monthNames[comparisonMonth - 1]} $comparisonYear"
+                } else {
+                    "Distancia recorrida vs $comparisonYear"
+                }
+                Quintuple(curr, prev, title, "km", "📏")
+            }
+            ComparisonMetricType.CO2 -> {
+                val curr = (currentDistance * 0.1).roundToOneDecimal()
+                val prev = (previousDistance * 0.1).roundToOneDecimal()
+                val title = if (comparisonMonth != null) {
+                    val monthNames = listOf(
+                        "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+                        "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
+                    )
+                    "CO₂ ahorrado vs ${monthNames[comparisonMonth - 1]} $comparisonYear"
+                } else {
+                    "CO₂ ahorrado vs $comparisonYear"
+                }
+                Quintuple(curr, prev, title, "kg CO₂", "🌱")
+            }
+            ComparisonMetricType.TREES -> {
+                val curr = (currentDistance * 0.005).roundToOneDecimal()
+                val prev = (previousDistance * 0.005).roundToOneDecimal()
+                val title = if (comparisonMonth != null) {
+                    val monthNames = listOf(
+                        "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+                        "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
+                    )
+                    "Árboles salvados vs ${monthNames[comparisonMonth - 1]} $comparisonYear"
+                } else {
+                    "Árboles salvados vs $comparisonYear"
+                }
+                Quintuple(curr, prev, title, "árboles", "🌳")
+            }
+            ComparisonMetricType.GAS -> {
+                val curr = (currentDistance * 0.04).roundToOneDecimal()
+                val prev = (previousDistance * 0.04).roundToOneDecimal()
+                val title = if (comparisonMonth != null) {
+                    val monthNames = listOf(
+                        "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+                        "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
+                    )
+                    "Gasolina ahorrada vs ${monthNames[comparisonMonth - 1]} $comparisonYear"
+                } else {
+                    "Gasolina ahorrada vs $comparisonYear"
+                }
+                Quintuple(curr, prev, title, "L", "⛽")
+            }
+        }
         
         val percentageChange = ((currentValue - previousValue) / previousValue * 100).roundToOneDecimal()
         
         return ComparisonData(
-            currentValue = currentValue.roundToOneDecimal(),
-            previousValue = previousValue.roundToOneDecimal(),
+            currentValue = currentValue,
+            previousValue = previousValue,
             percentageChange = kotlin.math.abs(percentageChange),
             isPositive = percentageChange >= 0,
-            comparisonMonth = null,
-            comparisonYear = comparisonYear
+            comparisonMonth = comparisonMonth,
+            comparisonYear = comparisonYear,
+            metricType = metricType,
+            title = title,
+            unit = unit,
+            icon = icon
         )
     }
+    
+    // Helper data class para retornar múltiples valores
+    private data class Quintuple<A, B, C, D, E>(
+        val first: A,
+        val second: B,
+        val third: C,
+        val fourth: D,
+        val fifth: E
+    )
     
     private suspend fun calculateNextAchievement(): NextAchievementData? {
         return try {
@@ -670,6 +886,176 @@ ${scooterTexts.joinToString("\n")}
         } catch (e: Exception) {
             null
         }
+    }
+
+    /**
+     * Genera una métrica aleatoria basada en la distancia actual y la comparativa histórica.
+     */
+    fun generateRandomInsight(
+        currentDistanceKm: Double,
+        comparison: ComparisonData?,
+        periodName: String,
+        // Nuevos parámetros opcionales (pásalos desde tu DB si los tienes, si no 0.0)
+        rainKm: Double = 0.0,
+        wetRoadKm: Double = 0.0,
+        extremeKm: Double = 0.0
+    ) {
+        // 1. Filtrar métricas válidas (para no mostrar "0 km de lluvia")
+        val validMetrics = InsightMetric.values().filter { metric ->
+            when (metric) {
+                InsightMetric.RAIN -> rainKm > 0.1
+                InsightMetric.WET_ROAD -> wetRoadKm > 0.1
+                InsightMetric.EXTREME -> extremeKm > 0.1
+                else -> true // Las basadas en distancia total siempre son válidas si hay distancia
+            }
+        }
+
+        // Si no hay ninguna válida (ej: usuario nuevo con 0km), no hacemos nada o default
+        if (validMetrics.isEmpty()) return
+
+        // 2. Elegir métrica al azar de las válidas
+        val randomMetric = validMetrics.random()
+
+        // 3. Determinar el Valor Actual
+        val currentVal = when (randomMetric) {
+            InsightMetric.RAIN -> rainKm
+            InsightMetric.WET_ROAD -> wetRoadKm
+            InsightMetric.EXTREME -> extremeKm
+            else -> currentDistanceKm * randomMetric.factor // Caso normal (CO2, Gasolina...)
+        }
+
+        // 4. Calcular el Valor Previo (Estimación inversa)
+        // NOTA: Para Lluvia/Extremo, si no guardas el histórico específico,
+        // la comparación será aproximada basada en la tendencia general de la distancia.
+        val prevVal = if (comparison != null) {
+            val multiplier = 1 + (comparison.percentageChange / 100.0 * (if (comparison.isPositive) 1 else -1))
+            if (multiplier > 0) {
+                when (randomMetric) {
+                    InsightMetric.RAIN, InsightMetric.WET_ROAD, InsightMetric.EXTREME -> {
+                        // Para métricas específicas, estimamos basado en la tendencia de distancia
+                        currentVal / multiplier
+                    }
+                    else -> {
+                        val prevDistance = comparison.previousValue
+                        prevDistance * randomMetric.factor
+                    }
+                }
+            } else {
+                0.0
+            }
+        } else {
+            0.0
+        }
+
+        // 5. Calcular porcentaje de cambio
+        val diff = currentVal - prevVal
+        
+        val percent = if (prevVal > 0.001) {
+            (diff / prevVal) * 100
+        } else if (currentVal > 0.001) {
+            100.0 // Crecimiento infinito (de 0 a algo)
+        } else {
+            0.0   // Sin cambios (0 a 0)
+        }
+
+        // 6. Mensaje personalizado para las nuevas métricas
+        // Podemos sobreescribir el label del periodo si queremos un mensaje más épico
+        val finalPeriodLabel = if (randomMetric in listOf(InsightMetric.RAIN, InsightMetric.EXTREME)) {
+            "vs $periodName • ¡Espíritu aventurero!" 
+        } else {
+            "vs $periodName"
+        }
+
+        _insightState.value = RandomInsightData(
+            metric = randomMetric,
+            periodLabel = finalPeriodLabel,
+            currentValue = currentVal.roundToOneDecimal(),
+            previousValue = prevVal.roundToOneDecimal(),
+            percentageChange = abs(percent).roundToOneDecimal(),
+            isPositive = diff >= 0
+        )
+    }
+    
+    /**
+     * Calcula las distancias con condiciones climáticas específicas para un período
+     */
+    private suspend fun calculateWeatherDistances(
+        routes: List<com.zipstats.app.model.Route>,
+        currentMonth: Int?,
+        currentYear: Int
+    ): Triple<Double, Double, Double> {
+        val filteredRoutes = routes.filter { route ->
+            try {
+                val routeDate = java.time.Instant.ofEpochMilli(route.startTime)
+                    .atZone(java.time.ZoneId.systemDefault())
+                    .toLocalDate()
+                
+                val matchesMonth = currentMonth == null || routeDate.monthValue == currentMonth
+                val matchesYear = routeDate.year == currentYear
+                
+                matchesMonth && matchesYear
+            } catch (e: Exception) {
+                false
+            }
+        }
+        
+        var rainDistance = 0.0
+        var wetRoadDistance = 0.0
+        var extremeDistance = 0.0
+        
+        filteredRoutes.forEach { route ->
+            // Rutas con lluvia
+            if (route.weatherHadRain == true) {
+                rainDistance += route.totalDistance
+            }
+            
+            // Calzada mojada (usando la misma lógica que RouteDetailDialog)
+            if (checkWetRoadConditions(route)) {
+                wetRoadDistance += route.totalDistance
+            }
+            
+            // Clima extremo
+            if (route.weatherHadExtremeConditions == true) {
+                extremeDistance += route.totalDistance
+            }
+        }
+        
+        return Triple(rainDistance, wetRoadDistance, extremeDistance)
+    }
+    
+    /**
+     * Función auxiliar para verificar condiciones de calzada mojada
+     */
+    private fun checkWetRoadConditions(route: com.zipstats.app.model.Route): Boolean {
+        // 1. EXCLUSIÓN: Si llovió durante la ruta, NO contamos como "Calzada Mojada"
+        if (route.weatherHadRain == true) {
+            return false
+        }
+        
+        val isDay = route.weatherIsDay ?: true
+        
+        // Verificar si el cielo está despejado
+        val isClearSky = route.weatherEmoji?.let { emoji ->
+            emoji == "☀️" || emoji == "🌙"
+        } ?: false
+        
+        // Calzada mojada considerando día/noche
+        if (!isClearSky && route.weatherHumidity != null) {
+            if (isDay) {
+                if (route.weatherHumidity >= 90) return true
+                if (route.weatherRainProbability != null && route.weatherRainProbability > 40) return true
+            } else {
+                if (route.weatherHumidity >= 85) return true
+                if (route.weatherRainProbability != null && route.weatherRainProbability > 35) return true
+            }
+        }
+        
+        // Si hay precipitación máxima registrada pero no se detectó como "Lluvia activa"
+        if (route.weatherMaxPrecipitation != null && route.weatherMaxPrecipitation > 0.1) {
+            return true
+        }
+        
+        return false
     }
 
     private fun Double.roundToOneDecimal(): Double {

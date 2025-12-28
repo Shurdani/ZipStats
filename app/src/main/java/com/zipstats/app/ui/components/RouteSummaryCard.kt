@@ -1,7 +1,9 @@
 package com.zipstats.app.ui.components
 
 import androidx.annotation.DrawableRes
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -25,6 +27,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
@@ -32,14 +35,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.zipstats.app.utils.LocationUtils
 
-/**
- * Tarjeta reutilizable que muestra un resumen de la ruta con:
- * - Título y subtítulo
- * - Estadísticas (distancia, tiempo, velocidad media)
- * - Información del clima (opcional)
- * 
- * Diseñada para usarse en pantallas de mapa completo y animación de ruta.
- */
 @Composable
 fun RouteSummaryCard(
     title: String,
@@ -56,63 +51,81 @@ fun RouteSummaryCard(
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp),
-        shape = RoundedCornerShape(24.dp),
+        shape = RoundedCornerShape(28.dp), // Más redondeado, estilo iOS/Material 3 moderno
         colors = CardDefaults.cardColors(
-            containerColor = androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.85f)
+            // Fondo oscuro semitransparente (Efecto Glass oscuro)
+            containerColor = Color(0xFF0F0F0F).copy(alpha = 0.9f)
         ),
-        elevation = CardDefaults.cardElevation(12.dp)
+        // 🔥 Borde sutil para separar del mapa satélite
+        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.1f)),
+        elevation = CardDefaults.cardElevation(0.dp)
     ) {
         Column(
-            modifier = Modifier.padding(top = 20.dp, start = 20.dp, end = 20.dp, bottom = 16.dp)
+            modifier = Modifier.padding(24.dp) // Un poco más de aire interno
         ) {
-            // Logo ZipStats reducido y pegado arriba a la derecha
+            // CABECERA: Título y Logo
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.Top
             ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    ZipStatsText(
+                        text = title,
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                        maxLines = 1
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    ZipStatsText(
+                        text = subtitle,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.White.copy(alpha = 0.7f),
+                        maxLines = 1
+                    )
+                }
+
+                // Marca de agua "ZipStats"
                 ZipStatsText(
-                    text = title,
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = androidx.compose.ui.graphics.Color.White,
-                    modifier = Modifier.weight(1f).padding(end = 8.dp),
-                    maxLines = Int.MAX_VALUE
-                )
-                
-                ZipStatsText(
+
                     text = "ZipStats",
+
                     style = MaterialTheme.typography.bodySmall,
+
                     fontWeight = FontWeight.Bold,
+
                     color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.7f),
+
                     maxLines = 1
+
                 )
             }
 
-            ZipStatsText(
-                text = subtitle,
-                style = MaterialTheme.typography.bodyMedium,
-                color = androidx.compose.ui.graphics.Color.LightGray,
-                maxLines = 1
-            )
+            Spacer(modifier = Modifier.height(24.dp))
 
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Métricas centradas para alinearse con la tarjeta del clima
+            // MÉTRICAS (Row)
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
+                horizontalArrangement = Arrangement.SpaceBetween // SpaceBetween llena mejor el ancho
             ) {
                 StatItemModern(
                     icon = Icons.Default.Straighten,
                     value = "${LocationUtils.formatNumberSpanish(distanceKm.toDouble())} km",
                     label = "Distancia"
                 )
+
+                // Separador vertical sutil (opcional, pero queda elegante)
+                VerticalDivider()
+
                 StatItemModern(
                     icon = Icons.Default.Timer,
                     value = duration,
                     label = "Tiempo"
                 )
+
+                VerticalDivider()
+
                 StatItemModern(
                     icon = Icons.Default.Speed,
                     value = "${LocationUtils.formatNumberSpanish(avgSpeed.toDouble())} km/h",
@@ -120,24 +133,26 @@ fun RouteSummaryCard(
                 )
             }
 
+            // CLIMA (Barra inferior)
             if (temperature != null && weatherText != null && weatherIconRes != null) {
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(20.dp))
 
                 Surface(
-                    shape = RoundedCornerShape(12.dp),
-                    color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.08f),
+                    shape = RoundedCornerShape(16.dp),
+                    // Fondo un poco más claro que la tarjeta para crear capas
+                    color = Color.White.copy(alpha = 0.08f),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Row(
-                        modifier = Modifier.padding(vertical = 10.dp, horizontal = 16.dp),
+                        modifier = Modifier.padding(vertical = 12.dp, horizontal = 16.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.Center
                     ) {
                         Image(
                             painter = painterResource(id = weatherIconRes),
                             contentDescription = null,
-                            modifier = Modifier.size(24.dp),
-                            colorFilter = ColorFilter.tint(androidx.compose.ui.graphics.Color.White)
+                            modifier = Modifier.size(20.dp),
+                            colorFilter = ColorFilter.tint(Color.White)
                         )
                         Spacer(modifier = Modifier.width(12.dp))
 
@@ -145,8 +160,7 @@ fun RouteSummaryCard(
                             text = "${formatTemperature(temperature.toDouble(), decimals = 0)}°C",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
-                            color = androidx.compose.ui.graphics.Color.White,
-                            maxLines = 1
+                            color = Color.White
                         )
 
                         Spacer(modifier = Modifier.width(8.dp))
@@ -154,8 +168,8 @@ fun RouteSummaryCard(
                         ZipStatsText(
                             text = weatherText,
                             style = MaterialTheme.typography.bodyMedium,
-                            color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.9f),
-                            maxLines = Int.MAX_VALUE
+                            color = Color.White.copy(alpha = 0.7f),
+                            maxLines = 1
                         )
                     }
                 }
@@ -178,39 +192,41 @@ private fun StatItemModern(
         Icon(
             imageVector = icon,
             contentDescription = null,
-            tint = androidx.compose.ui.graphics.Color(0xFF90CAF9),
-            modifier = Modifier.size(22.dp)
+            // Azul eléctrico (zipstats blue) para destacar sobre negro
+            tint = Color(0xFF448AFF),
+            modifier = Modifier.size(24.dp)
         )
-        Spacer(modifier = Modifier.height(4.dp))
+        Spacer(modifier = Modifier.height(8.dp))
         ZipStatsText(
             text = value,
-            style = MaterialTheme.typography.bodyLarge,
-            fontWeight = FontWeight.Medium,
-            color = androidx.compose.ui.graphics.Color.White,
+            // 🔥 Aumentado de bodyLarge a titleMedium/Large para legibilidad
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = Color.White,
             maxLines = 1
         )
         ZipStatsText(
             text = label,
             style = MaterialTheme.typography.labelSmall,
-            color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.9f),
+            color = Color.White.copy(alpha = 0.6f),
             maxLines = 1
         )
     }
 }
 
-/**
- * Formatea la temperatura asegurándose de que 0 se muestre sin signo menos
- */
-private fun formatTemperature(temperature: Double, decimals: Int = 1): String {
-    // Si la temperatura es exactamente 0 o muy cercana a 0, mostrar sin signo menos
-    val absTemp = kotlin.math.abs(temperature)
-    val formatted = LocationUtils.formatNumberSpanish(absTemp, decimals)
-    
-    // Si la temperatura original es negativa (y no es 0), añadir el signo menos
-    return if (temperature < 0 && absTemp > 0.001) {
-        "-$formatted"
-    } else {
-        formatted
-    }
+@Composable
+private fun VerticalDivider() {
+    Box(
+        modifier = Modifier
+            .height(30.dp)
+            .width(1.dp)
+            .background(Color.White.copy(alpha = 0.1f))
+    )
 }
 
+// ... (Tu función formatTemperature se mantiene igual)
+private fun formatTemperature(temperature: Double, decimals: Int = 1): String {
+    val absTemp = kotlin.math.abs(temperature)
+    val formatted = LocationUtils.formatNumberSpanish(absTemp, decimals)
+    return if (temperature < 0 && absTemp > 0.001) "-$formatted" else formatted
+}

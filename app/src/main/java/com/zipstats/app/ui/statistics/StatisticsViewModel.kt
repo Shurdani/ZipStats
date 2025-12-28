@@ -1,5 +1,15 @@
 package com.zipstats.app.ui.statistics
 
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.DirectionsBike
+import androidx.compose.material.icons.filled.Thermostat
+import androidx.compose.material.icons.filled.WaterDrop
+import androidx.compose.material.icons.outlined.Cloud
+import androidx.compose.material.icons.outlined.Forest
+import androidx.compose.material.icons.outlined.LocalGasStation
+import androidx.compose.material.icons.outlined.Water
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.zipstats.app.model.Achievement
@@ -8,8 +18,8 @@ import com.zipstats.app.model.AchievementRequirementType
 import com.zipstats.app.model.Scooter
 import com.zipstats.app.repository.RecordRepository
 import com.zipstats.app.repository.RouteRepository
-import com.zipstats.app.repository.VehicleRepository
 import com.zipstats.app.repository.UserRepository
+import com.zipstats.app.repository.VehicleRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -23,16 +33,6 @@ import java.util.Date
 import javax.inject.Inject
 import kotlin.math.abs
 import kotlin.math.roundToInt
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.DirectionsBike
-import androidx.compose.material.icons.filled.Thermostat
-import androidx.compose.material.icons.filled.WaterDrop
-import androidx.compose.material.icons.outlined.Cloud
-import androidx.compose.material.icons.outlined.Forest
-import androidx.compose.material.icons.outlined.LocalGasStation
-import androidx.compose.material.icons.outlined.Water
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 
 data class Statistics(
     val totalDistance: Double,
@@ -68,7 +68,7 @@ enum class InsightMetric(
     val factor: Double // Factor para convertir KM a esta unidad (Solo se usa para los derivados del total)
 ) {
     // --- Métricas derivadas del Total (Factor > 0) ---
-    DISTANCE("Distancia", Icons.Default.DirectionsBike, Color(0xFF2979FF), "km", 1.0),
+    DISTANCE("Distancia", Icons.AutoMirrored.Filled.DirectionsBike, Color(0xFF2979FF), "km", 1.0),
     
     // 150g de CO2 por km (media coche)
     CO2("CO2 Ahorrado", Icons.Outlined.Cloud, Color(0xFF4CAF50), "kg", 0.15), 

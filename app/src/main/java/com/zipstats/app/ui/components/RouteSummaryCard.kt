@@ -65,6 +65,7 @@ fun RouteSummaryCard(
         Column(
             modifier = Modifier.padding(top = 20.dp, start = 20.dp, end = 20.dp, bottom = 16.dp)
         ) {
+            // Logo ZipStats reducido y pegado arriba a la derecha
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -76,15 +77,14 @@ fun RouteSummaryCard(
                     fontWeight = FontWeight.Bold,
                     color = androidx.compose.ui.graphics.Color.White,
                     modifier = Modifier.weight(1f).padding(end = 8.dp),
-                    maxLines = 1
+                    maxLines = Int.MAX_VALUE
                 )
-
+                
                 ZipStatsText(
                     text = "ZipStats",
-                    style = MaterialTheme.typography.titleLarge,
+                    style = MaterialTheme.typography.bodySmall,
                     fontWeight = FontWeight.Bold,
-                    color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.9f),
-                    modifier = Modifier.padding(top = 2.dp),
+                    color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.7f),
                     maxLines = 1
                 )
             }
@@ -98,30 +98,26 @@ fun RouteSummaryCard(
 
             Spacer(modifier = Modifier.height(16.dp))
 
+            // Métricas centradas para alinearse con la tarjeta del clima
             Row(
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly
             ) {
-                Box(modifier = Modifier.weight(1f)) {
-                    StatItemModern(
-                        icon = Icons.Default.Straighten,
-                        value = "${LocationUtils.formatNumberSpanish(distanceKm.toDouble())} km",
-                        label = "Distancia"
-                    )
-                }
-                Box(modifier = Modifier.weight(1f)) {
-                    StatItemModern(
-                        icon = Icons.Default.Timer,
-                        value = duration,
-                        label = "Tiempo"
-                    )
-                }
-                Box(modifier = Modifier.weight(1f)) {
-                    StatItemModern(
-                        icon = Icons.Default.Speed,
-                        value = "${LocationUtils.formatNumberSpanish(avgSpeed.toDouble())} km/h",
-                        label = "Vel. Media"
-                    )
-                }
+                StatItemModern(
+                    icon = Icons.Default.Straighten,
+                    value = "${LocationUtils.formatNumberSpanish(distanceKm.toDouble())} km",
+                    label = "Distancia"
+                )
+                StatItemModern(
+                    icon = Icons.Default.Timer,
+                    value = duration,
+                    label = "Tiempo"
+                )
+                StatItemModern(
+                    icon = Icons.Default.Speed,
+                    value = "${LocationUtils.formatNumberSpanish(avgSpeed.toDouble())} km/h",
+                    label = "Vel. Media"
+                )
             }
 
             if (temperature != null && weatherText != null && weatherIconRes != null) {
@@ -159,7 +155,7 @@ fun RouteSummaryCard(
                             text = weatherText,
                             style = MaterialTheme.typography.bodyMedium,
                             color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.9f),
-                            maxLines = 1
+                            maxLines = Int.MAX_VALUE
                         )
                     }
                 }

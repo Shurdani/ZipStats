@@ -146,7 +146,7 @@ object ShareUtils {
         vehicleRepository: VehicleRepository?
     ) {
         // Configurar título de la ruta
-        val routeTitle = CityUtils.getRouteTitleText(route)
+        val routeTitle = CityUtils.getRouteTitleText(route, null)
         cardView.findViewById<android.widget.TextView>(R.id.routeTitle).text = routeTitle
 
         // Configurar métricas

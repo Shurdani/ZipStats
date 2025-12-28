@@ -114,6 +114,7 @@ import com.zipstats.app.di.AppOverlayRepositoryEntryPoint
 import com.zipstats.app.model.Scooter
 import com.zipstats.app.model.VehicleType
 import com.zipstats.app.permission.PermissionManager
+import kotlin.random.Random
 import com.zipstats.app.repository.AppOverlayRepository
 import com.zipstats.app.repository.SettingsRepository
 import com.zipstats.app.ui.components.DialogCancelButton
@@ -742,18 +743,18 @@ fun IdleStateContent(
 
         Spacer(modifier = Modifier.height(32.dp))
 
-        // Texto condicional según el estado del GPS
-        val titleText = when (gpsPreLocationState) {
-            is TrackingViewModel.GpsPreLocationState.Searching -> "Preparando tu ruta"
-            is TrackingViewModel.GpsPreLocationState.Found -> "Listo para grabar tu ruta"
-            is TrackingViewModel.GpsPreLocationState.Ready -> "Listo para grabar tu ruta"
+        // Texto condicional según el estado del GPS y tipo de vehículo
+        val vehicleTypeName = selectedScooter?.vehicleType?.name ?: "PATINETE"
+        val titleText = remember(gpsPreLocationState, vehicleTypeName) {
+            getHumorousGpsTitle(gpsPreLocationState, vehicleTypeName)
         }
         
         ZipStatsText(
             text = titleText,
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.Bold,
-            textAlign = TextAlign.Center
+            textAlign = TextAlign.Center,
+            maxLines = Int.MAX_VALUE
         )
 
         Spacer(modifier = Modifier.height(8.dp))
@@ -1844,4 +1845,71 @@ private fun convertWindDirectionToText(degrees: Int?): String {
     // Corrección para que 360/0 sea "N"
     val index = ((degrees.toFloat() + 22.5f) % 360 / 45.0f).toInt()
     return directions[index % 8]
+}
+
+/**
+ * Genera un título humorístico según el estado del GPS y el tipo de vehículo
+ * Trata bicicleta y e-bike como si fueran el mismo
+ */
+private fun getHumorousGpsTitle(
+    state: TrackingViewModel.GpsPreLocationState,
+    vehicleType: String? // Pasa aquí el tipo: "PATINETE", "E_BIKE", "BICICLETA", "MONOCICLO"
+): String {
+    // Normalizamos para evitar problemas de mayúsculas/minúsculas
+    val type = vehicleType?.uppercase() ?: ""
+
+    // Tratamos bicicleta y e-bike como si fueran el mismo
+    val isBike = type.contains("BIKE") || type.contains("BICICLETA") || type == "E_BIKE"
+    val isScooter = type.contains("PATINETE") || type.contains("SCOOTER")
+    val isUnicycle = type.contains("MONOCICLO") || type.contains("UNICYCLE")
+
+    return when (state) {
+        is TrackingViewModel.GpsPreLocationState.Searching -> {
+            // Frases base para todos
+            val phrases = mutableListOf(
+                "Sobornando a los satélites...",
+                "Triangulando tu posición...",
+                "Preguntando a la NASA...",
+                "Calibrando sensores..."
+            )
+
+            // Frases específicas según vehículo
+            when {
+                isBike -> phrases.addAll(listOf(
+                    "Engrasando la cadena digital...",
+                    "Inflando los píxeles de las ruedas...",
+                    "Buscando el maillot amarillo...",
+                    "Ajustando el sillín virtual...",
+                    "Calculando ruta sin cuestas..."
+                ))
+                isScooter -> phrases.addAll(listOf(
+                    "Cargando iones de litio...",
+                    "Desplegando el mástil...",
+                    "Buscando carril bici...",
+                    "Activando modo Sport...",
+                    "Revisando presión de neumáticos..."
+                ))
+                isUnicycle -> phrases.addAll(listOf(
+                    "Calibrando giroscopios...",
+                    "Buscando el equilibrio perfecto...",
+                    "Una rueda para dominarlos a todos...",
+                    "Activando auto-balanceo...",
+                    "Cargando software de circo..." // Un toque de humor
+                ))
+            }
+
+            phrases.random()
+        }
+
+        is TrackingViewModel.GpsPreLocationState.Found,
+        is TrackingViewModel.GpsPreLocationState.Ready -> {
+            // Frase de éxito específica
+            when {
+                isBike -> "¡Cadena lista! A pedalear 🚴"
+                isScooter -> "¡Batería lista! A volar 🛴"
+                isUnicycle -> "¡Equilibrio OK! A rodar ⭕"
+                else -> "¡GPS fijado! Vamos allá 🚀"
+            }
+        }
+    }
 }

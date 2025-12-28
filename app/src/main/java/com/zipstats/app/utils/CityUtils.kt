@@ -1,6 +1,7 @@
 package com.zipstats.app.utils
 
 import com.zipstats.app.model.Route
+import com.zipstats.app.model.VehicleType
 
 /**
  * Utilidades para trabajar con ciudades y nombres de rutas
@@ -303,8 +304,9 @@ object CityUtils {
 
     /**
      * Genera un título para la ruta basándose en las ciudades de inicio y fin
+     * @param vehicleType Tipo de vehículo (opcional). Si se proporciona y solo hay ciudad de inicio, se usa en lugar del nombre de la ciudad.
      */
-    fun getRouteTitleText(route: Route): String {
+    fun getRouteTitleText(route: Route, vehicleType: VehicleType? = null): String {
         if (route.notes.isNotBlank()) return route.notes
         if (route.points.isEmpty()) return "Mi paseo"
 
@@ -314,7 +316,12 @@ object CityUtils {
         return if (startCity != null && endCity != null && startCity != endCity) {
             "$startCity → $endCity"
         } else if (startCity != null) {
-            "Paseo en $startCity"
+            // Si hay tipo de vehículo, usar el tipo en lugar de la ciudad
+            if (vehicleType != null) {
+                "Paseo en ${vehicleType.displayName.lowercase()}"
+            } else {
+                "Paseo en $startCity"
+            }
         } else {
             "Mi paseo"
         }

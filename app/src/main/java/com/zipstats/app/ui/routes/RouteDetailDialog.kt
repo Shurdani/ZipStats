@@ -123,6 +123,7 @@ fun RouteDetailDialog(
     var showAnimationDialog by remember { mutableStateOf(false) }
     var vehicleIconRes by remember { mutableStateOf(R.drawable.ic_electric_scooter_adaptive) }
     var vehicleModel by remember { mutableStateOf(route.scooterName) }
+    var vehicleType by remember { mutableStateOf<com.zipstats.app.model.VehicleType?>(null) }
     var showWeatherDialog by remember(route.id) { mutableStateOf(false) }
 
     // Lógica de Compartir (Tu código original)
@@ -160,6 +161,7 @@ fun RouteDetailDialog(
         try {
             val vehicle = vehicleRepository.getUserVehicles().find { it.id == route.scooterId }
             vehicleIconRes = getVehicleIconResource(vehicle?.vehicleType)
+            vehicleType = vehicle?.vehicleType
 
             if (vehicle != null && vehicle.modelo.isNotBlank()) {
                 vehicleModel = vehicle.modelo
@@ -169,6 +171,7 @@ fun RouteDetailDialog(
         } catch (e: Exception) {
             vehicleIconRes = R.drawable.ic_electric_scooter_adaptive
             vehicleModel = route.scooterName
+            vehicleType = null
         }
     }
 
@@ -277,7 +280,7 @@ fun RouteDetailDialog(
                         .padding(horizontal = 20.dp, vertical = 20.dp)
                 ) {
                     // Cabecera: Título y Vehículo
-                    val title = CityUtils.getRouteTitleText(route)
+                    val title = CityUtils.getRouteTitleText(route, vehicleType)
                     ZipStatsText(
                         text = title,
                         style = MaterialTheme.typography.headlineSmall,
@@ -388,6 +391,7 @@ fun RouteDetailDialog(
     if (showFullscreenMap) {
         FullscreenMapDialog(
             route = route,
+            vehicleType = vehicleType,
             onDismiss = {
                 showFullscreenMap = false
                 isCapturingForShare = false
@@ -410,6 +414,7 @@ fun RouteDetailDialog(
 @Composable
 private fun FullscreenMapDialog(
     route: Route,
+    vehicleType: com.zipstats.app.model.VehicleType? = null,
     onDismiss: () -> Unit,
     onMapReady: ((com.mapbox.maps.MapView?) -> Unit)? = null,
     onSnapshotHandlerReady: ((MapSnapshotTrigger) -> Unit)? = null
@@ -480,7 +485,8 @@ private fun FullscreenMapDialog(
                 contentAlignment = Alignment.Center
             ) {
                 TripDetailsOverlay(
-                    route = route
+                    route = route,
+                    vehicleType = vehicleType
                 )
             }
         }
@@ -494,9 +500,10 @@ private fun FullscreenMapDialog(
 @Composable
 fun TripDetailsOverlay(
     route: Route,
+    vehicleType: com.zipstats.app.model.VehicleType? = null,
     modifier: Modifier = Modifier
 ) {
-    val tituloRuta: String = remember(route) { CityUtils.getRouteTitleText(route) }
+    val tituloRuta: String = remember(route, vehicleType) { CityUtils.getRouteTitleText(route, vehicleType) }
 
     val fechaFormateada = remember(route.startTime) {
         val date = java.time.LocalDate.ofEpochDay(route.startTime / (1000 * 60 * 60 * 24))
@@ -796,7 +803,7 @@ private fun CompactHeader(route: Route, vehicleIconRes: Int, vehicleName: String
 
 @Composable
 private fun RouteTitle(route: Route) {
-    val title: String = CityUtils.getRouteTitleText(route)
+    val title: String = CityUtils.getRouteTitleText(route, null)
 
     ZipStatsText(
         text = title,
@@ -1036,7 +1043,8 @@ private fun WeatherInfoDialog(route: Route, onDismiss: () -> Unit) {
                         text = effectiveDescription,
                         style = MaterialTheme.typography.headlineSmall,
                         fontWeight = FontWeight.Bold,
-                        textAlign = TextAlign.Center
+                        textAlign = TextAlign.Center,
+                        maxLines = Int.MAX_VALUE
                     )
                     
                     ZipStatsText(

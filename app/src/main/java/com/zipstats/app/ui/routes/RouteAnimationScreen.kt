@@ -82,9 +82,13 @@ import com.mapbox.maps.plugin.gestures.gestures
 import com.mapbox.maps.plugin.logo.logo
 import com.mapbox.maps.plugin.scalebar.scalebar
 import com.mapbox.turf.TurfMeasurement
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
 import com.zipstats.app.R
 import com.zipstats.app.map.RouteAnimator
 import com.zipstats.app.model.Route
+import com.zipstats.app.model.VehicleType
+import com.zipstats.app.repository.VehicleRepository
 import com.zipstats.app.ui.components.HideSystemBarsEffect
 import com.zipstats.app.ui.components.RouteSummaryCard
 import com.zipstats.app.utils.CityUtils
@@ -118,6 +122,22 @@ fun RouteAnimationDialog(
     var isRecording by remember { mutableStateOf(false) } // Controla si ocultamos UI durante grabación
     var isSpeed2x by remember { mutableStateOf(false) } // Muestra "1x" inicialmente (velocidad real es 2x)
     var animator by remember { mutableStateOf<RouteAnimator?>(null) }
+    var vehicleType by remember { mutableStateOf<VehicleType?>(null) }
+    
+    // Repositorio de vehículos para obtener el tipo
+    val vehicleRepository = remember {
+        VehicleRepository(FirebaseFirestore.getInstance(), FirebaseAuth.getInstance())
+    }
+    
+    // Obtener tipo de vehículo
+    LaunchedEffect(route.scooterId) {
+        try {
+            val vehicle = vehicleRepository.getUserVehicles().find { it.id == route.scooterId }
+            vehicleType = vehicle?.vehicleType
+        } catch (e: Exception) {
+            vehicleType = null
+        }
+    }
     
     // Referencia al MediaPlayer
     val mediaPlayer = remember { 
@@ -482,7 +502,7 @@ fun RouteAnimationDialog(
             /* =========================
              * CARD FLOTANTE (OVERLAY)
              * ========================= */
-            val tituloRuta = remember(route) { CityUtils.getRouteTitleText(route) }
+            val tituloRuta = remember(route, vehicleType) { CityUtils.getRouteTitleText(route, vehicleType) }
             val fechaFormateada = remember(route.startTime) {
                 val date = java.time.LocalDate.ofEpochDay(route.startTime / (1000 * 60 * 60 * 24))
                 val formatter = java.time.format.DateTimeFormatter.ofPattern("d 'de' MMMM, yyyy", java.util.Locale("es", "ES"))

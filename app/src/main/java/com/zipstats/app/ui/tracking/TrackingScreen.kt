@@ -1905,10 +1905,10 @@ private fun getHumorousGpsTitle(
         is TrackingViewModel.GpsPreLocationState.Ready -> {
             // Frase de éxito específica
             when {
-                isBike -> "¡Cadena lista! A pedalear 🚴"
-                isScooter -> "¡Batería lista! A volar 🛴"
-                isUnicycle -> "¡Equilibrio OK! A rodar ⭕"
-                else -> "¡GPS fijado! Vamos allá 🚀"
+                isBike -> "¡Cadena lista! A pedalear"
+                isScooter -> "¡Batería lista! A volar"
+                isUnicycle -> "¡Equilibrio OK! A rodar"
+                else -> "¡GPS fijado! Vamos allá"
             }
         }
     }

@@ -487,15 +487,15 @@ fun PreRideSmartWarning(
                     // Generar mensaje específico según las condiciones detectadas
                     when {
                         isStorm || isStormByDescription -> "Tormenta detectada"
-                        isExtremeGusts && isExtremeTemp -> "Ráfagas muy fuertes (${windGustsKmh.toInt()} km/h) y temp. extrema (${temperature.toInt()}°C)"
-                        isExtremeWind && isExtremeTemp -> "Viento fuerte (${windSpeedKmh.toInt()} km/h) y temp. extrema (${temperature.toInt()}°C)"
+                        isExtremeGusts && isExtremeTemp -> "Ráfagas muy fuertes (${windGustsKmh.toInt()} km/h) y temp. extrema (${formatTemperature(temperature, decimals = 0)}°C)"
+                        isExtremeWind && isExtremeTemp -> "Viento fuerte (${windSpeedKmh.toInt()} km/h) y temp. extrema (${formatTemperature(temperature, decimals = 0)}°C)"
                         isExtremeGusts -> "Ráfagas de viento muy fuertes (${windGustsKmh.toInt()} km/h)"
                         isExtremeWind -> "Viento fuerte (${windSpeedKmh.toInt()} km/h)"
                         isExtremeTemp -> {
                             if (temperature > 35) {
-                                "Calor intenso (${temperature.toInt()}°C)"
+                                "Calor intenso (${formatTemperature(temperature, decimals = 0)}°C)"
                             } else {
-                                "Temperaturas bajo cero (${temperature.toInt()}°C)"
+                                "Temperaturas bajo cero (${formatTemperature(temperature, decimals = 0)}°C)"
                             }
                         }
                         isExtremeUv -> "Índice UV muy alto (${uvIndex?.toInt() ?: 0})"
@@ -1512,13 +1512,28 @@ fun formatDuration(millis: Long): String {
 /**
  * Formatea la temperatura asegurándose de que 0 se muestre sin signo menos
  */
+/**
+ * Formatea la temperatura y evita el "-0" o "-0.0"
+ */
 private fun formatTemperature(temperature: Double, decimals: Int = 1): String {
-    // Si la temperatura es exactamente 0 o muy cercana a 0, mostrar sin signo menos
+    // 1. Obtenemos el valor absoluto para formatear el número "limpio"
     val absTemp = kotlin.math.abs(temperature)
-    val formatted = com.zipstats.app.utils.LocationUtils.formatNumberSpanish(absTemp, decimals)
     
-    // Si la temperatura original es negativa (y no es 0), añadir el signo menos
-    return if (temperature < 0 && absTemp > 0.001) {
+    // 2. Usamos tu utilidad para formatear (ej: "0,0" o "17,5")
+    val formatted = com.zipstats.app.utils.LocationUtils.formatNumberSpanish(absTemp, decimals)
+
+    // 3. TRUCO DE MAGIA 🪄
+    // Comprobamos si el número que vamos a mostrar es realmente un cero.
+    // Reemplazamos la coma por punto para asegurar que toDouble() funcione.
+    val isEffectiveZero = try {
+        formatted.replace(",", ".").toDouble() == 0.0
+    } catch (e: Exception) {
+        false
+    }
+
+    // 4. Lógica de signo:
+    // Solo ponemos el "-" si la temperatura original es negativa Y NO es un cero efectivo.
+    return if (temperature < 0 && !isEffectiveZero) {
         "-$formatted"
     } else {
         formatted

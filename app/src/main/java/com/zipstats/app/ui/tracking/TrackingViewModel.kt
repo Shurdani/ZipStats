@@ -1707,7 +1707,7 @@ class TrackingViewModel @Inject constructor(
                         showers = weather.showers
                     )
                     Log.d(TAG, "✅ Clima obtenido manualmente: ${weather.temperature}°C $effectiveEmoji")
-                    _message.value = "Clima obtenido: ${LocationUtils.formatNumberSpanish(weather.temperature, 0)}°C $effectiveEmoji"
+                    _message.value = "Clima obtenido: ${formatTemperature(weather.temperature, 0)}°C $effectiveEmoji"
                 }.onFailure { error ->
                     Log.e(TAG, "❌ Error al obtener clima manualmente: ${error.message}")
                     _weatherStatus.value = WeatherStatus.Error(error.message ?: "Error al obtener clima")
@@ -2406,6 +2406,37 @@ class TrackingViewModel @Inject constructor(
     
     private fun Double.roundToOneDecimal(): Double {
         return (this * 10.0).roundToInt() / 10.0
+    }
+    
+    /**
+     * Formatea la temperatura asegurándose de que 0 se muestre sin signo menos
+     */
+    /**
+     * Formatea la temperatura y evita el "-0" o "-0.0"
+     */
+    private fun formatTemperature(temperature: Double, decimals: Int = 1): String {
+        // 1. Obtenemos el valor absoluto para formatear el número "limpio"
+        val absTemp = kotlin.math.abs(temperature)
+        
+        // 2. Usamos tu utilidad para formatear (ej: "0,0" o "17,5")
+        val formatted = LocationUtils.formatNumberSpanish(absTemp, decimals)
+
+        // 3. TRUCO DE MAGIA 🪄
+        // Comprobamos si el número que vamos a mostrar es realmente un cero.
+        // Reemplazamos la coma por punto para asegurar que toDouble() funcione.
+        val isEffectiveZero = try {
+            formatted.replace(",", ".").toDouble() == 0.0
+        } catch (e: Exception) {
+            false
+        }
+
+        // 4. Lógica de signo:
+        // Solo ponemos el "-" si la temperatura original es negativa Y NO es un cero efectivo.
+        return if (temperature < 0 && !isEffectiveZero) {
+            "-$formatted"
+        } else {
+            formatted
+        }
     }
 }
 

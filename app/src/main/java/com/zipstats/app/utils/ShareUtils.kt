@@ -163,7 +163,7 @@ object ShareUtils {
             cardView.findViewById<android.widget.ImageView>(R.id.weatherIcon).setImageResource(weatherIconRes)
             cardView.findViewById<android.widget.ImageView>(R.id.weatherIcon).setColorFilter(android.graphics.Color.WHITE)
             cardView.findViewById<android.widget.TextView>(R.id.weatherTemp).text =
-                "${LocationUtils.formatNumberSpanish(route.weatherTemperature, 0)}°C"
+                "${formatTemperature(route.weatherTemperature, 0)}°C"
             cardView.findViewById<android.widget.LinearLayout>(R.id.weatherContainer).visibility = android.view.View.VISIBLE
         } else {
             cardView.findViewById<android.widget.LinearLayout>(R.id.weatherContainer).visibility = android.view.View.GONE
@@ -273,6 +273,37 @@ object ShareUtils {
         val minutes = durationMs / 1000 / 60
         val hours = minutes / 60
         return if (hours > 0) String.format("%d h %d min", hours, minutes % 60) else String.format("%d min", minutes)
+    }
+
+    /**
+     * Formatea la temperatura asegurándose de que 0 se muestre sin signo menos
+     */
+    /**
+     * Formatea la temperatura y evita el "-0" o "-0.0"
+     */
+    private fun formatTemperature(temperature: Double, decimals: Int = 1): String {
+        // 1. Obtenemos el valor absoluto para formatear el número "limpio"
+        val absTemp = kotlin.math.abs(temperature)
+        
+        // 2. Usamos tu utilidad para formatear (ej: "0,0" o "17,5")
+        val formatted = LocationUtils.formatNumberSpanish(absTemp, decimals)
+
+        // 3. TRUCO DE MAGIA 🪄
+        // Comprobamos si el número que vamos a mostrar es realmente un cero.
+        // Reemplazamos la coma por punto para asegurar que toDouble() funcione.
+        val isEffectiveZero = try {
+            formatted.replace(",", ".").toDouble() == 0.0
+        } catch (e: Exception) {
+            false
+        }
+
+        // 4. Lógica de signo:
+        // Solo ponemos el "-" si la temperatura original es negativa Y NO es un cero efectivo.
+        return if (temperature < 0 && !isEffectiveZero) {
+            "-$formatted"
+        } else {
+            formatted
+        }
     }
 }
 

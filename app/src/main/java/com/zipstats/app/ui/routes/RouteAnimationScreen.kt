@@ -537,7 +537,7 @@ fun RouteAnimationDialog(
                     distanceKm = route.totalDistance.toFloat(),
                     duration = formatDurationWithUnits(route.totalDuration),
                     avgSpeed = route.averageSpeed.toFloat(),
-                    temperature = route.weatherTemperature?.toInt(),
+                    temperature = route.weatherTemperature,
                     weatherText = weatherText,
                     weatherIconRes = weatherIconRes
                 )

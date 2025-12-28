@@ -42,7 +42,7 @@ fun RouteSummaryCard(
     distanceKm: Float,
     duration: String,
     avgSpeed: Float,
-    temperature: Int? = null,
+    temperature: Double? = null,
     weatherText: String? = null,
     @DrawableRes weatherIconRes: Int? = null,
     modifier: Modifier = Modifier
@@ -157,7 +157,7 @@ fun RouteSummaryCard(
                         Spacer(modifier = Modifier.width(12.dp))
 
                         ZipStatsText(
-                            text = "${formatTemperature(temperature.toDouble(), decimals = 0)}°C",
+                            text = "${formatTemperature(temperature, decimals = 0)}°C",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                             color = Color.White
@@ -224,9 +224,30 @@ private fun VerticalDivider() {
     )
 }
 
-// ... (Tu función formatTemperature se mantiene igual)
+/**
+ * Formatea la temperatura y evita el "-0" o "-0.0"
+ */
 private fun formatTemperature(temperature: Double, decimals: Int = 1): String {
+    // 1. Obtenemos el valor absoluto para formatear el número "limpio"
     val absTemp = kotlin.math.abs(temperature)
+    
+    // 2. Usamos tu utilidad para formatear (ej: "0,0" o "17,5")
     val formatted = LocationUtils.formatNumberSpanish(absTemp, decimals)
-    return if (temperature < 0 && absTemp > 0.001) "-$formatted" else formatted
+
+    // 3. TRUCO DE MAGIA 🪄
+    // Comprobamos si el número que vamos a mostrar es realmente un cero.
+    // Reemplazamos la coma por punto para asegurar que toDouble() funcione.
+    val isEffectiveZero = try {
+        formatted.replace(",", ".").toDouble() == 0.0
+    } catch (e: Exception) {
+        false
+    }
+
+    // 4. Lógica de signo:
+    // Solo ponemos el "-" si la temperatura original es negativa Y NO es un cero efectivo.
+    return if (temperature < 0 && !isEffectiveZero) {
+        "-$formatted"
+    } else {
+        formatted
+    }
 }

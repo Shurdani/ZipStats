@@ -468,6 +468,13 @@ ${scooterTexts.joinToString("\n")}
         val selectedMonth = (month ?: _selectedMonth.value ?: LocalDate.now().monthValue).coerceIn(1, 12)
         val selectedYear = year ?: _selectedYear.value ?: LocalDate.now().year
         
+        // Verificar si es el mes actual (sin selección manual)
+        // Si month y year son null (no hay selección manual), y el mes calculado es el actual, mostrar porcentajes
+        val today = LocalDate.now()
+        val hasManualSelection = (month != null || year != null)
+        val isCurrentMonth = !hasManualSelection && 
+                            selectedMonth == today.monthValue && selectedYear == today.year
+        
         // Lista de nombres de meses en español
         val monthNames = listOf(
             "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
@@ -475,15 +482,58 @@ ${scooterTexts.joinToString("\n")}
         )
         val monthName = monthNames.getOrElse(selectedMonth - 1) { "Mes" }
         
-        return """
- Estadísticas de $monthName $selectedYear de ${userName.value} 
+        // Si es el mes actual, calcular porcentajes de variación
+        val percentagesText = if (isCurrentMonth && stats.monthlyComparison != null) {
+            val comparison = stats.monthlyComparison
+            // Calcular porcentajes para todas las métricas basándonos en la distancia
+            val currentDistance = stats.monthlyDistance
+            val previousDistance = when (comparison.metricType) {
+                ComparisonMetricType.DISTANCE -> comparison.previousValue
+                ComparisonMetricType.CO2 -> comparison.previousValue / 0.15
+                ComparisonMetricType.TREES -> comparison.previousValue / 0.005
+                ComparisonMetricType.GAS -> comparison.previousValue / 0.07
+            }
+            
+            if (previousDistance > 0.1) {
+                val distancePercent = ((currentDistance - previousDistance) / previousDistance * 100).roundToInt()
+                val co2Percent = distancePercent // Mismo porcentaje porque es proporcional
+                val treesPercent = distancePercent // Mismo porcentaje porque es proporcional
+                val gasPercent = distancePercent // Mismo porcentaje porque es proporcional
+                
+                val distanceSign = if (distancePercent >= 0) "+" else ""
+                val co2Sign = if (co2Percent >= 0) "+" else ""
+                val treesSign = if (treesPercent >= 0) "+" else ""
+                val gasSign = if (gasPercent >= 0) "+" else ""
+                
+                """
+
+📊 Total recorrido: ${stats.monthlyDistance} km ($distanceSign$distancePercent%)
+🌱 CO₂ ahorrado: $co2Saved kg ($co2Sign$co2Percent%)
+🌳 Árboles: $treesEquivalent ($treesSign$treesPercent%)
+⛽ Gasolina ahorrada: $gasSaved L ($gasSign$gasPercent%)""".trimIndent()
+            } else {
+                """
 
 📊 Total recorrido: ${stats.monthlyDistance} km
+🌱 CO₂ ahorrado: $co2Saved kg
+🌳 Árboles: $treesEquivalent
+⛽ Gasolina ahorrada: $gasSaved L""".trimIndent()
+            }
+        } else {
+            // Si no es el mes actual o no hay comparación, mostrar sin porcentajes
+            """
+
+📊 Total recorrido: ${stats.monthlyDistance} km
+🌱 CO₂ ahorrado: $co2Saved kg
+🌳 Árboles: $treesEquivalent
+⛽ Gasolina ahorrada: $gasSaved L""".trimIndent()
+        }
+        
+        return """
+ Estadísticas de $monthName $selectedYear de ${userName.value} $percentagesText
 📈 Promedio por registro: ${stats.monthlyAverageDistance} km
 🏆 Mejor registro: ${stats.monthlyMaxDistance} km
 📝 Total de registros: ${stats.monthlyRecords}
-🌱 CO₂ ahorrado: $co2Saved kg ≈ $treesEquivalent árboles 🌳
-⛽ Gasolina ahorrada: $gasSaved Litros 
 #ZipStats""".trimIndent()
     }
 
@@ -495,15 +545,64 @@ ${scooterTexts.joinToString("\n")}
         // Usar el año seleccionado, o el actual si no hay selección
         val selectedYear = year ?: _selectedYear.value ?: LocalDate.now().year
         
-        return """
- Estadísticas de $selectedYear de ${userName.value}
+        // Verificar si es el año actual (sin selección manual)
+        // Si year es null (no hay selección manual), y el año calculado es el actual, mostrar porcentajes
+        val today = LocalDate.now()
+        val hasManualSelection = (year != null)
+        val isCurrentYear = !hasManualSelection && selectedYear == today.year
+        
+        // Si es el año actual, calcular porcentajes de variación
+        val percentagesText = if (isCurrentYear && stats.yearlyComparison != null) {
+            val comparison = stats.yearlyComparison
+            // Calcular porcentajes para todas las métricas basándonos en la distancia
+            val currentDistance = stats.yearlyDistance
+            val previousDistance = when (comparison.metricType) {
+                ComparisonMetricType.DISTANCE -> comparison.previousValue
+                ComparisonMetricType.CO2 -> comparison.previousValue / 0.15
+                ComparisonMetricType.TREES -> comparison.previousValue / 0.005
+                ComparisonMetricType.GAS -> comparison.previousValue / 0.07
+            }
+            
+            if (previousDistance > 0.1) {
+                val distancePercent = ((currentDistance - previousDistance) / previousDistance * 100).roundToInt()
+                val co2Percent = distancePercent // Mismo porcentaje porque es proporcional
+                val treesPercent = distancePercent // Mismo porcentaje porque es proporcional
+                val gasPercent = distancePercent // Mismo porcentaje porque es proporcional
+                
+                val distanceSign = if (distancePercent >= 0) "+" else ""
+                val co2Sign = if (co2Percent >= 0) "+" else ""
+                val treesSign = if (treesPercent >= 0) "+" else ""
+                val gasSign = if (gasPercent >= 0) "+" else ""
+                
+                """
+
+📊 Total recorrido: ${stats.yearlyDistance} km ($distanceSign$distancePercent%)
+🌱 CO₂ ahorrado: $co2Saved kg ($co2Sign$co2Percent%)
+🌳 Árboles: $treesEquivalent ($treesSign$treesPercent%)
+⛽ Gasolina ahorrada: $gasSaved L ($gasSign$gasPercent%)""".trimIndent()
+            } else {
+                """
 
 📊 Total recorrido: ${stats.yearlyDistance} km
+🌱 CO₂ ahorrado: $co2Saved kg
+🌳 Árboles: $treesEquivalent
+⛽ Gasolina ahorrada: $gasSaved L""".trimIndent()
+            }
+        } else {
+            // Si no es el año actual o no hay comparación, mostrar sin porcentajes
+            """
+
+📊 Total recorrido: ${stats.yearlyDistance} km
+🌱 CO₂ ahorrado: $co2Saved kg
+🌳 Árboles: $treesEquivalent
+⛽ Gasolina ahorrada: $gasSaved L""".trimIndent()
+        }
+        
+        return """
+ Estadísticas de $selectedYear de ${userName.value} $percentagesText
 📈 Promedio por registro: ${stats.yearlyAverageDistance} km
 🏆 Mejor registro: ${stats.yearlyMaxDistance} km
 📝 Total de registros: ${stats.yearlyRecords}
-🌱 CO₂ ahorrado: $co2Saved kg ≈ $treesEquivalent árboles 🌳
-⛽ Gasolina ahorrada: $gasSaved Litros 
 #ZipStats""".trimIndent()
     }
 
@@ -1065,14 +1164,14 @@ ${scooterTexts.joinToString("\n")}
 
         // 6. TEXTOS PERSONALIZADOS
         val finalPeriodLabel = when (selectedMetric) {
-            InsightMetric.RAIN -> "vs $periodName • ¡Ruta pasada por agua!"
-            InsightMetric.WET_ROAD -> "vs $periodName • Precaución: Deslizante"
+            InsightMetric.RAIN -> "vs $periodName"
+            InsightMetric.WET_ROAD -> "vs $periodName"
             InsightMetric.EXTREME -> {
                 val cause = weatherStats.dominantExtremeCause
                 if (cause != ExtremeCause.NONE) {
                     "vs $periodName • Alerta: ${cause.label} ${cause.emoji}"
                 } else {
-                    "vs $periodName • ¡Condiciones duras!"
+                    "vs $periodName"
                 }
             }
             else -> "vs $periodName"

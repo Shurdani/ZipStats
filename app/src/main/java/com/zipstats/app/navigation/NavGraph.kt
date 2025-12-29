@@ -104,24 +104,20 @@ fun NavGraph(
 
         // 5. Records
         composable(route = Screen.Records.route) {
-            // Usamos la variable 'vehiclesReady' que ya calculamos arriba
-            if (vehiclesReady) {
-                RecordsHistoryScreen(navController = navController)
-            }
+            // La pantalla gestionará su propio estado de carga
+            RecordsHistoryScreen(navController = navController)
         }
 
         // 6. Statistics
         composable(route = Screen.Statistics.route) {
-            if (vehiclesReady) {
-                StatisticsScreen(navController = navController)
-            }
+            // La pantalla gestionará su propio estado de carga
+            StatisticsScreen(navController = navController)
         }
 
         // 7. Routes (Home)
         composable(route = Screen.Routes.route) {
-            if (vehiclesReady) {
-                RoutesScreen(navController = navController)
-            }
+            // La pantalla gestionará su propio estado de carga
+            RoutesScreen(navController = navController)
         }
 
         // 8. Repairs

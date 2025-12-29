@@ -704,6 +704,7 @@ fun AnimationControlBar(
                     text = "${playbackSpeed.toInt()}x",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
+                    color = Color.White,
                     autoResize = true // 🔥 Métrica numérica, reduce si no cabe
                 )
             }

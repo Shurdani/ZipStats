@@ -75,7 +75,8 @@ fun RouteSummaryCard(
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
                         color = Color.White,
-                        maxLines = 1
+                        maxLines = Int.MAX_VALUE
+
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     ZipStatsText(

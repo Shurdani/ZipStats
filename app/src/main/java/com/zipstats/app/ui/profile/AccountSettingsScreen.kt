@@ -444,9 +444,24 @@ fun AccountSettingsScreen(
                 )
             }
             
-            // Versión de la app (dinámica desde BuildConfig)
+            // Versión de la app (obtenida desde PackageManager para asegurar que sea la versión real)
+            val appVersion = remember {
+                try {
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                        context.packageManager.getPackageInfo(
+                            context.packageName,
+                            android.content.pm.PackageManager.PackageInfoFlags.of(0)
+                        ).versionName
+                    } else {
+                        @Suppress("DEPRECATION")
+                        context.packageManager.getPackageInfo(context.packageName, 0).versionName
+                    }
+                } catch (e: Exception) {
+                    BuildConfig.VERSION_NAME // Fallback a BuildConfig si falla
+                }
+            }
             ZipStatsText(
-                text = "Versión ${BuildConfig.VERSION_NAME}",
+                text = "Versión $appVersion",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
                 modifier = Modifier.fillMaxWidth(),

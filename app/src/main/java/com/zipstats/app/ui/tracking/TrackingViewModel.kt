@@ -151,7 +151,7 @@ class TrackingViewModel @Inject constructor(
     val preLocation: StateFlow<Location?> = _preLocation.asStateFlow()
     
     // Cliente de ubicación para GPS previo
-    private lateinit var fusedLocationClient: FusedLocationProviderClient
+    private var fusedLocationClient: FusedLocationProviderClient
     private lateinit var locationTracker: LocationTracker
     private var preLocationCallback: LocationCallback? = null
     private var isPreLocationActive = false
@@ -219,6 +219,7 @@ class TrackingViewModel @Inject constructor(
     // Prioridad: Condiciones extremas > Lluvia > Calzada mojada
     private var weatherHadWetRoad = false // Calzada mojada detectada (sin lluvia activa)
     private var weatherHadExtremeConditions = false // Condiciones extremas detectadas
+    private var weatherExtremeReason: String? = null // Razón de condiciones extremas (WIND, GUSTS, STORM, COLD, HEAT)
     
     // Valores máximos/mínimos durante la ruta (para reflejar el estado más adverso en los badges)
     private var maxWindSpeed = 0.0 // km/h
@@ -280,7 +281,7 @@ class TrackingViewModel @Inject constructor(
         // Comprobamos si hay un clima guardado en la "caja fuerte" del repositorio
         val savedWeather = routeRepository.getTempWeather()
         if (savedWeather != null) {
-            android.util.Log.d("TrackingViewModel", "♻️ Recuperando clima guardado tras cambio de pantalla")
+            Log.d("TrackingViewModel", "♻️ Recuperando clima guardado tras cambio de pantalla")
 
             // 1. Restauramos las variables privadas para el guardado final
             _startWeatherTemperature = savedWeather.temperature
@@ -472,7 +473,7 @@ class TrackingViewModel @Inject constructor(
                 
                 result.onSuccess { weather ->
                     // Resolver código de clima efectivo basado en detección de lluvia efectiva
-                    val (effectiveWeatherCode, reasonCode, userFriendlyReason, isDerived) = resolveEffectiveWeatherCode(
+                    val (effectiveWeatherCode, _, _, isDerived) = resolveEffectiveWeatherCode(
                         weather.weatherCode,
                         weather.precipitation,
                         weather.rain,
@@ -570,16 +571,37 @@ class TrackingViewModel @Inject constructor(
                     )
                     _shouldShowExtremeWarning.value = hasExtremeConditions
                     
-                    // 🔥 ACTUALIZAR ESTADO MÁS ADVERSO INICIAL (prioridad: extremas > lluvia > calzada mojada)
+                    // 🔥 JERARQUÍA DE BADGES (misma lógica que RouteDetailDialog):
+                    // 1. Lluvia: Máxima prioridad (siempre se muestra si existe)
+                    // 2. Calzada mojada: Solo si NO hay lluvia (excluyente con lluvia)
+                    // 3. Condiciones extremas: COMPLEMENTARIO (puede coexistir con lluvia o calzada mojada)
+                    
+                    // Detectar y guardar condiciones extremas (complementario, no excluye otros badges)
                     if (hasExtremeConditions) {
                         weatherHadExtremeConditions = true
+                        // Detectar y guardar la causa específica en precarga
+                        val cause = detectExtremeCause(
+                            windSpeed = weather.windSpeed,
+                            windGusts = weather.windGusts,
+                            temperature = weather.temperature,
+                            uvIndex = weather.uvIndex,
+                            isDay = weather.isDay,
+                            weatherEmoji = effectiveEmoji,
+                            weatherDescription = effectiveDescription
+                        )
+                        if (cause != null) {
+                            weatherExtremeReason = cause
+                        }
                     }
+                    
+                    // Lluvia: Máxima prioridad (siempre se muestra si existe)
                     if (isActiveRain) {
                         weatherHadRain = true
                         weatherRainStartMinute = 0 // Al inicio de la ruta
                         weatherRainReason = rainUserReason // Guardar razón amigable para el usuario
-                        weatherHadWetRoad = false // Lluvia es más grave
+                        weatherHadWetRoad = false // Lluvia excluye calzada mojada
                     } else if (isWetRoad) {
+                        // Calzada mojada: Solo si NO hay lluvia activa
                         weatherHadWetRoad = true
                     }
                     
@@ -714,8 +736,7 @@ class TrackingViewModel @Inject constructor(
      * Verifica si hay señal GPS válida para iniciar
      */
     fun hasValidGpsSignal(): Boolean {
-        val state = _gpsPreLocationState.value
-        return when (state) {
+        return when (val state = _gpsPreLocationState.value) {
             is GpsPreLocationState.Ready -> true
             is GpsPreLocationState.Found -> state.accuracy <= 10f
             is GpsPreLocationState.Searching -> false
@@ -951,12 +972,68 @@ class TrackingViewModel @Inject constructor(
             desc.contains("granizo", ignoreCase = true) ||
             desc.contains("rayo", ignoreCase = true)
         } ?: false
+
+        return isStorm || isStormByDescription
+    }
+    
+    /**
+     * Detecta la causa específica de condiciones extremas (misma lógica que StatisticsViewModel)
+     * Retorna: "STORM", "GUSTS", "WIND", "COLD", "HEAT" o null
+     */
+    private fun detectExtremeCause(
+        windSpeed: Double?,
+        windGusts: Double?,
+        temperature: Double?,
+        uvIndex: Double?,
+        isDay: Boolean,
+        weatherEmoji: String?,
+        weatherDescription: String?
+    ): String? {
+        // Prioridad: Tormenta > Rachas > Viento > Temperatura
+        
+        // 1. Tormenta (prioridad máxima)
+        val isStorm = weatherEmoji?.let { emoji ->
+            emoji.contains("⛈") || emoji.contains("⚡")
+        } ?: false
+        
+        val isStormByDescription = weatherDescription?.let { desc ->
+            desc.contains("Tormenta", ignoreCase = true) ||
+            desc.contains("granizo", ignoreCase = true) ||
+            desc.contains("rayo", ignoreCase = true)
+        } ?: false
         
         if (isStorm || isStormByDescription) {
-            return true
+            return "STORM"
         }
         
-        return false
+        // 2. Rachas de viento muy fuertes (>60 km/h) - prioridad sobre viento normal
+        val windGustsKmh = (windGusts ?: 0.0) * 3.6
+        if (windGustsKmh > 60) {
+            return "GUSTS"
+        }
+        
+        // 3. Viento fuerte (>40 km/h)
+        val windSpeedKmh = (windSpeed ?: 0.0) * 3.6
+        if (windSpeedKmh > 40) {
+            return "WIND"
+        }
+        
+        // 4. Temperatura extrema
+        if (temperature != null) {
+            if (temperature < 0) {
+                return "COLD"
+            }
+            if (temperature > 35) {
+                return "HEAT"
+            }
+        }
+        
+        // 5. Índice UV muy alto (>8) - solo de día (se considera como calor)
+        if (isDay && uvIndex != null && uvIndex > 8) {
+            return "HEAT"
+        }
+        
+        return null
     }
 
     /**
@@ -1053,7 +1130,7 @@ class TrackingViewModel @Inject constructor(
                         
                         result.onSuccess { weather ->
                             // Detectar lluvia usando la función (para badge en resumen)
-                            val (isRaining, rainReasonCode, rainUserReason) = isRainingForScooter(
+                            val (isRaining, _, rainUserReason) = isRainingForScooter(
                                 weather.weatherCode,
                                 weather.precipitation,
                                 weather.rain,
@@ -1103,10 +1180,30 @@ class TrackingViewModel @Inject constructor(
                                 weatherDescription = weather.description
                             )
                             
-                            // 🔥 ACTUALIZAR ESTADO MÁS ADVERSO (prioridad: extremas > lluvia > calzada mojada)
-                            // Si detectamos condiciones extremas, es el más grave
+                            // 🔥 JERARQUÍA DE BADGES (misma lógica que RouteDetailDialog):
+                            // 1. Lluvia: Máxima prioridad (siempre se muestra si existe)
+                            // 2. Calzada mojada: Solo si NO hay lluvia (excluyente con lluvia)
+                            // 3. Condiciones extremas: COMPLEMENTARIO (puede coexistir con lluvia o calzada mojada)
+                            
+                            // Detectar y guardar condiciones extremas (complementario, no excluye otros badges)
                             if (hasExtremeConditions) {
                                 weatherHadExtremeConditions = true
+                                
+                                // Detectar y guardar la causa específica
+                                val cause = detectExtremeCause(
+                                    windSpeed = weather.windSpeed,
+                                    windGusts = weather.windGusts,
+                                    temperature = weather.temperature,
+                                    uvIndex = weather.uvIndex,
+                                    isDay = weather.isDay,
+                                    weatherEmoji = effectiveEmoji,
+                                    weatherDescription = weather.description
+                                )
+                                if (cause != null && weatherExtremeReason == null) {
+                                    // Guardar la primera causa detectada (la más grave por prioridad)
+                                    weatherExtremeReason = cause
+                                }
+                                
                                 // Rastrear valores extremos para reflejarlos en los badges
                                 val windSpeedKmh = (weather.windSpeed ?: 0.0) * 3.6
                                 val windGustsKmh = (weather.windGusts ?: 0.0) * 3.6
@@ -1120,12 +1217,12 @@ class TrackingViewModel @Inject constructor(
                                 }
                             }
                             
-                            // Si detectamos lluvia activa, es más grave que calzada mojada
+                            // Lluvia: Máxima prioridad (siempre se muestra si existe)
                             if (isActiveRain) {
                                 weatherHadRain = true
-                                weatherHadWetRoad = false // Lluvia es más grave, no calzada mojada
+                                weatherHadWetRoad = false // Lluvia excluye calzada mojada
                             } else if (isWetRoad) {
-                                // Solo marcar calzada mojada si NO hay lluvia activa
+                                // Calzada mojada: Solo si NO hay lluvia activa
                                 weatherHadWetRoad = true
                                 // Asegurar que haya precipitación para que el badge se muestre
                                 if (weatherMaxPrecipitation < 0.1) {
@@ -1149,7 +1246,7 @@ class TrackingViewModel @Inject constructor(
                                         
                                         // Actualizar solo los campos visibles en la tarjeta de clima durante tracking
                                         // (icono, temperatura, viento y dirección) ya que al finalizar se guardan los datos del inicio
-                                        val (effectiveWeatherCode, _, _, isDerived) = resolveEffectiveWeatherCode(
+                                        val (effectiveWeatherCode, _, _, _) = resolveEffectiveWeatherCode(
                                             weather.weatherCode,
                                             weather.precipitation,
                                             weather.rain,
@@ -1249,7 +1346,7 @@ class TrackingViewModel @Inject constructor(
             Log.d(TAG, "♻️ Reutilizando clima inicial capturado en precarga")
             
             // Resolver código de clima efectivo
-            val (effectiveWeatherCode, _, userFriendlyReason, isDerived) = resolveEffectiveWeatherCode(
+            val (effectiveWeatherCode, _, _, isDerived) = resolveEffectiveWeatherCode(
                 snapshot.weatherCode,
                 snapshot.precipitation,
                 snapshot.rain,
@@ -1274,7 +1371,7 @@ class TrackingViewModel @Inject constructor(
             }
             
             // Detectar lluvia durante la ruta (inicialización)
-            val (isRaining, rainReasonCode, rainUserReason) = isRainingForScooter(
+            val (isRaining, _, rainUserReason) = isRainingForScooter(
                 snapshot.weatherCode,
                 snapshot.precipitation,
                 snapshot.rain,
@@ -1389,7 +1486,7 @@ class TrackingViewModel @Inject constructor(
                     
                     result.onSuccess { weather ->
                         // Resolver código de clima efectivo basado en detección de lluvia efectiva
-                        val (effectiveWeatherCode, reasonCode, userFriendlyReason, isDerived) = resolveEffectiveWeatherCode(
+                        val (effectiveWeatherCode, _, userFriendlyReason, isDerived) = resolveEffectiveWeatherCode(
                             weather.weatherCode,
                             weather.precipitation,
                             weather.rain,
@@ -1466,7 +1563,7 @@ class TrackingViewModel @Inject constructor(
                         }
                         
                         // Detectar lluvia durante la ruta (inicialización)
-                        val (isRaining, rainReasonCode, rainUserReason) = isRainingForScooter(
+                        val (isRaining, _, rainUserReason) = isRainingForScooter(
                             weather.weatherCode,
                             weather.precipitation,
                             weather.rain,
@@ -1603,7 +1700,7 @@ class TrackingViewModel @Inject constructor(
                 
                 result.onSuccess { weather ->
                     // Resolver código de clima efectivo basado en detección de lluvia efectiva
-                    val (effectiveWeatherCode, reasonCode, userFriendlyReason, isDerived) = resolveEffectiveWeatherCode(
+                    val (effectiveWeatherCode, _, _, isDerived) = resolveEffectiveWeatherCode(
                         weather.weatherCode,
                         weather.precipitation,
                         weather.rain,
@@ -1648,7 +1745,7 @@ class TrackingViewModel @Inject constructor(
                     }
                     
                     // Detectar lluvia durante la ruta usando la nueva función
-                    val (isRaining, rainReasonCode, rainUserReason) = isRainingForScooter(
+                    val (isRaining, _, rainUserReason) = isRainingForScooter(
                         weather.weatherCode,
                         weather.precipitation,
                         weather.rain,
@@ -1844,7 +1941,7 @@ class TrackingViewModel @Inject constructor(
                         weatherResult.fold(
                             onSuccess = { weather ->
                                 // Resolver código de clima efectivo basado en detección de lluvia efectiva
-                                val (effectiveWeatherCode, reasonCode, userFriendlyReason, isDerived) = resolveEffectiveWeatherCode(
+                                val (effectiveWeatherCode, _, _, isDerived) = resolveEffectiveWeatherCode(
                                     weather.weatherCode,
                                     weather.precipitation,
                                     weather.rain,
@@ -1891,7 +1988,7 @@ class TrackingViewModel @Inject constructor(
                                     hasValidWeather = true
                                     
                                     // Detectar lluvia durante la ruta usando la nueva función
-                                    val (isRaining, rainReasonCode, rainUserReason) = isRainingForScooter(
+                                    val (isRaining, _, rainUserReason) = isRainingForScooter(
                                         weather.weatherCode,
                                         weather.precipitation,
                                         weather.rain,
@@ -1943,7 +2040,7 @@ class TrackingViewModel @Inject constructor(
                 )
 
                 // Calcular minutos transcurridos para weatherRainStartMinute
-                val elapsedMinutes = if (_startTime.value > 0) {
+                if (_startTime.value > 0) {
                     ((endTime - _startTime.value) / (1000 * 60)).toInt()
                 } else {
                     0
@@ -2050,7 +2147,8 @@ class TrackingViewModel @Inject constructor(
                             else -> null
                         },
                         weatherRainReason = weatherRainReason,
-                        weatherHadExtremeConditions = if (hadExtremeConditionsDuringRoute) true else null
+                        weatherHadExtremeConditions = if (hadExtremeConditionsDuringRoute) true else null,
+                        weatherExtremeReason = if (hadExtremeConditionsDuringRoute) weatherExtremeReason else null
                     )
                 } else {
                     Log.w(TAG, "⚠️ No se capturó clima válido al inicio, guardando ruta SIN clima (temp=$savedWeatherTemp, emoji=$savedWeatherEmoji)")
@@ -2079,7 +2177,7 @@ class TrackingViewModel @Inject constructor(
                 val result = routeRepository.saveRoute(route)
                 
                 if (result.isSuccess) {
-                    val savedRouteId = result.getOrNull() ?: ""
+                    result.getOrNull() ?: ""
                     
                     // NO intentar obtener clima en segundo plano - puede guardar el clima ACTUAL en lugar del del momento
                     // Si no se capturó al inicio, la ruta se guarda sin clima (correcto)
@@ -2093,6 +2191,7 @@ class TrackingViewModel @Inject constructor(
                 weatherHadRain = false
                 weatherHadWetRoad = false
                 weatherHadExtremeConditions = false
+                weatherExtremeReason = null
                 weatherMaxPrecipitation = 0.0
                 maxWindSpeed = 0.0
                 maxWindGusts = 0.0
@@ -2118,6 +2217,7 @@ class TrackingViewModel @Inject constructor(
                 weatherRainReason = null
                 weatherHadWetRoad = false
                 weatherHadExtremeConditions = false
+                weatherExtremeReason = null
                 maxWindSpeed = 0.0
                 maxWindGusts = 0.0
                 minTemperature = Double.MAX_VALUE

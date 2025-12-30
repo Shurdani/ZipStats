@@ -121,6 +121,7 @@ fun StatisticsScreen(
     // Recoge las distancias con condiciones climáticas
     val weatherDistances by viewModel.weatherDistances.collectAsState()
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var selectedPeriod by remember { mutableIntStateOf(0) }
     var showMonthYearPicker by remember { mutableStateOf(false) }
 
@@ -408,22 +409,24 @@ fun StatisticsScreen(
                                 showMaxDistance = false,
                                 horizontalPadding = 16.dp, // Padding interno de la tarjeta
                                 onShare = {
-                                    val shareText = when (currentPeriod) {
-                                        StatisticsPeriod.MONTHLY -> viewModel.getMonthlyShareText(stats, currentSelectedMonth, currentSelectedYear)
-                                        StatisticsPeriod.ALL -> viewModel.getShareText(stats)
-                                        StatisticsPeriod.YEARLY -> viewModel.getYearlyShareText(stats, currentSelectedYear)
+                                    scope.launch {
+                                        val shareText = when (currentPeriod) {
+                                            StatisticsPeriod.MONTHLY -> viewModel.getMonthlyShareText(stats, currentSelectedMonth, currentSelectedYear)
+                                            StatisticsPeriod.ALL -> viewModel.getShareText(stats)
+                                            StatisticsPeriod.YEARLY -> viewModel.getYearlyShareText(stats, currentSelectedYear)
+                                        }
+                                        val intent = Intent().apply {
+                                            action = Intent.ACTION_SEND
+                                            putExtra(Intent.EXTRA_TEXT, shareText)
+                                            type = "text/plain"
+                                        }
+                                        val title = when (currentPeriod) {
+                                            StatisticsPeriod.MONTHLY -> "Compartir estadísticas mensuales"
+                                            StatisticsPeriod.ALL -> "Compartir estadísticas totales"
+                                            StatisticsPeriod.YEARLY -> "Compartir estadísticas anuales"
+                                        }
+                                        context.startActivity(Intent.createChooser(intent, title))
                                     }
-                                    val intent = Intent().apply {
-                                        action = Intent.ACTION_SEND
-                                        putExtra(Intent.EXTRA_TEXT, shareText)
-                                        type = "text/plain"
-                                    }
-                                    val title = when (currentPeriod) {
-                                        StatisticsPeriod.MONTHLY -> "Compartir estadísticas mensuales"
-                                        StatisticsPeriod.ALL -> "Compartir estadísticas totales"
-                                        StatisticsPeriod.YEARLY -> "Compartir estadísticas anuales"
-                                    }
-                                    context.startActivity(Intent.createChooser(intent, title))
                                 }
                             )
 

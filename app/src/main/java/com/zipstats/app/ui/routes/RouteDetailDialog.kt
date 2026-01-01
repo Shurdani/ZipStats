@@ -723,9 +723,9 @@ fun AdvancedDetailsSection(route: Route, expanded: Boolean, onToggle: () -> Unit
 
 @Composable
 fun SafetyBadgesSection(route: Route) {
-    // Reutilizamos tu lógica de badges existente
-    val hadRain = route.weatherHadRain == true
-    val hasWetRoad = if (hadRain) false else checkWetRoadConditions(route)
+    // 🔍 FILTRO DE VERDAD: Verificar si realmente hubo lluvia (precipitación > 0.1 mm)
+    val hadRain = isStrictRain(route)
+    val hasWetRoad = checkWetRoadConditions(route)
     val hasExtremeConditions = checkExtremeConditions(route)
 
     if (hadRain || hasWetRoad || hasExtremeConditions) {
@@ -998,11 +998,10 @@ private fun WeatherInfoDialog(route: Route, onDismiss: () -> Unit) {
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     // 🔥 JERARQUÍA DE BADGES (Calcular primero)
-                    // 1. Lluvia activa durante la ruta (prioridad máxima)
-                    val hadRain = route.weatherHadRain == true
-                    // 2. Calzada mojada (solo si NO hubo lluvia activa)
-                    // Si hay lluvia, NUNCA mostrar badge de calzada mojada
-                    val hasWetRoad = if (hadRain) false else checkWetRoadConditions(route)
+                    // 🔍 FILTRO DE VERDAD: Verificar si realmente hubo lluvia (precipitación > 0.1 mm)
+                    val hadRain = isStrictRain(route)
+                    // 2. Calzada mojada (incluye rutas marcadas como lluvia pero sin precipitación real)
+                    val hasWetRoad = checkWetRoadConditions(route)
                     // 3. Condiciones extremas (complementario)
                     val hasExtremeConditions = checkExtremeConditions(route)
                     
@@ -1234,15 +1233,40 @@ private fun WeatherDetailRow(
 }
 
 /**
- * Verifica si hay condiciones de calzada mojada (SIN lluvia activa).
- * Se usa para mostrar el aviso amarillo. Si llueve, se muestra el aviso de lluvia (azul/rosa) y este se oculta.
+ * 🔍 FILTRO DE VERDAD: Verifica si realmente hubo lluvia.
+ * Si la ruta dice "Llovió", pregunta: "¿Cuántos milímetros?"
+ * Si la respuesta es 0 o null, retorna false (no fue lluvia real).
+ */
+private fun isStrictRain(route: Route): Boolean {
+    // Verificar precipitación real
+    val precip = route.weatherMaxPrecipitation ?: 0.0
+    if (precip > 0.1) {
+        return true
+    }
+    
+    // Si weatherHadRain es true pero no hay precipitación > 0.1, no es lluvia real
+    return false
+}
+
+/**
+ * Verifica si hay condiciones de calzada mojada (SIN lluvia activa real).
+ * 🔍 FILTRO DE VERDAD: Si fue marcado como lluvia pero no hubo precipitación real,
+ * se cuenta como calzada mojada.
  * Considera día/noche porque la evaporación cambia significativamente.
  * 🔒 IMPORTANTE: Solo evalúa condiciones probabilísticas si el cielo NO está despejado.
  */
 private fun checkWetRoadConditions(route: Route): Boolean {
-    // 1. EXCLUSIÓN: Si llovió durante la ruta, NO mostramos "Calzada Mojada".
-    // ¿Por qué? Porque ya mostraremos el badge de "Ruta realizada con lluvia" que es más específico.
-    if (route.weatherHadRain == true) {
+    val savedAsRain = route.weatherHadRain == true
+    val isStrictRainResult = isStrictRain(route)
+    
+    // Si fue guardado como lluvia pero NO hubo precipitación real (> 0.1 mm),
+    // se degrada a calzada mojada (esto corrige datos guardados incorrectamente)
+    if (savedAsRain && !isStrictRainResult) {
+        return true
+    }
+    
+    // Si realmente llovió (precipitación > 0.1), NO es calzada mojada (es lluvia real)
+    if (isStrictRainResult) {
         return false
     }
     

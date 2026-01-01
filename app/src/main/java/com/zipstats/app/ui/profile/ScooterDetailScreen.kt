@@ -496,10 +496,17 @@ fun UsageExplanationDialog(
             }
         },
         text = {
-            ZipStatsText(
-                text = "Este vehículo ($vehicleName) ha recorrido ${LocationUtils.formatNumberSpanish(vehicleKm)} km que representan un $usagePercentage% del total de $userName.",
-                style = MaterialTheme.typography.bodyMedium
-            )
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp)
+            ) {
+                ZipStatsText(
+                    text = "$vehicleName ha recorrido ${LocationUtils.formatNumberSpanish(vehicleKm)} km que representan un $usagePercentage% del total de $userName.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    maxLines = Int.MAX_VALUE
+                )
+            }
         },
         confirmButton = {
             DialogCancelButton(

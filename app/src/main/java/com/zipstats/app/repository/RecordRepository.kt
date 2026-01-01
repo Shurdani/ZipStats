@@ -545,8 +545,8 @@ class RecordRepository @Inject constructor(
 
     suspend fun getCO2Saved(): Double {
         val totalDistance = getTotalDistance()
-        // 0.1 kg de CO2 por km ahorrado (según el código existente)
-        return totalDistance * 0.1
+        // 0.15 kg de CO2 por km ahorrado (150g/km, media coche)
+        return totalDistance * 0.15
     }
 
     suspend fun getUniqueMonths(): Int {
@@ -722,7 +722,7 @@ class RecordRepository @Inject constructor(
         }
         
         // Calcular CO2 ahorrado
-        val co2Saved = totalDistance * 0.1
+        val co2Saved = totalDistance * 0.15
         
         // Calcular meses consecutivos
         val monthsList = records
@@ -787,7 +787,7 @@ class RecordRepository @Inject constructor(
             // Calcular estadísticas
             val totalDistance = records.sumOf { it.diferencia }
             val totalRecords = records.size
-            val co2Saved = totalDistance * 0.1 // 0.1 kg de CO2 por km ahorrado
+            val co2Saved = totalDistance * 0.15 // 0.15 kg de CO2 por km ahorrado (150g/km, media coche)
 
             println("DEBUG: Estadísticas calculadas - Distancia: $totalDistance km, Registros: $totalRecords, CO2: $co2Saved kg")
 

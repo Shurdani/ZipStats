@@ -121,6 +121,7 @@ fun StatisticsScreen(
     // Recoge las distancias con condiciones climáticas
     val weatherDistances by viewModel.weatherDistances.collectAsState()
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var selectedPeriod by remember { mutableIntStateOf(0) }
     var showMonthYearPicker by remember { mutableStateOf(false) }
 
@@ -370,7 +371,8 @@ fun StatisticsScreen(
 
                         // TRIGGER PARA GENERAR INSIGHT
                         // Se ejecuta cada vez que 'displayData' cambia (al cambiar de mes/año)
-                        LaunchedEffect(displayData, weatherDistances) {
+                        val weatherStats by viewModel.weatherStats.collectAsState()
+                        LaunchedEffect(displayData, weatherStats) {
                             val periodLabel = when (selectedPeriod) {
                                 0 -> "Mes anterior" // Mensual
                                 1 -> "Año anterior" // Anual
@@ -381,9 +383,7 @@ fun StatisticsScreen(
                                 currentDistanceKm = displayData.totalDistance,
                                 comparison = displayData.comparison,
                                 periodName = periodLabel,
-                                rainKm = weatherDistances.first,
-                                wetRoadKm = weatherDistances.second,
-                                extremeKm = weatherDistances.third
+                                weatherStats = weatherStats
                             )
                         }
 
@@ -398,9 +398,9 @@ fun StatisticsScreen(
 
                             // 1. Impacto Ecológico (Rediseñado)
                             EcologicalImpactCardEnhanced(
-                                co2Saved = (displayData.totalDistance * 0.1).toInt(),
+                                co2Saved = (displayData.totalDistance * 0.15).toInt(),
                                 treesEquivalent = (displayData.totalDistance * 0.005).toInt(),
-                                gasSaved = (displayData.totalDistance * 0.04).toInt()
+                                gasSaved = (displayData.totalDistance * 0.07).toInt()
                             )
 
                             // 2. Tarjetas de Resumen
@@ -409,22 +409,24 @@ fun StatisticsScreen(
                                 showMaxDistance = false,
                                 horizontalPadding = 16.dp, // Padding interno de la tarjeta
                                 onShare = {
-                                    val shareText = when (currentPeriod) {
-                                        StatisticsPeriod.MONTHLY -> viewModel.getMonthlyShareText(stats, currentSelectedMonth, currentSelectedYear)
-                                        StatisticsPeriod.ALL -> viewModel.getShareText(stats)
-                                        StatisticsPeriod.YEARLY -> viewModel.getYearlyShareText(stats, currentSelectedYear)
+                                    scope.launch {
+                                        val shareText = when (currentPeriod) {
+                                            StatisticsPeriod.MONTHLY -> viewModel.getMonthlyShareText(stats, currentSelectedMonth, currentSelectedYear)
+                                            StatisticsPeriod.ALL -> viewModel.getShareText(stats)
+                                            StatisticsPeriod.YEARLY -> viewModel.getYearlyShareText(stats, currentSelectedYear)
+                                        }
+                                        val intent = Intent().apply {
+                                            action = Intent.ACTION_SEND
+                                            putExtra(Intent.EXTRA_TEXT, shareText)
+                                            type = "text/plain"
+                                        }
+                                        val title = when (currentPeriod) {
+                                            StatisticsPeriod.MONTHLY -> "Compartir estadísticas mensuales"
+                                            StatisticsPeriod.ALL -> "Compartir estadísticas totales"
+                                            StatisticsPeriod.YEARLY -> "Compartir estadísticas anuales"
+                                        }
+                                        context.startActivity(Intent.createChooser(intent, title))
                                     }
-                                    val intent = Intent().apply {
-                                        action = Intent.ACTION_SEND
-                                        putExtra(Intent.EXTRA_TEXT, shareText)
-                                        type = "text/plain"
-                                    }
-                                    val title = when (currentPeriod) {
-                                        StatisticsPeriod.MONTHLY -> "Compartir estadísticas mensuales"
-                                        StatisticsPeriod.ALL -> "Compartir estadísticas totales"
-                                        StatisticsPeriod.YEARLY -> "Compartir estadísticas anuales"
-                                    }
-                                    context.startActivity(Intent.createChooser(intent, title))
                                 }
                             )
 

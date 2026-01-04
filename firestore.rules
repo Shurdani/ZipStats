@@ -1,0 +1,53 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Reglas para todos los documentos - acceso general para usuarios autenticados
+    match /{document=**} {
+      // Solo permitir acceso a usuarios autenticados
+      allow read, write: if request.auth != null;
+    }
+    
+    // Reglas específicas para active_routes
+    match /active_routes/{routeId} {
+      // Permitir lectura si el usuario está autenticado y es propietario de la ruta
+      allow read: if request.auth != null && resource.data.userId == request.auth.uid;
+      
+      // Permitir escritura si el usuario está autenticado y el documento que quiere crear tiene su ID como userId
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      
+      // Permitir actualización si el usuario está autenticado, es propietario de la ruta, 
+      // y no está cambiando el userId
+      allow update: if request.auth != null && 
+                     resource.data.userId == request.auth.uid && 
+                     request.resource.data.userId == resource.data.userId;
+      
+      // Permitir eliminación si el usuario está autenticado y es propietario de la ruta
+      allow delete: if request.auth != null && resource.data.userId == request.auth.uid;
+    }
+    
+    // Reglas específicas para users
+    match /users/{userId} {
+      // Solo permitir acceso al propio perfil del usuario
+      allow read, write: if request.auth != null && userId == request.auth.uid;
+    }
+    
+    // Reglas específicas para user_achievements (logros desbloqueados)
+    match /user_achievements/{achievementDocId} {
+      // Permitir lectura si el usuario está autenticado y es propietario del logro
+      allow read: if request.auth != null && resource.data.userId == request.auth.uid;
+      
+      // Permitir escritura si el usuario está autenticado y el documento tiene su ID como userId
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      
+      // Permitir actualización si el usuario está autenticado, es propietario, 
+      // y no está cambiando el userId
+      allow update: if request.auth != null && 
+                     resource.data.userId == request.auth.uid && 
+                     request.resource.data.userId == resource.data.userId;
+      
+      // No permitir eliminación (los logros desbloqueados no se pueden eliminar)
+      allow delete: if false;
+    }
+  }
+} 

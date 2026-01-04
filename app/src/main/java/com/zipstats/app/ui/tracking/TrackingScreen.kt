@@ -483,22 +483,35 @@ fun PreRideSmartWarning(
                         desc.contains("granizo", ignoreCase = true) ||
                         desc.contains("rayo", ignoreCase = true)
                     } ?: false
+                    val isSnow = weatherStatus.weatherEmoji?.let { emoji ->
+                        emoji.contains("❄️")
+                    } ?: false
+                    val isSnowByDescription = weatherStatus.description?.let { desc ->
+                        desc.contains("Nieve", ignoreCase = true) ||
+                        desc.contains("nevada", ignoreCase = true) ||
+                        desc.contains("snow", ignoreCase = true)
+                    } ?: false
+                    val isSnowByCode = weatherStatus.weatherCode?.let { code ->
+                        code in listOf(71, 73, 75, 77, 85, 86)
+                    } ?: false
                     
                     // Generar mensaje específico según las condiciones detectadas
+                    // Los mensajes deben coincidir con los labels del enum ExtremeCause
                     when {
                         isStorm || isStormByDescription -> "Tormenta detectada"
+                        isSnow || isSnowByDescription || isSnowByCode -> "Nieve detectada"
                         isExtremeGusts && isExtremeTemp -> "Ráfagas muy fuertes (${windGustsKmh.toInt()} km/h) y temp. extrema (${formatTemperature(temperature, decimals = 0)}°C)"
                         isExtremeWind && isExtremeTemp -> "Viento fuerte (${windSpeedKmh.toInt()} km/h) y temp. extrema (${formatTemperature(temperature, decimals = 0)}°C)"
-                        isExtremeGusts -> "Ráfagas de viento muy fuertes (${windGustsKmh.toInt()} km/h)"
+                        isExtremeGusts -> "Rachas de viento muy fuertes (${windGustsKmh.toInt()} km/h)"
                         isExtremeWind -> "Viento fuerte (${windSpeedKmh.toInt()} km/h)"
                         isExtremeTemp -> {
                             if (temperature > 35) {
-                                "Calor intenso (${formatTemperature(temperature, decimals = 0)}°C)"
+                                "Ola de calor (${formatTemperature(temperature, decimals = 0)}°C)"
                             } else {
-                                "Temperaturas bajo cero (${formatTemperature(temperature, decimals = 0)}°C)"
+                                "Helada (${formatTemperature(temperature, decimals = 0)}°C)"
                             }
                         }
-                        isExtremeUv -> "Índice UV muy alto (${uvIndex?.toInt() ?: 0})"
+                        isExtremeUv -> "Ola de calor (UV ${uvIndex?.toInt() ?: 0})"
                         else -> "Condiciones meteorológicas adversas"
                     }
                 }

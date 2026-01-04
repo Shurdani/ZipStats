@@ -219,7 +219,7 @@ class TrackingViewModel @Inject constructor(
     // Prioridad: Condiciones extremas > Lluvia > Calzada mojada
     private var weatherHadWetRoad = false // Calzada mojada detectada (sin lluvia activa)
     private var weatherHadExtremeConditions = false // Condiciones extremas detectadas
-    private var weatherExtremeReason: String? = null // Razón de condiciones extremas (WIND, GUSTS, STORM, COLD, HEAT)
+    private var weatherExtremeReason: String? = null // Razón de condiciones extremas (WIND, GUSTS, STORM, SNOW, COLD, HEAT)
     
     // Valores máximos/mínimos durante la ruta (para reflejar el estado más adverso en los badges)
     private var maxWindSpeed = 0.0 // km/h
@@ -567,7 +567,8 @@ class TrackingViewModel @Inject constructor(
                         uvIndex = weather.uvIndex,
                         isDay = weather.isDay,
                         weatherEmoji = effectiveEmoji,
-                        weatherDescription = effectiveDescription
+                        weatherDescription = effectiveDescription,
+                        weatherCode = effectiveWeatherCode
                     )
                     _shouldShowExtremeWarning.value = hasExtremeConditions
                     
@@ -587,7 +588,8 @@ class TrackingViewModel @Inject constructor(
                             uvIndex = weather.uvIndex,
                             isDay = weather.isDay,
                             weatherEmoji = effectiveEmoji,
-                            weatherDescription = effectiveDescription
+                            weatherDescription = effectiveDescription,
+                            weatherCode = effectiveWeatherCode
                         )
                         if (cause != null) {
                             weatherExtremeReason = cause
@@ -803,7 +805,7 @@ class TrackingViewModel @Inject constructor(
     
     /**
      * Detecta si está lloviendo efectivamente para patinete
-     * Usa múltiples reglas para detectar lluvia real incluso cuando el modelo no la marca explícitamente
+     * Usa múltiples reglas con JERARQUÍA DE CONFIANZA: prioriza evidencia física sobre estimaciones atmosféricas
      * Devuelve: (isRaining, reasonCode, userFriendlyReason)
      */
     private fun isRainingForScooter(
@@ -815,33 +817,37 @@ class TrackingViewModel @Inject constructor(
         rainProbability: Int?,
         windSpeed: Double?
     ): Triple<Boolean, String, String> {
-        // 1️⃣ Código oficial indica lluvia
+        // 1️⃣ PRIORIDAD ABSOLUTA: Código oficial indica lluvia
         if (weatherCode in listOf(51, 53, 55, 61, 63, 65, 80, 81, 82)) {
             return Triple(true, "WEATHER_CODE", "Lluvia detectada por código meteorológico")
         }
 
-        // 2️⃣ Precipitación medida (señal directa, siempre válida)
+        // 2️⃣ PRIORIDAD ALTA: Precipitación medida > 0.4 mm (evidencia física directa)
+        // Razón: Open-Meteo suele dar "ruido" de 0.1-0.2 mm por humedad ambiental
+        // Para un motorista, menos de 0.4 mm es llovizna que no siempre requiere badge de lluvia activa
         val effectiveRain = maxOf(
             precipitation ?: 0.0,
             rain ?: 0.0,
             showers ?: 0.0
         )
-        if (effectiveRain > 0.1) {
+        if (effectiveRain > 0.4) {
             return Triple(true, "PRECIPITATION", "Lluvia detectada por precipitación medida (${LocationUtils.formatNumberSpanish(effectiveRain)} mm)")
         }
 
-        // 🔒 Regla de protección: condiciones probabilísticas solo si el cielo NO está despejado
-        val isClearSky = weatherCode == 0 || weatherCode == 1
+        // 🔒 Regla de protección: condiciones probabilísticas solo si el cielo está cubierto (weatherCode >= 3)
+        // Si el código es 0, 1 o 2 (Despejado/Nubes medias), ignoramos la humedad aunque sea del 90%
+        // ya que es "bochorno" o bruma, no lluvia
+        val isCloudyOrOvercast = weatherCode >= 3
         
-        // 3️⃣ Atmósfera lluviosa (solo si no hay cielo despejado)
-        if (!isClearSky && (humidity ?: 0) >= 85 && (rainProbability ?: 0) >= 30) {
-            return Triple(true, "HUMIDITY_PROBABILITY", "Lluvia detectada por humedad alta y riesgo de precipitación")
+        // 3️⃣ PRIORIDAD BAJA: Atmósfera lluviosa (solo si cielo cubierto y condiciones muy extremas)
+        // Endurecido: humedad > 92% y probabilidad > 70% (en Barcelona es común 40% sin que caiga una gota)
+        if (isCloudyOrOvercast && (humidity ?: 0) >= 92 && (rainProbability ?: 0) >= 70) {
+            return Triple(true, "HUMIDITY_PROBABILITY", "Lluvia detectada por humedad muy alta y alta probabilidad de precipitación")
         }
 
-        // 4️⃣ Diluvio urbano mediterráneo (solo si no hay cielo despejado)
-        if (!isClearSky && (humidity ?: 0) >= 88 && (windSpeed ?: 99.0) <= 10.0) {
-            return Triple(true, "URBAN_DOWNPOUR", "Lluvia detectada por condiciones de diluvio urbano")
-        }
+        // 4️⃣ REGLA ELIMINADA: Diluvio urbano mediterráneo
+        // La combinación de humedad alta y poco viento define la niebla matinal del Puerto de Barcelona,
+        // no un diluvio. Esta condición ahora activa "Calzada Mojada" pero no "Lluvia".
 
         return Triple(false, "NONE", "No se detectó lluvia")
     }
@@ -863,13 +869,17 @@ class TrackingViewModel @Inject constructor(
         return if (isClearSky) {
             false // Cielo despejado = nunca lluvia activa (solo calzada mojada si hay precipitación)
         } else {
-            weatherCode in rainCodes || (isRaining && (precipitation ?: 0.0) > 0.1)
+            // Usar umbral de 0.4 mm para evitar falsos positivos por ruido de humedad ambiental
+            weatherCode in rainCodes || (isRaining && (precipitation ?: 0.0) > 0.4)
         }
     }
     
     /**
      * Verifica si hay calzada mojada (replica EXACTAMENTE la lógica de RouteDetailDialog.checkWetRoadConditions)
      * 🔒 IMPORTANTE: Esta función garantiza que los umbrales sean idénticos entre preavisos y badges
+     * 
+     * Acepta humedad alta aquí: Si hay >85% de humedad pero no hay lluvia confirmada por código o mm,
+     * el badge Naranja es el correcto. El asfalto está húmedo y resbala, pero el usuario no se moja.
      */
     private fun checkWetRoadConditions(
         weatherCode: Int?,
@@ -885,18 +895,19 @@ class TrackingViewModel @Inject constructor(
             return false
         }
         
-        // 🔒 Verificar si el cielo está despejado
-        val isClearSky = when {
-            weatherCode != null -> weatherCode == 0 || weatherCode == 1
-            weatherEmoji != null -> weatherEmoji == "☀️" || weatherEmoji == "🌙"
-            else -> false
+        // 2. Si hay precipitación registrada pero no se detectó como "Lluvia activa"
+        // (Ej: Llovió justo antes o llovizna muy fina que no activó el sensor pero mojó el suelo)
+        // Usar umbral de 0.4 mm para evitar ruido de humedad ambiental
+        // NOTA: Esta condición es independiente del estado del cielo (precipitación real medida)
+        if (precipitation != null && precipitation > 0.0 && precipitation <= 0.4) {
+            return true
         }
         
-        // 2. Calzada mojada considerando día/noche
+        // 3. Calzada mojada considerando día/noche (ACEPTAR HUMEDAD ALTA SIN RESTRICCIÓN DE CIELO)
         // Día: humedad muy alta (>90%) o probabilidad alta (>40%) - suelo puede estar mojado pero seca más rápido
         // Noche: humedad alta (>85%) es suficiente - el suelo tarda mucho más en secarse sin sol
-        // 🔒 Solo evaluar condiciones probabilísticas si el cielo NO está despejado
-        if (!isClearSky && humidity != null) {
+        // En Barcelona el asfalto por la noche no seca debido a la humedad marina, aunque no haya llovido
+        if (humidity != null) {
             if (isDay) {
                 // Día: necesita condiciones más extremas
                 if (humidity >= 90) {
@@ -916,13 +927,6 @@ class TrackingViewModel @Inject constructor(
             }
         }
         
-        // 3. Si hay precipitación registrada pero no se detectó como "Lluvia activa"
-        // (Ej: Llovió justo antes o llovizna muy fina que no activó el sensor pero mojó el suelo)
-        // NOTA: Esta condición es independiente del estado del cielo (precipitación real medida)
-        if (precipitation != null && precipitation > 0.1) {
-            return true
-        }
-        
         return false
     }
     
@@ -936,7 +940,8 @@ class TrackingViewModel @Inject constructor(
         uvIndex: Double?,
         isDay: Boolean,
         weatherEmoji: String?,
-        weatherDescription: String?
+        weatherDescription: String?,
+        weatherCode: Int? = null
     ): Boolean {
         // Viento fuerte (>40 km/h) - convertir de m/s a km/h
         val windSpeedKmh = (windSpeed ?: 0.0) * 3.6
@@ -973,12 +978,32 @@ class TrackingViewModel @Inject constructor(
             desc.contains("rayo", ignoreCase = true)
         } ?: false
 
-        return isStorm || isStormByDescription
+        if (isStorm || isStormByDescription) {
+            return true
+        }
+        
+        // Nieve (weatherCode 71, 73, 75, 77, 85, 86 o emoji ❄️)
+        // La nieve es muy peligrosa en patinete por el riesgo de resbalar
+        val isSnowByCode = weatherCode?.let { code ->
+            code in listOf(71, 73, 75, 77, 85, 86)
+        } ?: false
+        
+        val isSnowByEmoji = weatherEmoji?.let { emoji ->
+            emoji.contains("❄️")
+        } ?: false
+        
+        val isSnowByDescription = weatherDescription?.let { desc ->
+            desc.contains("Nieve", ignoreCase = true) ||
+            desc.contains("nevada", ignoreCase = true) ||
+            desc.contains("snow", ignoreCase = true)
+        } ?: false
+
+        return isSnowByCode || isSnowByEmoji || isSnowByDescription
     }
     
     /**
      * Detecta la causa específica de condiciones extremas (misma lógica que StatisticsViewModel)
-     * Retorna: "STORM", "GUSTS", "WIND", "COLD", "HEAT" o null
+     * Retorna: "STORM", "SNOW", "GUSTS", "WIND", "COLD", "HEAT" o null
      */
     private fun detectExtremeCause(
         windSpeed: Double?,
@@ -987,9 +1012,10 @@ class TrackingViewModel @Inject constructor(
         uvIndex: Double?,
         isDay: Boolean,
         weatherEmoji: String?,
-        weatherDescription: String?
+        weatherDescription: String?,
+        weatherCode: Int? = null
     ): String? {
-        // Prioridad: Tormenta > Rachas > Viento > Temperatura
+        // Prioridad: Tormenta > Nieve > Rachas > Viento > Temperatura
         
         // 1. Tormenta (prioridad máxima)
         val isStorm = weatherEmoji?.let { emoji ->
@@ -1006,19 +1032,39 @@ class TrackingViewModel @Inject constructor(
             return "STORM"
         }
         
-        // 2. Rachas de viento muy fuertes (>60 km/h) - prioridad sobre viento normal
+        // 2. Nieve (weatherCode 71, 73, 75, 77, 85, 86 o emoji ❄️)
+        // La nieve es muy peligrosa en patinete por el riesgo de resbalar
+        val isSnowByCode = weatherCode?.let { code ->
+            code in listOf(71, 73, 75, 77, 85, 86)
+        } ?: false
+        
+        val isSnowByEmoji = weatherEmoji?.let { emoji ->
+            emoji.contains("❄️")
+        } ?: false
+        
+        val isSnowByDescription = weatherDescription?.let { desc ->
+            desc.contains("Nieve", ignoreCase = true) ||
+            desc.contains("nevada", ignoreCase = true) ||
+            desc.contains("snow", ignoreCase = true)
+        } ?: false
+        
+        if (isSnowByCode || isSnowByEmoji || isSnowByDescription) {
+            return "SNOW"
+        }
+        
+        // 3. Rachas de viento muy fuertes (>60 km/h) - prioridad sobre viento normal
         val windGustsKmh = (windGusts ?: 0.0) * 3.6
         if (windGustsKmh > 60) {
             return "GUSTS"
         }
         
-        // 3. Viento fuerte (>40 km/h)
+        // 4. Viento fuerte (>40 km/h)
         val windSpeedKmh = (windSpeed ?: 0.0) * 3.6
         if (windSpeedKmh > 40) {
             return "WIND"
         }
         
-        // 4. Temperatura extrema
+        // 5. Temperatura extrema
         if (temperature != null) {
             if (temperature < 0) {
                 return "COLD"
@@ -1028,7 +1074,7 @@ class TrackingViewModel @Inject constructor(
             }
         }
         
-        // 5. Índice UV muy alto (>8) - solo de día (se considera como calor)
+        // 6. Índice UV muy alto (>8) - solo de día (se considera como calor)
         if (isDay && uvIndex != null && uvIndex > 8) {
             return "HEAT"
         }
@@ -1177,7 +1223,8 @@ class TrackingViewModel @Inject constructor(
                                 uvIndex = weather.uvIndex,
                                 isDay = weather.isDay,
                                 weatherEmoji = effectiveEmoji,
-                                weatherDescription = weather.description
+                                weatherDescription = weather.description,
+                                weatherCode = weather.weatherCode
                             )
                             
                             // 🔥 JERARQUÍA DE BADGES (misma lógica que RouteDetailDialog):
@@ -1197,7 +1244,8 @@ class TrackingViewModel @Inject constructor(
                                     uvIndex = weather.uvIndex,
                                     isDay = weather.isDay,
                                     weatherEmoji = effectiveEmoji,
-                                    weatherDescription = weather.description
+                                    weatherDescription = weather.description,
+                                    weatherCode = weather.weatherCode
                                 )
                                 if (cause != null && weatherExtremeReason == null) {
                                     // Guardar la primera causa detectada (la más grave por prioridad)
@@ -1225,8 +1273,10 @@ class TrackingViewModel @Inject constructor(
                                 // Calzada mojada: Solo si NO hay lluvia activa
                                 weatherHadWetRoad = true
                                 // Asegurar que haya precipitación para que el badge se muestre
-                                if (weatherMaxPrecipitation < 0.1) {
-                                    weatherMaxPrecipitation = maxOf(weatherMaxPrecipitation, 0.15)
+                                // Usar umbral de 0.4 mm (lluvia activa) como referencia
+                                // Forzar a 0.2 mm (dentro del rango de calzada mojada, por debajo de lluvia activa)
+                                if (weatherMaxPrecipitation == null || weatherMaxPrecipitation < 0.4) {
+                                    weatherMaxPrecipitation = maxOf(weatherMaxPrecipitation ?: 0.0, 0.2)
                                 }
                             }
                             
@@ -2141,9 +2191,10 @@ class TrackingViewModel @Inject constructor(
                         weatherHadRain = if (weatherHadRain) true else null,
                         weatherRainStartMinute = weatherRainStartMinute,
                         // 🔥 Si detectamos calzada mojada durante la ruta, asegurar que haya precipitación para el badge
+                        // Usar 0.2 mm (dentro del rango de calzada mojada, por debajo del umbral de lluvia activa de 0.4 mm)
                         weatherMaxPrecipitation = when {
-                            weatherMaxPrecipitation > 0.0 -> weatherMaxPrecipitation
-                            weatherHadWetRoad && !weatherHadRain -> 0.15 // Forzar precipitación si hubo calzada mojada
+                            weatherMaxPrecipitation != null && weatherMaxPrecipitation > 0.0 -> weatherMaxPrecipitation
+                            weatherHadWetRoad && !weatherHadRain -> 0.2 // Forzar precipitación si hubo calzada mojada
                             else -> null
                         },
                         weatherRainReason = weatherRainReason,

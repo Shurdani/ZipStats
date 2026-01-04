@@ -65,7 +65,8 @@ enum class ExtremeCause(val label: String, val emoji: String) {
     WIND("Viento Fuerte", "💨"),
     GUSTS("Rachas de Viento", "🍃"),
     STORM("Tormenta", "⚡"),
-    COLD("Helada", "❄️"),
+    SNOW("Nieve", "❄️"),
+    COLD("Helada", "🥶"),
     HEAT("Ola de Calor", "🔥")
 }
 
@@ -1252,14 +1253,16 @@ ${scooterTexts.joinToString("\n")}
         gpsRoutes.forEach { route ->
             val dist = route.totalDistance
 
-            // 1. LLUVIA: Leer directamente de las rutas guardadas (misma lógica que RouteDetailDialog)
-            // Usa el flag weatherHadRain que se guardó durante la ruta
-            if (route.weatherHadRain == true) {
+            // 🔍 FILTRO DE VERDAD: Verificar si realmente hubo lluvia (precipitación > 0.1 mm)
+            val isStrictRainResult = isStrictRain(route)
+            
+            // 1. LLUVIA: Solo contar si realmente hubo precipitación
+            if (isStrictRainResult) {
                 rainKm += dist
             }
 
             // 2. CALZADA MOJADA: Leer directamente usando la misma función que RouteDetailDialog
-            // Esta función ya excluye rutas con lluvia activa
+            // Esta función ya implementa el filtro de verdad
             if (checkWetRoadConditions(route)) {
                 wetRoadKm += dist
             }
@@ -1310,6 +1313,13 @@ ${scooterTexts.joinToString("\n")}
                                 desc.contains("Tormenta", ignoreCase = true) ||
                                 desc.contains("granizo", ignoreCase = true) ||
                                 desc.contains("rayo", ignoreCase = true)
+                            } == true) ||
+                            // Nieve: emoji o descripción (Route no tiene weatherCode)
+                            (route.weatherEmoji?.let { it.contains("❄️") } == true) ||
+                            (route.weatherDescription?.let { desc ->
+                                desc.contains("Nieve", ignoreCase = true) ||
+                                desc.contains("nevada", ignoreCase = true) ||
+                                desc.contains("snow", ignoreCase = true)
                             } == true)
             
             if (!hasExtreme) return ExtremeCause.NONE
@@ -1321,6 +1331,7 @@ ${scooterTexts.joinToString("\n")}
                 "STORM", "TORMENTA" -> ExtremeCause.STORM
                 "GUSTS", "RACHAS" -> ExtremeCause.GUSTS
                 "WIND", "VIENTO" -> ExtremeCause.WIND
+                "SNOW", "NIEVE" -> ExtremeCause.SNOW
                 "COLD", "FRÍO", "HELADA" -> ExtremeCause.COLD
                 "HEAT", "CALOR" -> ExtremeCause.HEAT
                 else -> ExtremeCause.NONE
@@ -1345,17 +1356,33 @@ ${scooterTexts.joinToString("\n")}
             return ExtremeCause.STORM
         }
         
-        // 2. Rachas de viento muy fuertes (>60 km/h) - prioridad sobre viento normal
+        // 2. Nieve (emoji ❄️ o descripción)
+        // Nota: Route no tiene weatherCode, así que detectamos por emoji y descripción
+        val isSnowByEmoji = route.weatherEmoji?.let { emoji ->
+            emoji.contains("❄️")
+        } ?: false
+        
+        val isSnowByDescription = route.weatherDescription?.let { desc ->
+            desc.contains("Nieve", ignoreCase = true) ||
+            desc.contains("nevada", ignoreCase = true) ||
+            desc.contains("snow", ignoreCase = true)
+        } ?: false
+        
+        if (isSnowByEmoji || isSnowByDescription) {
+            return ExtremeCause.SNOW
+        }
+        
+        // 3. Rachas de viento muy fuertes (>60 km/h) - prioridad sobre viento normal
         if (route.weatherWindGusts != null && route.weatherWindGusts > 60) {
             return ExtremeCause.GUSTS
         }
         
-        // 3. Viento fuerte (>40 km/h)
+        // 4. Viento fuerte (>40 km/h)
         if (route.weatherWindSpeed != null && route.weatherWindSpeed > 40) {
             return ExtremeCause.WIND
         }
         
-        // 4. Temperatura extrema
+        // 5. Temperatura extrema
         if (route.weatherTemperature != null) {
             if (route.weatherTemperature < 0) {
                 return ExtremeCause.COLD
@@ -1365,7 +1392,7 @@ ${scooterTexts.joinToString("\n")}
             }
         }
         
-        // 5. Índice UV muy alto (>8) - solo de día (se considera como calor)
+        // 6. Índice UV muy alto (>8) - solo de día (se considera como calor)
         if (route.weatherIsDay == true && route.weatherUvIndex != null && route.weatherUvIndex > 8) {
             return ExtremeCause.HEAT
         }
@@ -1411,23 +1438,57 @@ ${scooterTexts.joinToString("\n")}
     }
     
     /**
+     * 🔍 FILTRO DE VERDAD: Verifica si realmente hubo lluvia.
+     * Si la ruta dice "Llovió", pregunta: "¿Cuántos milímetros?"
+     * Si la respuesta es 0 o null, retorna false (no fue lluvia real).
+     * 
+     * Usa umbral de 0.4 mm para evitar falsos positivos por ruido de humedad ambiental de Open-Meteo.
+     */
+    private fun isStrictRain(route: com.zipstats.app.model.Route): Boolean {
+        // Verificar precipitación real (umbral aumentado a 0.4 mm)
+        val precip = route.weatherMaxPrecipitation ?: 0.0
+        if (precip > 0.4) {
+            return true
+        }
+        
+        // Si weatherHadRain es true pero no hay precipitación > 0.4, no es lluvia real
+        return false
+    }
+    
+    /**
      * Función auxiliar para verificar condiciones de calzada mojada
+     * 🔍 FILTRO DE VERDAD: Si fue marcado como lluvia pero no hubo precipitación real,
+     * se cuenta como calzada mojada.
+     * 
+     * Acepta humedad alta: Si hay >85% de humedad pero no hay lluvia confirmada por código o mm,
+     * el badge Naranja es el correcto. El asfalto está húmedo y resbala, pero el usuario no se moja.
      */
     private fun checkWetRoadConditions(route: com.zipstats.app.model.Route): Boolean {
-        // 1. EXCLUSIÓN: Si llovió durante la ruta, NO contamos como "Calzada Mojada"
-        if (route.weatherHadRain == true) {
+        val savedAsRain = route.weatherHadRain == true
+        val isStrictRainResult = isStrictRain(route)
+        
+        // Si fue guardado como lluvia pero NO hubo precipitación real (> 0.4 mm),
+        // se degrada a calzada mojada (esto corrige datos guardados incorrectamente)
+        if (savedAsRain && !isStrictRainResult) {
+            return true
+        }
+        
+        // Si realmente llovió (precipitación > 0.4), NO es calzada mojada (es lluvia real)
+        if (isStrictRainResult) {
             return false
         }
         
         val isDay = route.weatherIsDay ?: true
         
-        // Verificar si el cielo está despejado
-        val isClearSky = route.weatherEmoji?.let { emoji ->
-            emoji == "☀️" || emoji == "🌙"
-        } ?: false
+        // Si hay precipitación máxima registrada pero no se detectó como "Lluvia activa"
+        // (precipitación entre 0.0 y 0.4 mm = llovizna que moja el suelo pero no es lluvia activa)
+        if (route.weatherMaxPrecipitation != null && route.weatherMaxPrecipitation > 0.0 && route.weatherMaxPrecipitation <= 0.4) {
+            return true
+        }
         
-        // Calzada mojada considerando día/noche
-        if (!isClearSky && route.weatherHumidity != null) {
+        // Calzada mojada considerando día/noche (ACEPTAR HUMEDAD ALTA SIN RESTRICCIÓN DE CIELO)
+        // En Barcelona el asfalto por la noche no seca debido a la humedad marina, aunque no haya llovido
+        if (route.weatherHumidity != null) {
             if (isDay) {
                 if (route.weatherHumidity >= 90) return true
                 if (route.weatherRainProbability != null && route.weatherRainProbability > 40) return true
@@ -1435,11 +1496,6 @@ ${scooterTexts.joinToString("\n")}
                 if (route.weatherHumidity >= 85) return true
                 if (route.weatherRainProbability != null && route.weatherRainProbability > 35) return true
             }
-        }
-        
-        // Si hay precipitación máxima registrada pero no se detectó como "Lluvia activa"
-        if (route.weatherMaxPrecipitation != null && route.weatherMaxPrecipitation > 0.1) {
-            return true
         }
         
         return false
@@ -1493,13 +1549,16 @@ ${scooterTexts.joinToString("\n")}
             var extremeCount = 0
             
             filteredRoutes.forEach { route ->
-                // Contar rutas con lluvia
-                if (route.weatherHadRain == true) {
+                // 🔍 FILTRO DE VERDAD: Verificar si realmente hubo lluvia (precipitación > 0.1 mm)
+                val isStrictRainResult = isStrictRain(route)
+                
+                // Contar rutas con lluvia (solo si realmente hubo precipitación)
+                if (isStrictRainResult) {
                     rainCount++
                 }
                 
-                // Contar rutas con calzada mojada (excluyendo las que tienen lluvia)
-                if (route.weatherHadRain != true && checkWetRoadConditions(route)) {
+                // Contar rutas con calzada mojada (incluye rutas marcadas como lluvia pero sin precipitación real)
+                if (checkWetRoadConditions(route)) {
                     wetRoadCount++
                 }
                 

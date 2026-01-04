@@ -87,7 +87,8 @@ class TrackingViewModel @Inject constructor(
     private val scooterRepository: VehicleRepository,
     private val recordRepository: RecordRepository,
     private val preferencesManager: PreferencesManager,
-    private val appOverlayRepository: AppOverlayRepository
+    private val appOverlayRepository: AppOverlayRepository,
+    private val weatherRepository: com.zipstats.app.repository.WeatherRepository
 ) : AndroidViewModel(application) {
 
     private val context: Context = application.applicationContext
@@ -219,11 +220,7 @@ class TrackingViewModel @Inject constructor(
     // Prioridad: Condiciones extremas > Lluvia > Calzada mojada
     private var weatherHadWetRoad = false // Calzada mojada detectada (sin lluvia activa)
     private var weatherHadExtremeConditions = false // Condiciones extremas detectadas
-<<<<<<< HEAD
     private var weatherExtremeReason: String? = null // Razón de condiciones extremas (WIND, GUSTS, STORM, SNOW, COLD, HEAT)
-=======
-    private var weatherExtremeReason: String? = null // Razón de condiciones extremas (WIND, GUSTS, STORM, COLD, HEAT)
->>>>>>> 5a12a579c9a7df35811e79942652d223cf51d75f
     
     // Valores máximos/mínimos durante la ruta (para reflejar el estado más adverso en los badges)
     private var maxWindSpeed = 0.0 // km/h
@@ -469,37 +466,19 @@ class TrackingViewModel @Inject constructor(
             try {
                 _weatherStatus.value = WeatherStatus.Loading
                 
-                val weatherRepository = com.zipstats.app.repository.WeatherRepository()
                 val result = weatherRepository.getCurrentWeather(
                     latitude = preLocation.latitude,
                     longitude = preLocation.longitude
                 )
                 
                 result.onSuccess { weather ->
-                    // Resolver código de clima efectivo basado en detección de lluvia efectiva
-                    val (effectiveWeatherCode, _, _, isDerived) = resolveEffectiveWeatherCode(
-                        weather.weatherCode,
-                        weather.precipitation,
-                        weather.rain,
-                        weather.showers,
-                        weather.humidity,
-                        weather.rainProbability,
-                        weather.windSpeed
-                    )
+                    // Google Weather API ya devuelve condiciones efectivas, no necesitamos "adivinar"
+                    // weather.icon contiene el condition string (ej: "RAIN", "CLEAR", "LIGHT_RAIN")
+                    val condition = weather.icon.uppercase()
                     
-                    // Obtener emoji, descripción e icono usando el código efectivo
-                    val effectiveEmoji = com.zipstats.app.repository.WeatherRepository.getEmojiForWeather(
-                        effectiveWeatherCode,
-                        if (weather.isDay) 1 else 0
-                    )
-                    val effectiveDescription = if (isDerived) {
-                        "Lluvia"
-                    } else {
-                        com.zipstats.app.repository.WeatherRepository.getDescriptionForWeather(
-                            effectiveWeatherCode,
-                            if (weather.isDay) 1 else 0
-                        )
-                    }
+                    // Obtener emoji y descripción directamente desde Google (ya vienen correctos)
+                    val weatherEmoji = weather.weatherEmoji
+                    val weatherDescription = weather.description // Ya viene en español de Google
                     
                     // Guardar snapshot inicial
                     _initialWeatherSnapshot = weather
@@ -509,12 +488,12 @@ class TrackingViewModel @Inject constructor(
                     _weatherStatus.value = WeatherStatus.Success(
                         temperature = weather.temperature,
                         feelsLike = weather.feelsLike,
-                        description = effectiveDescription,
-                        icon = effectiveWeatherCode.toString(),
+                        description = weatherDescription,
+                        icon = weather.icon, // Condition string de Google
                         humidity = weather.humidity,
                         windSpeed = weather.windSpeed,
-                        weatherEmoji = effectiveEmoji,
-                        weatherCode = effectiveWeatherCode,
+                        weatherEmoji = weatherEmoji,
+                        weatherCode = weather.weatherCode, // Mapeado para compatibilidad
                         isDay = weather.isDay,
                         uvIndex = weather.uvIndex,
                         windDirection = weather.windDirection,
@@ -525,36 +504,26 @@ class TrackingViewModel @Inject constructor(
                         showers = weather.showers
                     )
                     
-                    // Detectar si hay lluvia para mostrar aviso preventivo
+                    // Detectar si hay lluvia usando condición de Google directamente
                     val (isRaining, _, rainUserReason) = isRainingForScooter(
-                        weather.weatherCode,
-                        weather.precipitation,
-                        weather.rain,
-                        weather.showers,
-                        weather.humidity,
-                        weather.rainProbability,
-                        weather.windSpeed
-                    )
-                    
-                    // Determinar si es lluvia activa: Usar función compartida para garantizar umbrales idénticos
-                    val isActiveRain = checkActiveRain(
-                        weatherCode = weather.weatherCode,
-                        isRaining = isRaining,
+                        condition = condition,
                         precipitation = weather.precipitation
                     )
                     
-                    // Calzada mojada: Usar función compartida para garantizar umbrales idénticos
-                    // 🔒 EXCLUSIÓN: Si hay lluvia activa, NO mostrar calzada mojada (son excluyentes)
+                    // Determinar si es lluvia activa usando condición de Google
+                    val isActiveRain = checkActiveRain(
+                        condition = condition,
+                        precipitation = weather.precipitation
+                    )
+                    
+                    // Calzada mojada: Solo si NO hay lluvia activa
                     val isWetRoad = if (isActiveRain) {
                         false // Excluir calzada mojada si hay lluvia activa
                     } else {
                         checkWetRoadConditions(
-                            weatherCode = weather.weatherCode,
+                            condition = condition,
                             humidity = weather.humidity,
-                            rainProbability = weather.rainProbability,
                             precipitation = weather.precipitation,
-                            isDay = weather.isDay,
-                            weatherEmoji = effectiveEmoji,
                             hasActiveRain = isActiveRain
                         )
                     }
@@ -563,16 +532,16 @@ class TrackingViewModel @Inject constructor(
                     _shouldShowRainWarning.value = isActiveRain || isWetRoad
                     _isActiveRainWarning.value = isActiveRain
                     
-                    // Detectar condiciones extremas (replicar lógica de checkExtremeConditions)
+                    // Detectar condiciones extremas
                     val hasExtremeConditions = checkExtremeConditions(
                         windSpeed = weather.windSpeed,
                         windGusts = weather.windGusts,
                         temperature = weather.temperature,
                         uvIndex = weather.uvIndex,
                         isDay = weather.isDay,
-                        weatherEmoji = effectiveEmoji,
-                        weatherDescription = effectiveDescription,
-                        weatherCode = effectiveWeatherCode
+                        weatherEmoji = weatherEmoji,
+                        weatherDescription = weatherDescription,
+                        weatherCode = weather.weatherCode
                     )
                     _shouldShowExtremeWarning.value = hasExtremeConditions
                     
@@ -591,13 +560,9 @@ class TrackingViewModel @Inject constructor(
                             temperature = weather.temperature,
                             uvIndex = weather.uvIndex,
                             isDay = weather.isDay,
-                            weatherEmoji = effectiveEmoji,
-<<<<<<< HEAD
-                            weatherDescription = effectiveDescription,
-                            weatherCode = effectiveWeatherCode
-=======
-                            weatherDescription = effectiveDescription
->>>>>>> 5a12a579c9a7df35811e79942652d223cf51d75f
+                            weatherEmoji = weatherEmoji,
+                            weatherDescription = weatherDescription,
+                            weatherCode = weather.weatherCode
                         )
                         if (cause != null) {
                             weatherExtremeReason = cause
@@ -615,7 +580,7 @@ class TrackingViewModel @Inject constructor(
                         weatherHadWetRoad = true
                     }
                     
-                    Log.d(TAG, "✅ [Precarga] Clima inicial capturado: ${weather.temperature}°C $effectiveEmoji")
+                    Log.d(TAG, "✅ [Precarga] Clima inicial capturado: ${weather.temperature}°C $weatherEmoji")
                     if (isRaining) {
                         Log.d(TAG, "🌧️ [Precarga] Lluvia detectada - mostrar aviso preventivo")
                     }
@@ -813,89 +778,67 @@ class TrackingViewModel @Inject constructor(
     
     /**
      * Detecta si está lloviendo efectivamente para patinete
-     * Usa múltiples reglas con JERARQUÍA DE CONFIANZA: prioriza evidencia física sobre estimaciones atmosféricas
+     * Usa las condiciones de Google Weather API directamente (más confiables que códigos WMO)
      * Devuelve: (isRaining, reasonCode, userFriendlyReason)
      */
     private fun isRainingForScooter(
-        weatherCode: Int,
-        precipitation: Double?,
-        rain: Double?,
-        showers: Double?,
-        humidity: Int?,
-        rainProbability: Int?,
-        windSpeed: Double?
+        condition: String, // Condition string de Google (ej: "RAIN", "LIGHT_RAIN", "CLEAR")
+        precipitation: Double
     ): Triple<Boolean, String, String> {
-        // 1️⃣ PRIORIDAD ABSOLUTA: Código oficial indica lluvia
-        if (weatherCode in listOf(51, 53, 55, 61, 63, 65, 80, 81, 82)) {
-            return Triple(true, "WEATHER_CODE", "Lluvia detectada por código meteorológico")
+        val cond = condition.uppercase()
+
+        // 1️⃣ PRIORIDAD ABSOLUTA: Confirmación directa de Google
+        // Google usa IA para filtrar radares, así que si dice RAIN, es porque realmente está lloviendo
+        if (cond.contains("RAIN") || cond.contains("THUNDERSTORM")) {
+            return Triple(true, "GOOGLE_CONFIRMED", "Lluvia confirmada por Google Weather")
         }
 
-        // 2️⃣ PRIORIDAD ALTA: Precipitación medida > 0.4 mm (evidencia física directa)
-        // Razón: Open-Meteo suele dar "ruido" de 0.1-0.2 mm por humedad ambiental
-        // Para un motorista, menos de 0.4 mm es llovizna que no siempre requiere badge de lluvia activa
-        val effectiveRain = maxOf(
-            precipitation ?: 0.0,
-            rain ?: 0.0,
-            showers ?: 0.0
-        )
-        if (effectiveRain > 0.4) {
-            return Triple(true, "PRECIPITATION", "Lluvia detectada por precipitación medida (${LocationUtils.formatNumberSpanish(effectiveRain)} mm)")
+        // 2️⃣ SEGURIDAD: Si Google no dice lluvia pero los sensores detectan > 0.4 mm
+        // Esto es un "seguro de vida" por si la API de Google tarda unos minutos en actualizarse
+        // cuando empieza a llover de golpe
+        if (precipitation >= 0.4) {
+            return Triple(true, "SENSORS_CONFIRMED", "Lluvia detectada por sensores (${LocationUtils.formatNumberSpanish(precipitation)} mm)")
         }
 
-        // 🔒 Regla de protección: condiciones probabilísticas solo si el cielo está cubierto (weatherCode >= 3)
-        // Si el código es 0, 1 o 2 (Despejado/Nubes medias), ignoramos la humedad aunque sea del 90%
-        // ya que es "bochorno" o bruma, no lluvia
-        val isCloudyOrOvercast = weatherCode >= 3
-        
-        // 3️⃣ PRIORIDAD BAJA: Atmósfera lluviosa (solo si cielo cubierto y condiciones muy extremas)
-        // Endurecido: humedad > 92% y probabilidad > 70% (en Barcelona es común 40% sin que caiga una gota)
-        if (isCloudyOrOvercast && (humidity ?: 0) >= 92 && (rainProbability ?: 0) >= 70) {
-            return Triple(true, "HUMIDITY_PROBABILITY", "Lluvia detectada por humedad muy alta y alta probabilidad de precipitación")
-        }
-
-        // 4️⃣ REGLA ELIMINADA: Diluvio urbano mediterráneo
-        // La combinación de humedad alta y poco viento define la niebla matinal del Puerto de Barcelona,
-        // no un diluvio. Esta condición ahora activa "Calzada Mojada" pero no "Lluvia".
-
+        // 3️⃣ Si no, NO es lluvia activa (podría ser calzada mojada, pero no lluvia activa)
         return Triple(false, "NONE", "No se detectó lluvia")
     }
 
     /**
-     * Determina si hay lluvia activa (replica EXACTAMENTE la lógica usada en preavisos y monitoreo)
+     * Determina si hay lluvia activa usando condiciones de Google
      * 🔒 IMPORTANTE: Esta función garantiza que los umbrales sean idénticos entre preavisos y badges
      */
     private fun checkActiveRain(
-        weatherCode: Int,
-        isRaining: Boolean,
-        precipitation: Double?
+        condition: String, // Condition string de Google
+        precipitation: Double
     ): Boolean {
-        val rainCodes = listOf(51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82, 95, 96, 99)
-        val isClearSky = weatherCode == 0 || weatherCode == 1
+        val cond = condition.uppercase()
         
-        // 🔒 UX: Si el cielo está despejado, NUNCA mostrar como lluvia activa (aunque haya precipitación)
-        // La precipitación con cielo despejado = llovizna pasada = calzada mojada, no lluvia activa
-        return if (isClearSky) {
-            false // Cielo despejado = nunca lluvia activa (solo calzada mojada si hay precipitación)
-        } else {
-            // Usar umbral de 0.4 mm para evitar falsos positivos por ruido de humedad ambiental
-            weatherCode in rainCodes || (isRaining && (precipitation ?: 0.0) > 0.4)
+        // 1. Si Google confirma lluvia o tormenta, es lluvia activa
+        if (cond.contains("RAIN") || cond.contains("THUNDERSTORM")) {
+            return true
         }
+        
+        // 2. Si Google no dice lluvia pero los sensores detectan >= 0.4 mm, es lluvia activa
+        // (seguro de vida por si Google tarda en actualizarse)
+        if (precipitation >= 0.4) {
+            return true
+        }
+        
+        return false
     }
     
     /**
-     * Verifica si hay calzada mojada (replica EXACTAMENTE la lógica de RouteDetailDialog.checkWetRoadConditions)
+     * Verifica si hay calzada mojada usando condiciones de Google
      * 🔒 IMPORTANTE: Esta función garantiza que los umbrales sean idénticos entre preavisos y badges
      * 
-     * Acepta humedad alta aquí: Si hay >85% de humedad pero no hay lluvia confirmada por código o mm,
+     * Acepta humedad alta aquí: Si hay >88% de humedad pero no hay lluvia confirmada,
      * el badge Naranja es el correcto. El asfalto está húmedo y resbala, pero el usuario no se moja.
      */
     private fun checkWetRoadConditions(
-        weatherCode: Int?,
-        humidity: Int?,
-        rainProbability: Int?,
-        precipitation: Double?,
-        isDay: Boolean,
-        weatherEmoji: String?,
+        condition: String, // Condition string de Google
+        humidity: Int,
+        precipitation: Double,
         hasActiveRain: Boolean
     ): Boolean {
         // 1. EXCLUSIÓN: Si hay lluvia activa, NO mostramos "Calzada Mojada"
@@ -905,34 +848,16 @@ class TrackingViewModel @Inject constructor(
         
         // 2. Si hay precipitación registrada pero no se detectó como "Lluvia activa"
         // (Ej: Llovió justo antes o llovizna muy fina que no activó el sensor pero mojó el suelo)
-        // Usar umbral de 0.4 mm para evitar ruido de humedad ambiental
-        // NOTA: Esta condición es independiente del estado del cielo (precipitación real medida)
-        if (precipitation != null && precipitation > 0.0 && precipitation <= 0.4) {
+        // Precipitación entre 0.1 y 0.4 mm = calzada mojada, no lluvia activa
+        if (precipitation > 0.1 && precipitation < 0.4) {
             return true
         }
         
-        // 3. Calzada mojada considerando día/noche (ACEPTAR HUMEDAD ALTA SIN RESTRICCIÓN DE CIELO)
-        // Día: humedad muy alta (>90%) o probabilidad alta (>40%) - suelo puede estar mojado pero seca más rápido
-        // Noche: humedad alta (>85%) es suficiente - el suelo tarda mucho más en secarse sin sol
-        // En Barcelona el asfalto por la noche no seca debido a la humedad marina, aunque no haya llovido
-        if (humidity != null) {
-            if (isDay) {
-                // Día: necesita condiciones más extremas
-                if (humidity >= 90) {
-                    return true
-                }
-                if (rainProbability != null && rainProbability > 40) {
-                    return true
-                }
-            } else {
-                // Noche: con humedad alta el suelo tarda mucho en secarse
-                if (humidity >= 85) {
-                    return true
-                }
-                if (rainProbability != null && rainProbability > 35) {
-                    return true
-                }
-            }
+        // 3. Calzada mojada por humedad extrema (>88%)
+        // En Barcelona, especialmente de noche, el asfalto puede estar mojado por rocío o humedad marina
+        // aunque no haya llovido recientemente
+        if (humidity > 88) {
+            return true
         }
         
         return false
@@ -986,43 +911,10 @@ class TrackingViewModel @Inject constructor(
             desc.contains("rayo", ignoreCase = true)
         } ?: false
 
-<<<<<<< HEAD
-=======
-        return isStorm || isStormByDescription
-    }
-    
-    /**
-     * Detecta la causa específica de condiciones extremas (misma lógica que StatisticsViewModel)
-     * Retorna: "STORM", "GUSTS", "WIND", "COLD", "HEAT" o null
-     */
-    private fun detectExtremeCause(
-        windSpeed: Double?,
-        windGusts: Double?,
-        temperature: Double?,
-        uvIndex: Double?,
-        isDay: Boolean,
-        weatherEmoji: String?,
-        weatherDescription: String?
-    ): String? {
-        // Prioridad: Tormenta > Rachas > Viento > Temperatura
-        
-        // 1. Tormenta (prioridad máxima)
-        val isStorm = weatherEmoji?.let { emoji ->
-            emoji.contains("⛈") || emoji.contains("⚡")
-        } ?: false
-        
-        val isStormByDescription = weatherDescription?.let { desc ->
-            desc.contains("Tormenta", ignoreCase = true) ||
-            desc.contains("granizo", ignoreCase = true) ||
-            desc.contains("rayo", ignoreCase = true)
-        } ?: false
-        
->>>>>>> 5a12a579c9a7df35811e79942652d223cf51d75f
         if (isStorm || isStormByDescription) {
-            return "STORM"
+            return true
         }
         
-<<<<<<< HEAD
         // Nieve (weatherCode 71, 73, 75, 77, 85, 86 o emoji ❄️)
         // La nieve es muy peligrosa en patinete por el riesgo de resbalar
         val isSnowByCode = weatherCode?.let { code ->
@@ -1039,7 +931,11 @@ class TrackingViewModel @Inject constructor(
             desc.contains("snow", ignoreCase = true)
         } ?: false
 
-        return isSnowByCode || isSnowByEmoji || isSnowByDescription
+        if (isSnowByCode || isSnowByEmoji || isSnowByDescription) {
+            return true
+        }
+        
+        return false
     }
     
     /**
@@ -1094,29 +990,18 @@ class TrackingViewModel @Inject constructor(
         }
         
         // 3. Rachas de viento muy fuertes (>60 km/h) - prioridad sobre viento normal
-=======
-        // 2. Rachas de viento muy fuertes (>60 km/h) - prioridad sobre viento normal
->>>>>>> 5a12a579c9a7df35811e79942652d223cf51d75f
         val windGustsKmh = (windGusts ?: 0.0) * 3.6
         if (windGustsKmh > 60) {
             return "GUSTS"
         }
         
-<<<<<<< HEAD
         // 4. Viento fuerte (>40 km/h)
-=======
-        // 3. Viento fuerte (>40 km/h)
->>>>>>> 5a12a579c9a7df35811e79942652d223cf51d75f
         val windSpeedKmh = (windSpeed ?: 0.0) * 3.6
         if (windSpeedKmh > 40) {
             return "WIND"
         }
         
-<<<<<<< HEAD
         // 5. Temperatura extrema
-=======
-        // 4. Temperatura extrema
->>>>>>> 5a12a579c9a7df35811e79942652d223cf51d75f
         if (temperature != null) {
             if (temperature < 0) {
                 return "COLD"
@@ -1126,11 +1011,7 @@ class TrackingViewModel @Inject constructor(
             }
         }
         
-<<<<<<< HEAD
         // 6. Índice UV muy alto (>8) - solo de día (se considera como calor)
-=======
-        // 5. Índice UV muy alto (>8) - solo de día (se considera como calor)
->>>>>>> 5a12a579c9a7df35811e79942652d223cf51d75f
         if (isDay && uvIndex != null && uvIndex > 8) {
             return "HEAT"
         }
@@ -1139,52 +1020,11 @@ class TrackingViewModel @Inject constructor(
     }
 
     /**
-     * Resuelve el código de clima efectivo basado en detección de lluvia efectiva
-     * Si hay lluvia efectiva, fuerza código 61 (lluvia ligera)
-     * Devuelve: (effectiveCode, reasonCode, userFriendlyReason, isDerived)
+     * ELIMINADO: resolveEffectiveWeatherCode()
+     * Ya no es necesario porque Google Weather API ya devuelve condiciones efectivas.
+     * Google usa IA para filtrar radares y determinar si realmente está lloviendo,
+     * así que no necesitamos "adivinar" o "derivar" condiciones.
      */
-    private fun resolveEffectiveWeatherCode(
-        originalCode: Int,
-        precipitation: Double?,
-        rain: Double?,
-        showers: Double?,
-        humidity: Int?,
-        rainProbability: Int?,
-        windSpeed: Double?
-    ): Quadruple<Int, String, String, Boolean> {
-        val (isRaining, reasonCode, userFriendlyReason) = isRainingForScooter(
-            originalCode,
-            precipitation,
-            rain,
-            showers,
-            humidity,
-            rainProbability,
-            windSpeed
-        )
-        
-        // Verificar si el código original ya indicaba lluvia
-        val rainFromModel = originalCode in listOf(51, 53, 55, 61, 63, 65, 80, 81, 82)
-        
-        return if (isRaining && !rainFromModel) {
-            // Lluvia derivada (no del modelo)
-            Quadruple(61, reasonCode, userFriendlyReason, true)
-        } else if (isRaining && rainFromModel) {
-            // Lluvia del modelo
-            Quadruple(originalCode, reasonCode, userFriendlyReason, false)
-        } else {
-            Quadruple(originalCode, reasonCode, userFriendlyReason, false)
-        }
-    }
-    
-    /**
-     * Data class para devolver múltiples valores
-     */
-    private data class Quadruple<A, B, C, D>(
-        val first: A,
-        val second: B,
-        val third: C,
-        val fourth: D
-    )
 
     /**
      * Inicia el monitoreo continuo de lluvia durante la ruta
@@ -1224,52 +1064,47 @@ class TrackingViewModel @Inject constructor(
                     Log.d(TAG, "🌧️ [Monitoreo continuo] Chequeando clima en minuto $elapsedMinutes...")
                     
                     try {
-                        val weatherRepository = com.zipstats.app.repository.WeatherRepository()
                         val result = weatherRepository.getCurrentWeather(
                             latitude = currentPoint.latitude,
                             longitude = currentPoint.longitude
                         )
                         
                         result.onSuccess { weather ->
-                            // Detectar lluvia usando la función (para badge en resumen)
-                            val (isRaining, _, rainUserReason) = isRainingForScooter(
-                                weather.weatherCode,
-                                weather.precipitation,
-                                weather.rain,
-                                weather.showers,
-                                weather.humidity,
-                                weather.rainProbability,
-                                weather.windSpeed
-                            )
+                            Log.d(TAG, "✅ [Monitoreo continuo] Clima obtenido: ${weather.temperature}°C, condición=${weather.icon}, precip=${weather.precipitation}mm, humedad=${weather.humidity}%")
                             
-                            // Determinar si es lluvia activa: Usar función compartida para garantizar umbrales idénticos
-                            val isActiveRain = checkActiveRain(
-                                weatherCode = weather.weatherCode,
-                                isRaining = isRaining,
+                            // Google Weather API ya devuelve condiciones efectivas
+                            val condition = weather.icon.uppercase()
+                            
+                            // Detectar lluvia usando condición de Google directamente
+                            val (isRaining, _, rainUserReason) = isRainingForScooter(
+                                condition = condition,
                                 precipitation = weather.precipitation
                             )
                             
-                            // Obtener emoji para detección de condiciones extremas y calzada mojada
-                            val effectiveEmoji = com.zipstats.app.repository.WeatherRepository.getEmojiForWeather(
-                                weather.weatherCode,
-                                if (weather.isDay) 1 else 0
+                            // Determinar si es lluvia activa usando condición de Google
+                            val isActiveRain = checkActiveRain(
+                                condition = condition,
+                                precipitation = weather.precipitation
                             )
                             
-                            // Calzada mojada: Usar función compartida para garantizar umbrales idénticos
-                            // 🔒 EXCLUSIÓN: Si hay lluvia activa, NO mostrar calzada mojada (son excluyentes)
+                            Log.d(TAG, "🔍 [Monitoreo continuo] Detección: isRaining=$isRaining, isActiveRain=$isActiveRain, razón=$rainUserReason")
+                            
+                            // Obtener emoji directamente de Google (ya viene correcto)
+                            val weatherEmoji = weather.weatherEmoji
+                            
+                            // Calzada mojada: Solo si NO hay lluvia activa
                             val isWetRoad = if (isActiveRain) {
                                 false // Excluir calzada mojada si hay lluvia activa
                             } else {
                                 checkWetRoadConditions(
-                                    weatherCode = weather.weatherCode,
+                                    condition = condition,
                                     humidity = weather.humidity,
-                                    rainProbability = weather.rainProbability,
                                     precipitation = weather.precipitation,
-                                    isDay = weather.isDay,
-                                    weatherEmoji = effectiveEmoji,
                                     hasActiveRain = isActiveRain
                                 )
                             }
+                            
+                            Log.d(TAG, "🛣️ [Monitoreo continuo] Calzada mojada: isWetRoad=$isWetRoad")
                             
                             // Detectar condiciones extremas
                             val hasExtremeConditions = checkExtremeConditions(
@@ -1278,10 +1113,12 @@ class TrackingViewModel @Inject constructor(
                                 temperature = weather.temperature,
                                 uvIndex = weather.uvIndex,
                                 isDay = weather.isDay,
-                                weatherEmoji = effectiveEmoji,
+                                weatherEmoji = weatherEmoji,
                                 weatherDescription = weather.description,
                                 weatherCode = weather.weatherCode
                             )
+                            
+                            Log.d(TAG, "⚠️ [Monitoreo continuo] Condiciones extremas: hasExtremeConditions=$hasExtremeConditions")
                             
                             // 🔥 JERARQUÍA DE BADGES (misma lógica que RouteDetailDialog):
                             // 1. Lluvia: Máxima prioridad (siempre se muestra si existe)
@@ -1299,13 +1136,9 @@ class TrackingViewModel @Inject constructor(
                                     temperature = weather.temperature,
                                     uvIndex = weather.uvIndex,
                                     isDay = weather.isDay,
-                                    weatherEmoji = effectiveEmoji,
-<<<<<<< HEAD
+                                    weatherEmoji = weatherEmoji,
                                     weatherDescription = weather.description,
                                     weatherCode = weather.weatherCode
-=======
-                                    weatherDescription = weather.description
->>>>>>> 5a12a579c9a7df35811e79942652d223cf51d75f
                                 )
                                 if (cause != null && weatherExtremeReason == null) {
                                     // Guardar la primera causa detectada (la más grave por prioridad)
@@ -1329,6 +1162,7 @@ class TrackingViewModel @Inject constructor(
                             if (isActiveRain) {
                                 weatherHadRain = true
                                 weatherHadWetRoad = false // Lluvia excluye calzada mojada
+                                Log.d(TAG, "🌧️ [Monitoreo continuo] Estado actualizado: weatherHadRain=true, weatherHadWetRoad=false")
                             } else if (isWetRoad) {
                                 // Calzada mojada: Solo si NO hay lluvia activa
                                 weatherHadWetRoad = true
@@ -1338,6 +1172,9 @@ class TrackingViewModel @Inject constructor(
                                 if (weatherMaxPrecipitation == null || weatherMaxPrecipitation < 0.4) {
                                     weatherMaxPrecipitation = maxOf(weatherMaxPrecipitation ?: 0.0, 0.2)
                                 }
+                                Log.d(TAG, "🛣️ [Monitoreo continuo] Estado actualizado: weatherHadWetRoad=true, precipMax=${weatherMaxPrecipitation}")
+                            } else {
+                                Log.d(TAG, "☀️ [Monitoreo continuo] Sin lluvia ni calzada mojada")
                             }
                             
                             // Lógica: solo actualizar si detecta lluvia nueva (para icono)
@@ -1356,29 +1193,14 @@ class TrackingViewModel @Inject constructor(
                                         
                                         // Actualizar solo los campos visibles en la tarjeta de clima durante tracking
                                         // (icono, temperatura, viento y dirección) ya que al finalizar se guardan los datos del inicio
-                                        val (effectiveWeatherCode, _, _, _) = resolveEffectiveWeatherCode(
-                                            weather.weatherCode,
-                                            weather.precipitation,
-                                            weather.rain,
-                                            weather.showers,
-                                            weather.humidity,
-                                            weather.rainProbability,
-                                            weather.windSpeed
-                                        )
-                                        
-                                        val effectiveEmoji = com.zipstats.app.repository.WeatherRepository.getEmojiForWeather(
-                                            effectiveWeatherCode,
-                                            if (weather.isDay) 1 else 0
-                                        )
-                                        
-                                        // Actualizar solo campos visibles en TrackingWeatherCard: icono, temperatura, viento y dirección
+                                        // Google ya devuelve emoji y condición correctos, no necesitamos procesarlos
                                         val currentStatus = _weatherStatus.value
                                         if (currentStatus is WeatherStatus.Success) {
                                             _weatherStatus.value = currentStatus.copy(
                                                 temperature = weather.temperature,
-                                                weatherEmoji = effectiveEmoji,
-                                                weatherCode = effectiveWeatherCode,
-                                                icon = effectiveWeatherCode.toString(),
+                                                weatherEmoji = weather.weatherEmoji,
+                                                weatherCode = weather.weatherCode,
+                                                icon = weather.icon, // Condition string de Google
                                                 windSpeed = weather.windSpeed,
                                                 windDirection = weather.windDirection,
                                                 isDay = weather.isDay
@@ -1417,6 +1239,9 @@ class TrackingViewModel @Inject constructor(
                                     Log.d(TAG, "🌧️ [Monitoreo continuo] Ya no llueve, pero manteniendo icono de lluvia (ya llovió antes)")
                                 }
                             }
+                            
+                            // Resumen final del chequeo
+                            Log.d(TAG, "📊 [Monitoreo continuo] Resumen: hadRain=$weatherHadRain, hadWetRoad=$weatherHadWetRoad, hadExtreme=$weatherHadExtremeConditions, precipMax=${weatherMaxPrecipitation}mm")
                         }.onFailure { error ->
                             Log.w(TAG, "⚠️ [Monitoreo continuo] Error al obtener clima: ${error.message}")
                             // En caso de error, no limpiar pending - esperar al siguiente chequeo
@@ -1455,40 +1280,15 @@ class TrackingViewModel @Inject constructor(
         if (snapshot != null && _initialWeatherCaptured) {
             Log.d(TAG, "♻️ Reutilizando clima inicial capturado en precarga")
             
-            // Resolver código de clima efectivo
-            val (effectiveWeatherCode, _, _, isDerived) = resolveEffectiveWeatherCode(
-                snapshot.weatherCode,
-                snapshot.precipitation,
-                snapshot.rain,
-                snapshot.showers,
-                snapshot.humidity,
-                snapshot.rainProbability,
-                snapshot.windSpeed
-            )
+            // Google Weather API ya devuelve condiciones efectivas, no necesitamos procesarlas
+            val condition = snapshot.icon.uppercase()
+            val weatherEmoji = snapshot.weatherEmoji
+            val weatherDescription = snapshot.description // Ya viene en español de Google
             
-            // Obtener emoji, descripción e icono usando el código efectivo
-            val effectiveEmoji = com.zipstats.app.repository.WeatherRepository.getEmojiForWeather(
-                effectiveWeatherCode,
-                if (snapshot.isDay) 1 else 0
-            )
-            val effectiveDescription = if (isDerived) {
-                "Lluvia"
-            } else {
-                com.zipstats.app.repository.WeatherRepository.getDescriptionForWeather(
-                    effectiveWeatherCode,
-                    if (snapshot.isDay) 1 else 0
-                )
-            }
-            
-            // Detectar lluvia durante la ruta (inicialización)
+            // Detectar lluvia usando condición de Google directamente
             val (isRaining, _, rainUserReason) = isRainingForScooter(
-                snapshot.weatherCode,
-                snapshot.precipitation,
-                snapshot.rain,
-                snapshot.showers,
-                snapshot.humidity,
-                snapshot.rainProbability,
-                snapshot.windSpeed
+                condition = condition,
+                precipitation = snapshot.precipitation
             )
             
             if (isRaining) {
@@ -1502,8 +1302,8 @@ class TrackingViewModel @Inject constructor(
             
             // Guardar en variables de inicio de ruta
             _startWeatherTemperature = snapshot.temperature
-            _startWeatherEmoji = effectiveEmoji
-            _startWeatherDescription = effectiveDescription
+            _startWeatherEmoji = weatherEmoji
+            _startWeatherDescription = weatherDescription
             _startWeatherIsDay = snapshot.isDay
             _startWeatherFeelsLike = snapshot.feelsLike
             _startWeatherHumidity = snapshot.humidity
@@ -1518,12 +1318,12 @@ class TrackingViewModel @Inject constructor(
             _weatherStatus.value = WeatherStatus.Success(
                 temperature = snapshot.temperature,
                 feelsLike = snapshot.feelsLike,
-                description = effectiveDescription,
-                icon = effectiveWeatherCode.toString(),
+                description = weatherDescription,
+                icon = snapshot.icon, // Condition string de Google
                 humidity = snapshot.humidity,
                 windSpeed = snapshot.windSpeed,
-                weatherEmoji = effectiveEmoji,
-                weatherCode = effectiveWeatherCode,
+                weatherEmoji = weatherEmoji,
+                weatherCode = snapshot.weatherCode, // Mapeado para compatibilidad
                 isDay = snapshot.isDay,
                 uvIndex = snapshot.uvIndex,
                 windDirection = snapshot.windDirection,
@@ -1534,7 +1334,7 @@ class TrackingViewModel @Inject constructor(
                 showers = snapshot.showers
             )
             
-            Log.d(TAG, "✅ Clima inicial reutilizado: ${snapshot.temperature}°C $effectiveEmoji")
+            Log.d(TAG, "✅ Clima inicial reutilizado: ${snapshot.temperature}°C $weatherEmoji")
             return
         }
         
@@ -1582,7 +1382,6 @@ class TrackingViewModel @Inject constructor(
                 val maxRetries = 5  // Aumentado de 3 a 5 intentos
                 var retryCount = 0
                 var success = false
-                val weatherRepository = com.zipstats.app.repository.WeatherRepository()
                 val startApiTime = System.currentTimeMillis()
                 
                 while (!success && retryCount < maxRetries) {
@@ -1595,32 +1394,10 @@ class TrackingViewModel @Inject constructor(
                     )
                     
                     result.onSuccess { weather ->
-                        // Resolver código de clima efectivo basado en detección de lluvia efectiva
-                        val (effectiveWeatherCode, _, userFriendlyReason, isDerived) = resolveEffectiveWeatherCode(
-                            weather.weatherCode,
-                            weather.precipitation,
-                            weather.rain,
-                            weather.showers,
-                            weather.humidity,
-                            weather.rainProbability,
-                            weather.windSpeed
-                        )
-                        
-                        // Obtener emoji, descripción e icono usando el código efectivo
-                        val effectiveEmoji = com.zipstats.app.repository.WeatherRepository.getEmojiForWeather(
-                            effectiveWeatherCode,
-                            if (weather.isDay) 1 else 0
-                        )
-                        // Si es derivado, usar "Lluvia" en lugar de la descripción del modelo
-                        val effectiveDescription = if (isDerived) {
-                            "Lluvia"
-                        } else {
-                            com.zipstats.app.repository.WeatherRepository.getDescriptionForWeather(
-                                effectiveWeatherCode,
-                                if (weather.isDay) 1 else 0
-                            )
-                        }
-                        val effectiveIcon = effectiveWeatherCode.toString()
+                        // Google Weather API ya devuelve condiciones efectivas, no necesitamos procesarlas
+                        val condition = weather.icon.uppercase()
+                        val weatherEmoji = weather.weatherEmoji
+                        val weatherDescription = weather.description // Ya viene en español de Google
                         
                         // Validar que el clima recibido sea válido antes de guardarlo
                         if (weather.temperature.isNaN() || 
@@ -1649,7 +1426,7 @@ class TrackingViewModel @Inject constructor(
                             return@onSuccess
                         }
                         
-                        if (effectiveEmoji.isBlank()) {
+                        if (weatherEmoji.isBlank()) {
                             Log.w(TAG, "⚠️ Clima recibido con emoji vacío. Reintentando...")
                             // Continuar intentando en lugar de marcar error inmediatamente
                             if (retryCount < maxRetries) {
@@ -1672,15 +1449,10 @@ class TrackingViewModel @Inject constructor(
                             return@onSuccess
                         }
                         
-                        // Detectar lluvia durante la ruta (inicialización)
+                        // Detectar lluvia usando condición de Google directamente
                         val (isRaining, _, rainUserReason) = isRainingForScooter(
-                            weather.weatherCode,
-                            weather.precipitation,
-                            weather.rain,
-                            weather.showers,
-                            weather.humidity,
-                            weather.rainProbability,
-                            weather.windSpeed
+                            condition = condition,
+                            precipitation = weather.precipitation
                         )
                         
                         if (isRaining) {
@@ -1692,10 +1464,10 @@ class TrackingViewModel @Inject constructor(
                             weatherMaxPrecipitation = maxOf(weatherMaxPrecipitation, weather.precipitation)
                         }
                         
-                        // Clima válido - guardar y salir (usando valores efectivos)
+                        // Clima válido - guardar y salir (usando valores de Google directamente)
                         _startWeatherTemperature = weather.temperature
-                        _startWeatherEmoji = effectiveEmoji
-                        _startWeatherDescription = effectiveDescription
+                        _startWeatherEmoji = weatherEmoji
+                        _startWeatherDescription = weatherDescription
                         _startWeatherIsDay = weather.isDay
                         _startWeatherFeelsLike = weather.feelsLike
                         _startWeatherHumidity = weather.humidity
@@ -1710,12 +1482,12 @@ class TrackingViewModel @Inject constructor(
                         _weatherStatus.value = WeatherStatus.Success(
                             temperature = weather.temperature,
                             feelsLike = weather.feelsLike,
-                            description = effectiveDescription,
-                            icon = effectiveIcon,
+                            description = weatherDescription,
+                            icon = weather.icon, // Condition string de Google
                             humidity = weather.humidity,
                             windSpeed = weather.windSpeed,
-                            weatherEmoji = effectiveEmoji,
-                            weatherCode = effectiveWeatherCode,
+                            weatherEmoji = weatherEmoji,
+                            weatherCode = weather.weatherCode, // Mapeado para compatibilidad
                             isDay = weather.isDay,
                             uvIndex = weather.uvIndex,
                             windDirection = weather.windDirection,
@@ -1729,13 +1501,10 @@ class TrackingViewModel @Inject constructor(
                         success = true
                         
                         val elapsedMs = System.currentTimeMillis() - startApiTime
-                        Log.d(TAG, "✅ Clima capturado y VALIDADO en ${elapsedMs}ms: ${weather.temperature}°C $effectiveEmoji")
-                        Log.d(TAG, "✅ Descripción: $effectiveDescription")
+                        Log.d(TAG, "✅ Clima capturado y VALIDADO en ${elapsedMs}ms: ${weather.temperature}°C $weatherEmoji")
+                        Log.d(TAG, "✅ Descripción: $weatherDescription")
                         Log.d(TAG, "✅ Precipitación: ${weather.precipitation}mm, Rain: ${weather.rain}mm, Showers: ${weather.showers}mm")
                         Log.d(TAG, "✅ Humedad: ${weather.humidity}%, Prob. lluvia: ${weather.rainProbability}%, Viento: ${weather.windSpeed} km/h")
-                        if (effectiveWeatherCode != weather.weatherCode || isDerived) {
-                            Log.d(TAG, "🌧️ Código ajustado: ${weather.weatherCode} -> $effectiveWeatherCode (${if (isDerived) "derivado" else "modelo"}: $userFriendlyReason)")
-                        }
                     }.onFailure { error ->
                         Log.e(TAG, "❌ Error en intento ${retryCount}/${maxRetries}: ${error.message}")
                         
@@ -1802,39 +1571,16 @@ class TrackingViewModel @Inject constructor(
                 
                 _weatherStatus.value = WeatherStatus.Loading
                 
-                val weatherRepository = com.zipstats.app.repository.WeatherRepository()
                 val result = weatherRepository.getCurrentWeather(
                     latitude = firstPoint.latitude,
                     longitude = firstPoint.longitude
                 )
                 
                 result.onSuccess { weather ->
-                    // Resolver código de clima efectivo basado en detección de lluvia efectiva
-                    val (effectiveWeatherCode, _, _, isDerived) = resolveEffectiveWeatherCode(
-                        weather.weatherCode,
-                        weather.precipitation,
-                        weather.rain,
-                        weather.showers,
-                        weather.humidity,
-                        weather.rainProbability,
-                        weather.windSpeed
-                    )
-                    
-                    // Obtener emoji, descripción e icono usando el código efectivo
-                    val effectiveEmoji = com.zipstats.app.repository.WeatherRepository.getEmojiForWeather(
-                        effectiveWeatherCode,
-                        if (weather.isDay) 1 else 0
-                    )
-                    // Si es derivado, usar "Lluvia" en lugar de la descripción del modelo
-                    val effectiveDescription = if (isDerived) {
-                        "Lluvia"
-                    } else {
-                        com.zipstats.app.repository.WeatherRepository.getDescriptionForWeather(
-                            effectiveWeatherCode,
-                            if (weather.isDay) 1 else 0
-                        )
-                    }
-                    val effectiveIcon = effectiveWeatherCode.toString()
+                    // Google Weather API ya devuelve condiciones efectivas, no necesitamos procesarlas
+                    val condition = weather.icon.uppercase()
+                    val weatherEmoji = weather.weatherEmoji
+                    val weatherDescription = weather.description // Ya viene en español de Google
                     
                     // Validar que el clima recibido sea válido antes de guardarlo
                     if (weather.temperature.isNaN() || 
@@ -1847,22 +1593,17 @@ class TrackingViewModel @Inject constructor(
                         return@launch
                     }
                     
-                    if (effectiveEmoji.isBlank()) {
+                    if (weatherEmoji.isBlank()) {
                         Log.e(TAG, "⚠️ Clima recibido con emoji vacío. NO se guardará.")
                         _weatherStatus.value = WeatherStatus.Error("Emoji de clima vacío")
                         _message.value = "Emoji de clima vacío"
                         return@launch
                     }
                     
-                    // Detectar lluvia durante la ruta usando la nueva función
+                    // Detectar lluvia usando condición de Google directamente
                     val (isRaining, _, rainUserReason) = isRainingForScooter(
-                        weather.weatherCode,
-                        weather.precipitation,
-                        weather.rain,
-                        weather.showers,
-                        weather.humidity,
-                        weather.rainProbability,
-                        weather.windSpeed
+                        condition = condition,
+                        precipitation = weather.precipitation
                     )
                     
                     if (isRaining) {
@@ -1881,8 +1622,8 @@ class TrackingViewModel @Inject constructor(
                     }
                     
                     _startWeatherTemperature = weather.temperature
-                    _startWeatherEmoji = effectiveEmoji
-                    _startWeatherDescription = effectiveDescription
+                    _startWeatherEmoji = weatherEmoji
+                    _startWeatherDescription = weatherDescription
                     _startWeatherIsDay = weather.isDay
                     _startWeatherFeelsLike = weather.feelsLike
                     _startWeatherHumidity = weather.humidity
@@ -1898,12 +1639,12 @@ class TrackingViewModel @Inject constructor(
                     _weatherStatus.value = WeatherStatus.Success(
                         temperature = weather.temperature,
                         feelsLike = weather.feelsLike,
-                        description = effectiveDescription,
-                        icon = effectiveIcon,
+                        description = weatherDescription,
+                        icon = weather.icon, // Condition string de Google
                         humidity = weather.humidity,
                         windSpeed = weather.windSpeed,
-                        weatherEmoji = effectiveEmoji,
-                        weatherCode = effectiveWeatherCode,
+                        weatherEmoji = weatherEmoji,
+                        weatherCode = weather.weatherCode, // Mapeado para compatibilidad
                         isDay = weather.isDay,
                         uvIndex = weather.uvIndex,
                         windDirection = weather.windDirection,
@@ -1913,8 +1654,8 @@ class TrackingViewModel @Inject constructor(
                         rain = weather.rain,
                         showers = weather.showers
                     )
-                    Log.d(TAG, "✅ Clima obtenido manualmente: ${weather.temperature}°C $effectiveEmoji")
-                    _message.value = "Clima obtenido: ${formatTemperature(weather.temperature, 0)}°C $effectiveEmoji"
+                    Log.d(TAG, "✅ Clima obtenido manualmente: ${weather.temperature}°C $weatherEmoji")
+                    _message.value = "Clima obtenido: ${formatTemperature(weather.temperature, 0)}°C $weatherEmoji"
                 }.onFailure { error ->
                     Log.e(TAG, "❌ Error al obtener clima manualmente: ${error.message}")
                     _weatherStatus.value = WeatherStatus.Error(error.message ?: "Error al obtener clima")
@@ -2039,7 +1780,6 @@ class TrackingViewModel @Inject constructor(
                     val firstPoint = points.first()
                     
                     try {
-                        val weatherRepository = com.zipstats.app.repository.WeatherRepository()
                         _weatherStatus.value = WeatherStatus.Loading
                         
                         val weatherResult = weatherRepository.getCurrentWeather(
@@ -2050,31 +1790,10 @@ class TrackingViewModel @Inject constructor(
                         // Verificar el resultado (getCurrentWeather devuelve Result, así que verificamos directamente)
                         weatherResult.fold(
                             onSuccess = { weather ->
-                                // Resolver código de clima efectivo basado en detección de lluvia efectiva
-                                val (effectiveWeatherCode, _, _, isDerived) = resolveEffectiveWeatherCode(
-                                    weather.weatherCode,
-                                    weather.precipitation,
-                                    weather.rain,
-                                    weather.showers,
-                                    weather.humidity,
-                                    weather.rainProbability,
-                                    weather.windSpeed
-                                )
-                                
-                                // Obtener emoji, descripción usando el código efectivo
-                                val effectiveEmoji = com.zipstats.app.repository.WeatherRepository.getEmojiForWeather(
-                                    effectiveWeatherCode,
-                                    if (weather.isDay) 1 else 0
-                                )
-                                // Si es derivado, usar "Lluvia" en lugar de la descripción del modelo
-                                val effectiveDescription = if (isDerived) {
-                                    "Lluvia"
-                                } else {
-                                    com.zipstats.app.repository.WeatherRepository.getDescriptionForWeather(
-                                        effectiveWeatherCode,
-                                        if (weather.isDay) 1 else 0
-                                    )
-                                }
+                                // Google Weather API ya devuelve condiciones efectivas, no necesitamos procesarlas
+                                val condition = weather.icon.uppercase()
+                                val weatherEmoji = weather.weatherEmoji
+                                val weatherDescription = weather.description // Ya viene en español de Google
                                 
                                 // Validar que el clima recibido sea válido
                                 if (!weather.temperature.isNaN() && 
@@ -2082,11 +1801,11 @@ class TrackingViewModel @Inject constructor(
                                     weather.temperature > -50 && 
                                     weather.temperature < 60 &&
                                     weather.temperature != 0.0 &&
-                                    effectiveEmoji.isNotBlank()) {
+                                    weatherEmoji.isNotBlank()) {
                                     
                                     savedWeatherTemp = weather.temperature
-                                    savedWeatherEmoji = effectiveEmoji
-                                    savedWeatherDesc = effectiveDescription
+                                    savedWeatherEmoji = weatherEmoji
+                                    savedWeatherDesc = weatherDescription
                                     savedIsDay = weather.isDay
                                     savedFeelsLike = weather.feelsLike
                                     savedHumidity = weather.humidity
@@ -2097,15 +1816,10 @@ class TrackingViewModel @Inject constructor(
                                     savedRainProbability = _startWeatherRainProbability
                                     hasValidWeather = true
                                     
-                                    // Detectar lluvia durante la ruta usando la nueva función
+                                    // Detectar lluvia usando condición de Google directamente
                                     val (isRaining, _, rainUserReason) = isRainingForScooter(
-                                        weather.weatherCode,
-                                        weather.precipitation,
-                                        weather.rain,
-                                        weather.showers,
-                                        weather.humidity,
-                                        weather.rainProbability,
-                                        weather.windSpeed
+                                        condition = condition,
+                                        precipitation = weather.precipitation
                                     )
                                     
                                     if (isRaining) {
@@ -2123,7 +1837,7 @@ class TrackingViewModel @Inject constructor(
                                         weatherMaxPrecipitation = maxOf(weatherMaxPrecipitation, weather.precipitation)
                                     }
                                     
-                                    Log.d(TAG, "✅ Clima obtenido al finalizar: ${savedWeatherTemp}°C $effectiveEmoji")
+                                    Log.d(TAG, "✅ Clima obtenido al finalizar: ${savedWeatherTemp}°C $weatherEmoji")
                                 } else {
                                     Log.w(TAG, "⚠️ Clima obtenido pero inválido, no se usará")
                                 }

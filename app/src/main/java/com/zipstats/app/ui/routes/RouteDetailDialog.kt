@@ -817,6 +817,7 @@ private fun RouteTitle(route: Route) {
 
 @Composable
 private fun StatsChips(route: Route, onWeatherClick: () -> Unit) {
+    val context = LocalContext.current
     var weatherIconRes by remember(route.id) { mutableStateOf(getWeatherIconResId(route.weatherEmoji, route.weatherIsDay)) }
     var weatherTemp by remember(route.id) { mutableStateOf(if (route.weatherTemperature != null) "${formatTemperature(route.weatherTemperature, decimals = 0)}°C" else "--°C") }
     var isLoadingWeather by remember(route.id) { mutableStateOf(false) }
@@ -830,7 +831,10 @@ private fun StatsChips(route: Route, onWeatherClick: () -> Unit) {
         if (route.points.isNotEmpty()) {
             isLoadingWeather = true
             try {
-                val weatherRepository = WeatherRepository()
+                val appContext = context.applicationContext
+                // Crear instancia manualmente con el contexto de la aplicación
+                // Usa la función factory que no requiere Hilt
+                val weatherRepository = com.zipstats.app.repository.WeatherRepository.create(appContext)
                 val firstPoint = route.points.first()
                 val result = weatherRepository.getCurrentWeather(firstPoint.latitude, firstPoint.longitude)
                 result.onSuccess { weather ->
@@ -1011,21 +1015,20 @@ private fun WeatherInfoDialog(route: Route, onDismiss: () -> Unit) {
                     val (effectiveEmoji, effectiveDescription) = if (hadRain) {
                         // Si hay una descripción guardada en Firebase, usarla (es la fuente de verdad)
                         val savedDescription = route.weatherDescription?.substringBefore("(")?.trim()
-                        if (!savedDescription.isNullOrBlank()) {
-                            // Usar la descripción guardada y el emoji guardado
+                        if (!savedDescription.isNullOrBlank() && route.weatherEmoji != null) {
+                            // Usar la descripción guardada y el emoji guardado (vienen de Google Weather API)
                             route.weatherEmoji to savedDescription
                         } else {
-                            // Si no hay descripción guardada, calcular una basada en precipitación
+                            // Fallback: Si no hay descripción guardada, inferir desde precipitación
                             val precip = route.weatherMaxPrecipitation ?: 0.0
                             val isDay = route.weatherIsDay ?: true
-                            // Si precipitación > 2mm, considerar lluvia fuerte, sino ligera
-                            val rainCode = if (precip > 2.0) 63 else 61 // 63 = lluvia moderada, 61 = lluvia ligera
-                            val emoji = WeatherRepository.getEmojiForWeather(rainCode, if (isDay) 1 else 0)
-                            val description = WeatherRepository.getDescriptionForWeather(rainCode, if (isDay) 1 else 0)
+                            // Usar emoji y descripción basados en la precipitación
+                            val emoji = if (precip > 2.0) "🌧️" else "🌦️"
+                            val description = if (precip > 2.0) "Lluvia fuerte" else "Lluvia ligera"
                             emoji to description
                         }
                     } else {
-                        // Sin lluvia: usar icono y descripción originales del clima inicial
+                        // Sin lluvia: usar icono y descripción originales del clima inicial (vienen de Google Weather API)
                         route.weatherEmoji to (route.weatherDescription?.substringBefore("(")?.trim() ?: "Clima")
                     }
                     
@@ -1238,24 +1241,14 @@ private fun WeatherDetailRow(
  * Si la respuesta es 0 o null, retorna false (no fue lluvia real).
  */
 private fun isStrictRain(route: Route): Boolean {
-<<<<<<< HEAD
     // Verificar precipitación real (umbral aumentado a 0.4 mm para evitar falsos positivos)
-    // Open-Meteo suele dar "ruido" de 0.1-0.2 mm por humedad ambiental
+    // Google Weather API es más preciso, pero mantenemos el umbral de 0.4mm como estándar
     val precip = route.weatherMaxPrecipitation ?: 0.0
     if (precip > 0.4) {
         return true
     }
     
     // Si weatherHadRain es true pero no hay precipitación > 0.4, no es lluvia real
-=======
-    // Verificar precipitación real
-    val precip = route.weatherMaxPrecipitation ?: 0.0
-    if (precip > 0.1) {
-        return true
-    }
-    
-    // Si weatherHadRain es true pero no hay precipitación > 0.1, no es lluvia real
->>>>>>> 5a12a579c9a7df35811e79942652d223cf51d75f
     return false
 }
 
@@ -1272,56 +1265,29 @@ private fun checkWetRoadConditions(route: Route): Boolean {
     val savedAsRain = route.weatherHadRain == true
     val isStrictRainResult = isStrictRain(route)
     
-<<<<<<< HEAD
     // Si fue guardado como lluvia pero NO hubo precipitación real (> 0.4 mm),
-=======
-    // Si fue guardado como lluvia pero NO hubo precipitación real (> 0.1 mm),
->>>>>>> 5a12a579c9a7df35811e79942652d223cf51d75f
     // se degrada a calzada mojada (esto corrige datos guardados incorrectamente)
     if (savedAsRain && !isStrictRainResult) {
         return true
     }
     
-<<<<<<< HEAD
     // Si realmente llovió (precipitación > 0.4), NO es calzada mojada (es lluvia real)
-=======
-    // Si realmente llovió (precipitación > 0.1), NO es calzada mojada (es lluvia real)
->>>>>>> 5a12a579c9a7df35811e79942652d223cf51d75f
     if (isStrictRainResult) {
         return false
     }
     
-    val isDay = route.weatherIsDay ?: true // Por defecto asumimos día si no está definido
-    
-    // Si hay precipitación máxima registrada pero no se detectó como "Lluvia activa"
-    // (precipitación entre 0.0 y 0.4 mm = llovizna que moja el suelo pero no es lluvia activa)
-    // NOTA: Esta condición es independiente del estado del cielo (precipitación real medida)
-    if (route.weatherMaxPrecipitation != null && route.weatherMaxPrecipitation > 0.0 && route.weatherMaxPrecipitation <= 0.4) {
+    // Si hay precipitación registrada pero no se detectó como "Lluvia activa"
+    // (precipitación entre 0.1 y 0.4 mm = llovizna que moja el suelo pero no es lluvia activa)
+    val precip = route.weatherMaxPrecipitation ?: 0.0
+    if (precip > 0.1 && precip < 0.4) {
         return true
     }
     
-    // Calzada mojada considerando día/noche (ACEPTAR HUMEDAD ALTA SIN RESTRICCIÓN DE CIELO)
-    // Día: humedad muy alta (>90%) o probabilidad alta (>40%) - suelo puede estar mojado pero seca más rápido
-    // Noche: humedad alta (>85%) es suficiente - el suelo tarda mucho más en secarse sin sol
-    // En Barcelona el asfalto por la noche no seca debido a la humedad marina, aunque no haya llovido
-    if (route.weatherHumidity != null) {
-        if (isDay) {
-            // Día: necesita condiciones más extremas
-            if (route.weatherHumidity >= 90) {
-                return true
-            }
-            if (route.weatherRainProbability != null && route.weatherRainProbability > 40) {
-                return true
-            }
-        } else {
-            // Noche: con humedad alta el suelo tarda mucho en secarse
-            if (route.weatherHumidity >= 85) {
-                return true
-            }
-            if (route.weatherRainProbability != null && route.weatherRainProbability > 35) {
-                return true
-            }
-        }
+    // Calzada mojada por humedad extrema (>88%)
+    // Simplificado: Google Weather API es más preciso, así que usamos un umbral único
+    // En Barcelona, especialmente de noche, el asfalto puede estar mojado por rocío o humedad marina
+    if (route.weatherHumidity != null && route.weatherHumidity > 88) {
+        return true
     }
     
     return false

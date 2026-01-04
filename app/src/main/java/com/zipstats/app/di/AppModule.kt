@@ -13,6 +13,7 @@ import com.zipstats.app.repository.RepairRepository
 import com.zipstats.app.repository.RouteRepository
 import com.zipstats.app.repository.SettingsRepository
 import com.zipstats.app.repository.VehicleRepository
+import com.zipstats.app.repository.WeatherRepository
 import com.zipstats.app.utils.OnboardingManager
 import com.zipstats.app.utils.PreferencesManager
 import dagger.Module
@@ -101,9 +102,10 @@ object AppModule {
     @Singleton
     fun provideRouteRepository(
         firestore: FirebaseFirestore,
-        auth: FirebaseAuth
+        auth: FirebaseAuth,
+        weatherRepository: WeatherRepository
     ): RouteRepository {
-        return RouteRepository(firestore, auth)
+        return RouteRepository(firestore, auth, weatherRepository)
     }
 
     @Provides

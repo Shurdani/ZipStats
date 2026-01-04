@@ -23,7 +23,8 @@ import javax.inject.Singleton
 @Singleton
 class RouteRepository @Inject constructor(
     private val firestore: FirebaseFirestore,
-    private val auth: FirebaseAuth
+    private val auth: FirebaseAuth,
+    private val weatherRepository: WeatherRepository
 ) {
 
     private val routeAnalyzer = RouteAnalyzer()
@@ -109,7 +110,6 @@ class RouteRepository @Inject constructor(
         // Intentar obtener el clima actual
         if (points.isNotEmpty()) {
             try {
-                val weatherRepository = WeatherRepository()
                 val firstPoint = points.first()
                 
                 Log.d(TAG, "Obteniendo clima para ruta en lat=${firstPoint.latitude}, lon=${firstPoint.longitude}")
@@ -529,8 +529,6 @@ class RouteRepository @Inject constructor(
      */
     suspend fun fetchAndUpdateWeather(routeId: String, latitude: Double, longitude: Double): Result<Unit> {
         return try {
-            val weatherRepository = WeatherRepository()
-            
             Log.d(TAG, "Obteniendo clima para actualizar ruta $routeId")
             
             val result = weatherRepository.getCurrentWeather(latitude, longitude)

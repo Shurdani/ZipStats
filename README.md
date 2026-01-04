@@ -3,7 +3,7 @@
 **Aplicación Android para tracking GPS de patinetes, bicicletas y otros vehículos personales.**
 
 <<<<<<< HEAD
-[![Version](https://img.shields.io/badge/Version-5.3.7-brightgreen.svg)](https://github.com/shurdani/Patinetatrack/releases)
+[![Version](https://img.shields.io/badge/Version-5.4.0-brightgreen.svg)](https://github.com/shurdani/Patinetatrack/releases)
 =======
 [![Version](https://img.shields.io/badge/Version-5.3.6-brightgreen.svg)](https://github.com/shurdani/Patinetatrack/releases)
 >>>>>>> 5a12a579c9a7df35811e79942652d223cf51d75f
@@ -94,7 +94,7 @@
 
 ### **APIs y Servicios**
 - **Mapbox SDK:** Visualización de mapas y rutas
-- **OpenMeteo API:** Datos meteorológicos en tiempo real y pronósticos
+- **Google Weather API:** Datos meteorológicos en tiempo real y pronósticos
 - **Firebase:**
   - Authentication (Email/Password/Google)
   - Firestore Database (Almacenamiento de datos)

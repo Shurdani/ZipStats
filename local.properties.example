@@ -19,3 +19,8 @@ mapbox.access.token=YOUR_MAPBOX_ACCESS_TOKEN
 # OpenWeather API Key
 # Get this from: https://openweathermap.org/api (Free tier available)
 openweather.api.key=YOUR_OPENWEATHER_API_KEY
+
+# Google Weather API Key
+# Get this from: https://console.cloud.google.com/apis/credentials
+# Same API key used for Google Maps Platform
+google.weather.api.key=YOUR_GOOGLE_WEATHER_API_KEY

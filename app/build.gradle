@@ -23,8 +23,8 @@ android {
         applicationId "com.zipstats.app"
         minSdk 31
         targetSdk 34
-        versionCode 40
-        versionName "5.3.7"
+        versionCode 41
+        versionName "5.4.0"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -36,6 +36,7 @@ android {
         buildConfigField "String", "CLOUDINARY_API_KEY", "\"${localProperties.getProperty('cloudinary.api_key', 'YOUR_API_KEY')}\""
         buildConfigField "String", "CLOUDINARY_API_SECRET", "\"${localProperties.getProperty('cloudinary.api_secret', 'YOUR_API_SECRET')}\""
         buildConfigField "String", "OPENWEATHER_API_KEY", "\"${localProperties.getProperty('openweather.api.key', 'YOUR_OPENWEATHER_API_KEY')}\""
+        buildConfigField "String", "GOOGLE_WEATHER_API_KEY", "\"${localProperties.getProperty('google.weather.api.key', 'YOUR_GOOGLE_WEATHER_API_KEY')}\""
         buildConfigField "String", "MAPBOX_ACCESS_TOKEN", "\"${localProperties.getProperty('mapbox.access.token', 'YOUR_MAPBOX_ACCESS_TOKEN')}\""
 
         // Mapbox Access Token para AndroidManifest

@@ -65,8 +65,12 @@ enum class ExtremeCause(val label: String, val emoji: String) {
     WIND("Viento Fuerte", "💨"),
     GUSTS("Rachas de Viento", "🍃"),
     STORM("Tormenta", "⚡"),
+<<<<<<< HEAD
     SNOW("Nieve", "❄️"),
     COLD("Helada", "🥶"),
+=======
+    COLD("Helada", "❄️"),
+>>>>>>> 5a12a579c9a7df35811e79942652d223cf51d75f
     HEAT("Ola de Calor", "🔥")
 }
 
@@ -1313,6 +1317,7 @@ ${scooterTexts.joinToString("\n")}
                                 desc.contains("Tormenta", ignoreCase = true) ||
                                 desc.contains("granizo", ignoreCase = true) ||
                                 desc.contains("rayo", ignoreCase = true)
+<<<<<<< HEAD
                             } == true) ||
                             // Nieve: emoji o descripción (Route no tiene weatherCode)
                             (route.weatherEmoji?.let { it.contains("❄️") } == true) ||
@@ -1320,6 +1325,8 @@ ${scooterTexts.joinToString("\n")}
                                 desc.contains("Nieve", ignoreCase = true) ||
                                 desc.contains("nevada", ignoreCase = true) ||
                                 desc.contains("snow", ignoreCase = true)
+=======
+>>>>>>> 5a12a579c9a7df35811e79942652d223cf51d75f
                             } == true)
             
             if (!hasExtreme) return ExtremeCause.NONE
@@ -1331,7 +1338,10 @@ ${scooterTexts.joinToString("\n")}
                 "STORM", "TORMENTA" -> ExtremeCause.STORM
                 "GUSTS", "RACHAS" -> ExtremeCause.GUSTS
                 "WIND", "VIENTO" -> ExtremeCause.WIND
+<<<<<<< HEAD
                 "SNOW", "NIEVE" -> ExtremeCause.SNOW
+=======
+>>>>>>> 5a12a579c9a7df35811e79942652d223cf51d75f
                 "COLD", "FRÍO", "HELADA" -> ExtremeCause.COLD
                 "HEAT", "CALOR" -> ExtremeCause.HEAT
                 else -> ExtremeCause.NONE
@@ -1356,6 +1366,7 @@ ${scooterTexts.joinToString("\n")}
             return ExtremeCause.STORM
         }
         
+<<<<<<< HEAD
         // 2. Nieve (emoji ❄️ o descripción)
         // Nota: Route no tiene weatherCode, así que detectamos por emoji y descripción
         val isSnowByEmoji = route.weatherEmoji?.let { emoji ->
@@ -1373,16 +1384,27 @@ ${scooterTexts.joinToString("\n")}
         }
         
         // 3. Rachas de viento muy fuertes (>60 km/h) - prioridad sobre viento normal
+=======
+        // 2. Rachas de viento muy fuertes (>60 km/h) - prioridad sobre viento normal
+>>>>>>> 5a12a579c9a7df35811e79942652d223cf51d75f
         if (route.weatherWindGusts != null && route.weatherWindGusts > 60) {
             return ExtremeCause.GUSTS
         }
         
+<<<<<<< HEAD
         // 4. Viento fuerte (>40 km/h)
+=======
+        // 3. Viento fuerte (>40 km/h)
+>>>>>>> 5a12a579c9a7df35811e79942652d223cf51d75f
         if (route.weatherWindSpeed != null && route.weatherWindSpeed > 40) {
             return ExtremeCause.WIND
         }
         
+<<<<<<< HEAD
         // 5. Temperatura extrema
+=======
+        // 4. Temperatura extrema
+>>>>>>> 5a12a579c9a7df35811e79942652d223cf51d75f
         if (route.weatherTemperature != null) {
             if (route.weatherTemperature < 0) {
                 return ExtremeCause.COLD
@@ -1392,7 +1414,11 @@ ${scooterTexts.joinToString("\n")}
             }
         }
         
+<<<<<<< HEAD
         // 6. Índice UV muy alto (>8) - solo de día (se considera como calor)
+=======
+        // 5. Índice UV muy alto (>8) - solo de día (se considera como calor)
+>>>>>>> 5a12a579c9a7df35811e79942652d223cf51d75f
         if (route.weatherIsDay == true && route.weatherUvIndex != null && route.weatherUvIndex > 8) {
             return ExtremeCause.HEAT
         }
@@ -1441,6 +1467,7 @@ ${scooterTexts.joinToString("\n")}
      * 🔍 FILTRO DE VERDAD: Verifica si realmente hubo lluvia.
      * Si la ruta dice "Llovió", pregunta: "¿Cuántos milímetros?"
      * Si la respuesta es 0 o null, retorna false (no fue lluvia real).
+<<<<<<< HEAD
      * 
      * Usa umbral de 0.4 mm para evitar falsos positivos por ruido de humedad ambiental de Open-Meteo.
      */
@@ -1452,6 +1479,17 @@ ${scooterTexts.joinToString("\n")}
         }
         
         // Si weatherHadRain es true pero no hay precipitación > 0.4, no es lluvia real
+=======
+     */
+    private fun isStrictRain(route: com.zipstats.app.model.Route): Boolean {
+        // Verificar precipitación real
+        val precip = route.weatherMaxPrecipitation ?: 0.0
+        if (precip > 0.1) {
+            return true
+        }
+        
+        // Si weatherHadRain es true pero no hay precipitación > 0.1, no es lluvia real
+>>>>>>> 5a12a579c9a7df35811e79942652d223cf51d75f
         return false
     }
     
@@ -1459,21 +1497,32 @@ ${scooterTexts.joinToString("\n")}
      * Función auxiliar para verificar condiciones de calzada mojada
      * 🔍 FILTRO DE VERDAD: Si fue marcado como lluvia pero no hubo precipitación real,
      * se cuenta como calzada mojada.
+<<<<<<< HEAD
      * 
      * Acepta humedad alta: Si hay >85% de humedad pero no hay lluvia confirmada por código o mm,
      * el badge Naranja es el correcto. El asfalto está húmedo y resbala, pero el usuario no se moja.
+=======
+>>>>>>> 5a12a579c9a7df35811e79942652d223cf51d75f
      */
     private fun checkWetRoadConditions(route: com.zipstats.app.model.Route): Boolean {
         val savedAsRain = route.weatherHadRain == true
         val isStrictRainResult = isStrictRain(route)
         
+<<<<<<< HEAD
         // Si fue guardado como lluvia pero NO hubo precipitación real (> 0.4 mm),
+=======
+        // Si fue guardado como lluvia pero NO hubo precipitación real (> 0.1 mm),
+>>>>>>> 5a12a579c9a7df35811e79942652d223cf51d75f
         // se degrada a calzada mojada (esto corrige datos guardados incorrectamente)
         if (savedAsRain && !isStrictRainResult) {
             return true
         }
         
+<<<<<<< HEAD
         // Si realmente llovió (precipitación > 0.4), NO es calzada mojada (es lluvia real)
+=======
+        // Si realmente llovió (precipitación > 0.1), NO es calzada mojada (es lluvia real)
+>>>>>>> 5a12a579c9a7df35811e79942652d223cf51d75f
         if (isStrictRainResult) {
             return false
         }

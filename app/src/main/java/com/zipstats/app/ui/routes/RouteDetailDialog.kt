@@ -1238,6 +1238,7 @@ private fun WeatherDetailRow(
  * Si la respuesta es 0 o null, retorna false (no fue lluvia real).
  */
 private fun isStrictRain(route: Route): Boolean {
+<<<<<<< HEAD
     // Verificar precipitación real (umbral aumentado a 0.4 mm para evitar falsos positivos)
     // Open-Meteo suele dar "ruido" de 0.1-0.2 mm por humedad ambiental
     val precip = route.weatherMaxPrecipitation ?: 0.0
@@ -1246,6 +1247,15 @@ private fun isStrictRain(route: Route): Boolean {
     }
     
     // Si weatherHadRain es true pero no hay precipitación > 0.4, no es lluvia real
+=======
+    // Verificar precipitación real
+    val precip = route.weatherMaxPrecipitation ?: 0.0
+    if (precip > 0.1) {
+        return true
+    }
+    
+    // Si weatherHadRain es true pero no hay precipitación > 0.1, no es lluvia real
+>>>>>>> 5a12a579c9a7df35811e79942652d223cf51d75f
     return false
 }
 
@@ -1262,13 +1272,21 @@ private fun checkWetRoadConditions(route: Route): Boolean {
     val savedAsRain = route.weatherHadRain == true
     val isStrictRainResult = isStrictRain(route)
     
+<<<<<<< HEAD
     // Si fue guardado como lluvia pero NO hubo precipitación real (> 0.4 mm),
+=======
+    // Si fue guardado como lluvia pero NO hubo precipitación real (> 0.1 mm),
+>>>>>>> 5a12a579c9a7df35811e79942652d223cf51d75f
     // se degrada a calzada mojada (esto corrige datos guardados incorrectamente)
     if (savedAsRain && !isStrictRainResult) {
         return true
     }
     
+<<<<<<< HEAD
     // Si realmente llovió (precipitación > 0.4), NO es calzada mojada (es lluvia real)
+=======
+    // Si realmente llovió (precipitación > 0.1), NO es calzada mojada (es lluvia real)
+>>>>>>> 5a12a579c9a7df35811e79942652d223cf51d75f
     if (isStrictRainResult) {
         return false
     }

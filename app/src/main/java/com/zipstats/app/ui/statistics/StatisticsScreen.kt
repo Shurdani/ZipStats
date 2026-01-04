@@ -431,20 +431,13 @@ fun StatisticsScreen(
                             )
 
                             // 3. >>> TARJETA DE INSIGHT ALEATORIO <<<
-                            // Si el ViewModel ya generó el insight aleatorio, lo mostramos
-                            if (displayData.comparison != null) {
-                                if (randomInsight != null) {
-                                    SmartInsightCard(
-                                        data = randomInsight!!,
-                                        horizontalPadding = 16.dp
-                                    )
-                                } else {
-                                    // Fallback: Si aún carga, mostramos la clásica
-                                    ComparisonCard(
-                                        horizontalPadding = 16.dp,
-                                        comparison = displayData.comparison!!
-                                    )
-                                }
+                            // Solo mostramos si hay insight generado (nuevo diseño)
+                            // Si no hay datos suficientes, no mostramos nada
+                            randomInsight?.let { insight ->
+                                SmartInsightCard(
+                                    data = insight,
+                                    horizontalPadding = 16.dp
+                                )
                             }
 
                             // 4. Tarjeta "Tu Próximo Logro" (Rediseñada)

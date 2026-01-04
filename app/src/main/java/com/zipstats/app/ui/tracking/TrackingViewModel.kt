@@ -219,7 +219,11 @@ class TrackingViewModel @Inject constructor(
     // Prioridad: Condiciones extremas > Lluvia > Calzada mojada
     private var weatherHadWetRoad = false // Calzada mojada detectada (sin lluvia activa)
     private var weatherHadExtremeConditions = false // Condiciones extremas detectadas
+<<<<<<< HEAD
     private var weatherExtremeReason: String? = null // Razón de condiciones extremas (WIND, GUSTS, STORM, SNOW, COLD, HEAT)
+=======
+    private var weatherExtremeReason: String? = null // Razón de condiciones extremas (WIND, GUSTS, STORM, COLD, HEAT)
+>>>>>>> 5a12a579c9a7df35811e79942652d223cf51d75f
     
     // Valores máximos/mínimos durante la ruta (para reflejar el estado más adverso en los badges)
     private var maxWindSpeed = 0.0 // km/h
@@ -588,8 +592,12 @@ class TrackingViewModel @Inject constructor(
                             uvIndex = weather.uvIndex,
                             isDay = weather.isDay,
                             weatherEmoji = effectiveEmoji,
+<<<<<<< HEAD
                             weatherDescription = effectiveDescription,
                             weatherCode = effectiveWeatherCode
+=======
+                            weatherDescription = effectiveDescription
+>>>>>>> 5a12a579c9a7df35811e79942652d223cf51d75f
                         )
                         if (cause != null) {
                             weatherExtremeReason = cause
@@ -978,10 +986,43 @@ class TrackingViewModel @Inject constructor(
             desc.contains("rayo", ignoreCase = true)
         } ?: false
 
+<<<<<<< HEAD
+=======
+        return isStorm || isStormByDescription
+    }
+    
+    /**
+     * Detecta la causa específica de condiciones extremas (misma lógica que StatisticsViewModel)
+     * Retorna: "STORM", "GUSTS", "WIND", "COLD", "HEAT" o null
+     */
+    private fun detectExtremeCause(
+        windSpeed: Double?,
+        windGusts: Double?,
+        temperature: Double?,
+        uvIndex: Double?,
+        isDay: Boolean,
+        weatherEmoji: String?,
+        weatherDescription: String?
+    ): String? {
+        // Prioridad: Tormenta > Rachas > Viento > Temperatura
+        
+        // 1. Tormenta (prioridad máxima)
+        val isStorm = weatherEmoji?.let { emoji ->
+            emoji.contains("⛈") || emoji.contains("⚡")
+        } ?: false
+        
+        val isStormByDescription = weatherDescription?.let { desc ->
+            desc.contains("Tormenta", ignoreCase = true) ||
+            desc.contains("granizo", ignoreCase = true) ||
+            desc.contains("rayo", ignoreCase = true)
+        } ?: false
+        
+>>>>>>> 5a12a579c9a7df35811e79942652d223cf51d75f
         if (isStorm || isStormByDescription) {
-            return true
+            return "STORM"
         }
         
+<<<<<<< HEAD
         // Nieve (weatherCode 71, 73, 75, 77, 85, 86 o emoji ❄️)
         // La nieve es muy peligrosa en patinete por el riesgo de resbalar
         val isSnowByCode = weatherCode?.let { code ->
@@ -1053,18 +1094,29 @@ class TrackingViewModel @Inject constructor(
         }
         
         // 3. Rachas de viento muy fuertes (>60 km/h) - prioridad sobre viento normal
+=======
+        // 2. Rachas de viento muy fuertes (>60 km/h) - prioridad sobre viento normal
+>>>>>>> 5a12a579c9a7df35811e79942652d223cf51d75f
         val windGustsKmh = (windGusts ?: 0.0) * 3.6
         if (windGustsKmh > 60) {
             return "GUSTS"
         }
         
+<<<<<<< HEAD
         // 4. Viento fuerte (>40 km/h)
+=======
+        // 3. Viento fuerte (>40 km/h)
+>>>>>>> 5a12a579c9a7df35811e79942652d223cf51d75f
         val windSpeedKmh = (windSpeed ?: 0.0) * 3.6
         if (windSpeedKmh > 40) {
             return "WIND"
         }
         
+<<<<<<< HEAD
         // 5. Temperatura extrema
+=======
+        // 4. Temperatura extrema
+>>>>>>> 5a12a579c9a7df35811e79942652d223cf51d75f
         if (temperature != null) {
             if (temperature < 0) {
                 return "COLD"
@@ -1074,7 +1126,11 @@ class TrackingViewModel @Inject constructor(
             }
         }
         
+<<<<<<< HEAD
         // 6. Índice UV muy alto (>8) - solo de día (se considera como calor)
+=======
+        // 5. Índice UV muy alto (>8) - solo de día (se considera como calor)
+>>>>>>> 5a12a579c9a7df35811e79942652d223cf51d75f
         if (isDay && uvIndex != null && uvIndex > 8) {
             return "HEAT"
         }
@@ -1244,8 +1300,12 @@ class TrackingViewModel @Inject constructor(
                                     uvIndex = weather.uvIndex,
                                     isDay = weather.isDay,
                                     weatherEmoji = effectiveEmoji,
+<<<<<<< HEAD
                                     weatherDescription = weather.description,
                                     weatherCode = weather.weatherCode
+=======
+                                    weatherDescription = weather.description
+>>>>>>> 5a12a579c9a7df35811e79942652d223cf51d75f
                                 )
                                 if (cause != null && weatherExtremeReason == null) {
                                     // Guardar la primera causa detectada (la más grave por prioridad)

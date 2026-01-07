@@ -1063,12 +1063,44 @@ private fun WeatherInfoDialog(route: Route, onDismiss: () -> Unit) {
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         // Columna Izquierda (Confort/Estado)
                         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                            route.weatherFeelsLike?.let {
-                                WeatherGridItem(
-                                    icon = Icons.Default.Thermostat,
-                                    label = "Sensación",
-                                    value = "${formatTemperature(it)}°C"
-                                )
+                            // 🔥 LÓGICA INTELIGENTE: Mostrar Wind Chill, Heat Index o feelsLike según disponibilidad
+                            // Todos vienen directamente de Google API:
+                            // - windChill: solo disponible cuando T < 15°C
+                            // - heatIndex: solo disponible cuando T > 26°C
+                            // - feelsLikeTemperature: siempre disponible como sensación térmica general
+                            val temp = route.weatherTemperature
+                            val windChill = route.weatherWindChill // Wind Chill de Google API (solo cuando T < 15°C)
+                            val heatIndex = route.weatherHeatIndex // Heat Index de Google API (solo cuando T > 26°C)
+                            val feelsLike = route.weatherFeelsLike // feelsLikeTemperature de Google API (siempre disponible como fallback)
+                            
+                            when {
+                                // Frío (<15°C): Muestra Wind Chill si está disponible (viene directamente de Google API)
+                                // Si no hay windChill disponible, muestra feelsLike como fallback
+                                temp != null && temp < 15 && windChill != null -> {
+                                    WeatherGridItem(
+                                        icon = Icons.Default.Thermostat,
+                                        label = "Sensación",
+                                        value = "${formatTemperature(windChill)}°C"
+                                    )
+                                }
+                                // Calor (>26°C): Muestra Heat Index si está disponible (viene directamente de Google API)
+                                // Si no hay heatIndex disponible, muestra feelsLike como fallback
+                                temp != null && temp > 26 && heatIndex != null -> {
+                                    WeatherGridItem(
+                                        icon = Icons.Default.Thermostat,
+                                        label = "Índice",
+                                        value = "${formatTemperature(heatIndex)}°C"
+                                    )
+                                }
+                                // Fallback: Muestra feelsLikeTemperature (viene directamente de Google API)
+                                // Se usa cuando: temperatura media (15-26°C), o cuando no hay windChill/heatIndex disponible
+                                feelsLike != null -> {
+                                    WeatherGridItem(
+                                        icon = Icons.Default.Thermostat,
+                                        label = "Sensación",
+                                        value = "${formatTemperature(feelsLike)}°C"
+                                    )
+                                }
                             }
                             route.weatherHumidity?.let {
                                 WeatherGridItem(

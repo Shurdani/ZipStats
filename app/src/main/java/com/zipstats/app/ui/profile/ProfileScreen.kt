@@ -363,7 +363,7 @@ fun ProfileScreen(
                             // Tarjeta KM (clickable - lleva a Estadísticas)
                             StatSummaryCard(
                                 title = "Distancia Total",
-                                value = formatNumberWithCommas(state.scooters.sumOf { it.kilometrajeActual ?: 0.0 }),
+                                value = state.scooters.sumOf { it.kilometrajeActual ?: 0.0 },
                                 unit = "en KM",
                                 icon = Icons.AutoMirrored.Filled.TrendingUp,
                                 containerColor = MaterialTheme.colorScheme.primaryContainer,
@@ -543,7 +543,7 @@ fun UserProfileSection(
 @Composable
 fun StatSummaryCard(
     title: String,
-    value: String,
+    value: Any, // Acepta String o Double
     unit: String,
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     containerColor: androidx.compose.ui.graphics.Color,
@@ -581,16 +581,36 @@ fun StatSummaryCard(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 // AUTO-FORMATO DE NÚMEROS (formato español)
-                val formattedValue = try {
-                    // Intenta parsear si es un número simple para poner formato español
-                    val number = value.toDoubleOrNull()
-                    if (number != null) {
+                val formattedValue = when (value) {
+                    is Double -> {
                         // Formatear con Locale español: punto para miles, coma para decimales
-                        val formatter = java.text.DecimalFormat("#,##0.0", java.text.DecimalFormatSymbols(java.util.Locale("es", "ES")))
-                        val formatted = formatter.format(number)
-                        formatted.removeSuffix(",0") // Quitar decimal si es ,0
-                    } else value
-                } catch (e: Exception) { value }
+                        try {
+                            val formatter = java.text.DecimalFormat("#,##0.0", java.text.DecimalFormatSymbols(java.util.Locale("es", "ES")))
+                            val formatted = formatter.format(value)
+                            formatted.removeSuffix(",0") // Quitar decimal si es ,0
+                        } catch (e: Exception) {
+                            formatNumberWithCommas(value)
+                        }
+                    }
+                    is String -> {
+                        // Si ya es String, intentar parsear solo si parece un número sin formato
+                        val number = value.toDoubleOrNull()
+                        if (number != null && !value.contains(".") && !value.contains(",")) {
+                            // Es un número sin formato, formatearlo
+                            try {
+                                val formatter = java.text.DecimalFormat("#,##0.0", java.text.DecimalFormatSymbols(java.util.Locale("es", "ES")))
+                                val formatted = formatter.format(number)
+                                formatted.removeSuffix(",0")
+                            } catch (e: Exception) {
+                                value
+                            }
+                        } else {
+                            // Ya está formateado o no es un número, usar tal cual
+                            value
+                        }
+                    }
+                    else -> value.toString()
+                }
 
                 ZipStatsText(
                     text = formattedValue, // Usamos el valor formateado

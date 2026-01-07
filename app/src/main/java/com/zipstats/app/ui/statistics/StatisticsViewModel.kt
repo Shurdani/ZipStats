@@ -1208,14 +1208,7 @@ ${scooterTexts.joinToString("\n")}
         val finalPeriodLabel = when (selectedMetric) {
             InsightMetric.RAIN -> "vs $periodName"
             InsightMetric.WET_ROAD -> "vs $periodName"
-            InsightMetric.EXTREME -> {
-                val cause = weatherStats.dominantExtremeCause
-                if (cause != ExtremeCause.NONE) {
-                    "vs $periodName • Alerta: ${cause.label} ${cause.emoji}"
-                } else {
-                    "vs $periodName"
-                }
-            }
+            InsightMetric.EXTREME -> "vs $periodName"
             else -> "vs $periodName"
         }
 
@@ -1309,21 +1302,17 @@ ${scooterTexts.joinToString("\n")}
             }
         }
 
-        // Para clima extremo, proyectar ratios GPS sobre la Distancia Manual (La fiable)
-        // Solo si hay rutas GPS con distancia significativa
-        val extremeKm = if (gpsTotalDistance > 0.1) {
-            val extremeRatio = gpsExtremeKm / gpsTotalDistance
-            manualTotalDistance * extremeRatio
-        } else {
-            0.0
-        }
+        // Para clima extremo, usar DIRECTAMENTE la distancia real de las rutas GPS extremas
+        // NO proyectar sobre la distancia manual, porque no todas las rutas manuales tienen GPS
+        // y la proyección puede dar valores absurdos si hay pocas rutas GPS
+        val extremeKm = gpsExtremeKm
 
         val dominantCause = extremeCauseDistances.maxByOrNull { it.value }?.key ?: ExtremeCause.NONE
 
         return WeatherStats(
-            rainKm = rainKm, // Directo de rutas guardadas
-            wetRoadKm = wetRoadKm, // Directo de rutas guardadas
-            extremeKm = extremeKm, // Proyección híbrida
+            rainKm = rainKm, // Directo de rutas GPS guardadas (suma real)
+            wetRoadKm = wetRoadKm, // Directo de rutas GPS guardadas (suma real)
+            extremeKm = extremeKm, // Directo de rutas GPS guardadas (suma real)
             dominantExtremeCause = dominantCause
         )
     }

@@ -433,11 +433,15 @@ fun StatisticsScreen(
                             // 3. >>> TARJETA DE INSIGHT ALEATORIO <<<
                             // Solo mostramos si hay insight generado (nuevo diseño)
                             // Si no hay datos suficientes, no mostramos nada
-                            randomInsight?.let { insight ->
-                                SmartInsightCard(
-                                    data = insight,
-                                    horizontalPadding = 16.dp
-                                )
+                            // No se muestra en la pestaña "Todo" (índice 2)
+                            // Solo se muestra si hay distancia registrada (totalDistance > 0)
+                            if (selectedPeriod != 2 && displayData.totalDistance > 0) {
+                                randomInsight?.let { insight ->
+                                    SmartInsightCard(
+                                        data = insight,
+                                        horizontalPadding = 16.dp
+                                    )
+                                }
                             }
 
                             // 4. Tarjeta "Tu Próximo Logro" (Rediseñada)

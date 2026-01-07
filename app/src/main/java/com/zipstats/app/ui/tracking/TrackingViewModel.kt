@@ -56,7 +56,9 @@ sealed class WeatherStatus {
     object Loading : WeatherStatus()
     data class Success(
         val temperature: Double,      // Temperatura en °C
-        val feelsLike: Double,         // Sensación térmica
+        val feelsLike: Double,         // Sensación térmica general
+        val windChill: Double?,        // Wind Chill (solo relevante <15°C) - viene directamente de Google API
+        val heatIndex: Double?,        // Índice de calor (Heat Index - solo relevante >26°C)
         val description: String,       // Descripción del clima
         val icon: String,              // Código (ahora será el numérico, ej: "3")
         val humidity: Int,             // Humedad %
@@ -170,6 +172,8 @@ class TrackingViewModel @Inject constructor(
     private var _startWeatherIsDay: Boolean? = null
 
     private var _startWeatherFeelsLike: Double? = null
+    private var _startWeatherWindChill: Double? = null
+    private var _startWeatherHeatIndex: Double? = null
 
     private var _startWeatherHumidity: Int? = null
 
@@ -302,6 +306,8 @@ class TrackingViewModel @Inject constructor(
             _startWeatherDescription = savedWeather.description
             _startWeatherIsDay = savedWeather.isDay
             _startWeatherFeelsLike = savedWeather.feelsLike
+            _startWeatherWindChill = savedWeather.windChill
+            _startWeatherHeatIndex = savedWeather.heatIndex
             _startWeatherHumidity = savedWeather.humidity
             _startWeatherWindSpeed = savedWeather.windSpeed
             _startWeatherUvIndex = savedWeather.uvIndex
@@ -315,6 +321,8 @@ class TrackingViewModel @Inject constructor(
             _weatherStatus.value = WeatherStatus.Success(
                 temperature = savedWeather.temperature,
                 feelsLike = savedWeather.feelsLike,
+                windChill = savedWeather.windChill,
+                heatIndex = savedWeather.heatIndex,
                 description = savedWeather.description,
                 icon = savedWeather.icon,
                 humidity = savedWeather.humidity,
@@ -504,6 +512,8 @@ class TrackingViewModel @Inject constructor(
                     _weatherStatus.value = WeatherStatus.Success(
                         temperature = weather.temperature,
                         feelsLike = weather.feelsLike,
+                        windChill = weather.windChill,
+                        heatIndex = weather.heatIndex,
                         description = weatherDescription,
                         icon = weather.icon, // Condition string de Google
                         humidity = weather.humidity,
@@ -1427,6 +1437,8 @@ class TrackingViewModel @Inject constructor(
             _startWeatherDescription = weatherDescription
             _startWeatherIsDay = snapshot.isDay
             _startWeatherFeelsLike = snapshot.feelsLike
+            _startWeatherWindChill = snapshot.windChill
+            _startWeatherHeatIndex = snapshot.heatIndex
             _startWeatherHumidity = snapshot.humidity
             _startWeatherWindSpeed = snapshot.windSpeed
             _startWeatherUvIndex = snapshot.uvIndex
@@ -1441,6 +1453,8 @@ class TrackingViewModel @Inject constructor(
             _weatherStatus.value = WeatherStatus.Success(
                 temperature = snapshot.temperature,
                 feelsLike = snapshot.feelsLike,
+                windChill = snapshot.windChill,
+                heatIndex = snapshot.heatIndex,
                 description = weatherDescription,
                 icon = snapshot.icon, // Condition string de Google
                 humidity = snapshot.humidity,
@@ -1595,6 +1609,8 @@ class TrackingViewModel @Inject constructor(
                         _startWeatherDescription = weatherDescription
                         _startWeatherIsDay = weather.isDay
                         _startWeatherFeelsLike = weather.feelsLike
+                        _startWeatherWindChill = weather.windChill
+                        _startWeatherHeatIndex = weather.heatIndex
                         _startWeatherHumidity = weather.humidity
                         _startWeatherWindSpeed = weather.windSpeed
                         _startWeatherUvIndex = weather.uvIndex
@@ -1609,6 +1625,8 @@ class TrackingViewModel @Inject constructor(
                         _weatherStatus.value = WeatherStatus.Success(
                             temperature = weather.temperature,
                             feelsLike = weather.feelsLike,
+                            windChill = weather.windChill,
+                            heatIndex = weather.heatIndex,
                             description = weatherDescription,
                             icon = weather.icon, // Condition string de Google
                             humidity = weather.humidity,
@@ -1770,6 +1788,8 @@ class TrackingViewModel @Inject constructor(
                     _weatherStatus.value = WeatherStatus.Success(
                         temperature = weather.temperature,
                         feelsLike = weather.feelsLike,
+                        windChill = weather.windChill,
+                        heatIndex = weather.heatIndex,
                         description = weatherDescription,
                         icon = weather.icon, // Condition string de Google
                         humidity = weather.humidity,
@@ -1891,6 +1911,8 @@ class TrackingViewModel @Inject constructor(
                 var savedWeatherDesc = _startWeatherDescription
                 var savedIsDay = _startWeatherIsDay ?: true
                 var savedFeelsLike = _startWeatherFeelsLike
+                var savedWindChill = _startWeatherWindChill
+                var savedHeatIndex = _startWeatherHeatIndex
                 var savedHumidity = _startWeatherHumidity
                 var savedWindSpeed = _startWeatherWindSpeed
                 var savedUvIndex = _startWeatherUvIndex
@@ -1943,6 +1965,8 @@ class TrackingViewModel @Inject constructor(
                                     savedWeatherDesc = weatherDescription
                                     savedIsDay = weather.isDay
                                     savedFeelsLike = weather.feelsLike
+                                    savedWindChill = weather.windChill
+                                    savedHeatIndex = weather.heatIndex
                                     savedHumidity = weather.humidity
                                     savedWindSpeed = weather.windSpeed
                                     savedUvIndex = _startWeatherUvIndex
@@ -2093,6 +2117,8 @@ class TrackingViewModel @Inject constructor(
                         weatherDescription = savedWeatherDesc,
                         weatherIsDay = savedIsDay,
                         weatherFeelsLike = savedFeelsLike,
+                        weatherWindChill = savedWindChill,
+                        weatherHeatIndex = savedHeatIndex,
                         weatherHumidity = savedHumidity,
                         weatherWindSpeed = finalWindSpeed,
                         weatherUvIndex = finalUvIndex,
@@ -2125,6 +2151,8 @@ class TrackingViewModel @Inject constructor(
                         weatherDescription = null,
                         weatherIsDay = true,
                         weatherFeelsLike = null,
+                        weatherWindChill = null,
+                        weatherHeatIndex = null,
                         weatherHumidity = null,
                         weatherWindSpeed = null,
                         weatherUvIndex = null,
@@ -2170,6 +2198,8 @@ class TrackingViewModel @Inject constructor(
                 _startWeatherDescription = null
                 _startWeatherIsDay = null
                 _startWeatherFeelsLike = null
+                _startWeatherWindChill = null
+                _startWeatherHeatIndex = null
                 _startWeatherHumidity = null
                 _startWeatherWindSpeed = null
                 _startWeatherUvIndex = null

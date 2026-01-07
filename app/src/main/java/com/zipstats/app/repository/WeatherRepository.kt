@@ -22,7 +22,9 @@ import javax.inject.Singleton
  */
 data class WeatherData(
     val temperature: Double,      // Temperatura en °C
-    val feelsLike: Double,         // Sensación térmica
+    val feelsLike: Double,         // Sensación térmica general
+    val windChill: Double?,        // Wind Chill (solo relevante <15°C) - viene directamente de Google API
+    val heatIndex: Double?,        // Índice de calor (Heat Index - solo relevante >26°C)
     val description: String,       // Descripción del clima
     val icon: String,              // Código (ahora será la condición de Google, ej: "RAIN")
     val humidity: Int,             // Humedad %
@@ -65,28 +67,59 @@ class WeatherRepository @Inject constructor(
          * Mapea condiciones de Google Weather API a códigos WMO antiguos
          * para mantener compatibilidad con el código existente
          * 
-         * Incluye el "Filtro de Corte Barcelona": DRIZZLE y LIGHT_RAIN con <0.15mm
+         * Incluye el "Filtro de Corte Barcelona": LIGHT_RAIN con <0.15mm
          * se tratan como nublado para evitar iconos de lluvia falsos
          */
         private fun mapConditionToOldCode(condition: String, precipitation: Double = 0.0): Int {
             return when (condition.uppercase()) {
+                "TYPE_UNSPECIFIED" -> 0
                 "CLEAR", "SUNNY" -> 0
                 "MOSTLY_CLEAR" -> 1
                 "PARTLY_CLOUDY" -> 2
-                "CLOUDY", "MOSTLY_CLOUDY" -> 3
+                "MOSTLY_CLOUDY", "CLOUDY" -> 3
                 "FOG", "HAZE" -> 45
-                "DRIZZLE", "LIGHT_RAIN" -> {
-                    // Filtro de "Corte Barcelona": 
-                    // Si la precipitación es menor a 0.15mm, lo tratamos como nublado (3)
-                    // para evitar el icono de lluvia erróneo
-                    if (precipitation < 0.15) 3 else 61
+                "WINDY" -> 4 // Viento fuerte (código personalizado para usar drawable windy)
+                "WIND_AND_RAIN" -> 63 // Lluvia con viento
+                // Lluvias intermitentes (showers)
+                "LIGHT_RAIN_SHOWERS", "CHANCE_OF_SHOWERS", "SCATTERED_SHOWERS" -> {
+                    if (precipitation < 0.15) 3 else 80 // Chubascos leves
                 }
-                "RAIN" -> 63
-                "HEAVY_RAIN" -> 65
+                "RAIN_SHOWERS" -> 81 // Chubascos moderados
+                "HEAVY_RAIN_SHOWERS" -> 82 // Chubascos violentos
+                // Lluvias continuas
+                "LIGHT_TO_MODERATE_RAIN", "LIGHT_RAIN" -> {
+                    if (precipitation < 0.15) 3 else 61 // Lluvia ligera
+                }
+                "MODERATE_TO_HEAVY_RAIN", "RAIN" -> 63 // Lluvia moderada
+                "HEAVY_RAIN" -> 65 // Lluvia fuerte
+                "RAIN_PERIODICALLY_HEAVY" -> 65 // Lluvia fuerte intermitente
+                // Nieve intermitente (showers)
+                "LIGHT_SNOW_SHOWERS", "CHANCE_OF_SNOW_SHOWERS", "SCATTERED_SNOW_SHOWERS" -> 85 // Chubascos de nieve
+                "SNOW_SHOWERS" -> 85
+                "HEAVY_SNOW_SHOWERS" -> 86 // Chubascos de nieve fuertes
+                // Nieve continua
+                "LIGHT_TO_MODERATE_SNOW", "LIGHT_SNOW" -> 71 // Nevada ligera
+                "MODERATE_TO_HEAVY_SNOW", "SNOW" -> 73 // Nevada moderada
+                "HEAVY_SNOW" -> 75 // Nevada fuerte
+                "SNOWSTORM" -> 95 // Tormenta de nieve (similar a tormenta eléctrica)
+                "SNOW_PERIODICALLY_HEAVY" -> 75 // Nevada fuerte intermitente
+                "HEAVY_SNOW_STORM" -> 96 // Tormenta de nieve intensa
+                "BLOWING_SNOW" -> 75 // Nieve con viento
+                "RAIN_AND_SNOW" -> 66 // Mezcla de lluvia y nieve (lluvia helada)
+                // Granizo
+                "HAIL" -> 96 // Granizo (similar a tormenta con granizo)
+                "HAIL_SHOWERS" -> 96
+                // Tormentas eléctricas
                 "THUNDERSTORM" -> 95
+                "THUNDERSHOWER" -> 95
+                "LIGHT_THUNDERSTORM_RAIN" -> 95
+                "SCATTERED_THUNDERSTORMS" -> 95
+                "HEAVY_THUNDERSTORM" -> 96
+                // Condiciones legacy (compatibilidad)
+                "DRIZZLE" -> {
+                    if (precipitation < 0.15) 3 else 51 // Llovizna
+                }
                 "THUNDERSTORM_WITH_HAIL" -> 96
-                "SNOW" -> 71
-                "HEAVY_SNOW" -> 75
                 "ICE", "FREEZING_RAIN" -> 66
                 else -> 0 // Default a despejado
             }
@@ -98,17 +131,48 @@ class WeatherRepository @Inject constructor(
         fun getEmojiForCondition(condition: String, isDay: Boolean): String {
             val isDayTime = isDay
             return when (condition.uppercase()) {
+                "TYPE_UNSPECIFIED" -> "🌡️"
                 "CLEAR", "SUNNY" -> if (isDayTime) "☀️" else "🌙"
-                "MOSTLY_CLEAR", "PARTLY_CLOUDY" -> if (isDayTime) "🌤️" else "☁️🌙"
-                "CLOUDY", "MOSTLY_CLOUDY" -> "☁️"
+                "MOSTLY_CLEAR" -> if (isDayTime) "🌤️" else "☁️🌙"
+                "PARTLY_CLOUDY" -> if (isDayTime) "🌤️" else "☁️🌙"
+                "MOSTLY_CLOUDY", "CLOUDY" -> "☁️"
                 "FOG", "HAZE" -> "🌫️"
-                "DRIZZLE", "LIGHT_RAIN" -> if (isDayTime) "🌦️" else "🌧️"
-                "RAIN" -> "🌧️"
+                "WINDY" -> "💨"
+                "WIND_AND_RAIN" -> "🌧️💨"
+                // Lluvias intermitentes
+                "LIGHT_RAIN_SHOWERS", "CHANCE_OF_SHOWERS", "SCATTERED_SHOWERS" -> if (isDayTime) "🌦️" else "🌧️"
+                "RAIN_SHOWERS" -> "🌧️"
+                "HEAVY_RAIN_SHOWERS" -> "🌧️"
+                // Lluvias continuas
+                "LIGHT_TO_MODERATE_RAIN", "LIGHT_RAIN" -> if (isDayTime) "🌦️" else "🌧️"
+                "MODERATE_TO_HEAVY_RAIN", "RAIN" -> "🌧️"
                 "HEAVY_RAIN" -> "🌧️"
-                "THUNDERSTORM" -> "⚡"
-                "THUNDERSTORM_WITH_HAIL" -> "⛈️"
-                "SNOW" -> "❄️"
+                "RAIN_PERIODICALLY_HEAVY" -> "🌧️"
+                // Nieve intermitente
+                "LIGHT_SNOW_SHOWERS", "CHANCE_OF_SNOW_SHOWERS", "SCATTERED_SNOW_SHOWERS" -> "❄️"
+                "SNOW_SHOWERS" -> "❄️"
+                "HEAVY_SNOW_SHOWERS" -> "❄️"
+                // Nieve continua
+                "LIGHT_TO_MODERATE_SNOW", "LIGHT_SNOW" -> "❄️"
+                "MODERATE_TO_HEAVY_SNOW", "SNOW" -> "❄️"
                 "HEAVY_SNOW" -> "❄️"
+                "SNOWSTORM" -> "⛈️❄️"
+                "SNOW_PERIODICALLY_HEAVY" -> "❄️"
+                "HEAVY_SNOW_STORM" -> "⛈️❄️"
+                "BLOWING_SNOW" -> "❄️💨"
+                "RAIN_AND_SNOW" -> "🌨️"
+                // Granizo
+                "HAIL" -> "🧊"
+                "HAIL_SHOWERS" -> "🧊"
+                // Tormentas eléctricas
+                "THUNDERSTORM" -> "⚡"
+                "THUNDERSHOWER" -> "⚡"
+                "LIGHT_THUNDERSTORM_RAIN" -> "⚡"
+                "SCATTERED_THUNDERSTORMS" -> "⚡"
+                "HEAVY_THUNDERSTORM" -> "⛈️"
+                // Condiciones legacy (compatibilidad)
+                "DRIZZLE" -> if (isDayTime) "🌦️" else "🌧️"
+                "THUNDERSTORM_WITH_HAIL" -> "⛈️"
                 "ICE", "FREEZING_RAIN" -> "🥶"
                 else -> "🌡️"
             }
@@ -121,24 +185,60 @@ class WeatherRepository @Inject constructor(
          */
         fun getDescriptionForCondition(condition: String): String {
             return when (condition.uppercase()) {
+                "TYPE_UNSPECIFIED" -> "Condición no especificada"
                 "CLEAR" -> "Despejado"
                 "SUNNY" -> "Soleado"
                 "MOSTLY_CLEAR" -> "Mayormente despejado"
                 "PARTLY_CLOUDY" -> "Parcialmente nublado"
+                "MOSTLY_CLOUDY" -> "Mayormente nublado"
                 "CLOUDY" -> "Nublado"
-                "MOSTLY_CLOUDY" -> "Muy nublado"
                 "FOG" -> "Niebla"
                 "HAZE" -> "Calima"
-                "DRIZZLE" -> "Llovizna"
+                "WINDY" -> "Viento fuerte"
+                "WIND_AND_RAIN" -> "Viento fuerte con precipitaciones"
+                // Lluvias intermitentes
+                "LIGHT_RAIN_SHOWERS" -> "Lluvia ligera intermitente"
+                "CHANCE_OF_SHOWERS" -> "Probabilidad de lluvias intermitentes"
+                "SCATTERED_SHOWERS" -> "Lluvias intermitentes"
+                "RAIN_SHOWERS" -> "Chubascos"
+                "HEAVY_RAIN_SHOWERS" -> "Chubascos intensos"
+                // Lluvias continuas
+                "LIGHT_TO_MODERATE_RAIN" -> "Lluvia de leve a moderada"
                 "LIGHT_RAIN" -> "Lluvia ligera"
+                "MODERATE_TO_HEAVY_RAIN" -> "Lluvia de moderada a intensa"
                 "RAIN" -> "Lluvia"
-                "HEAVY_RAIN" -> "Lluvia fuerte"
-                "THUNDERSTORM" -> "Tormenta eléctrica"
-                "THUNDERSTORM_WITH_HAIL" -> "Tormenta y granizo"
+                "HEAVY_RAIN" -> "Lluvia intensa"
+                "RAIN_PERIODICALLY_HEAVY" -> "Lluvias, por momentos intensas"
+                // Nieve intermitente
+                "LIGHT_SNOW_SHOWERS" -> "Nevadas leves intermitentes"
+                "CHANCE_OF_SNOW_SHOWERS" -> "Probabilidad de nevadas"
+                "SCATTERED_SNOW_SHOWERS" -> "Nevadas intermitentes"
+                "SNOW_SHOWERS" -> "Chubascos de nieve"
+                "HEAVY_SNOW_SHOWERS" -> "Chubascos de nieve intensos"
+                // Nieve continua
+                "LIGHT_TO_MODERATE_SNOW" -> "Nevadas leves a moderadas"
+                "LIGHT_SNOW" -> "Nevadas ligeras"
+                "MODERATE_TO_HEAVY_SNOW" -> "Nevadas moderadas a intensas"
                 "SNOW" -> "Nieve"
-                "HEAVY_SNOW" -> "Nieve fuerte"
-                "ICE" -> "Hielo"
-                "FREEZING_RAIN" -> "Lluvia helada"
+                "HEAVY_SNOW" -> "Nevadas intensas"
+                "SNOWSTORM" -> "Nieve con posibles truenos y relámpagos"
+                "SNOW_PERIODICALLY_HEAVY" -> "Nevadas, por momentos intensas"
+                "HEAVY_SNOW_STORM" -> "Nevadas intensas con posibles truenos y relámpagos"
+                "BLOWING_SNOW" -> "Nieve con viento intenso"
+                "RAIN_AND_SNOW" -> "Mezcla de lluvia y nieve"
+                // Granizo
+                "HAIL" -> "Granizo"
+                "HAIL_SHOWERS" -> "Granizo intermitente"
+                // Tormentas eléctricas
+                "THUNDERSTORM" -> "Tormenta eléctrica"
+                "THUNDERSHOWER" -> "Lluvia con truenos y relámpagos"
+                "LIGHT_THUNDERSTORM_RAIN" -> "Tormentas eléctricas con lluvia de poca intensidad"
+                "SCATTERED_THUNDERSTORMS" -> "Tormentas eléctricas intermitentes"
+                "HEAVY_THUNDERSTORM" -> "Tormenta eléctrica intensa"
+                // Condiciones legacy (compatibilidad)
+                "DRIZZLE" -> "Llovizna"
+                "THUNDERSTORM_WITH_HAIL" -> "Tormenta y granizo"
+                "ICE", "FREEZING_RAIN" -> "Lluvia helada"
                 else -> "Desconocido"
             }
         }
@@ -211,12 +311,18 @@ class WeatherRepository @Inject constructor(
                 0 -> if (isDayTime) R.drawable.wb_sunny else R.drawable.nightlight
                 1, 2 -> if (isDayTime) R.drawable.partly_cloudy_day else R.drawable.partly_cloudy_night
                 3 -> R.drawable.cloud
+                4 -> R.drawable.windy // Viento fuerte
                 45, 48 -> R.drawable.foggy
-                51, 53, 61, 80 -> R.drawable.rainy
-                55, 63, 65, 81, 82 -> R.drawable.rainy_heavy
-                56, 57, 66, 67 -> R.drawable.rainy_snow
-                71, 73, 75, 77, 85, 86 -> R.drawable.snowing
-                95 -> R.drawable.thunderstorm
+                51, 53, 61 -> R.drawable.rainy
+                80 -> R.drawable.rainy_light // Chubascos leves (LIGHT_RAIN_SHOWERS, CHANCE_OF_SHOWERS, SCATTERED_SHOWERS)
+                55, 63, 65, 81, 82 -> R.drawable.rainy_heavy // Lluvias moderadas a fuertes y chubascos intensos
+                56, 57 -> R.drawable.rainy_snow
+                66 -> R.drawable.weather_mix // Mezcla de lluvia y nieve
+                67 -> R.drawable.sleet_hail
+                71, 73, 75, 77 -> R.drawable.snowing // Nieve normal y con viento
+                85 -> R.drawable.ac_unit // Chubascos de nieve (LIGHT_SNOW_SHOWERS, CHANCE_OF_SNOW_SHOWERS, SCATTERED_SNOW_SHOWERS, SNOW_SHOWERS)
+                86 -> R.drawable.snowing_heavy // Chubascos de nieve intensos (HEAVY_SNOW_SHOWERS)
+                95 -> R.drawable.thunderstorm // Tormentas eléctricas y tormentas de nieve
                 96, 99 -> R.drawable.hail
                 else -> R.drawable.help_outline
             }
@@ -365,9 +471,13 @@ class WeatherRepository @Inject constructor(
         val temperatureObj = json.optJSONObject("temperature")
         val temperature = temperatureObj?.optDouble("degrees", 20.0) ?: 20.0
         
-        // feelsLikeTemperature.degrees contiene la sensación térmica
+        // feelsLikeTemperature.degrees contiene la sensación térmica general de Google
         val feelsLikeObj = json.optJSONObject("feelsLikeTemperature")
-        val feelsLike = feelsLikeObj?.optDouble("degrees", temperature) ?: temperature
+        val feelsLikeFromApi = feelsLikeObj?.optDouble("degrees", temperature) ?: temperature
+        
+        // heatIndex.degrees contiene el índice de calor (Heat Index - solo relevante >26°C)
+        val heatIndexObj = json.optJSONObject("heatIndex")
+        val heatIndex = heatIndexObj?.optDouble("degrees")?.takeIf { !it.isNaN() && !it.isInfinite() }
         
         // relativeHumidity contiene la humedad (número entero)
         val humidity = json.optInt("relativeHumidity", 50)
@@ -413,6 +523,11 @@ class WeatherRepository @Inject constructor(
         // wind.direction.degrees contiene la dirección del viento
         val windDirectionObj = windObj?.optJSONObject("direction")
         val windDirection = windDirectionObj?.optInt("degrees", 0)?.takeIf { it > 0 }
+        
+        // windChill.degrees contiene el Wind Chill directamente de Google API
+        // Solo está disponible cuando la temperatura es baja (<15°C)
+        val windChillObj = json.optJSONObject("windChill")
+        val windChill = windChillObj?.optDouble("degrees")?.takeIf { !it.isNaN() && !it.isInfinite() }
         
         // dewPoint.degrees contiene el punto de rocío (para detectar condensación)
         val dewPointObj = json.optJSONObject("dewPoint")
@@ -486,7 +601,9 @@ class WeatherRepository @Inject constructor(
 
         return WeatherData(
             temperature = temperature,
-            feelsLike = feelsLike,
+            feelsLike = feelsLikeFromApi,
+            windChill = windChill,
+            heatIndex = heatIndex,
             description = description,
             icon = condition, // Guardamos la condición de Google (ej: "RAIN")
             humidity = humidity,

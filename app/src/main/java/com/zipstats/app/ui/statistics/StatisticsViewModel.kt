@@ -76,7 +76,6 @@ data class WeatherStats(
     val rainKm: Double,
     val wetRoadKm: Double,
     val extremeKm: Double,
-    val dominantExtremeCause: ExtremeCause, // ¿Cuál fue la causa ganadora?
     val gpsTotalDistance: Double = 0.0, // Distancia total de rutas GPS (para contexto)
     val manualTotalDistance: Double = 0.0 // Distancia total de registros manuales (para contexto)
 ) {
@@ -248,7 +247,7 @@ class StatisticsViewModel @Inject constructor(
     val weatherDistances: StateFlow<Triple<Double, Double, Double>> = _weatherDistances.asStateFlow()
     
     // --- Estado de estadísticas climáticas completas (nuevo sistema) ---
-    private val _weatherStats = MutableStateFlow<WeatherStats>(WeatherStats(0.0, 0.0, 0.0, ExtremeCause.NONE))
+    private val _weatherStats = MutableStateFlow<WeatherStats>(WeatherStats(0.0, 0.0, 0.0))
     val weatherStats: StateFlow<WeatherStats> = _weatherStats.asStateFlow()
     
     init {
@@ -1287,7 +1286,6 @@ ${scooterTexts.joinToString("\n")}
                 rainKm = 0.0,
                 wetRoadKm = 0.0,
                 extremeKm = 0.0,
-                dominantExtremeCause = ExtremeCause.NONE,
                 gpsTotalDistance = 0.0,
                 manualTotalDistance = manualTotalDistance
             )
@@ -1295,25 +1293,16 @@ ${scooterTexts.joinToString("\n")}
 
         var rainKm = 0.0
         var wetRoadKm = 0.0
-        var gpsExtremeKm = 0.0
+        var extremeKm = 0.0
         val gpsTotalDistance = gpsRoutes.sumOf { it.totalDistance }
-        
-        // Mapa para contar qué causa extrema es la más frecuente
-        val extremeCauseDistances = mutableMapOf<ExtremeCause, Double>().withDefault { 0.0 }
 
+        // 🔥 SIMPLIFICACIÓN: Solo contar km basándonos en los badges guardados
+        // No necesitamos saber los motivos específicos, solo si el badge está activo
         gpsRoutes.forEach { route ->
             val dist = route.totalDistance
 
-            // 🔥 LÓGICA: Confiar COMPLETAMENTE en los datos guardados durante el tracking
-            // No recalcular - usar solo lo que TrackingViewModel ya detectó y guardó
-            // Las funciones de recálculo (isStrictRain, checkWetRoadConditions, detectExtremeCause)
-            // solo se usan como fallback para rutas antiguas sin flags guardados
-            
-            // 1. LLUVIA: Confiar en weatherHadRain (TrackingViewModel ya aplicó isStrictRain antes de guardar)
-            // 🔥 CORRECCIÓN: Solo recalcular para rutas antiguas (null), no para rutas verificadas como false
-            // - true: Hubo lluvia (verificado)
-            // - false: No hubo lluvia (verificado explícitamente)
-            // - null: Ruta antigua sin verificación (necesita recálculo)
+            // 1. LLUVIA: Solo contar si el badge está activo (weatherHadRain == true)
+            // Para rutas antiguas sin badge (null), recalcular como fallback
             val hadRain = when (route.weatherHadRain) {
                 true -> true
                 false -> false
@@ -1323,12 +1312,9 @@ ${scooterTexts.joinToString("\n")}
                 rainKm += dist
             }
 
-            // 2. CALZADA MOJADA: Confiar en weatherHadWetRoad (TrackingViewModel ya aplicó checkWetRoadConditions antes de guardar)
-            // 🔥 CORRECCIÓN: Solo recalcular para rutas antiguas (null), no para rutas verificadas como false
-            // - true: Hubo calzada mojada (verificado)
-            // - false: No hubo calzada mojada (verificado explícitamente)
-            // - null: Ruta antigua sin verificación (necesita recálculo)
+            // 2. CALZADA MOJADA: Solo contar si el badge está activo (weatherHadWetRoad == true)
             // IMPORTANTE: Calzada mojada y lluvia son excluyentes (si hay lluvia, no hay calzada mojada)
+            // Para rutas antiguas sin badge (null), recalcular como fallback
             val hasWetRoad = if (route.weatherHadRain == true) {
                 false // Si hay lluvia activa, no hay calzada mojada (excluyentes)
             } else {
@@ -1342,67 +1328,93 @@ ${scooterTexts.joinToString("\n")}
                 wetRoadKm += dist
             }
 
-            // 3. EXTREMO: Confiar en weatherHadExtremeConditions (lo que TrackingViewModel guardó)
-            // 🔥 CORRECCIÓN: Solo recalcular para rutas antiguas (null), no para rutas verificadas como false
-            // - true: Hubo condiciones extremas (verificado)
-            // - false: No hubo condiciones extremas (verificado explícitamente)
-            // - null: Ruta antigua sin verificación (necesita recálculo)
+            // 3. CLIMA EXTREMO: Solo contar si el badge está activo (weatherHadExtremeConditions == true)
+            // No necesitamos saber qué causa específica lo disparó, solo si está activo
+            // Para rutas antiguas sin badge (null), recalcular como fallback
             val hasExtreme = when (route.weatherHadExtremeConditions) {
                 true -> true
                 false -> false
-                null -> detectExtremeCause(route) != ExtremeCause.NONE // Solo recalcular para rutas antiguas
+                null -> checkExtremeConditions(route) // Solo recalcular para rutas antiguas
             }
             if (hasExtreme) {
-                gpsExtremeKm += dist
-                // Usar weatherExtremeReason si está disponible (rutas nuevas guardadas por TrackingViewModel)
-                // Si no, detectar usando la misma lógica (rutas antiguas)
-                val cause = route.weatherExtremeReason?.let { reason ->
-                    when (reason.uppercase()) {
-                        "STORM", "TORMENTA" -> ExtremeCause.STORM
-                        "GUSTS", "RACHAS" -> ExtremeCause.GUSTS
-                        "WIND", "VIENTO" -> ExtremeCause.WIND
-                        "SNOW", "NIEVE" -> ExtremeCause.SNOW
-                        "COLD", "FRÍO", "HELADA" -> ExtremeCause.COLD
-                        "HEAT", "CALOR" -> ExtremeCause.HEAT
-                        "VISIBILITY", "VISIBILIDAD" -> ExtremeCause.VISIBILITY
-                        else -> detectExtremeCause(route) // Fallback para razón desconocida
-                    }
-                } ?: detectExtremeCause(route) // Fallback para rutas antiguas
-                
-                if (cause != ExtremeCause.NONE) {
-                    extremeCauseDistances[cause] = extremeCauseDistances.getValue(cause) + dist
-                }
+                extremeKm += dist
             }
         }
-
-        // Para clima extremo, usar DIRECTAMENTE la distancia real de las rutas GPS extremas
-        // NO proyectar sobre la distancia manual, porque no todas las rutas manuales tienen GPS
-        // y la proyección puede dar valores absurdos si hay pocas rutas GPS
-        val extremeKm = gpsExtremeKm
-
-        val dominantCause = extremeCauseDistances.maxByOrNull { it.value }?.key ?: ExtremeCause.NONE
 
         return WeatherStats(
             rainKm = rainKm, // Directo de rutas GPS guardadas (suma real)
             wetRoadKm = wetRoadKm, // Directo de rutas GPS guardadas (suma real)
             extremeKm = extremeKm, // Directo de rutas GPS guardadas (suma real)
-            dominantExtremeCause = dominantCause,
             gpsTotalDistance = gpsTotalDistance, // Distancia total de rutas GPS (para contexto)
             manualTotalDistance = manualTotalDistance // Distancia total de registros manuales (para contexto)
         )
     }
     
     /**
-     * Detecta la causa específica de condiciones extremas.
-     * ⚠️ SOLO para compatibilidad con rutas antiguas que no tienen weatherExtremeReason.
+     * Verifica si hay condiciones extremas en la ruta (sin calcular la causa específica)
+     * ⚠️ SOLO para compatibilidad con rutas antiguas que no tienen weatherHadExtremeConditions
      * 
-     * Para rutas nuevas, SIEMPRE usar route.weatherExtremeReason directamente
-     * (este campo ya contiene la causa detectada por TrackingViewModel).
-     * 
-     * 🔥 VENTAJA: Si cambias la lógica de detección en TrackingViewModel,
-     * NO necesitas actualizar esta función, porque las rutas nuevas
-     * ya tienen weatherExtremeReason guardado correctamente.
+     * Para rutas nuevas, SIEMPRE usar route.weatherHadExtremeConditions directamente
      */
+    private fun checkExtremeConditions(route: com.zipstats.app.model.Route): Boolean {
+        // Usar los mismos factores que TrackingScreen.kt (líneas 473-496)
+        // Viento fuerte (>40 km/h)
+        if (route.weatherWindSpeed != null && route.weatherWindSpeed > 40) {
+            return true
+        }
+        
+        // Ráfagas (>60 km/h)
+        if (route.weatherWindGusts != null && route.weatherWindGusts > 60) {
+            return true
+        }
+        
+        // Temperatura extrema (<0°C o >35°C)
+        if (route.weatherTemperature != null) {
+            if (route.weatherTemperature < 0 || route.weatherTemperature > 35) {
+                return true
+            }
+        }
+        
+        // UV alto (>8, solo de día)
+        if (route.weatherIsDay == true && route.weatherUvIndex != null && route.weatherUvIndex > 8) {
+            return true
+        }
+        
+        // Tormenta
+        val isStorm = route.weatherEmoji?.let { emoji ->
+            emoji.contains("⛈") || emoji.contains("⚡")
+        } ?: false
+        val isStormByDescription = route.weatherDescription?.let { desc ->
+            desc.contains("Tormenta", ignoreCase = true) ||
+            desc.contains("granizo", ignoreCase = true) ||
+            desc.contains("rayo", ignoreCase = true)
+        } ?: false
+        if (isStorm || isStormByDescription) {
+            return true
+        }
+        
+        // Nieve
+        val isSnow = route.weatherEmoji?.let { emoji ->
+            emoji.contains("❄️")
+        } ?: false
+        val isSnowByDescription = route.weatherDescription?.let { desc ->
+            desc.contains("Nieve", ignoreCase = true) ||
+            desc.contains("nevada", ignoreCase = true) ||
+            desc.contains("snow", ignoreCase = true)
+        } ?: false
+        if (isSnow || isSnowByDescription) {
+            return true
+        }
+        
+        return false
+    }
+    
+    /**
+     * Detecta la causa específica de condiciones extremas.
+     * ⚠️ DEPRECADO: Ya no se usa en las estadísticas simplificadas.
+     * Mantenido solo para compatibilidad si se necesita en el futuro.
+     */
+    @Deprecated("Ya no se necesita calcular la causa específica, solo verificar si hay condiciones extremas")
     private fun detectExtremeCause(route: com.zipstats.app.model.Route): ExtremeCause {
         // Si no hay condiciones extremas, retornar NONE
         if (route.weatherHadExtremeConditions != true) {
@@ -1711,7 +1723,7 @@ ${scooterTexts.joinToString("\n")}
                 val hasExtreme = when (route.weatherHadExtremeConditions) {
                     true -> true
                     false -> false
-                    null -> detectExtremeCause(route) != ExtremeCause.NONE // Solo recalcular para rutas antiguas
+                    null -> checkExtremeConditions(route) // Solo recalcular para rutas antiguas
                 }
                 if (hasExtreme) {
                     extremeCount++

@@ -401,16 +401,8 @@ fun TrackingScreen(
     }
 }
 
-// Modelo de datos simple para un aviso
-data class WarningItem(
-    val icon: ImageVector,
-    val title: String,
-    val subtitle: String,
-    val iconColor: Color // Color del icono
-)
-
 /**
- * Centro de Notificaciones Unificado - Una sola tarjeta inteligente que agrupa todos los avisos
+ * Centro de Notificaciones Unificado - Estilo simple como RouteDetailDialog
  * Prioridad: Lluvia/Calzada mojada > Condiciones extremas
  */
 @Composable
@@ -426,252 +418,152 @@ fun PreRideSmartWarning(
     // Solo mostrar en pantalla de precarga GPS (antes de iniciar), no durante el tracking
     val shouldShow = (shouldShowRainWarning || shouldShowExtremeWarning) && !isTracking
     
-    // Construir la lista de avisos activos
-    // 🔒 REGLAS: 
-    // 1. Lluvia y Calzada Mojada son EXCLUYENTES (nunca aparecen juntos)
-    // 2. Condiciones Extremas es COMPLEMENTARIO (puede aparecer solo o con lluvia/calzada)
-    val activeWarnings = remember(shouldShowRainWarning, isActiveRainWarning, shouldShowExtremeWarning, weatherStatus) {
-        val list = mutableListOf<WarningItem>()
-
-        // Prioridad 1: Lluvia o Calzada Mojada (Mutuamente EXCLUYENTES)
-        if (shouldShowRainWarning) {
-            if (isActiveRainWarning) {
-                // Lluvia activa
-                list.add(
-                    WarningItem(
-                        icon = Icons.Default.WaterDrop,
-                        title = "Lluvia detectada",
-                        subtitle = "El pavimento está resbaladizo.",
-                        iconColor = Color(0xFF0D47A1) // Azul oscuro
-                    )
-                )
-            } else {
-                // Calzada mojada (sin lluvia activa) - Usar icono de lluvia en lugar de Warning
-                list.add(
-                    WarningItem(
-                        icon = Icons.Default.WaterDrop,
-                        title = "Calzada mojada",
-                        subtitle = "El pavimento puede estar resbaladizo.",
-                        iconColor = Color(0xFFF57C00) // Naranja fuerte para precaución, no error
-                    )
-                )
-            }
-        }
-
-        // Prioridad 2: Condiciones Extremas (COMPLEMENTARIO - puede aparecer solo o con lluvia/calzada)
-        // 🔥 Mensaje dinámico según la condición específica que activa la alerta
-        if (shouldShowExtremeWarning) {
-            val extremeSubtitle = when (weatherStatus) {
-                is WeatherStatus.Success -> {
-                    // Convertir viento de m/s a km/h
-                    val windSpeedKmh = (weatherStatus.windSpeed ?: 0.0) * 3.6
-                    val windGustsKmh = (weatherStatus.windGusts ?: 0.0) * 3.6
-                    val temperature = weatherStatus.temperature // Double, no nullable
-                    val uvIndex = weatherStatus.uvIndex
-                    val isDay = weatherStatus.isDay
-                    
-                    // Detectar qué condiciones específicas están activas
-                    val isExtremeWind = windSpeedKmh > 40
-                    val isExtremeGusts = windGustsKmh > 60
-                    val isExtremeTemp = temperature < 0 || temperature > 35
-                    val isExtremeUv = isDay && uvIndex != null && uvIndex > 8
-                    val isStorm = weatherStatus.weatherEmoji?.let { emoji ->
-                        emoji.contains("⛈") || emoji.contains("⚡")
-                    } ?: false
-                    val isStormByDescription = weatherStatus.description?.let { desc ->
-                        desc.contains("Tormenta", ignoreCase = true) ||
-                        desc.contains("granizo", ignoreCase = true) ||
-                        desc.contains("rayo", ignoreCase = true)
-                    } ?: false
-                    val isSnow = weatherStatus.weatherEmoji?.let { emoji ->
-                        emoji.contains("❄️")
-                    } ?: false
-                    val isSnowByDescription = weatherStatus.description?.let { desc ->
-                        desc.contains("Nieve", ignoreCase = true) ||
-                        desc.contains("nevada", ignoreCase = true) ||
-                        desc.contains("snow", ignoreCase = true)
-                    } ?: false
-                    val isSnowByCode = weatherStatus.weatherCode?.let { code ->
-                        code in listOf(71, 73, 75, 77, 85, 86)
-                    } ?: false
-                    
-                    // Generar mensaje específico según las condiciones detectadas
-                    // Los mensajes deben coincidir con los labels del enum ExtremeCause
-                    when {
-                        isStorm || isStormByDescription -> "Tormenta detectada"
-                        isSnow || isSnowByDescription || isSnowByCode -> "Nieve detectada"
-                        isExtremeGusts && isExtremeTemp -> "Ráfagas muy fuertes (${windGustsKmh.toInt()} km/h) y temp. extrema (${formatTemperature(temperature, decimals = 0)}°C)"
-                        isExtremeWind && isExtremeTemp -> "Viento fuerte (${windSpeedKmh.toInt()} km/h) y temp. extrema (${formatTemperature(temperature, decimals = 0)}°C)"
-                        isExtremeGusts -> "Rachas de viento muy fuertes (${windGustsKmh.toInt()} km/h)"
-                        isExtremeWind -> "Viento fuerte (${windSpeedKmh.toInt()} km/h)"
-                        isExtremeTemp -> {
-                            if (temperature > 35) {
-                                "Ola de calor (${formatTemperature(temperature, decimals = 0)}°C)"
-                            } else {
-                                "Helada (${formatTemperature(temperature, decimals = 0)}°C)"
-                            }
-                        }
-                        isExtremeUv -> "Ola de calor (UV ${uvIndex?.toInt() ?: 0})"
-                        else -> "Condiciones meteorológicas adversas"
-                    }
-                }
-                else -> "Ten precaución durante el trayecto."
-            }
+    // Detectar factores extremos (igual que RouteDetailDialog)
+    val extremeFactors = remember(shouldShowExtremeWarning, weatherStatus) {
+        if (!shouldShowExtremeWarning || weatherStatus !is WeatherStatus.Success) {
+            emptyList()
+        } else {
+            val factors = mutableListOf<String>()
+            val windSpeedKmh = (weatherStatus.windSpeed ?: 0.0) * 3.6
+            val windGustsKmh = (weatherStatus.windGusts ?: 0.0) * 3.6
+            val temperature = weatherStatus.temperature
+            val uvIndex = weatherStatus.uvIndex
+            val isDay = weatherStatus.isDay
             
-            list.add(
-                WarningItem(
-                    icon = Icons.Default.Warning,
-                    title = "Condiciones extremas",
-                    subtitle = extremeSubtitle,
-                    iconColor = Color(0xFFB71C1C) // Rojo oscuro
-                )
-            )
+            if (windSpeedKmh > 40) factors.add("Viento fuerte")
+            if (windGustsKmh > 60) factors.add("Ráfagas")
+            if (temperature < 0) factors.add("Helada")
+            if (temperature > 35) factors.add("Temperatura extrema")
+            if (isDay && uvIndex != null && uvIndex > 8) factors.add("UV alto")
+            
+            val isStorm = weatherStatus.weatherEmoji?.let { emoji ->
+                emoji.contains("⛈") || emoji.contains("⚡")
+            } ?: false
+            val isStormByDescription = weatherStatus.description?.let { desc ->
+                desc.contains("Tormenta", ignoreCase = true) ||
+                desc.contains("granizo", ignoreCase = true) ||
+                desc.contains("rayo", ignoreCase = true)
+            } ?: false
+            if (isStorm || isStormByDescription) factors.add("Tormenta")
+            
+            val isSnow = weatherStatus.weatherEmoji?.let { emoji ->
+                emoji.contains("❄️")
+            } ?: false
+            val isSnowByDescription = weatherStatus.description?.let { desc ->
+                desc.contains("Nieve", ignoreCase = true) ||
+                desc.contains("nevada", ignoreCase = true) ||
+                desc.contains("snow", ignoreCase = true)
+            } ?: false
+            val isSnowByCode = weatherStatus.weatherCode?.let { code ->
+                code in listOf(71, 73, 75, 77, 85, 86)
+            } ?: false
+            if (isSnow || isSnowByDescription || isSnowByCode) factors.add("Nieve")
+            
+            factors
         }
-        
-        list
-    }
-
-    // Si no hay avisos, no mostramos nada
-    if (activeWarnings.isEmpty() || !shouldShow) return
-
-    // Determinar el color de fondo de la tarjeta según la prioridad
-    // Si hay lluvia -> Fondo azul suave (no errorContainer)
-    // Si hay calzada mojada -> Fondo naranja/ámbar suave
-    // Si hay condiciones extremas -> Fondo rojo suave (no errorContainer puro para evitar confusión)
-    val containerColor = if (shouldShowExtremeWarning) {
-        Color(0xFFFFEBEE) // Rojo claro suave (no errorContainer puro)
-    } else if (isActiveRainWarning) {
-        Color(0xFFE3F2FD) // Azul claro suave (no tertiaryContainer puro)
-    } else {
-        // Calzada mojada: usar un color naranja/ámbar suave
-        Color(0xFFFFF8E1) // Ámbar claro suave
     }
     
-    val contentColor = if (shouldShowExtremeWarning) {
-        Color(0xFFB71C1C) // Rojo oscuro para buen contraste
-    } else if (isActiveRainWarning) {
-        Color(0xFF0D47A1) // Azul oscuro para buen contraste
-    } else {
-        // Calzada mojada: texto naranja oscuro para buen contraste
-        Color(0xFFE65100) // Naranja oscuro
+    // Texto del badge de clima extremo según número de factores (igual que RouteDetailDialog)
+    val extremeBadgeText = remember(extremeFactors) {
+        when {
+            extremeFactors.isEmpty() -> null
+            extremeFactors.size == 1 -> "⚠️ ${extremeFactors.first()}"
+            else -> "⚠️ Clima extremo"
+        }
     }
+    
+    // Construir la lista de badges (estilo simple como RouteDetailDialog)
+    val badges = remember(shouldShowRainWarning, isActiveRainWarning, extremeBadgeText) {
+        mutableListOf<String>().apply {
+            if (shouldShowRainWarning) {
+                if (isActiveRainWarning) {
+                    add("🔵 Lluvia detectada")
+                } else {
+                    add("🟡 Calzada mojada")
+                }
+            }
+            if (extremeBadgeText != null) {
+                add(extremeBadgeText)
+            }
+        }
+    }
+    
+    val badgeCount = badges.size
+    
+    if (badgeCount == 0 || !shouldShow) return
 
-    // Renderizado
+    // Renderizado - Estilo simple como RouteDetailDialog
     AnimatedVisibility(
         visible = shouldShow,
         enter = fadeIn() + expandVertically(),
         exit = fadeOut() + shrinkVertically()
     ) {
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 16.dp)
-                // Agregar borde sutil para todos los tipos de avisos
-                .border(
-                    width = 1.dp,
-                    color = when {
-                        shouldShowExtremeWarning -> Color(0xFFEF5350).copy(alpha = 0.5f) // Rojo suave
-                        isActiveRainWarning -> Color(0xFF42A5F5).copy(alpha = 0.5f) // Azul suave
-                        else -> Color(0xFFFFB74D).copy(alpha = 0.5f) // Naranja suave (calzada mojada)
-                    },
-                    shape = RoundedCornerShape(16.dp)
-                ),
-            colors = CardDefaults.cardColors(containerColor = containerColor),
-            shape = RoundedCornerShape(16.dp)
-        ) {
-            Box(modifier = Modifier.fillMaxWidth()) {
-                // Botón de cerrar (Uno solo para toda la tarjeta)
-                // Si hay múltiples avisos, cerramos todos a la vez
-                IconButton(
-                    onClick = {
-                        onDismissRainWarning()
-                        onDismissExtremeWarning()
-                    },
+        Column(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)) {
+            if (badgeCount >= 2) {
+                // Si hay 2 o más badges, agruparlos en una sola tarjeta
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant,
                     modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(4.dp)
+                        .fillMaxWidth()
+                        .border(
+                            width = 1.dp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f),
+                            shape = RoundedCornerShape(8.dp)
+                        )
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Close,
-                        contentDescription = "Cerrar avisos",
-                        tint = contentColor.copy(alpha = 0.7f)
-                    )
-                }
-
-                // Lista de avisos
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    activeWarnings.forEachIndexed { index, warning ->
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            // Icono con fondo circular para todos los tipos de avisos (diseño consistente)
-                            val iconBackgroundColor = when {
-                                shouldShowExtremeWarning && warning.icon == Icons.Default.Warning -> 
-                                    Color(0xFFEF5350).copy(alpha = 0.2f) // Rojo suave para condiciones extremas
-                                isActiveRainWarning && warning.icon == Icons.Default.WaterDrop -> 
-                                    Color(0xFF42A5F5).copy(alpha = 0.2f) // Azul suave para lluvia
-                                !shouldShowExtremeWarning && !isActiveRainWarning && warning.icon == Icons.Default.WaterDrop -> 
-                                    Color(0xFFFFB74D).copy(alpha = 0.2f) // Naranja suave para calzada mojada
-                                else -> null // Sin fondo para otros casos
-                            }
-                            
-                            if (iconBackgroundColor != null) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(40.dp)
-                                        .background(
-                                            iconBackgroundColor,
-                                            CircleShape
-                                        ),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = warning.icon,
-                                        contentDescription = null,
-                                        tint = warning.iconColor,
-                                        modifier = Modifier.size(24.dp)
-                                    )
-                                }
-                            } else {
-                                Icon(
-                                    imageVector = warning.icon,
-                                    contentDescription = null,
-                                    tint = warning.iconColor,
-                                    modifier = Modifier.size(28.dp)
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(0.dp)
+                    ) {
+                        badges.forEachIndexed { index, badgeText ->
+                            if (index > 0) {
+                                HorizontalDivider(
+                                    modifier = Modifier.padding(vertical = 8.dp),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f),
+                                    thickness = 0.5.dp
                                 )
                             }
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Column(modifier = Modifier.weight(1f)) {
+                            Box(
+                                modifier = Modifier.fillMaxWidth(),
+                                contentAlignment = Alignment.Center
+                            ) {
                                 ZipStatsText(
-                                    text = warning.title,
-                                    style = MaterialTheme.typography.titleSmall,
+                                    text = badgeText,
+                                    style = MaterialTheme.typography.labelLarge,
                                     fontWeight = FontWeight.Bold,
-                                    color = contentColor
-                                )
-                                ZipStatsText(
-                                    text = warning.subtitle,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = contentColor.copy(alpha = 0.9f)
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    textAlign = TextAlign.Center
                                 )
                             }
-                            // Espacio para que el texto no se monte sobre la X en el primer elemento
-                            if (index == 0) {
-                                Spacer(modifier = Modifier.width(24.dp)) 
-                            }
-                        }
-                        
-                        // Si no es el último elemento, ponemos una línea divisoria sutil
-                        if (index < activeWarnings.lastIndex) {
-                            HorizontalDivider(
-                                modifier = Modifier.padding(top = 12.dp),
-                                color = contentColor.copy(alpha = 0.2f)
-                            )
                         }
                     }
+                }
+            } else {
+                // Si hay solo 1 badge, mostrar tarjeta individual
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .border(
+                            width = 1.dp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f),
+                            shape = RoundedCornerShape(8.dp)
+                        )
+                ) {
+                    ZipStatsText(
+                        text = badges.first(),
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp),
+                        textAlign = TextAlign.Center
+                    )
                 }
             }
         }

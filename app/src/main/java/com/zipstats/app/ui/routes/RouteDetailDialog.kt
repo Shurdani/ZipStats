@@ -1548,10 +1548,10 @@ private fun getExtremeConditionFactors(route: Route): List<String> {
     
     // 🔥 Los factores deben coincidir EXACTAMENTE con TrackingScreen.kt líneas 473-496
     
-    // 1. Viento fuerte (>40 km/h) - TrackingScreen.kt línea 474: isExtremeWind = windSpeedKmh > 40
+    // 1. Viento intenso (>40 km/h) - TrackingScreen.kt línea 474: isExtremeWind = windSpeedKmh > 40
     // Route ya guarda en km/h, así que leemos directamente
     if (route.weatherWindSpeed != null && route.weatherWindSpeed > 40) {
-        factors.add("Viento fuerte")
+        factors.add("Viento intenso")
     }
     
     // 2. Ráfagas de viento muy fuertes (>60 km/h) - TrackingScreen.kt línea 475: isExtremeGusts = windGustsKmh > 60
@@ -1565,13 +1565,13 @@ private fun getExtremeConditionFactors(route: Route): List<String> {
         if (route.weatherTemperature < 0) {
             factors.add("Helada")
         } else if (route.weatherTemperature > 35) {
-            factors.add("Temperatura extrema")
+            factors.add("Calor intenso")
         }
     }
     
     // 4. Índice UV muy alto (>8) - solo de día - TrackingScreen.kt línea 477: isExtremeUv = isDay && uvIndex != null && uvIndex > 8
     if (route.weatherIsDay && route.weatherUvIndex != null && route.weatherUvIndex > 8) {
-        factors.add("UV alto")
+        factors.add("Radiación UV alta")
     }
     
     // 5. Tormenta (detectada por emoji o descripción) - TrackingScreen.kt líneas 478-485

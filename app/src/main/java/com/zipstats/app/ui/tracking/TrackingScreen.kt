@@ -430,11 +430,11 @@ fun PreRideSmartWarning(
             val uvIndex = weatherStatus.uvIndex
             val isDay = weatherStatus.isDay
             
-            if (windSpeedKmh > 40) factors.add("Viento fuerte")
+            if (windSpeedKmh > 40) factors.add("Viento intenso")
             if (windGustsKmh > 60) factors.add("Ráfagas")
             if (temperature < 0) factors.add("Helada")
-            if (temperature > 35) factors.add("Temperatura extrema")
-            if (isDay && uvIndex != null && uvIndex > 8) factors.add("UV alto")
+            if (temperature > 35) factors.add("Calor intenso")
+            if (isDay && uvIndex != null && uvIndex > 8) factors.add("Radiación UV alta")
             
             val isStorm = weatherStatus.weatherEmoji?.let { emoji ->
                 emoji.contains("⛈") || emoji.contains("⚡")
@@ -479,7 +479,7 @@ fun PreRideSmartWarning(
                 if (isActiveRainWarning) {
                     add("🔵 Lluvia detectada")
                 } else {
-                    add("🟡 Calzada mojada")
+                    add("🟡 Calzada húmeda")
                 }
             }
             if (extremeBadgeText != null) {

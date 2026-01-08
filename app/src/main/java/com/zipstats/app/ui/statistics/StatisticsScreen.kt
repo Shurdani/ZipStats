@@ -434,7 +434,8 @@ fun StatisticsScreen(
                             // Solo mostramos si hay insight generado (nuevo diseño)
                             // Si no hay datos suficientes, no mostramos nada
                             // No se muestra en la pestaña "Todo" (índice 2)
-                            if (selectedPeriod != 2) {
+                            // Solo se muestra si hay distancia registrada (totalDistance > 0)
+                            if (selectedPeriod != 2 && displayData.totalDistance > 0) {
                                 randomInsight?.let { insight ->
                                     SmartInsightCard(
                                         data = insight,

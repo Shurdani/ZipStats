@@ -31,7 +31,9 @@ data class Route(
     val weatherEmoji: String? = null, // emoji del clima (☀️, ☁️, etc.)
     val weatherDescription: String? = null, // descripción del clima
     val weatherIsDay: Boolean = true, // <-- NUEVO CAMPO (Por defecto 'true' para rutas antiguas)
-    val weatherFeelsLike: Double? = null, // Sensación térmica en °C
+    val weatherFeelsLike: Double? = null, // Sensación térmica general en °C
+    val weatherWindChill: Double? = null, // Wind Chill en °C (solo relevante <15°C) - viene directamente de Google API
+    val weatherHeatIndex: Double? = null, // Índice de calor en °C (Heat Index - solo relevante >26°C)
     val weatherHumidity: Int? = null, // Humedad en %
     val weatherWindSpeed: Double? = null, // Velocidad del viento en km/h,
     val weatherWindDirection: Int? = null, // Dirección del viento en grados (0-360),
@@ -98,6 +100,8 @@ data class Route(
         "weatherDescription" to weatherDescription,
         "weatherIsDay" to weatherIsDay,
         "weatherFeelsLike" to weatherFeelsLike,
+        "weatherWindChill" to weatherWindChill,
+        "weatherHeatIndex" to weatherHeatIndex,
         "weatherHumidity" to weatherHumidity,
         "weatherWindSpeed" to weatherWindSpeed,// <-- NUEVO CAMPO (Para escribir)
         "weatherWindDirection" to weatherWindDirection,
@@ -158,6 +162,8 @@ data class Route(
                 // <-- NUEVO CAMPO (Para leer). Si no existe (ruta antigua), usa 'true'
                 weatherIsDay = map["weatherIsDay"] as? Boolean ?: true,
                 weatherFeelsLike = (map["weatherFeelsLike"] as? Number)?.toDouble(),
+                weatherWindChill = (map["weatherWindChill"] as? Number)?.toDouble(),
+                weatherHeatIndex = (map["weatherHeatIndex"] as? Number)?.toDouble(),
                 weatherHumidity = (map["weatherHumidity"] as? Number)?.toInt(),
                 weatherWindSpeed = (map["weatherWindSpeed"] as? Number)?.toDouble(),
                 weatherWindDirection = (map["weatherWindDirection"] as? Number)?.toInt(),

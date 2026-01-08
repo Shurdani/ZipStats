@@ -47,6 +47,8 @@ data class Route(
     val weatherRainStartMinute: Int? = null,
     val weatherMaxPrecipitation: Double? = null,
     val weatherRainReason: String? = null, // Razón de detección de lluvia (para debug)
+    // Detección de calzada mojada durante la ruta (sin lluvia activa)
+    val weatherHadWetRoad: Boolean? = null,
     // Detección de condiciones extremas durante la ruta
     val weatherHadExtremeConditions: Boolean? = null,
     val weatherExtremeReason: String? = null // Razón de condiciones extremas (WIND, GUSTS, STORM, SNOW, COLD, HEAT, VISIBILITY)
@@ -114,6 +116,7 @@ data class Route(
         "weatherRainStartMinute" to weatherRainStartMinute,
         "weatherMaxPrecipitation" to weatherMaxPrecipitation,
         "weatherRainReason" to weatherRainReason,
+        "weatherHadWetRoad" to weatherHadWetRoad,
         "weatherHadExtremeConditions" to weatherHadExtremeConditions,
         "weatherExtremeReason" to weatherExtremeReason
     )
@@ -176,6 +179,7 @@ data class Route(
                 weatherRainStartMinute = (map["weatherRainStartMinute"] as? Number)?.toInt(),
                 weatherMaxPrecipitation = (map["weatherMaxPrecipitation"] as? Number)?.toDouble(),
                 weatherRainReason = map["weatherRainReason"] as? String,
+                weatherHadWetRoad = map["weatherHadWetRoad"] as? Boolean,
                 weatherHadExtremeConditions = map["weatherHadExtremeConditions"] as? Boolean,
                 weatherExtremeReason = map["weatherExtremeReason"] as? String
             )

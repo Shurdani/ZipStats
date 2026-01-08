@@ -584,10 +584,9 @@ fun StatSummaryCard(
                 val formattedValue = when (value) {
                     is Double -> {
                         // Formatear con Locale español: punto para miles, coma para decimales
+                        // 🔥 CORRECCIÓN: Usar LocationUtils para consistencia (siempre muestra 1 decimal)
                         try {
-                            val formatter = java.text.DecimalFormat("#,##0.0", java.text.DecimalFormatSymbols(java.util.Locale("es", "ES")))
-                            val formatted = formatter.format(value)
-                            formatted.removeSuffix(",0") // Quitar decimal si es ,0
+                            com.zipstats.app.utils.LocationUtils.formatNumberSpanish(value, 1)
                         } catch (e: Exception) {
                             formatNumberWithCommas(value)
                         }
@@ -597,10 +596,9 @@ fun StatSummaryCard(
                         val number = value.toDoubleOrNull()
                         if (number != null && !value.contains(".") && !value.contains(",")) {
                             // Es un número sin formato, formatearlo
+                            // 🔥 CORRECCIÓN: Usar LocationUtils para consistencia (siempre muestra 1 decimal)
                             try {
-                                val formatter = java.text.DecimalFormat("#,##0.0", java.text.DecimalFormatSymbols(java.util.Locale("es", "ES")))
-                                val formatted = formatter.format(number)
-                                formatted.removeSuffix(",0")
+                                com.zipstats.app.utils.LocationUtils.formatNumberSpanish(number, 1)
                             } catch (e: Exception) {
                                 value
                             }
@@ -695,7 +693,7 @@ fun ScooterCardItem(
 
             Column(horizontalAlignment = Alignment.End) {
                 ZipStatsText(
-                    text = "${formatNumberWithCommas(scooter.kilometrajeActual ?: 0.0)} km",
+                    text = "${com.zipstats.app.utils.LocationUtils.formatNumberSpanish(scooter.kilometrajeActual ?: 0.0, 0)} km",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary,

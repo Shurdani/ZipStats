@@ -5,6 +5,7 @@ import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -34,13 +35,17 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.Cyclone
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.DeviceThermostat
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.Grain
+import androidx.compose.material.icons.filled.Opacity
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Thermostat
+import androidx.compose.material.icons.filled.Umbrella
+import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.WaterDrop
 import androidx.compose.material.icons.filled.WbSunny
 import androidx.compose.material3.Button
@@ -729,32 +734,100 @@ fun SafetyBadgesSection(route: Route) {
     val hasExtremeConditions = checkExtremeConditions(route)
     // Nota: La visibilidad reducida ya está incluida en hasExtremeConditions (checkExtremeConditions incluye visibilidad < 3000m)
 
-    if (hadRain || hasWetRoad || hasExtremeConditions) {
+    val badgeCount = listOf(hadRain, hasWetRoad, hasExtremeConditions).count { it }
+    
+    if (badgeCount > 0) {
         Spacer(modifier = Modifier.height(16.dp))
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (hadRain) SafetyBadge("🔵 Ruta realizada con lluvia", MaterialTheme.colorScheme.tertiaryContainer, MaterialTheme.colorScheme.onTertiaryContainer)
-            if (hasWetRoad) SafetyBadge("🟡 Precaución: calzada mojada", MaterialTheme.colorScheme.errorContainer, MaterialTheme.colorScheme.onErrorContainer)
-            if (hasExtremeConditions) SafetyBadge("⚠️ Condiciones extremas", MaterialTheme.colorScheme.errorContainer, MaterialTheme.colorScheme.onErrorContainer)
+        
+        // Si hay 2 o más badges, agruparlos en una sola tarjeta
+        if (badgeCount >= 2) {
+            Surface(
+                shape = RoundedCornerShape(8.dp),
+                color = MaterialTheme.colorScheme.surfaceVariant,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(
+                        width = 1.dp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f),
+                        shape = RoundedCornerShape(8.dp)
+                    )
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(0.dp)
+                ) {
+                    val badges = remember(hadRain, hasWetRoad, hasExtremeConditions) {
+                        mutableListOf<String>().apply {
+                            if (hadRain) add("🔵 Ruta realizada con lluvia")
+                            if (hasWetRoad) add("🟡 Precaución: calzada mojada")
+                            if (hasExtremeConditions) add("⚠️ Condiciones extremas")
+                        }
+                    }
+                    
+                    badges.forEachIndexed { index, badgeText ->
+                        if (index > 0) {
+                            HorizontalDivider(
+                                modifier = Modifier.padding(vertical = 8.dp),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f),
+                                thickness = 0.5.dp
+                            )
+                        }
+                        Box(
+                            modifier = Modifier.fillMaxWidth(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            SafetyBadgeText(badgeText)
+                        }
+                    }
+                }
+            }
+        } else {
+            // Si hay solo 1 badge, mostrar tarjeta individual
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (hadRain) SafetyBadge("🔵 Ruta realizada con lluvia")
+                if (hasWetRoad) SafetyBadge("🟡 Precaución: calzada mojada")
+                if (hasExtremeConditions) SafetyBadge("⚠️ Condiciones extremas")
+            }
         }
     }
 }
 
 @Composable
-fun SafetyBadge(text: String, containerColor: Color, contentColor: Color) {
+fun SafetyBadge(text: String) {
     Surface(
         shape = RoundedCornerShape(8.dp),
-        color = containerColor,
-        modifier = Modifier.fillMaxWidth()
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(
+                width = 1.dp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f),
+                shape = RoundedCornerShape(8.dp)
+            )
     ) {
         ZipStatsText(
             text = text,
             style = MaterialTheme.typography.labelLarge,
             fontWeight = FontWeight.Bold,
-            color = contentColor,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(12.dp),
             textAlign = TextAlign.Center
         )
     }
+}
+
+@Composable
+private fun SafetyBadgeText(text: String) {
+    ZipStatsText(
+        text = text,
+        style = MaterialTheme.typography.labelLarge,
+        fontWeight = FontWeight.Bold,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        textAlign = TextAlign.Center,
+        modifier = Modifier.fillMaxWidth()
+    )
 }
 
 // -------------------------------------------------------------------------
@@ -1104,7 +1177,7 @@ private fun WeatherInfoDialog(route: Route, onDismiss: () -> Unit) {
                             }
                             route.weatherHumidity?.let {
                                 WeatherGridItem(
-                                    icon = Icons.Default.WaterDrop,
+                                    icon = Icons.Default.Opacity,
                                     label = "Humedad",
                                     value = "$it%"
                                 )
@@ -1141,14 +1214,14 @@ private fun WeatherInfoDialog(route: Route, onDismiss: () -> Unit) {
                                 WeatherGridItem(Icons.Default.Grain, "Lluvia", "${LocationUtils.formatNumberSpanish(precip)} mm")
                             } else if (hadRain && route.weatherRainProbability != null) {
                                 // Lluvia detectada por condiciones pero sin precipitación medida → mostrar probabilidad
-                                WeatherGridItem(Icons.Default.Cloud, "Prob. Lluvia", "${route.weatherRainProbability}%")
+                                WeatherGridItem(Icons.Default.Umbrella, "Prob. Lluvia", "${route.weatherRainProbability}%")
                             } else if (hadRain) {
                                 // Lluvia detectada pero sin datos de precipitación ni probabilidad → mostrar "Detectada"
                                 WeatherGridItem(Icons.Default.Grain, "Lluvia", "Detectada")
                             } else {
                                 // No hay lluvia → mostrar probabilidad (si está disponible)
                                 route.weatherRainProbability?.let {
-                                    WeatherGridItem(Icons.Default.Cloud, "Prob. Lluvia", "$it%")
+                                    WeatherGridItem(Icons.Default.Umbrella, "Prob. Lluvia", "$it%")
                                 }
                             }
                             
@@ -1156,7 +1229,7 @@ private fun WeatherInfoDialog(route: Route, onDismiss: () -> Unit) {
                             // Mostrar en kilómetros (convertir de metros a km)
                             route.weatherVisibility?.let { visibilityMeters ->
                                 val visibilityKm = visibilityMeters / 1000.0
-                                WeatherGridItem(Icons.Default.Cloud, "Visibilidad", "${LocationUtils.formatNumberSpanish(visibilityKm, 1)} km")
+                                WeatherGridItem(Icons.Default.Visibility, "Visibilidad", "${LocationUtils.formatNumberSpanish(visibilityKm, 1)} km")
                             }
                             
                             // Índice UV (Solo si es de día Y tiene valor)
@@ -1174,29 +1247,67 @@ private fun WeatherInfoDialog(route: Route, onDismiss: () -> Unit) {
 
                     // 3. BADGE DE SEGURIDAD (Si aplica)
                     
-                    if (hasWetRoad || hadRain || hasExtremeConditions) {
+                    val badgeCount = listOf(hadRain, hasWetRoad, hasExtremeConditions).count { it }
+                    
+                    if (badgeCount > 0) {
                         Spacer(modifier = Modifier.height(24.dp))
-                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            if (hadRain) {
-                                SafetyBadge(
-                                    text = "🔵 Ruta con lluvia",
-                                    containerColor = MaterialTheme.colorScheme.tertiaryContainer,
-                                    contentColor = MaterialTheme.colorScheme.onTertiaryContainer
-                                )
+                        
+                        // Si hay 2 o más badges, agruparlos en una sola tarjeta
+                        if (badgeCount >= 2) {
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = MaterialTheme.colorScheme.surfaceVariant,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .border(
+                                        width = 1.dp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f),
+                                        shape = RoundedCornerShape(8.dp)
+                                    )
+                            ) {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(12.dp),
+                                    verticalArrangement = Arrangement.spacedBy(0.dp)
+                                ) {
+                                    val badges = remember(hadRain, hasWetRoad, hasExtremeConditions) {
+                                        mutableListOf<String>().apply {
+                                            if (hadRain) add("🔵 Ruta con lluvia")
+                                            if (hasWetRoad) add("🟡 Precaución: calzada mojada")
+                                            if (hasExtremeConditions) add("⚠️ Condiciones extremas")
+                                        }
+                                    }
+                                    
+                                    badges.forEachIndexed { index, badgeText ->
+                                        if (index > 0) {
+                                            HorizontalDivider(
+                                                modifier = Modifier.padding(vertical = 8.dp),
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f),
+                                                thickness = 0.5.dp
+                                            )
+                                        }
+                                        Box(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            SafetyBadgeText(text = badgeText)
+                                        }
+                                    }
+                                }
                             }
-                            if (hasWetRoad) {
-                                SafetyBadge(
-                                    text = "🟡 Precaución: calzada mojada",
-                                    containerColor = MaterialTheme.colorScheme.errorContainer,
-                                    contentColor = MaterialTheme.colorScheme.onErrorContainer
-                                )
-                            }
-                            if (hasExtremeConditions) {
-                                SafetyBadge(
-                                    text = "⚠️ Condiciones extremas",
-                                    containerColor = MaterialTheme.colorScheme.errorContainer,
-                                    contentColor = MaterialTheme.colorScheme.onErrorContainer
-                                )
+                        } else {
+                            // Si hay solo 1 badge, mostrar tarjeta individual
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                if (hadRain) {
+                                    SafetyBadge(text = "🔵 Ruta con lluvia")
+                                }
+                                if (hasWetRoad) {
+                                    SafetyBadge(text = "🟡 Precaución: calzada mojada")
+                                }
+                                if (hasExtremeConditions) {
+                                    SafetyBadge(text = "⚠️ Condiciones extremas")
+                                }
                             }
                         }
                     }

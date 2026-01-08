@@ -2127,7 +2127,12 @@ class TrackingViewModel @Inject constructor(
                         weatherRainProbability = savedRainProbability,
                         weatherVisibility = savedVisibility,
                         weatherDewPoint = savedDewPoint,
-                        weatherHadRain = if (weatherHadRain) true else null,
+                        // 🔥 CORRECCIÓN: Guardar false explícitamente cuando no hay lluvia
+                        // Esto permite distinguir entre:
+                        // - true: Hubo lluvia (verificado)
+                        // - false: No hubo lluvia (verificado)
+                        // - null: Ruta antigua sin verificación (necesita recálculo)
+                        weatherHadRain = weatherHadRain,
                         weatherRainStartMinute = weatherRainStartMinute,
                         // 🌧️ Honestidad de datos: Usar exactamente lo que Google devuelve
                         // No forzar precipitación si no la hubo - el badge de "Calzada Mojada" 
@@ -2139,7 +2144,18 @@ class TrackingViewModel @Inject constructor(
                             null // No forzamos lluvia si no la hubo - Google sabe más
                         },
                         weatherRainReason = weatherRainReason,
-                        weatherHadExtremeConditions = if (hadExtremeConditionsDuringRoute) true else null,
+                        // 🔥 CORRECCIÓN: Guardar false explícitamente cuando no hay calzada mojada
+                        // Esto permite distinguir entre:
+                        // - true: Hubo calzada mojada (verificado)
+                        // - false: No hubo calzada mojada (verificado explícitamente)
+                        // - null: Ruta antigua sin verificación (necesita recálculo)
+                        weatherHadWetRoad = weatherHadWetRoad,
+                        // 🔥 CORRECCIÓN: Guardar false explícitamente cuando no hay condiciones extremas
+                        // Esto permite distinguir entre:
+                        // - true: Hubo condiciones extremas (verificado)
+                        // - false: No hubo condiciones extremas (verificado)
+                        // - null: Ruta antigua sin verificación (necesita recálculo)
+                        weatherHadExtremeConditions = hadExtremeConditionsDuringRoute,
                         weatherExtremeReason = if (hadExtremeConditionsDuringRoute) weatherExtremeReason else null
                     )
                 } else {
@@ -2165,6 +2181,7 @@ class TrackingViewModel @Inject constructor(
                         weatherRainStartMinute = null,
                         weatherMaxPrecipitation = null,
                         weatherRainReason = null,
+                        weatherHadWetRoad = null,
                         weatherHadExtremeConditions = null
                     )
                 }

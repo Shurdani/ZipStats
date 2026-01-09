@@ -78,6 +78,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.zIndex
@@ -818,11 +819,14 @@ fun SafetyBadge(text: String) {
     ) {
         ZipStatsText(
             text = text,
-            style = MaterialTheme.typography.labelLarge,
+            style = MaterialTheme.typography.labelLarge.copy(
+                lineHeight = 18.sp
+            ),
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(12.dp),
-            textAlign = TextAlign.Center
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+            textAlign = TextAlign.Center,
+            maxLines = 1
         )
     }
 }
@@ -831,11 +835,16 @@ fun SafetyBadge(text: String) {
 private fun SafetyBadgeText(text: String) {
     ZipStatsText(
         text = text,
-        style = MaterialTheme.typography.labelLarge,
+        style = MaterialTheme.typography.labelLarge.copy(
+            lineHeight = 18.sp
+        ),
         fontWeight = FontWeight.Bold,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         textAlign = TextAlign.Center,
-        modifier = Modifier.fillMaxWidth()
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        maxLines = 1
     )
 }
 
@@ -1517,9 +1526,23 @@ private fun checkWetRoadConditions(route: Route): Boolean {
     // Caso D: Humedad muy alta (>90%) siempre indica suelo mojado (mismo umbral que TrackingViewModel línea 920)
     val isHumidityVeryHigh = humidity > 90
     
+    // Caso E: Nieve o aguanieve siempre moja el suelo (independientemente de la humedad)
+    // 🔥 NUEVO: La nieve/aguanieve activa el badge de calzada húmeda incluso sin humedad alta
+    val isSnowByEmoji = route.weatherEmoji?.let { emoji ->
+        emoji.contains("❄️") || emoji.contains("🥶")
+    } ?: false
+    
+    val isSnowByDescription = weatherDesc.contains("NIEVE") || 
+                              weatherDesc.contains("SNOW") ||
+                              weatherDesc.contains("AGUANIEVE") ||
+                              weatherDesc.contains("SLEET") ||
+                              (weatherDesc.contains("CHUBASCO") && weatherDesc.contains("NIEVE"))
+    
+    val hasSnowOrSleet = isSnowByEmoji || isSnowByDescription
+    
     // Nota: TrackingViewModel incluye histéresis (persistencia de 30 min), pero aquí
     // no es necesario porque ya estamos leyendo datos guardados (histéresis ya aplicada)
-    return isDrizzling || isCondensing || isFogWetting || isHumidityVeryHigh
+    return isDrizzling || isCondensing || isFogWetting || isHumidityVeryHigh || hasSnowOrSleet
 }
 
 /**

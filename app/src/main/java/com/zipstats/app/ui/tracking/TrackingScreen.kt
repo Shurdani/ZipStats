@@ -515,7 +515,7 @@ fun PreRideSmartWarning(
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(12.dp),
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
                         verticalArrangement = Arrangement.spacedBy(0.dp)
                     ) {
                         badges.forEachIndexed { index, badgeText ->
@@ -532,10 +532,13 @@ fun PreRideSmartWarning(
                             ) {
                                 ZipStatsText(
                                     text = badgeText,
-                                    style = MaterialTheme.typography.labelLarge,
+                                    style = MaterialTheme.typography.labelLarge.copy(
+                                        lineHeight = 18.sp
+                                    ),
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    textAlign = TextAlign.Center
+                                    textAlign = TextAlign.Center,
+                                    maxLines = 1
                                 )
                             }
                         }
@@ -556,13 +559,16 @@ fun PreRideSmartWarning(
                 ) {
                     ZipStatsText(
                         text = badges.first(),
-                        style = MaterialTheme.typography.labelLarge,
+                        style = MaterialTheme.typography.labelLarge.copy(
+                            lineHeight = 18.sp
+                        ),
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(12.dp),
-                        textAlign = TextAlign.Center
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                        textAlign = TextAlign.Center,
+                        maxLines = 1
                     )
                 }
             }

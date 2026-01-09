@@ -555,7 +555,9 @@ class TrackingViewModel @Inject constructor(
                             condition = condition,
                             humidity = weather.humidity,
                             precipitation = weather.precipitation,
-                            hasActiveRain = isActiveRain
+                            hasActiveRain = isActiveRain,
+                            weatherEmoji = weatherEmoji,
+                            weatherDescription = weatherDescription
                         )
                     }
                     
@@ -900,7 +902,9 @@ class TrackingViewModel @Inject constructor(
         condition: String, // Condition string de Google
         humidity: Int,
         precipitation: Double,
-        hasActiveRain: Boolean
+        hasActiveRain: Boolean,
+        weatherEmoji: String? = null,
+        weatherDescription: String? = null
     ): Boolean {
         val currentTime = System.currentTimeMillis()
         val cond = condition.uppercase()
@@ -925,9 +929,25 @@ class TrackingViewModel @Inject constructor(
         // Caso C: Niebla con alta humedad también moja el suelo
         val isFogWetting = isVeryHumid && cond == "FOG"
         
+        // Caso D: Nieve o aguanieve siempre moja el suelo (independientemente de la humedad)
+        // 🔥 NUEVO: La nieve/aguanieve activa el preaviso de calzada húmeda incluso sin humedad alta
+        val isSnowByCondition = cond == "SNOW" || cond == "SLEET" || cond.contains("SNOW") || cond.contains("SLEET")
+        val isSnowByEmoji = weatherEmoji?.let { emoji ->
+            emoji.contains("❄️") || emoji.contains("🥶")
+        } ?: false
+        val weatherDesc = weatherDescription?.uppercase() ?: ""
+        val isSnowByDescription = weatherDesc.contains("NIEVE") || 
+                                  weatherDesc.contains("SNOW") ||
+                                  weatherDesc.contains("AGUANIEVE") ||
+                                  weatherDesc.contains("SLEET") ||
+                                  (weatherDesc.contains("CHUBASCO") && weatherDesc.contains("NIEVE"))
+        
+        val hasSnowOrSleet = isSnowByCondition || isSnowByEmoji || isSnowByDescription
+        
         val isCurrentlyWet = isDrizzling || isCondensing || isFogWetting || 
                              (precipitation > 0.0) || 
-                             (humidity > 90) // Humedad muy alta siempre indica suelo mojado
+                             (humidity > 90) || // Humedad muy alta siempre indica suelo mojado
+                             hasSnowOrSleet // Nieve/aguanieve siempre moja el suelo
         
         // 3. Si detectamos que está mojado ahora, actualizamos el "reloj"
         if (isCurrentlyWet) {
@@ -1222,7 +1242,9 @@ class TrackingViewModel @Inject constructor(
                                     condition = condition,
                                     humidity = weather.humidity,
                                     precipitation = weather.precipitation,
-                                    hasActiveRain = isActiveRain
+                                    hasActiveRain = isActiveRain,
+                                    weatherEmoji = weatherEmoji,
+                                    weatherDescription = weather.description
                                 )
                             }
                             

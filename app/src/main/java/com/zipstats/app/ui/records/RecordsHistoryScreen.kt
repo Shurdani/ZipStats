@@ -575,7 +575,7 @@ fun NewRecordBottomSheet(
                         // Aquí mostramos el kilometraje anterior de forma elegante
                         if (previousMileage != null) {
                             ZipStatsText(
-                                text = "Anterior: ${LocationUtils.formatNumberSpanish(previousMileage, 0)} km",
+                                text = "Anterior: ${LocationUtils.formatNumberSpanish(previousMileage, 1)} km",
                                 color = MaterialTheme.colorScheme.primary
                             )
                         }

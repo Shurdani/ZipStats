@@ -1546,19 +1546,14 @@ ${scooterTexts.joinToString("\n")}
     
     /**
      * Calcula el peso de una métrica para la lotería ponderada
-     * Prioriza mostrar tarjetas de clima si hubo eventos importantes
+     * Todas las métricas con datos válidos tienen la misma probabilidad
      */
     private fun calculateWeight(metric: InsightMetric, value: Double, totalDistance: Double): Int {
-        if (value < 0.1) return 0 // Si no hay dato, descartada
-
-        val percentage = if (totalDistance > 0) (value / totalDistance) * 100 else 0.0
-
-        return when (metric) {
-            InsightMetric.RAIN -> if (percentage > 20) 10 else if (value > 5.0) 5 else 1
-            InsightMetric.WET_ROAD -> if (percentage > 30) 8 else 1
-            InsightMetric.EXTREME -> if (value > 0.5) 25 else 0 // ¡Prioridad MÁXIMA si ocurre!
-            else -> 3 // Métricas estándar tienen peso normal
-        }
+        // Si no hay dato válido, descartar
+        if (value < 0.1) return 0
+        
+        // Todas las métricas válidas tienen el mismo peso
+        return 1
     }
     
     /**

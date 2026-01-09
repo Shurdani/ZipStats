@@ -693,7 +693,7 @@ fun ScooterCardItem(
 
             Column(horizontalAlignment = Alignment.End) {
                 ZipStatsText(
-                    text = "${com.zipstats.app.utils.LocationUtils.formatNumberSpanish(scooter.kilometrajeActual ?: 0.0, 0)} km",
+                    text = "${com.zipstats.app.utils.LocationUtils.formatNumberSpanish(scooter.kilometrajeActual ?: 0.0, 1)} km",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary,

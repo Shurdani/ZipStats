@@ -593,7 +593,21 @@ private fun checkWetRoadConditions(route: Route): Boolean {
     
     val isHumidityVeryHigh = humidity > 90
     
-    return isDrizzling || isCondensing || isFogWetting || isHumidityVeryHigh
+    // Caso E: Nieve o aguanieve siempre moja el suelo (independientemente de la humedad)
+    // 🔥 NUEVO: La nieve/aguanieve activa el badge de calzada húmeda incluso sin humedad alta
+    val isSnowByEmoji = route.weatherEmoji?.let { emoji ->
+        emoji.contains("❄️") || emoji.contains("🥶")
+    } ?: false
+    
+    val isSnowByDescription = weatherDesc.contains("NIEVE") || 
+                              weatherDesc.contains("SNOW") ||
+                              weatherDesc.contains("AGUANIEVE") ||
+                              weatherDesc.contains("SLEET") ||
+                              (weatherDesc.contains("CHUBASCO") && weatherDesc.contains("NIEVE"))
+    
+    val hasSnowOrSleet = isSnowByEmoji || isSnowByDescription
+    
+    return isDrizzling || isCondensing || isFogWetting || isHumidityVeryHigh || hasSnowOrSleet
 }
 
 /**

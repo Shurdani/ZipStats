@@ -1333,6 +1333,8 @@ class ProfileViewModel @Inject constructor(
 
     /**
      * Calcula el porcentaje de uso de un vehículo respecto al total de la flota (por scooterId, con fallback a nombre)
+     * 🔧 CORRECCIÓN: Busca por AMBOS criterios (scooterId Y vehicleName) para encontrar todos los registros,
+     * incluso aquellos que fueron añadidos sin scooterId desde la pantalla de registros.
      */
     suspend fun getVehicleUsagePercentage(scooterId: String? = null, vehicleName: String? = null): Double {
         return try {
@@ -1343,13 +1345,22 @@ class ProfileViewModel @Inject constructor(
             val totalKmAllVehicles = records.sumOf { it.diferencia }
             if (totalKmAllVehicles == 0.0) return 0.0
             
-            val vehicleKm = if (scooterId != null && scooterId.isNotEmpty()) {
-                // Buscar por scooterId (preferido)
+            val vehicleKm = if (scooterId != null && scooterId.isNotEmpty() && vehicleName != null) {
+                // 🔧 CORRECCIÓN: Buscar por AMBOS criterios para encontrar todos los registros del vehículo
+                // Esto incluye registros con scooterId Y registros sin scooterId (añadidos manualmente)
+                records
+                    .filter { 
+                        it.scooterId == scooterId || 
+                        (it.scooterId.isEmpty() && it.vehicleName == vehicleName)
+                    }
+                    .sumOf { it.diferencia }
+            } else if (scooterId != null && scooterId.isNotEmpty()) {
+                // Solo scooterId disponible
                 records
                     .filter { it.scooterId == scooterId }
                     .sumOf { it.diferencia }
             } else if (vehicleName != null) {
-                // Fallback: buscar por nombre para compatibilidad con registros antiguos
+                // Solo vehicleName disponible (fallback para compatibilidad con registros antiguos)
                 records
                     .filter { it.vehicleName == vehicleName }
                     .sumOf { it.diferencia }

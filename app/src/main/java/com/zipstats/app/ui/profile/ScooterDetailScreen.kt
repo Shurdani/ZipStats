@@ -46,6 +46,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import com.zipstats.app.ui.components.ZipStatsText
 import androidx.compose.material3.TopAppBar
@@ -67,7 +68,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -253,11 +258,13 @@ fun ScooterDetailScreen(
     // Diálogo de USO RELATIVO (fuera de la estructura visual)
     if (showUsageExplanationDialog && scooter != null) {
         val userName = (uiState as? ProfileUiState.Success)?.user?.name ?: "tu"
+        val allScooters = (uiState as? ProfileUiState.Success)?.scooters ?: emptyList()
         UsageExplanationDialog(
             vehicleName = scooter.nombre,
             vehicleKm = scooter.kilometrajeActual ?: 0.0,
             usagePercentage = usagePercentage.toInt(),
             userName = userName,
+            allVehicles = allScooters,
             onDismiss = { showUsageExplanationDialog = false }
         )
     }
@@ -381,7 +388,7 @@ fun VehicleHeroCard(
                             modifier = Modifier.padding(bottom = 4.dp)
                         )
                         ZipStatsText(
-                            text = "${com.zipstats.app.utils.LocationUtils.formatNumberSpanish(scooter.kilometrajeActual ?: 0.0)} km",
+                            text = "${com.zipstats.app.utils.LocationUtils.formatNumberSpanish(scooter.kilometrajeActual ?: 0.0, 1)} km",
                             style = MaterialTheme.typography.displaySmall,
                             fontWeight = FontWeight.ExtraBold,
                             color = MaterialTheme.colorScheme.onPrimaryContainer
@@ -472,8 +479,71 @@ fun UsageExplanationDialog(
     vehicleKm: Double,
     usagePercentage: Int,
     userName: String,
+    allVehicles: List<Scooter>,
     onDismiss: () -> Unit
 ) {
+    // Calcular el ranking de vehículos ordenados por kilometraje descendente
+    val rankedVehicles = remember(allVehicles) {
+        allVehicles.sortedByDescending { it.kilometrajeActual ?: 0.0 }
+    }
+    
+    // Encontrar la posición del vehículo actual en el ranking (1-indexed)
+    val vehiclePosition = remember(rankedVehicles, vehicleName) {
+        rankedVehicles.indexOfFirst { it.nombre == vehicleName } + 1
+    }
+    
+    // Generar el texto con negrita estratégica según la posición
+    val explanationText = remember(vehiclePosition, vehicleName, vehicleKm, usagePercentage, userName) {
+        val kmFormatted = LocationUtils.formatNumberSpanish(vehicleKm, 1)
+        val baseText = when (vehiclePosition) {
+            1 -> "Tu $vehicleName lidera tu historial con $kmFormatted km recorridos, representando el $usagePercentage% de tu actividad total registrada."
+            2 -> "Tu $vehicleName ocupa el segundo lugar en tu historial con $kmFormatted km recorridos, representando el $usagePercentage% de tu actividad total registrada."
+            3 -> "Tu $vehicleName ocupa el tercer lugar en tu historial con $kmFormatted km recorridos, representando el $usagePercentage% de tu actividad total registrada."
+            else -> "Tu $vehicleName ocupa el ${getOrdinalNumber(vehiclePosition)} lugar en tu historial con $kmFormatted km recorridos, representando el $usagePercentage% de tu actividad total registrada."
+        }
+        
+        // Construir AnnotatedString con negrita en distancia y porcentaje
+        buildAnnotatedString {
+            val kmPattern = "$kmFormatted km"
+            val percentagePattern = "$usagePercentage%"
+            
+            var currentIndex = 0
+            val text = baseText
+            
+            // Encontrar y marcar la distancia
+            val kmIndex = text.indexOf(kmPattern)
+            if (kmIndex >= 0) {
+                // Agregar texto antes de la distancia
+                append(text.substring(currentIndex, kmIndex))
+                // Agregar distancia en negrita
+                withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
+                    append(kmPattern)
+                }
+                currentIndex = kmIndex + kmPattern.length
+            }
+            
+            // Encontrar y marcar el porcentaje
+            val percentageIndex = text.indexOf(percentagePattern, currentIndex)
+            if (percentageIndex >= 0) {
+                // Agregar texto entre distancia y porcentaje
+                append(text.substring(currentIndex, percentageIndex))
+                // Agregar porcentaje en negrita
+                withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
+                    append(percentagePattern)
+                }
+                currentIndex = percentageIndex + percentagePattern.length
+            }
+            
+            // Agregar el resto del texto (después del porcentaje o todo si no se encontraron patrones)
+            if (currentIndex < text.length) {
+                append(text.substring(currentIndex))
+            } else if (currentIndex == 0) {
+                // Si no se encontró ningún patrón, agregar todo el texto
+                append(text)
+            }
+        }
+    }
+    
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { 
@@ -489,7 +559,7 @@ fun UsageExplanationDialog(
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 ZipStatsText(
-                    text = "Uso relativo",
+                    text = "Cuota de uso",
                     fontWeight = FontWeight.Bold,
                     style = MaterialTheme.typography.titleMedium
                 )
@@ -501,10 +571,11 @@ fun UsageExplanationDialog(
                     .fillMaxWidth()
                     .padding(vertical = 8.dp)
             ) {
-                ZipStatsText(
-                    text = "$vehicleName ha recorrido ${LocationUtils.formatNumberSpanish(vehicleKm)} km que representan un $usagePercentage% del total de $userName.",
+                Text(
+                    text = explanationText,
                     style = MaterialTheme.typography.bodyMedium,
-                    maxLines = Int.MAX_VALUE
+                    maxLines = Int.MAX_VALUE,
+                    color = MaterialTheme.colorScheme.onSurface
                 )
             }
         },
@@ -515,6 +586,25 @@ fun UsageExplanationDialog(
             )
         }
     )
+}
+
+/**
+ * Convierte un número a su forma ordinal en español (1 -> "primer", 2 -> "segundo", etc.)
+ */
+private fun getOrdinalNumber(position: Int): String {
+    return when (position) {
+        1 -> "primer"
+        2 -> "segundo"
+        3 -> "tercer"
+        4 -> "cuarto"
+        5 -> "quinto"
+        6 -> "sexto"
+        7 -> "séptimo"
+        8 -> "octavo"
+        9 -> "noveno"
+        10 -> "décimo"
+        else -> "${position}º"
+    }
 }
 
 @Composable

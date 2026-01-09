@@ -12,6 +12,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import com.zipstats.app.ui.components.ZipStatsText
+import com.zipstats.app.utils.LocationUtils
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -45,11 +46,11 @@ fun RecordItem(
                     style = MaterialTheme.typography.bodyMedium
                 )
                 ZipStatsText(
-                    text = "Kilometraje: ${record.kilometraje} km",
+                    text = "Kilometraje: ${LocationUtils.formatNumberSpanish(record.kilometraje, 0)} km",
                     style = MaterialTheme.typography.bodyMedium
                 )
                 ZipStatsText(
-                    text = "Diferencia: +${record.diferencia} km",
+                    text = "Diferencia: +${LocationUtils.formatNumberSpanish(record.diferencia)} km",
                     style = MaterialTheme.typography.bodyMedium,
                     color = if (record.diferencia > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
                 )

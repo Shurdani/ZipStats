@@ -78,6 +78,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.zIndex
@@ -731,8 +732,17 @@ fun SafetyBadgesSection(route: Route) {
     // 🔍 FILTRO DE VERDAD: Verificar si realmente hubo lluvia (precipitación > 0.1 mm)
     val hadRain = isStrictRain(route)
     val hasWetRoad = checkWetRoadConditions(route)
-    val hasExtremeConditions = checkExtremeConditions(route)
-    // Nota: La visibilidad reducida ya está incluida en hasExtremeConditions (checkExtremeConditions incluye visibilidad < 3000m)
+    val extremeFactors = getExtremeConditionFactors(route)
+    val hasExtremeConditions = extremeFactors.isNotEmpty()
+
+    // Texto del badge de clima extremo según número de factores
+    val extremeBadgeText = remember(extremeFactors) {
+        when {
+            extremeFactors.isEmpty() -> null
+            extremeFactors.size == 1 -> "⚠️ ${extremeFactors.first()}"
+            else -> "⚠️ Clima extremo"
+        }
+    }
 
     val badgeCount = listOf(hadRain, hasWetRoad, hasExtremeConditions).count { it }
     
@@ -758,11 +768,11 @@ fun SafetyBadgesSection(route: Route) {
                         .padding(12.dp),
                     verticalArrangement = Arrangement.spacedBy(0.dp)
                 ) {
-                    val badges = remember(hadRain, hasWetRoad, hasExtremeConditions) {
+                    val badges = remember(hadRain, hasWetRoad, extremeBadgeText) {
                         mutableListOf<String>().apply {
-                            if (hadRain) add("🔵 Ruta realizada con lluvia")
-                            if (hasWetRoad) add("🟡 Precaución: calzada mojada")
-                            if (hasExtremeConditions) add("⚠️ Condiciones extremas")
+                            if (hadRain) add("🔵 Trayecto con lluvia")
+                            if (hasWetRoad) add("🟡 Calzada húmeda")
+                            if (extremeBadgeText != null) add(extremeBadgeText)
                         }
                     }
                     
@@ -786,9 +796,9 @@ fun SafetyBadgesSection(route: Route) {
         } else {
             // Si hay solo 1 badge, mostrar tarjeta individual
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (hadRain) SafetyBadge("🔵 Ruta realizada con lluvia")
-                if (hasWetRoad) SafetyBadge("🟡 Precaución: calzada mojada")
-                if (hasExtremeConditions) SafetyBadge("⚠️ Condiciones extremas")
+                if (hadRain) SafetyBadge("🔵 Trayecto con lluvia")
+                if (hasWetRoad) SafetyBadge("🟡 Calzada húmeda")
+                if (extremeBadgeText != null) SafetyBadge(extremeBadgeText)
             }
         }
     }
@@ -809,11 +819,14 @@ fun SafetyBadge(text: String) {
     ) {
         ZipStatsText(
             text = text,
-            style = MaterialTheme.typography.labelLarge,
+            style = MaterialTheme.typography.labelLarge.copy(
+                lineHeight = 18.sp
+            ),
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(12.dp),
-            textAlign = TextAlign.Center
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+            textAlign = TextAlign.Center,
+            maxLines = 1
         )
     }
 }
@@ -822,11 +835,16 @@ fun SafetyBadge(text: String) {
 private fun SafetyBadgeText(text: String) {
     ZipStatsText(
         text = text,
-        style = MaterialTheme.typography.labelLarge,
+        style = MaterialTheme.typography.labelLarge.copy(
+            lineHeight = 18.sp
+        ),
         fontWeight = FontWeight.Bold,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         textAlign = TextAlign.Center,
-        modifier = Modifier.fillMaxWidth()
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        maxLines = 1
     )
 }
 
@@ -1081,7 +1099,17 @@ private fun WeatherInfoDialog(route: Route, onDismiss: () -> Unit) {
                     // 2. Calzada mojada (incluye rutas marcadas como lluvia pero sin precipitación real)
                     val hasWetRoad = checkWetRoadConditions(route)
                     // 3. Condiciones extremas (complementario)
-                    val hasExtremeConditions = checkExtremeConditions(route)
+                    val extremeFactors = getExtremeConditionFactors(route)
+                    val hasExtremeConditions = extremeFactors.isNotEmpty()
+                    
+                    // Texto del badge de clima extremo según número de factores
+                    val extremeBadgeText = remember(extremeFactors) {
+                        when {
+                            extremeFactors.isEmpty() -> null
+                            extremeFactors.size == 1 -> "⚠️ ${extremeFactors.first()}"
+                            else -> "⚠️ Clima extremo"
+                        }
+                    }
                     
                     // 1. HEADER (Icono + Temp)
                     // 🔥 LÓGICA: Si hubo lluvia durante la ruta, icono y descripción DEBEN reflejar lluvia
@@ -1271,11 +1299,11 @@ private fun WeatherInfoDialog(route: Route, onDismiss: () -> Unit) {
                                         .padding(12.dp),
                                     verticalArrangement = Arrangement.spacedBy(0.dp)
                                 ) {
-                                    val badges = remember(hadRain, hasWetRoad, hasExtremeConditions) {
+                                    val badges = remember(hadRain, hasWetRoad, extremeBadgeText) {
                                         mutableListOf<String>().apply {
-                                            if (hadRain) add("🔵 Ruta con lluvia")
-                                            if (hasWetRoad) add("🟡 Precaución: calzada mojada")
-                                            if (hasExtremeConditions) add("⚠️ Condiciones extremas")
+                                            if (hadRain) add("🔵 Trayecto con lluvia")
+                                            if (hasWetRoad) add("🟡 Calzada húmeda")
+                                            if (extremeBadgeText != null) add(extremeBadgeText)
                                         }
                                     }
                                     
@@ -1300,13 +1328,13 @@ private fun WeatherInfoDialog(route: Route, onDismiss: () -> Unit) {
                             // Si hay solo 1 badge, mostrar tarjeta individual
                             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                 if (hadRain) {
-                                    SafetyBadge(text = "🔵 Ruta con lluvia")
+                                    SafetyBadge(text = "🔵 Trayecto con lluvia")
                                 }
                                 if (hasWetRoad) {
-                                    SafetyBadge(text = "🟡 Precaución: calzada mojada")
+                                    SafetyBadge(text = "🟡 Calzada húmeda")
                                 }
-                                if (hasExtremeConditions) {
-                                    SafetyBadge(text = "⚠️ Condiciones extremas")
+                                if (extremeBadgeText != null) {
+                                    SafetyBadge(text = extremeBadgeText)
                                 }
                             }
                         }
@@ -1498,9 +1526,23 @@ private fun checkWetRoadConditions(route: Route): Boolean {
     // Caso D: Humedad muy alta (>90%) siempre indica suelo mojado (mismo umbral que TrackingViewModel línea 920)
     val isHumidityVeryHigh = humidity > 90
     
+    // Caso E: Nieve o aguanieve siempre moja el suelo (independientemente de la humedad)
+    // 🔥 NUEVO: La nieve/aguanieve activa el badge de calzada húmeda incluso sin humedad alta
+    val isSnowByEmoji = route.weatherEmoji?.let { emoji ->
+        emoji.contains("❄️") || emoji.contains("🥶")
+    } ?: false
+    
+    val isSnowByDescription = weatherDesc.contains("NIEVE") || 
+                              weatherDesc.contains("SNOW") ||
+                              weatherDesc.contains("AGUANIEVE") ||
+                              weatherDesc.contains("SLEET") ||
+                              (weatherDesc.contains("CHUBASCO") && weatherDesc.contains("NIEVE"))
+    
+    val hasSnowOrSleet = isSnowByEmoji || isSnowByDescription
+    
     // Nota: TrackingViewModel incluye histéresis (persistencia de 30 min), pero aquí
     // no es necesario porque ya estamos leyendo datos guardados (histéresis ya aplicada)
-    return isDrizzling || isCondensing || isFogWetting || isHumidityVeryHigh
+    return isDrizzling || isCondensing || isFogWetting || isHumidityVeryHigh || hasSnowOrSleet
 }
 
 /**
@@ -1516,40 +1558,46 @@ private fun checkWetRoadConditions(route: Route): Boolean {
  * - Visibilidad: <3000m
  */
 private fun checkExtremeConditions(route: Route): Boolean {
-    // 🔥 PRIORIDAD: Si se detectó durante la ruta, mostrar badge (independientemente de valores guardados)
-    // TrackingViewModel ya aplicó checkExtremeConditions y guardó weatherHadExtremeConditions
-    if (route.weatherHadExtremeConditions == true) {
-        return true
-    }
+    return getExtremeConditionFactors(route).isNotEmpty()
+}
+
+/**
+ * Detecta qué factores extremos están presentes en la ruta
+ * 🔒 IMPORTANTE: Los factores deben coincidir EXACTAMENTE con TrackingScreen.kt (líneas 473-496)
+ * @return Lista de nombres de factores extremos detectados
+ */
+private fun getExtremeConditionFactors(route: Route): List<String> {
+    val factors = mutableListOf<String>()
     
-    // Si no hay flag, evaluar valores guardados (para compatibilidad con rutas antiguas)
-    // MISMOS umbrales que TrackingViewModel.checkExtremeConditions (líneas 970-1037)
+    // 🔥 Los factores deben coincidir EXACTAMENTE con TrackingScreen.kt líneas 473-496
     
-    // Viento fuerte (>40 km/h) - TrackingViewModel línea 972: windSpeedKmh > 40
+    // 1. Viento intenso (>40 km/h) - TrackingScreen.kt línea 474: isExtremeWind = windSpeedKmh > 40
     // Route ya guarda en km/h, así que leemos directamente
     if (route.weatherWindSpeed != null && route.weatherWindSpeed > 40) {
-        return true
+        factors.add("Viento intenso")
     }
     
-    // Ráfagas de viento muy fuertes (>60 km/h) - TrackingViewModel línea 978: windGustsKmh > 60
+    // 2. Ráfagas de viento muy fuertes (>60 km/h) - TrackingScreen.kt línea 475: isExtremeGusts = windGustsKmh > 60
     // Route ya guarda en km/h, así que leemos directamente
     if (route.weatherWindGusts != null && route.weatherWindGusts > 60) {
-        return true
+        factors.add("Ráfagas")
     }
     
-    // Temperatura extrema (<0°C o >35°C) - TrackingViewModel líneas 983-987
+    // 3. Temperatura extrema (<0°C o >35°C) - TrackingScreen.kt línea 476: isExtremeTemp = temperature < 0 || temperature > 35
     if (route.weatherTemperature != null) {
-        if (route.weatherTemperature < 0 || route.weatherTemperature > 35) {
-            return true
+        if (route.weatherTemperature < 0) {
+            factors.add("Helada")
+        } else if (route.weatherTemperature > 35) {
+            factors.add("Calor intenso")
         }
     }
     
-    // Índice UV muy alto (>8) - solo de día - TrackingViewModel líneas 989-992
+    // 4. Índice UV muy alto (>8) - solo de día - TrackingScreen.kt línea 477: isExtremeUv = isDay && uvIndex != null && uvIndex > 8
     if (route.weatherIsDay && route.weatherUvIndex != null && route.weatherUvIndex > 8) {
-        return true
+        factors.add("Radiación UV alta")
     }
     
-    // Tormenta (detectada por emoji o descripción) - TrackingViewModel líneas 994-1007
+    // 5. Tormenta (detectada por emoji o descripción) - TrackingScreen.kt líneas 478-485
     val isStorm = route.weatherEmoji?.let { emoji ->
         emoji.contains("⛈") || emoji.contains("⚡")
     } ?: false
@@ -1561,13 +1609,10 @@ private fun checkExtremeConditions(route: Route): Boolean {
     } ?: false
     
     if (isStorm || isStormByDescription) {
-        return true
+        factors.add("Tormenta")
     }
     
-    // Nieve (emoji ❄️ o descripción) - TrackingViewModel líneas 1009-1027
-    // La nieve es muy peligrosa en patinete por el riesgo de resbalar
-    // Nota: Route no tiene weatherCode, así que detectamos por emoji y descripción
-    // (TrackingViewModel verifica weatherCode también, pero Route no lo guarda)
+    // 6. Nieve (emoji ❄️, descripción O weatherCode) - TrackingScreen.kt líneas 486-496
     val isSnowByEmoji = route.weatherEmoji?.let { emoji ->
         emoji.contains("❄️")
     } ?: false
@@ -1578,18 +1623,16 @@ private fun checkExtremeConditions(route: Route): Boolean {
         desc.contains("snow", ignoreCase = true)
     } ?: false
     
+    // Nota: Route no guarda weatherCode, así que solo detectamos por emoji y descripción
+    // (TrackingScreen.kt también verifica weatherCode, pero Route no lo tiene disponible)
     if (isSnowByEmoji || isSnowByDescription) {
-        return true
+        factors.add("Nieve")
     }
     
-    // Visibilidad reducida (crítico para Barcelona - niebla/talaia) - TrackingViewModel líneas 1029-1035
-    // TrackingViewModel usa checkLowVisibility que devuelve true si < 3000m
-    // Mismo umbral aquí: < 3000m
-    if (route.weatherVisibility != null && route.weatherVisibility < 3000) {
-        return true
-    }
+    // 🔒 NOTA: TrackingScreen.kt líneas 473-496 NO incluye visibilidad reducida
+    // Por lo tanto, no se incluye aquí para mantener consistencia
     
-    return false
+    return factors
 }
 
 // La lógica de compartir se ha movido a ShareUtils.kt

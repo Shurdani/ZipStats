@@ -90,10 +90,16 @@ import com.zipstats.app.R
 import com.zipstats.app.ui.components.DialogConfirmButton
 import com.zipstats.app.ui.components.ZipStatsText
 import com.zipstats.app.ui.theme.DialogShape
+import com.zipstats.app.utils.LocationUtils
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import kotlin.math.abs
 import kotlin.math.roundToInt
+
+// Extensión para redondear a 1 decimal (igual que en StatisticsViewModel)
+private fun Double.roundToOneDecimal(): Double {
+    return (this * 10.0).roundToInt() / 10.0
+}
 
 
 enum class StatisticsPeriod {
@@ -397,10 +403,15 @@ fun StatisticsScreen(
                             Spacer(modifier = Modifier.height(8.dp))
 
                             // 1. Impacto Ecológico (Rediseñado)
+                            // 🔥 CORRECCIÓN: Usar el mismo método de redondeo que las tarjetas de insight (roundToOneDecimal)
+                            // para que los valores coincidan exactamente. Mostramos 1 decimal para mayor claridad.
+                            val co2Value = (displayData.totalDistance * 0.15).roundToOneDecimal()
+                            val treesValue = (displayData.totalDistance * 0.005).roundToOneDecimal()
+                            val gasValue = (displayData.totalDistance * 0.07).roundToOneDecimal()
                             EcologicalImpactCardEnhanced(
-                                co2Saved = (displayData.totalDistance * 0.15).toInt(),
-                                treesEquivalent = (displayData.totalDistance * 0.005).toInt(),
-                                gasSaved = (displayData.totalDistance * 0.07).toInt()
+                                co2Saved = co2Value,
+                                treesEquivalent = treesValue,
+                                gasSaved = gasValue
                             )
 
                             // 2. Tarjetas de Resumen
@@ -431,16 +442,32 @@ fun StatisticsScreen(
                             )
 
                             // 3. >>> TARJETA DE INSIGHT ALEATORIO <<<
-                            // Solo mostramos si hay insight generado (nuevo diseño)
-                            // Si no hay datos suficientes, no mostramos nada
+                            // 🔥 CORRECCIÓN: Mostrar siempre si hay insight generado
+                            // Para insights de clima: mostrar si weatherStats.hasClimateData es true
+                            // Para otros insights: mostrar si hay distancia registrada
                             // No se muestra en la pestaña "Todo" (índice 2)
-                            // Solo se muestra si hay distancia registrada (totalDistance > 0)
-                            if (selectedPeriod != 2 && displayData.totalDistance > 0) {
+                            if (selectedPeriod != 2) {
                                 randomInsight?.let { insight ->
-                                    SmartInsightCard(
-                                        data = insight,
-                                        horizontalPadding = 16.dp
-                                    )
+                                    // Verificar si el insight es de clima
+                                    val isClimateInsight = insight.metric == InsightMetric.RAIN || 
+                                                          insight.metric == InsightMetric.WET_ROAD || 
+                                                          insight.metric == InsightMetric.EXTREME
+                                    
+                                    // Mostrar si:
+                                    // - Es insight de clima Y hay datos de clima disponibles
+                                    // - O es otro tipo de insight Y hay distancia registrada
+                                    val shouldShow = if (isClimateInsight) {
+                                        weatherStats.hasClimateData
+                                    } else {
+                                        displayData.totalDistance > 0
+                                    }
+                                    
+                                    if (shouldShow) {
+                                        SmartInsightCard(
+                                            data = insight,
+                                            horizontalPadding = 16.dp
+                                        )
+                                    }
                                 }
                             }
 
@@ -487,9 +514,9 @@ data class PeriodData(
 
 @Composable
 fun EcologicalImpactCardEnhanced(
-    co2Saved: Int,
-    treesEquivalent: Int,
-    gasSaved: Int
+    co2Saved: Double,
+    treesEquivalent: Double,
+    gasSaved: Double
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -528,7 +555,7 @@ fun EcologicalImpactCardEnhanced(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 ImpactItem(
-                    value = "$co2Saved",
+                    value = LocationUtils.formatNumberSpanish(co2Saved, 1),
                     unit = "kg CO₂",
                     icon = Icons.Outlined.Cloud,
                     color = Color(0xFF65C466), // Verde suave
@@ -541,7 +568,7 @@ fun EcologicalImpactCardEnhanced(
                 )
 
                 ImpactItem(
-                    value = "$treesEquivalent",
+                    value = LocationUtils.formatNumberSpanish(treesEquivalent, 1),
                     unit = "Árboles",
                     icon = Icons.Outlined.Forest,
                     color = Color(0xFF4CAF50), // Verde más intenso
@@ -554,7 +581,7 @@ fun EcologicalImpactCardEnhanced(
                 )
 
                 ImpactItem(
-                    value = "$gasSaved",
+                    value = LocationUtils.formatNumberSpanish(gasSaved, 1),
                     unit = "L Gasolina",
                     icon = Icons.Outlined.LocalGasStation,
                     color = Color(0xFFFFA726), // Naranja
@@ -1097,7 +1124,7 @@ fun SmartInsightCard(
                 Column(modifier = Modifier.weight(1f)) {
                     Row(verticalAlignment = Alignment.Bottom) {
                         ZipStatsText(
-                            text = String.format("%.1f", data.currentValue), 
+                            text = LocationUtils.formatNumberSpanish(data.currentValue, 1), 
                             style = MaterialTheme.typography.headlineMedium,
                             fontWeight = FontWeight.ExtraBold,
                             color = themeColor // El número toma el color del tema
@@ -1112,9 +1139,9 @@ fun SmartInsightCard(
                         )
                     }
                     
-                    // Texto diferencial (ej: "+2.4 L extra")
+                    // Texto diferencial (ej: "+2,4 L extra")
                     val diff = abs(data.currentValue - data.previousValue)
-                    val diffFormatted = String.format("%.1f", diff)
+                    val diffFormatted = LocationUtils.formatNumberSpanish(diff, 1)
                     val diffText = if (data.isPositive) 
                         "+$diffFormatted ${data.metric.unit} extra" 
                     else 
@@ -1467,21 +1494,10 @@ fun MonthYearPickerDialog(
  * Helper para formatear números en formato español
  * Formato español: punto (.) para miles, coma (,) para decimales
  * Ejemplo: 23.525,25
+ * 
+ * 🔥 CORRECCIÓN: Usa LocationUtils.formatNumberSpanish() para consistencia
+ * (siempre muestra 1 decimal cuando se especifica, ej: "1,0" en lugar de "1")
  */
 private fun formatNumberSpanish(value: Double): String {
-    return try {
-        // Formatear con Locale español para obtener el formato correcto
-        val formatter = java.text.DecimalFormat("#,##0.0", java.text.DecimalFormatSymbols(java.util.Locale("es", "ES")))
-        val formatted = formatter.format(value)
-        formatted.removeSuffix(",0") // Quitar decimal si es ,0
-    } catch (e: Exception) {
-        // Fallback: formatear manualmente
-        val parts = String.format("%.1f", value).split(".")
-        if (parts.size == 2) {
-            val integerPart = parts[0].reversed().chunked(3).joinToString(".").reversed()
-            "$integerPart,${parts[1]}"
-        } else {
-            parts[0].reversed().chunked(3).joinToString(".").reversed()
-        }
-    }
+    return LocationUtils.formatNumberSpanish(value, 1)
 }

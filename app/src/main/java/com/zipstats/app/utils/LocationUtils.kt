@@ -253,8 +253,8 @@ object LocationUtils {
             "${(distanceKm * 1000).roundToInt()} m"
         } else {
             // Formato español: coma para decimales
-            val formatter = java.text.DecimalFormat("#,##0.0", java.text.DecimalFormatSymbols(java.util.Locale("es", "ES")))
-            "${formatter.format(distanceKm).removeSuffix(",0")} km"
+            // 🔥 CORRECCIÓN: Usar formatNumberSpanish para consistencia (siempre muestra 1 decimal)
+            "${formatNumberSpanish(distanceKm, 1)} km"
         }
     }
     
@@ -265,15 +265,18 @@ object LocationUtils {
      */
     fun formatSpeed(speedKmh: Double): String {
         // Formato español: coma para decimales
-        val formatter = java.text.DecimalFormat("#,##0.0", java.text.DecimalFormatSymbols(java.util.Locale("es", "ES")))
-        return "${formatter.format(speedKmh).removeSuffix(",0")} km/h"
+        // 🔥 CORRECCIÓN: Usar formatNumberSpanish para consistencia (siempre muestra 1 decimal)
+        return "${formatNumberSpanish(speedKmh, 1)} km/h"
     }
     
     /**
      * Formatea un número en formato español (punto para miles, coma para decimales)
      * @param value Número a formatear
      * @param decimals Número de decimales (por defecto 1)
-     * @return String formateado (ej: "23.525,25" o "15,5")
+     * @return String formateado (ej: "23.525,25" o "15,5" o "1,0")
+     * 
+     * 🔥 IMPORTANTE: Cuando decimals=1, siempre muestra el decimal para mantener consistencia visual
+     * (ej: "1,0" en lugar de "1" para que coincida con "0,1", "0,7", etc.)
      */
     fun formatNumberSpanish(value: Double, decimals: Int = 1): String {
         return try {
@@ -285,8 +288,9 @@ object LocationUtils {
             }
             val formatter = java.text.DecimalFormat(pattern, java.text.DecimalFormatSymbols(java.util.Locale("es", "ES")))
             val formatted = formatter.format(value)
-            // Quitar decimal si es ,0
-            if (decimals == 1) formatted.removeSuffix(",0") else formatted
+            // 🔥 CORRECCIÓN: Cuando decimals=1, siempre mostrar el decimal para consistencia visual
+            // No quitar ",0" para que "1,0" se muestre igual que "0,1" o "0,7"
+            formatted
         } catch (e: Exception) {
             // Fallback: formatear manualmente
             val formatPattern = "%.${decimals}f"

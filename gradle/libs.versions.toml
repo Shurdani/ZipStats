@@ -1,31 +1,42 @@
 [versions]
-activityKtx = "1.8.2"
-agp = "8.7.0"
-appcompat = "1.6.1"
+activityKtx = "1.9.0"
+agp = "8.8.0"
+appcompat = "1.7.0"
 cardview = "1.0.0"
-constraintlayout = "2.1.4"
-kotlin = "1.9.0"
-ksp = "2.0.0-1.0.21"
+constraintlayout = "2.2.0"
+kotlin = "2.0.21"
+ksp = "2.0.0-1.0.22"
 hilt = "2.57.2"
-google-services = "4.4.4"
-coreKtx = "1.12.0"
+google-services = "4.4.5"
+coreKtx = "1.13.0"
 junit = "4.13.2"
-junitVersion = "1.1.5"
+junitVersion = "1.2.1"
 espressoCore = "3.7.0"
-lifecycleRuntimeKtx = "2.7.0"
-lifecycleViewmodelKtx = "2.7.0"
-lifecycleRuntimeCompose = "2.7.0"
-activityCompose = "1.8.2"
-composeBom = "2024.12.01"
+lifecycleRuntimeKtx = "2.8.1"
+lifecycleViewmodelKtx = "2.8.1"
+lifecycleRuntimeCompose = "2.8.1"
+activityCompose = "1.9.0"
+composeBom = "2025.01.00"
 espressoCoreVersion = "3.7.0"
-material = "1.11.0"
+material = "1.12.0"
 ui = "1.9.5"
-navigationCompose = "2.8.5"
-navigationRuntimeKtx = "2.9.5"
+navigationCompose = "2.9.0"
+navigationRuntimeKtx = "2.9.0"
 hiltNavigationCompose = "1.2.0"
 composeUiTestJunit4 = "1.5.4"
 composeUiTooling = "1.5.4"
 composeUiTestManifest = "1.5.4"
+coil = "2.7.0"
+firebaseBom = "33.6.0"
+retrofit = "2.11.0"
+coroutinesAndroid = "1.7.3"
+poi = "5.2.3"
+datastore = "1.1.2"
+playServicesBase = "18.5.0"
+playServicesLocation = "21.3.0"
+playServicesAuth = "21.3.0"
+mapboxMaps = "11.8.0"
+mapboxSdk = "7.9.0"
 
 [libraries]
 androidx-activity-ktx = { module = "androidx.activity:activity-ktx", version.ref = "activityKtx" }
@@ -57,6 +68,23 @@ androidx-material3 = { group = "androidx.compose.material3", name = "material3" 
 espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espressoCoreVersion" }
 material = { module = "com.google.android.material:material", version.ref = "material" }
 androidx-compose-ui = { group = "androidx.compose.ui", name = "ui", version.ref = "ui" }
+coil-compose = { group = "io.coil-kt", name = "coil-compose", version.ref = "coil" }
+retrofit = { group = "com.squareup.retrofit2", name = "retrofit", version.ref = "retrofit" }
+retrofit-converter-gson = { group = "com.squareup.retrofit2", name = "converter-gson", version.ref = "retrofit" }
+kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "coroutinesAndroid" }
+poi = { module = "org.apache.poi:poi", version.ref = "poi" }
+poi-ooxml = { module = "org.apache.poi:poi-ooxml", version.ref = "poi" }
+datastore-preferences = { module = "androidx.datastore:datastore-preferences", version.ref = "datastore" }
+play-services-base = { group = "com.google.android.gms", name = "play-services-base", version.ref = "playServicesBase" }
+play-services-location = { group = "com.google.android.gms", name = "play-services-location", version.ref = "playServicesLocation" }
+play-services-auth = { group = "com.google.android.gms", name = "play-services-auth", version.ref = "playServicesAuth" }
+mapbox-maps = { module = "com.mapbox.maps:android-ndk27", version.ref = "mapboxMaps" }
+mapbox-compose = { module = "com.mapbox.extension:maps-compose", version.ref = "mapboxMaps" }
+mapbox-sdk-geojson = { module = "com.mapbox.mapboxsdk:mapbox-sdk-geojson", version.ref = "mapboxSdk" }
+mapbox-sdk-services = { module = "com.mapbox.mapboxsdk:mapbox-sdk-services", version.ref = "mapboxSdk" }
+mapbox-sdk-turf = { module = "com.mapbox.mapboxsdk:mapbox-sdk-turf", version.ref = "mapboxSdk" }
+mapbox-sdk-core = { module = "com.mapbox.mapboxsdk:mapbox-sdk-core", version.ref = "mapboxSdk" }
+firebase-bom = { module = "com.google.firebase:firebase-bom", version.ref = "firebaseBom" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

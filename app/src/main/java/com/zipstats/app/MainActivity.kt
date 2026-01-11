@@ -653,16 +653,4 @@ class MainActivity : ComponentActivity() {
 
         notificationManager.notify(NOTIFICATION_ID, builder.build())
     }
-    
-    @Deprecated("Deprecated in Java. Use Activity Result API instead.")
-    @Suppress("DEPRECATION")
-    override fun onRequestPermissionsResult(
-        requestCode: Int,
-        permissions: Array<out String>,
-        grantResults: IntArray
-    ) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        // Este método ya no se usa, se migró a Activity Result API
-        // Se mantiene por compatibilidad pero no realiza ninguna acción
-    }
 }

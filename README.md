@@ -3,9 +3,10 @@
 **Aplicación Android para tracking GPS de patinetes, bicicletas y otros vehículos personales.**
 
 [![Version](https://img.shields.io/badge/Version-5.4.8-brightgreen.svg)](https://github.com/shurdani/Patinetatrack/releases)
-[![Kotlin](https://img.shields.io/badge/Kotlin-2.0.0-blue.svg)](https://kotlinlang.org)
+[![Kotlin](https://img.shields.io/badge/Kotlin-2.0.21-blue.svg)](https://kotlinlang.org)
 [![Android](https://img.shields.io/badge/Android-API%2031%2B-green.svg)](https://developer.android.com)
-[![Jetpack Compose](https://img.shields.io/badge/Jetpack%20Compose-2024.12.01-blue.svg)](https://developer.android.com/jetpack/compose)
+[![Jetpack Compose](https://img.shields.io/badge/Jetpack%20Compose-2025.01.00-blue.svg)](https://developer.android.com/jetpack/compose)
+[![Gradle](https://img.shields.io/badge/Gradle-8.13-green.svg)](https://gradle.org)
 [![License: GPLv3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 
 ---
@@ -74,36 +75,58 @@
 - ✅ Diseño Material Design 3
 - ✅ Jetpack Compose 100%
 - ✅ Navegación intuitiva con Bottom Navigation
-- ✅ Tema adaptable
+- ✅ Tema adaptable con soporte para colores dinámicos
+- ✅ Modo oscuro optimizado con mejor contraste para OLED
 - ✅ Velocímetro con Media Móvil Exponencial para respuesta instantánea
 - ✅ Iconografía unificada y consistente
+- ✅ Accesibilidad mejorada con contraste optimizado en todos los componentes
 
 ---
 
 ## 🚀 **Tecnologías Utilizadas**
 
 ### **Core**
-- **Lenguaje:** Kotlin
-- **UI Framework:** Jetpack Compose
+- **Lenguaje:** Kotlin `2.0.21`
+- **UI Framework:** Jetpack Compose `2025.01.00` (BOM)
 - **Arquitectura:** MVVM + Clean Architecture
-- **Inyección de Dependencias:** Hilt (Dagger)
+- **Inyección de Dependencias:** Hilt `2.57.2` (Dagger)
+- **Gradle:** `8.13`
+- **Android Gradle Plugin:** `8.8.0`
+- **Compile SDK:** `35`
+- **Target SDK:** `34`
+- **Min SDK:** `31` (Android 12+)
 
 ### **APIs y Servicios**
-- **Mapbox SDK:** Visualización de mapas y rutas
+- **Mapbox Maps SDK:** `11.8.0` - Visualización de mapas y rutas
+- **Mapbox SDK Services:** `7.9.0` - Servicios de geocodificación y direcciones
 - **Google Weather API:** Datos meteorológicos en tiempo real y pronósticos
-- **Firebase:**
+- **Firebase BoM:** `33.6.0`
   - Authentication (Email/Password/Google)
   - Firestore Database (Almacenamiento de datos)
   - Storage (Imágenes de perfil)
+  - Analytics
 - **Cloudinary:** Gestión de imágenes de vehículos
-- **Location Services:** GPS tracking en tiempo real
+- **Google Play Services:**
+  - Location `21.3.0` - GPS tracking en tiempo real
+  - Auth `21.3.0` - Autenticación con Google
+  - Base `18.5.0`
 
-### **Otras Librerías**
-- **Navigation Compose:** Navegación entre pantallas
-- **Coil:** Carga de imágenes
-- **DataStore:** Preferencias locales
-- **JExcelAPI:** Exportación a Excel
-- **Coroutines & Flow:** Programación asíncrona y reactiva
+### **Librerías Principales**
+- **Navigation Compose:** `2.9.0` - Navegación entre pantallas
+- **Lifecycle:** `2.8.1` - ViewModel y Runtime Compose
+- **Coil:** `2.7.0` - Carga de imágenes
+- **Retrofit:** `2.11.0` - Cliente HTTP para APIs
+- **Kotlinx Coroutines:** `1.7.3` - Programación asíncrona
+- **DataStore:** `1.1.2` - Preferencias locales
+- **Apache POI:** `5.2.3` - Exportación a Excel
+- **Material Design:** `1.12.0` - Componentes Material
+- **HBRecorder:** `3.0.9` - Grabación de pantalla
+
+### **Herramientas de Desarrollo**
+- **KSP:** `2.0.0-1.0.22` - Kotlin Symbol Processing (reemplaza kapt)
+- **Gradle Version Catalog:** Gestión centralizada de dependencias en `libs.versions.toml`
+- **Android Gradle Plugin:** `8.8.0` - Build system
+- **Gradle Wrapper:** `8.13` - Build tool
 
 ---
 
@@ -129,19 +152,44 @@ cd zipstats
 
 Configura las siguientes credenciales en `local.properties`:
 
-- ✅ Mapbox Access Token
-- ✅ Firebase (google-services.json)
-- ✅ Cloudinary Credentials
-- ✅ OpenMeteo API (gratuita, sin API key requerida)
+- ✅ **Mapbox Access Token** - Token de acceso para Mapbox Maps SDK
+- ✅ **Mapbox Downloads Token** - Token de descarga para Mapbox (requerido para descargar dependencias)
+- ✅ **Firebase** - Copia `google-services.json` a `app/` (ver `google-services.json.example`)
+- ✅ **Cloudinary Credentials** - Cloud name, API Key y API Secret
+- ✅ **OpenWeather API Key** (opcional) - Para datos meteorológicos alternativos
+- ✅ **Google Weather API Key** (opcional) - Para datos meteorológicos de Google
 
-**⚠️ IMPORTANTE:** Copia `local.properties.example` a `local.properties` y configura tus credenciales.
+**⚠️ IMPORTANTE:** 
+- Copia `local.properties.example` a `local.properties` y configura tus credenciales
+- Copia `google-services.json.example` a `google-services.json` en `app/`
+- El `MAPBOX_DOWNLOADS_TOKEN` debe tener scope `DOWNLOADS:READ` en tu cuenta de Mapbox
 
 ### **3. Compilar e Instalar**
 
 ```bash
+# Limpiar y compilar
 ./gradlew clean assembleDebug
+
+# Instalar en dispositivo conectado
 ./gradlew installDebug
+
+# O compilar release
+./gradlew assembleRelease
 ```
+
+### **4. Estructura de Archivos de Configuración**
+
+```
+ZipStats/
+├── local.properties              # Credenciales locales (NO versionar)
+├── local.properties.example      # Plantilla de credenciales
+├── google-services.json          # Firebase config (NO versionar)
+├── google-services.json.example  # Plantilla de Firebase
+├── keystore.properties           # Configuración de firma (NO versionar)
+└── keystore.properties.example  # Plantilla de keystore
+```
+
+**⚠️ IMPORTANTE:** Todos los archivos con credenciales reales están en `.gitignore` y no deben ser versionados.
 
 ---
 
@@ -216,12 +264,44 @@ app/src/main/java/com/zipstats/app/
 - Optimización de memoria con LazyColumn
 - Índices de Firebase optimizados para consultas rápidas
 - Gestión de estado reactiva con recarga automática
+- Version Catalog (libs.versions.toml) para gestión centralizada de dependencias
+- Compilación optimizada con KSP (Kotlin Symbol Processing)
+
+### **🎨 Accesibilidad y UX**
+- Contraste optimizado para modo oscuro y OLED
+- Colores dinámicos con Material You
+- Texto legible en todos los estados de botones (habilitado/deshabilitado)
+- Soporte para modo oscuro puro (negro puro) para pantallas OLED
+- Componentes accesibles con descripciones apropiadas
 
 ### **🔒 Seguridad**
 - Autenticación Firebase
 - Reglas de seguridad Firestore
-- API Keys protegidas (no hardcodeadas)
+- API Keys protegidas (no hardcodeadas en el código)
+- Credenciales sensibles en `local.properties` (no versionado)
 - Restricciones de API Key por package name y SHA-1
+- Mapbox Downloads Token almacenado de forma segura
+
+---
+
+## 🔄 **Mejoras Recientes**
+
+### **Versión 5.4.8**
+- ✅ **Accesibilidad mejorada:** Contraste optimizado para modo oscuro y pantallas OLED
+- ✅ **Botones corregidos:** Texto visible en todos los estados (habilitado/deshabilitado)
+- ✅ **Gestión de dependencias:** Migración a Version Catalog (libs.versions.toml)
+- ✅ **Eliminación de Accompanist:** Migrado a APIs oficiales de Navigation Compose
+- ✅ **Actualización de dependencias:** Todas las librerías actualizadas a versiones estables
+- ✅ **Seguridad mejorada:** Credenciales sensibles movidas a `local.properties`
+- ✅ **Colores dinámicos:** Soporte completo para Material You
+- ✅ **Modo OLED:** Soporte para modo oscuro puro (negro puro) para pantallas OLED
+
+### **Mejoras de Accesibilidad**
+- Contraste mejorado en todos los componentes de UI
+- Texto legible en botones primarios (negro sobre naranja en modo oscuro)
+- Estados deshabilitados con colores visibles
+- Soporte para colores dinámicos del sistema
+- Modo oscuro optimizado para diferentes tipos de pantalla
 
 ---
 

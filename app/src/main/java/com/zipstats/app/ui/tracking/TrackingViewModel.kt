@@ -2160,7 +2160,7 @@ class TrackingViewModel @Inject constructor(
                         // No forzar precipitación si no la hubo - el badge de "Calzada Mojada" 
                         // se activará por humedad y punto de rocío, no por valores inventados
                         // Esto mantiene las estadísticas precisas (0.0 mm = no llovió realmente)
-                        weatherMaxPrecipitation = if (weatherMaxPrecipitation != null && weatherMaxPrecipitation > 0.0) {
+                        weatherMaxPrecipitation = if (weatherMaxPrecipitation > 0.0) {
                             weatherMaxPrecipitation
                         } else {
                             null // No forzamos lluvia si no la hubo - Google sabe más

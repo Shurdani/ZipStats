@@ -93,8 +93,10 @@ fun RegisterScreen(
 
     // Personalizar colores de campos
     val customColors = OutlinedTextFieldDefaults.colors(
+        unfocusedBorderColor = MaterialTheme.colorScheme.outline,        // Usa el gris que definimos
+        unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant, // Usa el gris plata legible
         focusedBorderColor = MaterialTheme.colorScheme.primary,
-        unfocusedBorderColor = MaterialTheme.colorScheme.outline
+        focusedLabelColor = MaterialTheme.colorScheme.primary
     )
 
     // Funciones de validación (Mantenemos tu lógica)

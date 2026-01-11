@@ -9,6 +9,14 @@ pluginManagement {
     }
 }
 
+// Leer local.properties para credenciales (después de pluginManagement)
+def localProperties = new Properties()
+def localPropertiesFile = new File(rootDir, "local.properties")
+if (localPropertiesFile.exists()) {
+    localPropertiesFile.withInputStream { localProperties.load(it) }
+}
+def mapboxDownloadsToken = localProperties.getProperty("MAPBOX_DOWNLOADS_TOKEN", "")
+
 dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS)
     repositories {
@@ -27,8 +35,8 @@ dependencyResolutionManagement {
                 // Do not change the username below.
                 // This should always be `mapbox` (not your username).
                 username = "mapbox"
-                // Use the secret token you stored in gradle.properties as the password
-                password = providers.gradleProperty("MAPBOX_DOWNLOADS_TOKEN").get()
+                // Use the secret token from local.properties (not gradle.properties for security)
+                password = mapboxDownloadsToken
             }
         }
     }

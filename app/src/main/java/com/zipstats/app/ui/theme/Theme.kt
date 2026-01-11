@@ -463,7 +463,25 @@ fun PatinetatrackTheme(
     val colorScheme = when {
         // Colores dinámicos tienen prioridad si están disponibles y activados
         dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+            val dynamic = if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+            if (darkTheme) {
+                if (pureBlackOled) {
+                    // Ajustamos el esquema dinámico para que no se vea "lavado" en OLED
+                    dynamic.copy(
+                        background = Color.Black,
+                        surface = Color.Black,
+                        onPrimary = Color.Black,             // Texto negro en botones dinámicos
+                        onSurfaceVariant = Color(0xFFD1D1D1), // Etiquetas legibles
+                        outline = Color(0xFF636363)           // Bordes visibles
+                    )
+                } else {
+                    // Ajustamos el esquema dinámico para modo oscuro normal con mejor contraste
+                    dynamic.copy(
+                        onSurfaceVariant = Color(0xFFD1D1D1), // Etiquetas legibles
+                        outline = Color(0xFF636363)           // Bordes visibles
+                    )
+                }
+            } else dynamic
         }
         // Paleta personalizada seleccionada
         else -> getColorScheme(colorTheme, darkTheme, pureBlackOled)

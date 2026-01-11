@@ -16,6 +16,11 @@ cloudinary.api_secret=YOUR_CLOUDINARY_API_SECRET
 # Get this from: https://account.mapbox.com/access-tokens/
 mapbox.access.token=YOUR_MAPBOX_ACCESS_TOKEN
 
+# Mapbox Downloads Token (requerido para descargar SDK privado de Mapbox)
+# Get this from: https://account.mapbox.com/access-tokens/
+# Must have the "Downloads:Read" scope
+MAPBOX_DOWNLOADS_TOKEN=YOUR_MAPBOX_DOWNLOADS_TOKEN
+
 # OpenWeather API Key
 # Get this from: https://openweathermap.org/api (Free tier available)
 openweather.api.key=YOUR_OPENWEATHER_API_KEY

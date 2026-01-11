@@ -651,9 +651,17 @@ fun NewRecordBottomSheet(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(56.dp), // Altura cómoda para el pulgar
-                shape = MaterialTheme.shapes.large
+                shape = MaterialTheme.shapes.large,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary
+                )
             ) {
-                ZipStatsText("Guardar Registro", fontSize = 16.sp)
+                ZipStatsText(
+                    text = "Guardar Registro",
+                    fontSize = 16.sp,
+                    color = MaterialTheme.colorScheme.onPrimary
+                )
             }
         }
     }

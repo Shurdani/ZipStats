@@ -37,6 +37,7 @@ import androidx.compose.material.icons.outlined.LocalGasStation
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -44,13 +45,13 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
-import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.PrimaryTabRow
@@ -1465,6 +1466,7 @@ fun MonthYearPickerDialog(
             Spacer(modifier = Modifier.height(8.dp))
 
             // Botón de acción principal
+            val isEnabled = selectedMode != null
             Button(
                 onClick = {
                     scope.launch {
@@ -1482,9 +1484,19 @@ fun MonthYearPickerDialog(
                     .fillMaxWidth()
                     .height(56.dp),
                 shape = MaterialTheme.shapes.large,
-                enabled = selectedMode != null
+                enabled = isEnabled,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                    disabledContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.38f),
+                    disabledContentColor = MaterialTheme.colorScheme.onSurface
+                )
             ) {
-                ZipStatsText("Aplicar", fontSize = 16.sp)
+                ZipStatsText(
+                    "Aplicar",
+                    fontSize = 16.sp,
+                    color = if (isEnabled) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
+                )
             }
         }
     }

@@ -366,11 +366,14 @@ fun RouteDetailDialog(
                                 .weight(1f)
                                 .height(50.dp),
                             shape = RoundedCornerShape(16.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                contentColor = MaterialTheme.colorScheme.onPrimary
+                            )
                         ) {
-                            Icon(Icons.Default.PlayArrow, null)
+                            Icon(Icons.Default.PlayArrow, null, tint = MaterialTheme.colorScheme.onPrimary)
                             Spacer(modifier = Modifier.width(8.dp))
-                            ZipStatsText("Ver Animación")
+                            ZipStatsText("Ver Animación", color = MaterialTheme.colorScheme.onPrimary)
                         }
 
                         // Compartir (Pequeño)

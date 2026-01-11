@@ -618,9 +618,12 @@ fun PermissionRequestCard(onRequestPermissions: () -> Unit) {
             Spacer(modifier = Modifier.height(24.dp))
             Button(
                 onClick = onRequestPermissions,
-                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.error,
+                    contentColor = MaterialTheme.colorScheme.onError
+                )
             ) {
-                ZipStatsText("Abrir configuración")
+                ZipStatsText("Abrir configuración", color = MaterialTheme.colorScheme.onError)
             }
         }
     }
@@ -764,19 +767,32 @@ fun IdleStateContent(
                 .height(64.dp), // Botón más grande y fácil de pulsar
             shape = RoundedCornerShape(32.dp),
             colors = ButtonDefaults.buttonColors(
-                containerColor = MaterialTheme.colorScheme.primary
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary,
+                disabledContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.38f),
+                disabledContentColor = MaterialTheme.colorScheme.onSurface // Color más visible cuando está deshabilitado
             )
         ) {
             Icon(
                 imageVector = Icons.Default.PlayArrow,
                 contentDescription = null,
-                modifier = Modifier.size(28.dp)
+                modifier = Modifier.size(28.dp),
+                tint = if (selectedScooter != null && hasValidGpsSignal) {
+                    MaterialTheme.colorScheme.onPrimary
+                } else {
+                    MaterialTheme.colorScheme.onSurface
+                }
             )
             Spacer(modifier = Modifier.width(8.dp))
             ZipStatsText(
                 text = if (hasValidGpsSignal) "Iniciar seguimiento" else "Buscando señal GPS...",
                 style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
+                fontWeight = FontWeight.Bold,
+                color = if (selectedScooter != null && hasValidGpsSignal) {
+                    MaterialTheme.colorScheme.onPrimary
+                } else {
+                    MaterialTheme.colorScheme.onSurface
+                }
             )
         }
     }
@@ -1370,13 +1386,17 @@ fun FinishRouteBottomSheet(
                     contentColor = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             ) {
-                ZipStatsText("Cancelar")
+                ZipStatsText("Cancelar", color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             Button(
                 onClick = { onConfirm(notes, addToRecords) },
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary
+                )
             ) {
-                ZipStatsText("Guardar")
+                ZipStatsText("Guardar", color = MaterialTheme.colorScheme.onPrimary)
             }
         }
     }

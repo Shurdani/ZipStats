@@ -142,7 +142,8 @@ fun OnboardingDialog(
                         style = MaterialTheme.typography.labelLarge.copy(
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Bold
-                        )
+                        ),
+                        color = MaterialTheme.colorScheme.onPrimary
                     )
                 }
 

@@ -29,6 +29,7 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -346,7 +347,11 @@ fun RegisterScreen(
                             password.isNotEmpty() &&
                             confirmPassword.isNotEmpty() &&
                             password == confirmPassword &&
-                            authState !is AuthState.Loading
+                            authState !is AuthState.Loading,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary
+                    )
                 ) {
                     if (authState is AuthState.Loading) {
                         CircularProgressIndicator(
@@ -354,7 +359,7 @@ fun RegisterScreen(
                             color = MaterialTheme.colorScheme.onPrimary
                         )
                     } else {
-                        ZipStatsText("Registrarse", style = MaterialTheme.typography.bodyLarge)
+                        ZipStatsText("Registrarse", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onPrimary)
                     }
                 }
 

@@ -29,6 +29,7 @@ import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -445,8 +446,12 @@ fun LoginScreen(
                             onClick = {
                                 if (resetEmail.isEmpty()) resetError = "Campo obligatorio"
                                 else viewModel.resetPassword(resetEmail)
-                            }
-                        ) { ZipStatsText("Enviar") }
+                            },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                contentColor = MaterialTheme.colorScheme.onPrimary
+                            )
+                        ) { ZipStatsText("Enviar", color = MaterialTheme.colorScheme.onPrimary) }
                     }
                 }
             }
@@ -460,7 +465,13 @@ fun LoginScreen(
             title = { ZipStatsText("Correo Enviado") },
             text = { ZipStatsText("Revisa tu bandeja de entrada para restablecer tu contraseña.") },
             confirmButton = {
-                Button(onClick = { showResetConfirmation = false }) { ZipStatsText("Entendido") }
+                Button(
+                    onClick = { showResetConfirmation = false },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary
+                    )
+                ) { ZipStatsText("Entendido", color = MaterialTheme.colorScheme.onPrimary) }
             }
         )
     }
@@ -508,10 +519,14 @@ fun LoginScreen(
                                 if (mergePassword.isEmpty()) mergeError = "Ingresa tu contraseña"
                                 else if (pendingGoogleIdToken != null) viewModel.linkGoogleAccount(pendingGoogleIdToken!!, mergeEmail, mergePassword)
                             },
-                            enabled = authState !is AuthState.Loading
+                            enabled = authState !is AuthState.Loading,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                contentColor = MaterialTheme.colorScheme.onPrimary
+                            )
                         ) {
-                            if (authState is AuthState.Loading) CircularProgressIndicator(modifier = Modifier.size(16.dp), color = Color.White)
-                            else ZipStatsText("Vincular")
+                            if (authState is AuthState.Loading) CircularProgressIndicator(modifier = Modifier.size(16.dp), color = MaterialTheme.colorScheme.onPrimary)
+                            else ZipStatsText("Vincular", color = MaterialTheme.colorScheme.onPrimary)
                         }
                     }
                 }

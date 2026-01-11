@@ -372,9 +372,13 @@ fun AddScooterBottomSheet(
                         showError = false
                     }
                 },
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f),
+                colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                    containerColor = androidx.compose.material3.MaterialTheme.colorScheme.primary,
+                    contentColor = androidx.compose.material3.MaterialTheme.colorScheme.onPrimary
+                )
             ) {
-                ZipStatsText("Guardar")
+                ZipStatsText("Guardar", color = androidx.compose.material3.MaterialTheme.colorScheme.onPrimary)
             }
         }
     }

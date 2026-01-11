@@ -30,8 +30,17 @@ fun DialogSaveButton(
         onClick = onClick,
         enabled = enabled,
         shape = RoundedCornerShape(12.dp),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = MaterialTheme.colorScheme.primary,
+            contentColor = MaterialTheme.colorScheme.onPrimary,
+            disabledContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.38f),
+            disabledContentColor = MaterialTheme.colorScheme.onSurface
+        )
     ) {
-        ZipStatsText(text)
+        ZipStatsText(
+            text,
+            color = if (enabled) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
+        )
     }
 }
 
@@ -85,9 +94,18 @@ fun DialogFullWidthButton(
         onClick = onClick,
         enabled = enabled,
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp)
+        shape = RoundedCornerShape(12.dp),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = MaterialTheme.colorScheme.primary,
+            contentColor = MaterialTheme.colorScheme.onPrimary,
+            disabledContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.38f),
+            disabledContentColor = MaterialTheme.colorScheme.onSurface
+        )
     ) {
-        ZipStatsText(text)
+        ZipStatsText(
+            text,
+            color = if (enabled) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
+        )
     }
 }
 
@@ -132,9 +150,18 @@ fun DialogApplyButton(
         enabled = enabled,
         modifier = Modifier
             .fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp)
+        shape = RoundedCornerShape(12.dp),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = MaterialTheme.colorScheme.primary,
+            contentColor = MaterialTheme.colorScheme.onPrimary,
+            disabledContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.38f),
+            disabledContentColor = MaterialTheme.colorScheme.onSurface
+        )
     ) {
-        ZipStatsText(text)
+        ZipStatsText(
+            text,
+            color = if (enabled) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
+        )
     }
 }
 

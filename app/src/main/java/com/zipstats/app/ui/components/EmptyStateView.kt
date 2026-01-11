@@ -93,15 +93,20 @@ fun EmptyStateRecords(
         actionButton = {
             Button(
                 onClick = onAddRecord,
-                modifier = Modifier.padding(horizontal = 24.dp)
+                modifier = Modifier.padding(horizontal = 24.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary
+                )
             ) {
                 Icon(
                     imageVector = Icons.Default.Add,
                     contentDescription = null,
-                    modifier = Modifier.size(18.dp)
+                    modifier = Modifier.size(18.dp),
+                    tint = MaterialTheme.colorScheme.onPrimary
                 )
                 Spacer(modifier = Modifier.width(8.dp))
-                ZipStatsText("Añadir registro")
+                ZipStatsText("Añadir registro", color = MaterialTheme.colorScheme.onPrimary)
             }
         }
     )
@@ -120,15 +125,20 @@ fun EmptyStateRoutes(
         actionButton = {
             Button(
                 onClick = onStartRoute,
-                modifier = Modifier.padding(horizontal = 24.dp)
+                modifier = Modifier.padding(horizontal = 24.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary
+                )
             ) {
                 Icon(
                     imageVector = Icons.Default.GpsFixed,
                     contentDescription = null,
-                    modifier = Modifier.size(18.dp)
+                    modifier = Modifier.size(18.dp),
+                    tint = MaterialTheme.colorScheme.onPrimary
                 )
                 Spacer(modifier = Modifier.width(8.dp))
-                ZipStatsText("Iniciar ruta")
+                ZipStatsText("Iniciar ruta", color = MaterialTheme.colorScheme.onPrimary)
             }
         }
     )
@@ -147,15 +157,20 @@ fun EmptyStateRepairs(
         actionButton = {
             Button(
                 onClick = onAddRepair,
-                modifier = Modifier.padding(horizontal = 24.dp)
+                modifier = Modifier.padding(horizontal = 24.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary
+                )
             ) {
                 Icon(
                     imageVector = Icons.Default.Add,
                     contentDescription = null,
-                    modifier = Modifier.size(18.dp)
+                    modifier = Modifier.size(18.dp),
+                    tint = MaterialTheme.colorScheme.onPrimary
                 )
                 Spacer(modifier = Modifier.width(8.dp))
-                ZipStatsText("Añadir mantenimiento")
+                ZipStatsText("Añadir mantenimiento", color = MaterialTheme.colorScheme.onPrimary)
             }
         }
     )
@@ -174,15 +189,20 @@ fun EmptyStateVehicles(
         actionButton = {
             Button(
                 onClick = onAddVehicle,
-                modifier = Modifier.padding(horizontal = 24.dp)
+                modifier = Modifier.padding(horizontal = 24.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary
+                )
             ) {
                 Icon(
                     imageVector = Icons.Default.Add,
                     contentDescription = null,
-                    modifier = Modifier.size(18.dp)
+                    modifier = Modifier.size(18.dp),
+                    tint = MaterialTheme.colorScheme.onPrimary
                 )
                 Spacer(modifier = Modifier.width(8.dp))
-                ZipStatsText("Añadir vehículo")
+                ZipStatsText("Añadir vehículo", color = MaterialTheme.colorScheme.onPrimary)
             }
         }
     )

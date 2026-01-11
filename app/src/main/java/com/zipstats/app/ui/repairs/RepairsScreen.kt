@@ -470,12 +470,22 @@ fun AddRepairBottomSheet(
             ) {
                 ZipStatsText("Cancelar")
             }
+            val isEnabled = tempDesc.isNotBlank()
             Button(
                 onClick = onSave,
                 modifier = Modifier.weight(1f),
-                enabled = tempDesc.isNotBlank()
+                enabled = isEnabled,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                    disabledContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.38f),
+                    disabledContentColor = MaterialTheme.colorScheme.onSurface
+                )
             ) {
-                ZipStatsText("Guardar")
+                ZipStatsText(
+                    "Guardar",
+                    color = if (isEnabled) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
+                )
             }
         }
     }
@@ -571,12 +581,22 @@ fun EditRepairBottomSheet(
             ) {
                 ZipStatsText("Cancelar")
             }
+            val isEnabled = tempDesc.isNotBlank()
             Button(
                 onClick = onSave,
                 modifier = Modifier.weight(1f),
-                enabled = tempDesc.isNotBlank()
+                enabled = isEnabled,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                    disabledContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.38f),
+                    disabledContentColor = MaterialTheme.colorScheme.onSurface
+                )
             ) {
-                ZipStatsText("Guardar")
+                ZipStatsText(
+                    "Guardar",
+                    color = if (isEnabled) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
+                )
             }
         }
     }

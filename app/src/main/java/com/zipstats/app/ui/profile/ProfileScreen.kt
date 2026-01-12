@@ -937,14 +937,24 @@ fun AddScooterBottomSheet(
             ) {
                 ZipStatsText("Cancelar")
             }
+            val isEnabled = nombre.isNotBlank() && marca.isNotBlank() && modelo.isNotBlank()
             Button(
                 onClick = {
                     onConfirm(nombre, marca, modelo, fechaTexto, selectedVehicleType)
                 },
                 modifier = Modifier.weight(1f),
-                enabled = nombre.isNotBlank() && marca.isNotBlank() && modelo.isNotBlank()
+                enabled = isEnabled,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                    disabledContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.38f),
+                    disabledContentColor = MaterialTheme.colorScheme.onSurface
+                )
             ) {
-                ZipStatsText("Guardar")
+                ZipStatsText(
+                    "Guardar",
+                    color = if (isEnabled) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
+                )
             }
         }
     }

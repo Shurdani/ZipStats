@@ -68,9 +68,16 @@ fun StandardDatePickerDialog(
                         onDateSelected(selectedDate)
                     }
                     onDismiss()
-                }
+                },
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary
+                )
             ) {
-                ZipStatsText("OK")
+                ZipStatsText(
+                    "OK",
+                    color = MaterialTheme.colorScheme.onPrimary
+                )
             }
         },
         dismissButton = {
@@ -149,9 +156,18 @@ fun StandardDatePickerDialogWithValidation(
                         onDismiss()
                     }
                 },
-                enabled = isValidDate
+                enabled = isValidDate,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                    disabledContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.38f),
+                    disabledContentColor = MaterialTheme.colorScheme.onSurface
+                )
             ) {
-                ZipStatsText("OK")
+                ZipStatsText(
+                    "OK",
+                    color = if (isValidDate) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
+                )
             }
         },
         dismissButton = {

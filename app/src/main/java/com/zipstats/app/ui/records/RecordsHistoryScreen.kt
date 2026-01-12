@@ -817,9 +817,16 @@ fun EditRecordBottomSheet(
                         )
                     }
                 },
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary
+                )
             ) {
-                ZipStatsText("Guardar")
+                ZipStatsText(
+                    "Guardar",
+                    color = MaterialTheme.colorScheme.onPrimary
+                )
             }
         }
     }

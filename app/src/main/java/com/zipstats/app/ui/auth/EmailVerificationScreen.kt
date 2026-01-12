@@ -125,15 +125,23 @@ fun EmailVerificationScreen(
                     ) {
                         Button(
                             onClick = { viewModel.checkEmailVerification() },
-                            modifier = Modifier.fillMaxWidth()
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                contentColor = MaterialTheme.colorScheme.onPrimary
+                            )
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Refresh,
                                 contentDescription = null,
-                                modifier = Modifier.size(18.dp)
+                                modifier = Modifier.size(18.dp),
+                                tint = MaterialTheme.colorScheme.onPrimary
                             )
                             Spacer(modifier = Modifier.size(8.dp))
-                            ZipStatsText("Verificar de nuevo")
+                            ZipStatsText(
+                                "Verificar de nuevo",
+                                color = MaterialTheme.colorScheme.onPrimary
+                            )
                         }
                         
                         OutlinedButton(
@@ -188,15 +196,23 @@ fun EmailVerificationScreen(
                     ) {
                         Button(
                             onClick = { viewModel.checkEmailVerification() },
-                            modifier = Modifier.fillMaxWidth()
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                contentColor = MaterialTheme.colorScheme.onPrimary
+                            )
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Refresh,
                                 contentDescription = null,
-                                modifier = Modifier.size(18.dp)
+                                modifier = Modifier.size(18.dp),
+                                tint = MaterialTheme.colorScheme.onPrimary
                             )
                             Spacer(modifier = Modifier.size(8.dp))
-                            ZipStatsText("Verificar de nuevo")
+                            ZipStatsText(
+                                "Verificar de nuevo",
+                                color = MaterialTheme.colorScheme.onPrimary
+                            )
                         }
                         
                         OutlinedButton(
@@ -237,9 +253,16 @@ fun EmailVerificationScreen(
                     
                     Button(
                         onClick = onNavigateToLogin,
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor = MaterialTheme.colorScheme.onPrimary
+                        )
                     ) {
-                        ZipStatsText("Continuar")
+                        ZipStatsText(
+                            "Continuar",
+                            color = MaterialTheme.colorScheme.onPrimary
+                        )
                     }
                 }
                 
@@ -267,9 +290,16 @@ fun EmailVerificationScreen(
                     
                     Button(
                         onClick = onNavigateToLogin,
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor = MaterialTheme.colorScheme.onPrimary
+                        )
                     ) {
-                        ZipStatsText("Volver al inicio de sesión")
+                        ZipStatsText(
+                            "Volver al inicio de sesión",
+                            color = MaterialTheme.colorScheme.onPrimary
+                        )
                     }
                 }
                 

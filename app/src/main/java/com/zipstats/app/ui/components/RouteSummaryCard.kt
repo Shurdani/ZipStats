@@ -193,8 +193,8 @@ private fun StatItemModern(
         Icon(
             imageVector = icon,
             contentDescription = null,
-            // Azul eléctrico (zipstats blue) para destacar sobre negro
-            tint = Color(0xFF448AFF),
+            // Usa el color primario del tema para adaptarse a modo claro/oscuro
+            tint = MaterialTheme.colorScheme.primary,
             modifier = Modifier.size(24.dp)
         )
         Spacer(modifier = Modifier.height(8.dp))

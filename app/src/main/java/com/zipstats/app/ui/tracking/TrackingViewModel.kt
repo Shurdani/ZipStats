@@ -917,13 +917,13 @@ class TrackingViewModel @Inject constructor(
         }
         
         // 2. Detección instantánea (lo que pasa ahora mismo)
-        val isVeryHumid = humidity > 85
+        val isVeryHumid = humidity > 88
         val hadRecentTrace = precipitation > 0.0 && precipitation < 0.2
         
         // Caso A: Está cayendo esa "meona" (gotitas) que no llega a ser lluvia
         val isDrizzling = cond == "DRIZZLE" || (hadRecentTrace && isVeryHumid)
         
-        // Caso B: No llueve, pero la humedad es tan alta (85%+) que el asfalto condensa
+        // Caso B: No llueve, pero la humedad es tan alta (88%+) que el asfalto condensa
         val isCondensing = isVeryHumid && (cond == "CLOUDY" || cond == "MOSTLY_CLOUDY")
         
         // Caso C: Niebla con alta humedad también moja el suelo

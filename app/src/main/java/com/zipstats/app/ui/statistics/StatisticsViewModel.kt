@@ -1607,14 +1607,14 @@ ${scooterTexts.joinToString("\n")}
         val humidity = route.weatherHumidity ?: 0
         
         // Lógica Pro para Barcelona:
-        val isVeryHumid = humidity > 85
+        val isVeryHumid = humidity > 88
         val hadRecentTrace = precip > 0.0 && precip < 0.2
         
         // Caso A: Hay trazas de precipitación (0.0mm < precip < 0.2mm) con humedad muy alta
         // Esto indica llovizna fina ("meona") que moja el suelo pero no es lluvia activa
         val isDrizzling = hadRecentTrace && isVeryHumid
         
-        // Caso B: No llueve, pero la humedad es tan alta (85%+) que el asfalto condensa
+        // Caso B: No llueve, pero la humedad es tan alta (88%+) que el asfalto condensa
         // En Barcelona, especialmente de noche, el asfalto puede estar mojado por rocío o humedad marina
         // Usamos el emoji o descripción como indicador si está disponible
         val weatherDesc = route.weatherDescription?.uppercase() ?: ""

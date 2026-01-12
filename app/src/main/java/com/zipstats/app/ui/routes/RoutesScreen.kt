@@ -571,7 +571,7 @@ private fun checkWetRoadConditions(route: Route): Boolean {
     val humidity = route.weatherHumidity ?: 0
     
     // Lógica Pro para Barcelona: MISMOS umbrales que TrackingViewModel.checkWetRoadConditions
-    val isVeryHumid = humidity > 85
+    val isVeryHumid = humidity > 88
     val hadRecentTrace = precip > 0.0 && precip < 0.2
     
     val weatherDesc = route.weatherDescription?.uppercase() ?: ""

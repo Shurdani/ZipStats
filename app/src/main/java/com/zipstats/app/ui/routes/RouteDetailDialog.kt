@@ -1494,23 +1494,23 @@ private fun checkWetRoadConditions(route: Route): Boolean {
     val humidity = route.weatherHumidity ?: 0
     
     // Lógica Pro para Barcelona: MISMOS umbrales que TrackingViewModel.checkWetRoadConditions
-    // Humedad muy alta: >85% (mismo umbral que TrackingViewModel línea 906)
-    val isVeryHumid = humidity > 85
-    // Trazas de precipitación: >0.0mm pero <0.2mm (mismo rango que TrackingViewModel línea 907)
+    // Humedad muy alta: >88% (mismo umbral que TrackingViewModel línea 920)
+    val isVeryHumid = humidity > 88
+    // Trazas de precipitación: >0.0mm pero <0.2mm (mismo rango que TrackingViewModel línea 921)
     val hadRecentTrace = precip > 0.0 && precip < 0.2
     
     // Caso A: Hay trazas de precipitación (0.0mm < precip < 0.2mm) con humedad muy alta
     // Esto indica llovizna fina ("meona") que moja el suelo pero no es lluvia activa
-    // TrackingViewModel verifica cond == "DRIZZLE" directamente (línea 910)
+    // TrackingViewModel verifica cond == "DRIZZLE" directamente (línea 924)
     // Aquí verificamos descripción que puede contener "LLOVIZNA" o "DRIZZLE"
     val weatherDesc = route.weatherDescription?.uppercase() ?: ""
     val isDrizzling = hadRecentTrace && isVeryHumid || 
                      weatherDesc.contains("LLOVIZNA") || 
                      weatherDesc.contains("DRIZZLE")
     
-    // Caso B: No llueve, pero la humedad es tan alta (85%+) que el asfalto condensa
+    // Caso B: No llueve, pero la humedad es tan alta (88%+) que el asfalto condensa
     // En Barcelona, especialmente de noche, el asfalto puede estar mojado por rocío o humedad marina
-    // TrackingViewModel verifica cond == "CLOUDY" || cond == "MOSTLY_CLOUDY" (línea 913)
+    // TrackingViewModel verifica cond == "CLOUDY" || cond == "MOSTLY_CLOUDY" (línea 927)
     // Aquí verificamos descripción que puede contener "NUBLADO" o "CLOUDY"
     val isCondensing = isVeryHumid && (
         weatherDesc.contains("NUBLADO") || 
@@ -1519,7 +1519,7 @@ private fun checkWetRoadConditions(route: Route): Boolean {
     )
     
     // Caso C: Niebla con alta humedad también moja el suelo
-    // TrackingViewModel verifica cond == "FOG" (línea 916), aquí verificamos descripción
+    // TrackingViewModel verifica cond == "FOG" (línea 930), aquí verificamos descripción
     val isFogWetting = isVeryHumid && (
         weatherDesc.contains("NIEBLA") || 
         weatherDesc.contains("FOG") ||

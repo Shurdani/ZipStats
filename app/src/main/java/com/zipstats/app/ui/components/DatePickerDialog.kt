@@ -15,6 +15,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import java.time.Instant
 import java.time.LocalDate
@@ -77,6 +78,7 @@ fun StandardDatePickerDialog(
             ) {
                 ZipStatsText(
                     "OK",
+                    fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onPrimary
                 )
             }
@@ -85,11 +87,15 @@ fun StandardDatePickerDialog(
             Button(
                 onClick = onDismiss,
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant,
-                    contentColor = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    contentColor = MaterialTheme.colorScheme.onSurface
                 )
             ) {
-                ZipStatsText("Cancelar")
+                ZipStatsText(
+                    "Cancelar",
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
             }
         }
     ) {
@@ -167,6 +173,7 @@ fun StandardDatePickerDialogWithValidation(
             ) {
                 ZipStatsText(
                     "OK",
+                    fontWeight = FontWeight.Bold,
                     color = if (isValidDate) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
                 )
             }
@@ -175,11 +182,15 @@ fun StandardDatePickerDialogWithValidation(
             Button(
                 onClick = onDismiss,
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant,
-                    contentColor = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    contentColor = MaterialTheme.colorScheme.onSurface
                 )
             ) {
-                ZipStatsText("Cancelar")
+                ZipStatsText(
+                    "Cancelar",
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
             }
         }
     ) {

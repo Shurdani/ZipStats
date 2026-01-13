@@ -32,10 +32,8 @@ import androidx.compose.material.icons.filled.Air
 import androidx.compose.material.icons.filled.Analytics
 import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.Cyclone
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.DeviceThermostat
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Fullscreen
@@ -662,7 +660,8 @@ fun MetricColumn(value: String, unit: String, label: String, color: Color) {
         ZipStatsText(
             text = label,
             style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface
         )
     }
 }
@@ -1150,6 +1149,7 @@ private fun WeatherInfoDialog(route: Route, onDismiss: () -> Unit) {
                         text = effectiveDescription,
                         style = MaterialTheme.typography.headlineSmall,
                         fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface,
                         textAlign = TextAlign.Center,
                         maxLines = Int.MAX_VALUE
                     )
@@ -1363,7 +1363,7 @@ private fun WeatherGridItem(icon: ImageVector, label: String, value: String) {
                     imageVector = icon,
                     contentDescription = null,
                     modifier = Modifier.size(18.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    tint = MaterialTheme.colorScheme.primary
                 )
             }
         }
@@ -1372,7 +1372,8 @@ private fun WeatherGridItem(icon: ImageVector, label: String, value: String) {
             ZipStatsText(
                 text = label,
                 style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.outline
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             ZipStatsText(
                 text = value,

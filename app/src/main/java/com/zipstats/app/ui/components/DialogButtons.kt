@@ -15,6 +15,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
 /**
@@ -39,6 +40,7 @@ fun DialogSaveButton(
     ) {
         ZipStatsText(
             text,
+            fontWeight = FontWeight.Bold,
             color = if (enabled) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
         )
     }
@@ -54,9 +56,15 @@ fun DialogNeutralButton(
 ) {
     TextButton(
         onClick = onClick,
-        shape = RoundedCornerShape(12.dp)
+        shape = RoundedCornerShape(12.dp),
+        colors = ButtonDefaults.textButtonColors(
+            contentColor = MaterialTheme.colorScheme.onSurface
+        )
     ) {
-        ZipStatsText(text)
+        ZipStatsText(
+            text,
+            color = MaterialTheme.colorScheme.onSurface
+        )
     }
 }
 
@@ -76,7 +84,11 @@ fun DialogDeleteButton(
         ),
         shape = RoundedCornerShape(12.dp)
     ) {
-        ZipStatsText(text)
+        ZipStatsText(
+            text,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface
+        )
     }
 }
 
@@ -104,6 +116,7 @@ fun DialogFullWidthButton(
     ) {
         ZipStatsText(
             text,
+            fontWeight = FontWeight.Bold,
             color = if (enabled) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
         )
     }
@@ -160,6 +173,7 @@ fun DialogApplyButton(
     ) {
         ZipStatsText(
             text,
+            fontWeight = FontWeight.Bold,
             color = if (enabled) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
         )
     }

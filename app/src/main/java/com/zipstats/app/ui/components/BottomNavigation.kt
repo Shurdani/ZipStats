@@ -48,9 +48,11 @@ fun BottomNavigation(
     ) {
         val navBackStackEntry by navController.currentBackStackEntryAsState()
         val currentRoute = navBackStackEntry?.destination?.route
+        // Extraer la ruta base sin parámetros de consulta
+        val currentRouteBase = currentRoute?.substringBefore("?") ?: currentRoute
 
         items.forEachIndexed { index, screen ->
-            val isSelected = currentRoute == screen.route
+            val isSelected = currentRouteBase == screen.route
             val alpha by animateFloatAsState(
                 targetValue = if (isSelected) 1f else 0.6f,
                 animationSpec = tween(durationMillis = 200),
@@ -114,8 +116,8 @@ fun BottomNavigation(
                     }
                 },
                 colors = NavigationBarItemDefaults.colors(
-                    selectedIconColor = MaterialTheme.colorScheme.primary,
-                    selectedTextColor = MaterialTheme.colorScheme.primary,
+                    selectedIconColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                    selectedTextColor = MaterialTheme.colorScheme.onSecondaryContainer,
                     unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
                     unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
                     indicatorColor = MaterialTheme.colorScheme.secondaryContainer

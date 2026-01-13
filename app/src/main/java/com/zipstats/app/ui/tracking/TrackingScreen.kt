@@ -1134,7 +1134,7 @@ fun StatCard(
     Card(
         modifier = modifier,
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
         ),
         shape = RoundedCornerShape(20.dp)
     ) {
@@ -1161,7 +1161,7 @@ fun StatCard(
                     fontFeatureSettings = "tnum"
                 ),
                 fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface,
+                color = MaterialTheme.colorScheme.primary,
                 maxLines = 1
             )
             // ---------------------------
@@ -1169,7 +1169,8 @@ fun StatCard(
             ZipStatsText(
                 text = title,
                 style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 1
             )
         }
@@ -1194,7 +1195,7 @@ fun TrackingWeatherCard(
                 indication = null,
                 onClick = onFetchWeatherClick
             ),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
             shape = RoundedCornerShape(16.dp)
         ) {
             Row(
@@ -1214,19 +1215,19 @@ fun TrackingWeatherCard(
                             painter = painterResource(id = getWeatherIconResIdFromEmoji(weatherStatus.weatherEmoji, weatherStatus.isDay)),
                             contentDescription = null,
                             modifier = Modifier.size(32.dp) ,
-                            colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.onSurfaceVariant)
+                            colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.primary)
                         )
                         Spacer(modifier = Modifier.width(12.dp))
                         ZipStatsText(
                             text = "${formatTemperature(weatherStatus.temperature, decimals = 0)}°C",
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface // <--- Blanco fuerte
+                            color = MaterialTheme.colorScheme.onSurface
                         )
                         Spacer(modifier = Modifier.width(12.dp))
 
                         // --- CORRECCIÓN: Mostrar dirección del viento ---
-                        Icon(Icons.Default.Air, null, modifier = Modifier.size(32.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Icon(Icons.Default.Air, null, modifier = Modifier.size(32.dp), tint = MaterialTheme.colorScheme.primary)
                         Spacer(modifier = Modifier.width(4.dp))
 
                         val direction = convertWindDirectionToText(weatherStatus.windDirection)
@@ -1237,7 +1238,7 @@ fun TrackingWeatherCard(
                             text = "${com.zipstats.app.utils.LocationUtils.formatNumberSpanish(windSpeedKmh, 0)} km/h ($direction)",
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = MaterialTheme.colorScheme.primary
                         )
                     }
                     is WeatherStatus.Error -> {
@@ -1568,9 +1569,10 @@ fun HeroSpeedometer(
     ) {
         ZipStatsText(
             text = "VELOCIDAD",
-            style = MaterialTheme.typography.labelMedium.copy(
+            style = MaterialTheme.typography.labelSmall.copy(
                 letterSpacing = 2.sp
             ),
+            fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         Row(

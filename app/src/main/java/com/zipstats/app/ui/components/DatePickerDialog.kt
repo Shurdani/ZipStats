@@ -78,6 +78,7 @@ fun StandardDatePickerDialog(
             ) {
                 ZipStatsText(
                     "OK",
+                    style = MaterialTheme.typography.labelLarge,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onPrimary
                 )
@@ -93,6 +94,7 @@ fun StandardDatePickerDialog(
             ) {
                 ZipStatsText(
                     "Cancelar",
+                    style = MaterialTheme.typography.labelLarge,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface
                 )
@@ -173,6 +175,7 @@ fun StandardDatePickerDialogWithValidation(
             ) {
                 ZipStatsText(
                     "OK",
+                    style = MaterialTheme.typography.labelLarge,
                     fontWeight = FontWeight.Bold,
                     color = if (isValidDate) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
                 )
@@ -188,6 +191,7 @@ fun StandardDatePickerDialogWithValidation(
             ) {
                 ZipStatsText(
                     "Cancelar",
+                    style = MaterialTheme.typography.labelLarge,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface
                 )

@@ -39,6 +39,8 @@ private val RideBlueLight = lightColorScheme(
     onSurface = Color(0xFF0D0D0D),
     surfaceVariant = Color(0xFFE3F2FD),
     onSurfaceVariant = Color(0xFF1E3A5F),
+    outline = Color(0xFF1E3A5F).copy(alpha = 0.6f),
+    outlineVariant = Color(0xFF1E3A5F).copy(alpha = 0.3f),
     error = Color(0xFFB00020),
     onError = Color(0xFFFFFFFF)
 )
@@ -60,6 +62,8 @@ private val RideBlueDark = darkColorScheme(
     onSurface = Color(0xFFE0E0E0),
     surfaceVariant = Color(0xFF2A2A2A),
     onSurfaceVariant = Color(0xFFB0BEC5),
+    outline = Color(0xFFB0BEC5).copy(alpha = 0.6f),
+    outlineVariant = Color(0xFFB0BEC5).copy(alpha = 0.3f),
     error = Color(0xFFCF6679),
     onError = Color(0xFFFFFFFF)
 )
@@ -81,6 +85,8 @@ private val RideBlueOled = darkColorScheme(
     onSurface = Color(0xFFE0E0E0),
     surfaceVariant = Color(0xFF0A0A0A),
     onSurfaceVariant = Color(0xFFB0BEC5),
+    outline = Color(0xFFB0BEC5).copy(alpha = 0.6f),
+    outlineVariant = Color(0xFFB0BEC5).copy(alpha = 0.3f),
     error = Color(0xFFCF6679),
     onError = Color(0xFFFFFFFF)
 )
@@ -105,6 +111,8 @@ private val EcoGreenLight = lightColorScheme(
     onSurface = Color(0xFF0A0A0A),
     surfaceVariant = Color(0xFFE8F5E9),
     onSurfaceVariant = Color(0xFF1B5E20),
+    outline = Color(0xFF1B5E20).copy(alpha = 0.6f),
+    outlineVariant = Color(0xFF1B5E20).copy(alpha = 0.3f),
     error = Color(0xFFB00020),
     onError = Color(0xFFFFFFFF)
 )
@@ -126,6 +134,8 @@ private val EcoGreenDark = darkColorScheme(
     onSurface = Color(0xFFEAEAEA),
     surfaceVariant = Color(0xFF252A25),
     onSurfaceVariant = Color(0xFFA5D6A7),
+    outline = Color(0xFFA5D6A7).copy(alpha = 0.6f),
+    outlineVariant = Color(0xFFA5D6A7).copy(alpha = 0.3f),
     error = Color(0xFFCF6679),
     onError = Color(0xFFFFFFFF)
 )
@@ -147,6 +157,8 @@ private val EcoGreenOled = darkColorScheme(
     onSurface = Color(0xFFEAEAEA),
     surfaceVariant = Color(0xFF0A0A0A),
     onSurfaceVariant = Color(0xFFA5D6A7),
+    outline = Color(0xFFA5D6A7).copy(alpha = 0.6f),
+    outlineVariant = Color(0xFFA5D6A7).copy(alpha = 0.3f),
     error = Color(0xFFCF6679),
     onError = Color(0xFFFFFFFF)
 )
@@ -171,6 +183,8 @@ private val EnergyRedLight = lightColorScheme(
     onSurface = Color(0xFF111111),
     surfaceVariant = Color(0xFFFFEBEE),
     onSurfaceVariant = Color(0xFFB71C1C),
+    outline = Color(0xFFB71C1C).copy(alpha = 0.6f),
+    outlineVariant = Color(0xFFB71C1C).copy(alpha = 0.3f),
     error = Color(0xFFB00020),
     onError = Color(0xFFFFFFFF)
 )
@@ -192,6 +206,8 @@ private val EnergyRedDark = darkColorScheme(
     onSurface = Color(0xFFEAEAEA),
     surfaceVariant = Color(0xFF2A1A1A),
     onSurfaceVariant = Color(0xFFFFCDD2),
+    outline = Color(0xFFFFCDD2).copy(alpha = 0.6f),
+    outlineVariant = Color(0xFFFFCDD2).copy(alpha = 0.3f),
     error = Color(0xFFCF6679),
     onError = Color(0xFFFFFFFF)
 )
@@ -213,6 +229,8 @@ private val EnergyRedOled = darkColorScheme(
     onSurface = Color(0xFFEAEAEA),
     surfaceVariant = Color(0xFF0A0A0A),
     onSurfaceVariant = Color(0xFFFFCDD2),
+    outline = Color(0xFFFFCDD2).copy(alpha = 0.6f),
+    outlineVariant = Color(0xFFFFCDD2).copy(alpha = 0.3f),
     error = Color(0xFFCF6679),
     onError = Color(0xFFFFFFFF)
 )
@@ -237,6 +255,8 @@ private val UrbanPurpleLight = lightColorScheme(
     onSurface = Color(0xFF111111),
     surfaceVariant = Color(0xFFF3E5F5),
     onSurfaceVariant = Color(0xFF4A148C),
+    outline = Color(0xFF4A148C).copy(alpha = 0.6f),
+    outlineVariant = Color(0xFF4A148C).copy(alpha = 0.3f),
     error = Color(0xFFB00020),
     onError = Color(0xFFFFFFFF)
 )
@@ -258,6 +278,8 @@ private val UrbanPurpleDark = darkColorScheme(
     onSurface = Color(0xFFEAEAEA),
     surfaceVariant = Color(0xFF252025),
     onSurfaceVariant = Color(0xFFCE93D8),
+    outline = Color(0xFFCE93D8).copy(alpha = 0.6f),
+    outlineVariant = Color(0xFFCE93D8).copy(alpha = 0.3f),
     error = Color(0xFFCF6679),
     onError = Color(0xFFFFFFFF)
 )
@@ -279,6 +301,8 @@ private val UrbanPurpleOled = darkColorScheme(
     onSurface = Color(0xFFEAEAEA),
     surfaceVariant = Color(0xFF0A0A0A),
     onSurfaceVariant = Color(0xFFCE93D8),
+    outline = Color(0xFFCE93D8).copy(alpha = 0.6f),
+    outlineVariant = Color(0xFFCE93D8).copy(alpha = 0.3f),
     error = Color(0xFFCF6679),
     onError = Color(0xFFFFFFFF)
 )
@@ -303,6 +327,8 @@ private val SteelGrayLight = lightColorScheme(
     onSurface = Color(0xFF0D0D0D),
     surfaceVariant = Color(0xFFECEFF1),
     onSurfaceVariant = Color(0xFF37474F),
+    outline = Color(0xFF37474F).copy(alpha = 0.6f),
+    outlineVariant = Color(0xFF37474F).copy(alpha = 0.3f),
     error = Color(0xFFB00020),
     onError = Color(0xFFFFFFFF)
 )
@@ -324,6 +350,8 @@ private val SteelGrayDark = darkColorScheme(
     onSurface = Color(0xFFE0E0E0),
     surfaceVariant = Color(0xFF263238),
     onSurfaceVariant = Color(0xFFB0BEC5),
+    outline = Color(0xFFB0BEC5).copy(alpha = 0.6f),
+    outlineVariant = Color(0xFFB0BEC5).copy(alpha = 0.3f),
     error = Color(0xFFCF6679),
     onError = Color(0xFFFFFFFF)
 )
@@ -345,6 +373,8 @@ private val SteelGrayOled = darkColorScheme(
     onSurface = Color(0xFFE0E0E0),
     surfaceVariant = Color(0xFF0A0A0A),
     onSurfaceVariant = Color(0xFFB0BEC5),
+    outline = Color(0xFFB0BEC5).copy(alpha = 0.6f),
+    outlineVariant = Color(0xFFB0BEC5).copy(alpha = 0.3f),
     error = Color(0xFFCF6679),
     onError = Color(0xFFFFFFFF)
 )
@@ -369,6 +399,8 @@ private val SolarFlareLight = lightColorScheme(
     onSurface = Color(0xFF212121),
     surfaceVariant = Color(0xFFFFECB3),
     onSurfaceVariant = Color(0xFFE65100),
+    outline = Color(0xFFE65100).copy(alpha = 0.6f),
+    outlineVariant = Color(0xFFE65100).copy(alpha = 0.3f),
     error = Color(0xFFB00020),
     onError = Color(0xFFFFFFFF)
 )
@@ -390,6 +422,8 @@ private val SolarFlareDark = darkColorScheme(
     onSurface = Color(0xFFFDF3E0),
     surfaceVariant = Color(0xFF3A2A15),
     onSurfaceVariant = Color(0xFFFFCC80),
+    outline = Color(0xFFFFCC80).copy(alpha = 0.6f),
+    outlineVariant = Color(0xFFFFCC80).copy(alpha = 0.3f),
     error = Color(0xFFCF6679),
     onError = Color(0xFFFFFFFF)
 )
@@ -411,6 +445,8 @@ private val SolarFlareOled = darkColorScheme(
     onSurface = Color(0xFFFFE8C2),
     surfaceVariant = Color(0xFF0F0F0F),
     onSurfaceVariant = Color(0xFFFFCC80),
+    outline = Color(0xFFFFCC80).copy(alpha = 0.6f),
+    outlineVariant = Color(0xFFFFCC80).copy(alpha = 0.3f),
     error = Color(0xFFCF6679),
     onError = Color(0xFFFFFFFF)
 )
@@ -470,7 +506,6 @@ fun PatinetatrackTheme(
                     dynamic.copy(
                         background = Color.Black,
                         surface = Color.Black,
-                        onPrimary = Color.Black,             // Texto negro en botones dinámicos
                         onSurfaceVariant = Color(0xFFD1D1D1), // Etiquetas legibles
                         outline = Color(0xFF636363)           // Bordes visibles
                     )

@@ -484,12 +484,12 @@ fun RoutesScreen(
                                                 imageVector = Icons.Filled.Timer,
                                                 contentDescription = null,
                                                 modifier = Modifier.size(12.dp),
-                                                tint = MaterialTheme.colorScheme.outline
+                                                tint = MaterialTheme.colorScheme.onSurfaceVariant
                                             )
                                             ZipStatsText(
                                                 text = route.durationFormatted,
                                                 style = MaterialTheme.typography.labelSmall,
-                                                color = MaterialTheme.colorScheme.outline
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
                                             )
                                         }
                                     }

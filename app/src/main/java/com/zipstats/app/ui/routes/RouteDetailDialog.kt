@@ -760,7 +760,7 @@ fun SafetyBadgesSection(route: Route) {
                     .fillMaxWidth()
                     .border(
                         width = 1.dp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f),
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
                         shape = RoundedCornerShape(8.dp)
                     )
             ) {
@@ -782,7 +782,7 @@ fun SafetyBadgesSection(route: Route) {
                         if (index > 0) {
                             HorizontalDivider(
                                 modifier = Modifier.padding(vertical = 8.dp),
-                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f),
+                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
                                 thickness = 0.5.dp
                             )
                         }
@@ -815,7 +815,7 @@ fun SafetyBadge(text: String) {
             .fillMaxWidth()
             .border(
                 width = 1.dp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f),
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
                 shape = RoundedCornerShape(8.dp)
             )
     ) {
@@ -1215,7 +1215,6 @@ private fun WeatherInfoDialog(route: Route, onDismiss: () -> Unit) {
                             }
                             // Punto de rocío (crítico para Barcelona - explica por qué el suelo está mojado)
                             route.weatherDewPoint?.let { dewPoint ->
-                                val tempDiff = route.weatherTemperature?.let { temp -> temp - dewPoint } ?: 0.0
                                 val dewPointText = "${formatTemperature(dewPoint)}°C"
                                 WeatherGridItem(
                                     icon = Icons.Default.WaterDrop,
@@ -1292,7 +1291,7 @@ private fun WeatherInfoDialog(route: Route, onDismiss: () -> Unit) {
                                     .fillMaxWidth()
                                     .border(
                                         width = 1.dp,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f),
+                                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
                                         shape = RoundedCornerShape(8.dp)
                                     )
                             ) {
@@ -1314,7 +1313,7 @@ private fun WeatherInfoDialog(route: Route, onDismiss: () -> Unit) {
                                         if (index > 0) {
                                             HorizontalDivider(
                                                 modifier = Modifier.padding(vertical = 8.dp),
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f),
+                                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
                                                 thickness = 0.5.dp
                                             )
                                         }

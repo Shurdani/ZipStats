@@ -884,10 +884,13 @@ fun EditScooterBottomSheet(
                 modifier = Modifier.weight(1f),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                    contentColor = MaterialTheme.colorScheme.onSurface
                 )
             ) {
-                ZipStatsText("Cancelar")
+                ZipStatsText(
+                    text = "Cancelar",
+                    color = MaterialTheme.colorScheme.onSurface
+                )
             }
             val isEnabled = nombre.isNotBlank() && marca.isNotBlank() && modelo.isNotBlank()
             Button(

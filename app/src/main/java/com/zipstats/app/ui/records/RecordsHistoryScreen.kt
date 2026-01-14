@@ -420,7 +420,7 @@ fun RecordsHistoryScreen(
                                         ZipStatsText(
                                             text = "Total: ${LocationUtils.formatNumberSpanish(record.kilometraje)} km",
                                             style = MaterialTheme.typography.labelSmall,
-                                            color = MaterialTheme.colorScheme.outline
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                     }
                                 },
@@ -800,10 +800,13 @@ fun EditRecordBottomSheet(
                 modifier = Modifier.weight(1f),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                    contentColor = MaterialTheme.colorScheme.onSurface
                 )
             ) {
-                ZipStatsText("Cancelar")
+                ZipStatsText(
+                    text = "Cancelar",
+                    color = MaterialTheme.colorScheme.onSurface
+                )
             }
             Button(
                 onClick = {

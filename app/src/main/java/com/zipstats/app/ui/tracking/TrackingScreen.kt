@@ -322,7 +322,8 @@ fun TrackingScreen(
                         onScooterClick = { showScooterPicker = true },
                         onStartTracking = { viewModel.startTracking() },
                         onDismissRainWarning = { viewModel.dismissRainWarning() },
-                        onDismissExtremeWarning = { viewModel.dismissExtremeWarning() }
+                        onDismissExtremeWarning = { viewModel.dismissExtremeWarning() },
+                        onFetchWeather = { viewModel.fetchWeatherManually() }
                     )
                 }
                 else -> {
@@ -334,6 +335,9 @@ fun TrackingScreen(
                         pointsCount = routePoints.size,
                         gpsSignalStrength = gpsSignalStrength,
                         weatherStatus = weatherStatus,
+                        shouldShowRainWarning = shouldShowRainWarning,
+                        isActiveRainWarning = isActiveRainWarning,
+                        shouldShowExtremeWarning = shouldShowExtremeWarning,
                         onPause = { viewModel.pauseTracking() },
                         onResume = { viewModel.resumeTracking() },
                         onFinish = { showFinishDialog = true },
@@ -643,7 +647,8 @@ fun IdleStateContent(
     onScooterClick: () -> Unit,
     onStartTracking: () -> Unit,
     onDismissRainWarning: () -> Unit,
-    onDismissExtremeWarning: () -> Unit
+    onDismissExtremeWarning: () -> Unit,
+    onFetchWeather: () -> Unit
 ) {
     Column(
         modifier = Modifier.fillMaxWidth().padding(top = 32.dp),
@@ -747,7 +752,7 @@ fun IdleStateContent(
         }
 
         Spacer(modifier = Modifier.height(32.dp))
-        
+
         // Centro de Notificaciones Unificado - Una sola tarjeta inteligente que agrupa todos los avisos
         PreRideSmartWarning(
             shouldShowRainWarning = shouldShowRainWarning,
@@ -914,6 +919,9 @@ fun TrackingActiveContent(
     pointsCount: Int,
     gpsSignalStrength: Float,
     weatherStatus: WeatherStatus,
+    shouldShowRainWarning: Boolean,
+    isActiveRainWarning: Boolean,
+    shouldShowExtremeWarning: Boolean,
     onPause: () -> Unit,
     onResume: () -> Unit,
     onFinish: () -> Unit,
@@ -922,6 +930,7 @@ fun TrackingActiveContent(
 ) {
     val isPaused = trackingState is TrackingState.Paused
     val isSaving = trackingState is TrackingState.Saving
+    val isTrackingActive = trackingState is TrackingState.Tracking || trackingState is TrackingState.Paused || trackingState is TrackingState.Saving
 
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -940,6 +949,10 @@ fun TrackingActiveContent(
         // 2. Tarjeta Clima
         TrackingWeatherCard(
             weatherStatus = weatherStatus,
+            shouldShowRainWarning = shouldShowRainWarning,
+            isActiveRainWarning = isActiveRainWarning,
+            shouldShowExtremeWarning = shouldShowExtremeWarning,
+            isTracking = isTrackingActive,
             onFetchWeatherClick = onFetchWeather
         )
 
@@ -1161,7 +1174,7 @@ fun StatCard(
                     fontFeatureSettings = "tnum"
                 ),
                 fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary,
+            color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 1
             )
             // ---------------------------
@@ -1170,7 +1183,7 @@ fun StatCard(
                 text = title,
                 style = MaterialTheme.typography.labelMedium,
                 fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface,
+            color = MaterialTheme.colorScheme.primary,
                 maxLines = 1
             )
         }
@@ -1181,9 +1194,29 @@ fun StatCard(
 @Composable
 fun TrackingWeatherCard(
     weatherStatus: WeatherStatus,
+    shouldShowRainWarning: Boolean = false,
+    isActiveRainWarning: Boolean = false,
+    shouldShowExtremeWarning: Boolean = false,
+    isTracking: Boolean = false,
     onFetchWeatherClick: () -> Unit
 ) {
     val weatherClickInteractionSource = remember { MutableInteractionSource() }
+    // Los iconos de preaviso solo se muestran DURANTE el tracking activo
+    val preWarningEmoji = remember(shouldShowRainWarning, isActiveRainWarning, shouldShowExtremeWarning, isTracking) {
+        if (isTracking) {
+            when {
+                // Prioridad 1: Lluvia activa
+                shouldShowRainWarning && isActiveRainWarning -> "🔵"
+                // Prioridad 2: Calzada húmeda (sin lluvia activa)
+                shouldShowRainWarning -> "🟡"
+                // Prioridad 3: Condiciones extremas
+                shouldShowExtremeWarning -> "⚠️"
+                else -> null
+            }
+        } else {
+            null
+        }
+    }
     AnimatedVisibility(
         visible = weatherStatus !is WeatherStatus.Idle,
         enter = fadeIn() + expandVertically(),
@@ -1210,6 +1243,18 @@ fun TrackingWeatherCard(
                         ZipStatsText("Cargando clima...", style = MaterialTheme.typography.bodyMedium)
                     }
                     is WeatherStatus.Success -> {
+                        if (preWarningEmoji != null) {
+                            Box(
+                                modifier = Modifier.size(32.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                ZipStatsText(
+                                    text = preWarningEmoji,
+                                    style = MaterialTheme.typography.titleLarge
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(8.dp))
+                        }
                         // Nota: usamos el helper que acepta nulo para seguridad
                         Image(
                             painter = painterResource(id = getWeatherIconResIdFromEmoji(weatherStatus.weatherEmoji, weatherStatus.isDay)),
@@ -1384,10 +1429,13 @@ fun FinishRouteBottomSheet(
                 modifier = Modifier.weight(1f),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                    contentColor = MaterialTheme.colorScheme.onSurface
                 )
             ) {
-                ZipStatsText("Cancelar", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                ZipStatsText(
+                    text = "Cancelar",
+                    color = MaterialTheme.colorScheme.onSurface
+                )
             }
             Button(
                 onClick = { onConfirm(notes, addToRecords) },
@@ -1573,7 +1621,7 @@ fun HeroSpeedometer(
                 letterSpacing = 2.sp
             ),
             fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            color = MaterialTheme.colorScheme.onSurface
         )
         Row(
             verticalAlignment = Alignment.Bottom

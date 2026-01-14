@@ -157,7 +157,7 @@ fun OnboardingDialog(
                     ZipStatsText(
                         text = "Echar un vistazo primero",
                         style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.outline
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }

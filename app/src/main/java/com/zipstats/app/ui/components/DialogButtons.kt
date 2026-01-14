@@ -87,7 +87,7 @@ fun DialogDeleteButton(
         ZipStatsText(
             text,
             fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onSurface
+            color = MaterialTheme.colorScheme.onError
         )
     }
 }

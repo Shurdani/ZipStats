@@ -430,7 +430,7 @@ private fun AchievementGridCard(
                     ZipStatsText(
                         text = "${achievement.progress.toInt()}%",
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.outline
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 } else {
                     // Badge "Conseguido"

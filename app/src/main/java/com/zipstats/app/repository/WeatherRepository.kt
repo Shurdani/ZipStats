@@ -40,7 +40,11 @@ data class WeatherData(
     val rain: Double?,             // mm
     val showers: Double?,          // mm
     val dewPoint: Double?,         // Punto de rocío en °C (para detectar condensación)
-    val visibility: Double?        // Visibilidad en metros (para detectar niebla/talaia en Barcelona)
+    val visibility: Double?,       // Visibilidad en metros (para detectar niebla/talaia en Barcelona)
+    // Estados de advertencia (guardados junto con el clima para persistencia)
+    val shouldShowRainWarning: Boolean = false,
+    val isActiveRainWarning: Boolean = false,
+    val shouldShowExtremeWarning: Boolean = false
 )
 
 @Singleton

@@ -1202,6 +1202,7 @@ fun TrackingWeatherCard(
 ) {
     val weatherClickInteractionSource = remember { MutableInteractionSource() }
     // Los iconos de preaviso solo se muestran DURANTE el tracking activo
+    // El estado se guarda en el ViewModel (como el clima), así que se restaura automáticamente
     val preWarningEmoji = remember(shouldShowRainWarning, isActiveRainWarning, shouldShowExtremeWarning, isTracking) {
         if (isTracking) {
             when {

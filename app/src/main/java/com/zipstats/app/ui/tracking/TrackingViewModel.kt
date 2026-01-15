@@ -317,7 +317,12 @@ class TrackingViewModel @Inject constructor(
             _startWeatherVisibility = savedWeather.visibility
             _startWeatherDewPoint = savedWeather.dewPoint
 
-            // 2. Restauramos el estado de la UI para que aparezca la tarjeta
+            // 2. Restauramos los estados de advertencia
+            _shouldShowRainWarning.value = savedWeather.shouldShowRainWarning
+            _isActiveRainWarning.value = savedWeather.isActiveRainWarning
+            _shouldShowExtremeWarning.value = savedWeather.shouldShowExtremeWarning
+
+            // 3. Restauramos el estado de la UI para que aparezca la tarjeta
             _weatherStatus.value = WeatherStatus.Success(
                 temperature = savedWeather.temperature,
                 feelsLike = savedWeather.feelsLike,
@@ -1533,7 +1538,14 @@ class TrackingViewModel @Inject constructor(
             _startWeatherVisibility = snapshot.visibility
             _startWeatherDewPoint = snapshot.dewPoint
 
-            routeRepository.saveTempWeather(snapshot)
+            // Guardar clima con estados de advertencia actuales
+            routeRepository.saveTempWeather(
+                snapshot.copy(
+                    shouldShowRainWarning = _shouldShowRainWarning.value,
+                    isActiveRainWarning = _isActiveRainWarning.value,
+                    shouldShowExtremeWarning = _shouldShowExtremeWarning.value
+                )
+            )
 
             _weatherStatus.value = WeatherStatus.Success(
                 temperature = snapshot.temperature,
@@ -1752,7 +1764,14 @@ class TrackingViewModel @Inject constructor(
                         _startWeatherVisibility = weather.visibility
                         _startWeatherDewPoint = weather.dewPoint
 
-                        routeRepository.saveTempWeather(weather)
+                        // Guardar clima con estados de advertencia actuales
+                        routeRepository.saveTempWeather(
+                            weather.copy(
+                                shouldShowRainWarning = _shouldShowRainWarning.value,
+                                isActiveRainWarning = _isActiveRainWarning.value,
+                                shouldShowExtremeWarning = _shouldShowExtremeWarning.value
+                            )
+                        )
 
                         _weatherStatus.value = WeatherStatus.Success(
                             temperature = weather.temperature,

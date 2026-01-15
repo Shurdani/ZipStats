@@ -1488,11 +1488,15 @@ class TrackingViewModel @Inject constructor(
             
             // Actualizar flags de preaviso para mostrar iconos en tarjeta del clima
             if (isActiveRain) {
+                weatherHadRain = true
+                weatherHadWetRoad = false // Lluvia excluye calzada mojada
                 _shouldShowRainWarning.value = true
                 _isActiveRainWarning.value = true
             } else if (isWetRoad) {
+                weatherHadWetRoad = true // 🔥 IMPORTANTE: Establecer aquí también, no solo en monitoreo continuo
                 _shouldShowRainWarning.value = true
                 _isActiveRainWarning.value = false
+                Log.d(TAG, "🛣️ [Precarga inicial] Estado actualizado: weatherHadWetRoad=true")
             }
             
             // Detectar condiciones extremas
@@ -1509,7 +1513,9 @@ class TrackingViewModel @Inject constructor(
             )
             
             if (hasExtremeConditions) {
+                weatherHadExtremeConditions = true // 🔥 IMPORTANTE: Establecer aquí también, no solo en monitoreo continuo
                 _shouldShowExtremeWarning.value = true
+                Log.d(TAG, "⚠️ [Precarga inicial] Estado actualizado: weatherHadExtremeConditions=true")
             }
             
             if (isRaining) {
@@ -2122,7 +2128,11 @@ class TrackingViewModel @Inject constructor(
                                     savedVisibility = weather.visibility
                                     savedDewPoint = weather.dewPoint
                                     
-                                    Log.d(TAG, "✅ Snapshot FINAL capturado: ${savedWeatherTemp}°C ${savedWeatherEmoji} (badge activo: lluvia=$weatherHadRain, calzada=$weatherHadWetRoad, extremas=$weatherHadExtremeConditions)")
+                                    // 🔥 IMPORTANTE: Los badges se basan en lo detectado durante la ruta, no en el clima final
+                                    // Si las condiciones cambian al final (ej: deja de llover), los badges siguen activos
+                                    // porque reflejan lo que pasó durante la ruta (weatherHadRain, weatherHadWetRoad, etc.)
+                                    // El snapshot final solo actualiza los datos del clima, pero los badges ya están establecidos
+                                    Log.d(TAG, "✅ Snapshot FINAL capturado: ${savedWeatherTemp}°C ${savedWeatherEmoji} (badges detectados durante ruta: lluvia=$weatherHadRain, calzada=$weatherHadWetRoad, extremas=$weatherHadExtremeConditions)")
                                 } else {
                                     Log.w(TAG, "⚠️ Snapshot final obtenido pero inválido, usando clima inicial")
                                 }
@@ -2338,6 +2348,42 @@ class TrackingViewModel @Inject constructor(
                 val finalDewPoint = savedDewPoint
                 val finalWindDirection = savedWindDirection
                 
+                // 🔥 CORRECCIÓN: Calcular valores finales de badges ANTES del copy()
+                // Sincronizar weatherHadRain con el estado de los badges
+                // Si el badge de lluvia está activo (_shouldShowRainWarning=true y _isActiveRainWarning=true),
+                // entonces weatherHadRain debe ser true, incluso si el monitoreo continuo no lo detectó
+                // IMPORTANTE: Los badges se basan en lo detectado durante la ruta (weatherHadRain),
+                // no en el clima final del snapshot. Si las condiciones cambian al final, los badges
+                // siguen reflejando lo que pasó durante la ruta.
+                val finalHadRain = weatherHadRain || 
+                    (_shouldShowRainWarning.value && _isActiveRainWarning.value)
+                Log.d(TAG, "💾 Guardando ruta: weatherHadRain=$finalHadRain (detectado=$weatherHadRain, badge activo=${_shouldShowRainWarning.value && _isActiveRainWarning.value})")
+                
+                // Sincronizar weatherHadWetRoad con el estado de los badges
+                // Si el badge de calzada mojada está activo (_shouldShowRainWarning=true y _isActiveRainWarning=false),
+                // entonces weatherHadWetRoad debe ser true, incluso si el monitoreo continuo no lo detectó
+                // IMPORTANTE: Una vez que weatherHadWetRoad es true, solo se puede resetear si hay lluvia activa
+                // Los badges se basan en lo detectado durante la ruta, no en el clima final del snapshot
+                val finalWetRoad = if (finalHadRain) {
+                    // Si hubo lluvia activa, no puede haber calzada mojada (son excluyentes)
+                    Log.d(TAG, "💾 Guardando ruta: weatherHadRain=true, weatherHadWetRoad=false (lluvia excluye calzada mojada)")
+                    false
+                } else {
+                    // Si no hubo lluvia, mantener el estado detectado O sincronizar con badges activos
+                    val wetRoadValue = weatherHadWetRoad || 
+                        (_shouldShowRainWarning.value && !_isActiveRainWarning.value)
+                    Log.d(TAG, "💾 Guardando ruta: weatherHadWetRoad=$wetRoadValue (detectado=$weatherHadWetRoad, badge activo=${_shouldShowRainWarning.value && !_isActiveRainWarning.value})")
+                    wetRoadValue
+                }
+                
+                // Sincronizar weatherHadExtremeConditions con el estado de los badges
+                // Si el badge de condiciones extremas está activo (_shouldShowExtremeWarning=true),
+                // entonces weatherHadExtremeConditions debe ser true, incluso si el monitoreo continuo no lo detectó
+                // IMPORTANTE: Los badges se basan en lo detectado durante la ruta, no en el clima final del snapshot
+                val finalHadExtreme = hadExtremeConditionsDuringRoute || 
+                    _shouldShowExtremeWarning.value
+                Log.d(TAG, "💾 Guardando ruta: weatherHadExtremeConditions=$finalHadExtreme (detectado=$hadExtremeConditionsDuringRoute, badge activo=${_shouldShowExtremeWarning.value})")
+                
                 val route = if (hasValidWeather) {
                     if (hasActiveBadges) {
                         Log.d(TAG, "✅ Usando snapshot FINAL del clima (badges activos): ${finalEmoji} ${finalTemperature}°C")
@@ -2367,12 +2413,7 @@ class TrackingViewModel @Inject constructor(
                         weatherRainProbability = finalRainProbability,
                         weatherVisibility = finalVisibility,
                         weatherDewPoint = finalDewPoint,
-                        // 🔥 CORRECCIÓN: Guardar false explícitamente cuando no hay lluvia
-                        // Esto permite distinguir entre:
-                        // - true: Hubo lluvia (verificado)
-                        // - false: No hubo lluvia (verificado)
-                        // - null: Ruta antigua sin verificación (necesita recálculo)
-                        weatherHadRain = weatherHadRain,
+                        weatherHadRain = finalHadRain,
                         weatherRainStartMinute = weatherRainStartMinute,
                         // 🌧️ Honestidad de datos: Usar exactamente lo que Google devuelve
                         // No forzar precipitación si no la hubo - el badge de "Calzada Mojada" 
@@ -2384,19 +2425,9 @@ class TrackingViewModel @Inject constructor(
                             null // No forzamos lluvia si no la hubo - Google sabe más
                         },
                         weatherRainReason = weatherRainReason,
-                        // 🔥 CORRECCIÓN: Guardar false explícitamente cuando no hay calzada mojada
-                        // Esto permite distinguir entre:
-                        // - true: Hubo calzada mojada (verificado)
-                        // - false: No hubo calzada mojada (verificado explícitamente)
-                        // - null: Ruta antigua sin verificación (necesita recálculo)
-                        weatherHadWetRoad = weatherHadWetRoad,
-                        // 🔥 CORRECCIÓN: Guardar false explícitamente cuando no hay condiciones extremas
-                        // Esto permite distinguir entre:
-                        // - true: Hubo condiciones extremas (verificado)
-                        // - false: No hubo condiciones extremas (verificado)
-                        // - null: Ruta antigua sin verificación (necesita recálculo)
-                        weatherHadExtremeConditions = hadExtremeConditionsDuringRoute,
-                        weatherExtremeReason = if (hadExtremeConditionsDuringRoute) weatherExtremeReason else null
+                        weatherHadWetRoad = finalWetRoad,
+                        weatherHadExtremeConditions = finalHadExtreme,
+                        weatherExtremeReason = if (finalHadExtreme) weatherExtremeReason else null
                     )
                 } else {
                     Log.w(TAG, "⚠️ No se capturó clima válido al inicio, guardando ruta SIN clima (temp=$savedWeatherTemp, emoji=$savedWeatherEmoji)")

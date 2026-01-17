@@ -1235,12 +1235,9 @@ class TrackingViewModel @Inject constructor(
         pendingRainReason = null
         
         continuousWeatherJob = viewModelScope.launch {
-            // Primer chequeo a los 5 minutos (más rápido para UX y seguridad)
-            kotlinx.coroutines.delay(5 * 60 * 1000L)
-            
-            var isFirstCheck = true
-            
-            // Mientras esté en tracking activo, chequear cada 10 minutos (después del primero)
+            // Mientras esté en tracking activo, chequear el clima cada 5 minutos
+            // Esto permite detectar cambios de condiciones más rápido (lluvia, condiciones extremas, etc.)
+            // Para una ruta típica de 30-60 min, serán ~6-12 llamadas, que es razonable para Google Weather API
             while (_trackingState.value is TrackingState.Tracking || 
                    _trackingState.value is TrackingState.Paused) {
                 
@@ -1496,11 +1493,8 @@ class TrackingViewModel @Inject constructor(
                     }
                 }
                 
-                // Después del primer chequeo, esperar 10 minutos antes del siguiente
-                if (isFirstCheck) {
-                    isFirstCheck = false
-                }
-                kotlinx.coroutines.delay(10 * 60 * 1000L)
+                // Esperar 5 minutos antes del siguiente chequeo
+                kotlinx.coroutines.delay(5 * 60 * 1000L)
             }
             
             // Limpiar estado pendiente explícitamente al detener el monitoreo

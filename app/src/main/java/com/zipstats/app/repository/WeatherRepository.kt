@@ -69,13 +69,13 @@ class WeatherRepository @Inject constructor(
 
         /**
          * Mapea condiciones de Google Weather API a códigos WMO antiguos
-         * para mantener compatibilidad con el código existente
+         * SOLO para compatibilidad con código legacy existente.
          * 
-         * Nota: Las condiciones explícitas de lluvia (DRIZZLE, LIGHT_RAIN, etc.)
-         * siempre muestran icono de lluvia, independientemente de la precipitación,
-         * ya que si la API indica lluvia, debe mostrarse como tal.
+         * Confiamos 100% en Google: no modificamos, filtramos ni interpretamos
+         * las condiciones que devuelve la API. Este mapeo es puramente traducir
+         * el formato de Google al formato antiguo para mantener compatibilidad.
          */
-        private fun mapConditionToOldCode(condition: String, precipitation: Double = 0.0): Int {
+        private fun mapConditionToOldCode(condition: String): Int {
             return when (condition.uppercase()) {
                 "TYPE_UNSPECIFIED" -> 0
                 "CLEAR", "SUNNY" -> 0
@@ -589,9 +589,9 @@ class WeatherRepository @Inject constructor(
             null
         }
         
-        // Mapear condición de Google a código WMO antiguo para compatibilidad
-        // (precipitation se pasa por compatibilidad, pero ya no se usa para filtrar)
-        val weatherCode = mapConditionToOldCode(condition, precipitation)
+        // Mapear condición de Google a código WMO antiguo SOLO para compatibilidad legacy
+        // Confiamos 100% en Google, no modificamos sus condiciones
+        val weatherCode = mapConditionToOldCode(condition)
         
         // Obtener emoji desde la condición de Google
         val emoji = getEmojiForCondition(condition, isDay)

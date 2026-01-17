@@ -549,11 +549,12 @@ class TrackingViewModel @Inject constructor(
                         description = weatherDescription,
                         precipitation = weather.precipitation
                     )
+                    Log.d(TAG, "🔍 [Precarga] checkActiveRain: condition=$condition, description=$weatherDescription, precip=${weather.precipitation}, isActiveRain=$isActiveRain")
                     
                     // Calzada mojada: Solo si NO hay lluvia activa
                     val isWetRoad = if (isActiveRain) {
-                        // Si hay lluvia activa, actualizar timestamp para histéresis
-                        _lastWetConditionTimestamp = System.currentTimeMillis()
+                        // Si hay lluvia activa, NO debe haber calzada mojada
+                        // NO establecer timestamp de histéresis cuando hay lluvia activa
                         false // Excluir calzada mojada si hay lluvia activa
                     } else {
                         checkWetRoadConditions(
@@ -566,9 +567,8 @@ class TrackingViewModel @Inject constructor(
                         )
                     }
                     
-                    // Mostrar aviso si hay lluvia activa O calzada mojada (pero nunca ambos)
-                    _shouldShowRainWarning.value = isActiveRain || isWetRoad
-                    _isActiveRainWarning.value = isActiveRain
+                    // 🔥 IMPORTANTE: NO establecer StateFlows aquí - se establecerán más abajo
+                    // después de verificar lluvia activa vs calzada mojada
                     
                     // Detectar visibilidad reducida (crítico para Barcelona - niebla/talaia)
                     val (isLowVisibility, visReason) = checkLowVisibility(weather.visibility)
@@ -623,25 +623,41 @@ class TrackingViewModel @Inject constructor(
                         weatherRainStartMinute = 0 // Al inicio de la ruta
                         weatherRainReason = rainUserReason // Guardar razón amigable para el usuario
                         weatherHadWetRoad = false // Lluvia excluye calzada mojada
+                        // 🔥 IMPORTANTE: Actualizar StateFlows para que los badges se muestren en la UI
+                        _shouldShowRainWarning.value = true
+                        _isActiveRainWarning.value = true
+                        Log.d(TAG, "🌧️ [Precarga] Lluvia activa detectada - badge 🔵 activado")
                     } else if (isWetRoad) {
                         // Calzada mojada: Solo si NO hay lluvia activa
                         weatherHadWetRoad = true
+                        // 🔥 IMPORTANTE: Actualizar StateFlows para que los badges se muestren en la UI
+                        _shouldShowRainWarning.value = true
+                        _isActiveRainWarning.value = false
+                        Log.d(TAG, "🛣️ [Precarga] Calzada mojada detectada - badge 🟡 activado")
                     }
                     
-                    // Histéresis: Establecer timestamp inicial si hay condiciones mojadas
-                    // Esto permite que el aviso persista aunque luego deje de llover
-                    if (isActiveRain || isWetRoad || weather.precipitation > 0 || weather.humidity > 90) {
+                    // Condiciones extremas: COMPLEMENTARIO (puede coexistir con lluvia o calzada mojada)
+                    if (hasExtremeConditions) {
+                        weatherHadExtremeConditions = true
+                        _shouldShowExtremeWarning.value = true
+                        Log.d(TAG, "⚠️ [Precarga] Condiciones extremas detectadas - badge ⚠️ activado")
+                    }
+                    
+                    // Histéresis: Establecer timestamp inicial solo si hay calzada mojada SIN lluvia activa
+                    // NO establecer timestamp si hay lluvia activa (previene confusión de badges)
+                    if (isActiveRain) {
+                        // Si hay lluvia activa, limpiar timestamp de histéresis para evitar badges incorrectos
+                        _lastWetConditionTimestamp = 0L
+                        Log.d(TAG, "🌧️ [Precarga] Lluvia activa detectada - timestamp de histéresis limpiado")
+                    } else if (isWetRoad || weather.precipitation > 0 || weather.humidity > 90) {
+                        // Solo establecer timestamp si NO hay lluvia activa
                         _lastWetConditionTimestamp = System.currentTimeMillis()
                         Log.d(TAG, "💧 [Precarga] Timestamp de condiciones mojadas establecido para histéresis")
                     }
                     
                     Log.d(TAG, "✅ [Precarga] Clima inicial capturado: ${weather.temperature}°C $weatherEmoji")
-                    if (isRaining) {
-                        Log.d(TAG, "🌧️ [Precarga] Lluvia detectada - mostrar aviso preventivo")
-                    }
-                    if (hasExtremeConditions) {
-                        Log.d(TAG, "⚠️ [Precarga] Condiciones extremas detectadas - mostrar aviso preventivo")
-                    }
+                    // El log de lluvia se maneja arriba según si es lluvia activa o calzada mojada
+                    // (líneas 629 y 636)
                 }.onFailure { error ->
                     Log.e(TAG, "❌ [Precarga] Error al capturar clima inicial: ${error.message}")
                     _weatherStatus.value = WeatherStatus.Error(error.message ?: "Error al obtener clima")
@@ -881,7 +897,21 @@ class TrackingViewModel @Inject constructor(
         val rainTerms = listOf("LLUVIA", "RAIN", "CHUBASCO", "TORMENTA", "DRIZZLE", "LLOVIZNA", "THUNDERSTORM", "SHOWER")
         val rainConditions = listOf("RAIN", "LIGHT_RAIN", "THUNDERSTORM", "DRIZZLE", "HEAVY_RAIN")
         
-        // Verificar si Google describe lluvia (en descripción O condición)
+        // Condiciones de lluvia intensa que siempre indican lluvia activa, incluso con precip < 0.15mm
+        // (puede ser un timing issue de la API o la lluvia acaba de empezar)
+        val heavyRainConditions = listOf("HEAVY_RAIN", "THUNDERSTORM")
+        val heavyRainTerms = listOf("FUERTE INTENSIDAD", "INTENSA", "HEAVY", "THUNDERSTORM")
+        
+        // Verificar si Google describe lluvia intensa (en descripción O condición)
+        val isHeavyRainCondition = heavyRainConditions.any { cond.contains(it) } ||
+                                   heavyRainTerms.any { desc.contains(it) }
+        
+        // Si es lluvia intensa según Google, confiar en su palabra aunque precip < 0.15mm
+        if (isHeavyRainCondition) {
+            return true
+        }
+        
+        // Para lluvia normal, verificar condición Y precipitación suficiente
         val isRainyCondition = rainConditions.any { cond.contains(it) } || 
                                rainTerms.any { desc.contains(it) }
         
@@ -960,6 +990,26 @@ class TrackingViewModel @Inject constructor(
         }
         
         // 4. Lógica de persistencia (Histéresis)
+        // 🔥 IMPORTANTE: La histéresis NO puede prevalecer sobre el clima capturado actualmente
+        // Si el emoji o descripción indica lluvia (incluso ligera), NO usar histéresis
+        // La histéresis solo se aplica para condiciones mojadas SIN lluvia (condensación, humedad alta, etc.)
+        val rainTerms = listOf("LLUVIA", "RAIN", "CHUBASCO", "TORMENTA", "DRIZZLE", "LLOVIZNA", "THUNDERSTORM", "SHOWER")
+        val hasRainEmoji = weatherEmoji?.let { emoji ->
+            emoji.contains("🌧️") || emoji.contains("🌦️") || emoji.contains("⚡") || emoji.contains("⛈️")
+        } ?: false
+        val hasRainDescription = rainTerms.any { weatherDesc.contains(it) }
+        val hasRainIndicator = hasRainEmoji || hasRainDescription
+        
+        // Si hay indicadores de lluvia en el clima actual, NO usar histéresis (priorizar el clima actual)
+        if (hasRainIndicator) {
+            // Limpiar timestamp de histéresis si el clima actual indica lluvia
+            // Esto asegura que no se active calzada mojada por histéresis cuando hay lluvia
+            _lastWetConditionTimestamp = 0L
+            Log.d(TAG, "🌧️ [checkWetRoadConditions] Indicadores de lluvia detectados (emoji=$hasRainEmoji, desc=$hasRainDescription) - NO usar histéresis")
+            return false
+        }
+        
+        // Si no hay indicadores de lluvia, aplicar histéresis solo para condiciones mojadas SIN lluvia
         // Si no está mojado ahora, ¿hace menos de 30 min que lo estaba?
         val wasRecentlyWet = (currentTime - _lastWetConditionTimestamp) < WET_ROAD_PERSISTENCE
         
@@ -1344,7 +1394,27 @@ class TrackingViewModel @Inject constructor(
                             
                             // Actualizar flag de condiciones extremas
                             if (hasExtremeConditions) {
+                                weatherHadExtremeConditions = true // 🔥 IMPORTANTE: Establecer aquí también cuando aparece durante la ruta
                                 _shouldShowExtremeWarning.value = true
+                                
+                                // Detectar y guardar la causa específica si aún no está establecida
+                                val cause = detectExtremeCause(
+                                    windSpeed = weather.windSpeed,
+                                    windGusts = weather.windGusts,
+                                    temperature = weather.temperature,
+                                    uvIndex = weather.uvIndex,
+                                    isDay = weather.isDay,
+                                    weatherEmoji = weatherEmoji,
+                                    weatherDescription = weather.description,
+                                    weatherCode = weather.weatherCode,
+                                    visibility = weather.visibility
+                                )
+                                if (cause != null && weatherExtremeReason == null) {
+                                    // Guardar la primera causa detectada (la más grave por prioridad)
+                                    weatherExtremeReason = cause
+                                }
+                                
+                                Log.d(TAG, "⚠️ [Monitoreo continuo] Condiciones extremas detectadas: weatherHadExtremeConditions=true")
                             }
                             
                             // Lógica: solo actualizar si detecta lluvia nueva (para icono)

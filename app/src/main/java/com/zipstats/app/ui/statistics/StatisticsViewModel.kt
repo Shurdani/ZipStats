@@ -1301,41 +1301,28 @@ ${scooterTexts.joinToString("\n")}
         gpsRoutes.forEach { route ->
             val dist = route.totalDistance
 
-            // 1. LLUVIA: Solo contar si el badge está activo (weatherHadRain == true)
-            // Para rutas antiguas sin badge (null), recalcular como fallback
-            val hadRain = when (route.weatherHadRain) {
-                true -> true
-                false -> false
-                null -> isStrictRain(route) // Solo recalcular para rutas antiguas
-            }
+            // 1. LLUVIA: Solo leer el valor guardado (weatherHadRain == true)
+            // Si es null, tratar como false (no hubo lluvia)
+            val hadRain = route.weatherHadRain == true
             if (hadRain) {
                 rainKm += dist
             }
 
-            // 2. CALZADA MOJADA: Solo contar si el badge está activo (weatherHadWetRoad == true)
+            // 2. CALZADA MOJADA: Solo leer el valor guardado (weatherHadWetRoad == true)
             // IMPORTANTE: Calzada mojada y lluvia son excluyentes (si hay lluvia, no hay calzada mojada)
-            // Para rutas antiguas sin badge (null), recalcular como fallback
+            // Si es null, tratar como false (no hubo calzada mojada)
             val hasWetRoad = if (route.weatherHadRain == true) {
                 false // Si hay lluvia activa, no hay calzada mojada (excluyentes)
             } else {
-                when (route.weatherHadWetRoad) {
-                    true -> true
-                    false -> false
-                    null -> checkWetRoadConditions(route) // Solo recalcular para rutas antiguas
-                }
+                route.weatherHadWetRoad == true
             }
             if (hasWetRoad) {
                 wetRoadKm += dist
             }
 
-            // 3. CLIMA EXTREMO: Solo contar si el badge está activo (weatherHadExtremeConditions == true)
-            // No necesitamos saber qué causa específica lo disparó, solo si está activo
-            // Para rutas antiguas sin badge (null), recalcular como fallback
-            val hasExtreme = when (route.weatherHadExtremeConditions) {
-                true -> true
-                false -> false
-                null -> checkExtremeConditions(route) // Solo recalcular para rutas antiguas
-            }
+            // 3. CLIMA EXTREMO: Solo leer el valor guardado (weatherHadExtremeConditions == true)
+            // Si es null, tratar como false (no hubo condiciones extremas)
+            val hasExtreme = route.weatherHadExtremeConditions == true
             if (hasExtreme) {
                 extremeKm += dist
             }
@@ -1348,65 +1335,6 @@ ${scooterTexts.joinToString("\n")}
             gpsTotalDistance = gpsTotalDistance, // Distancia total de rutas GPS (para contexto)
             manualTotalDistance = manualTotalDistance // Distancia total de registros manuales (para contexto)
         )
-    }
-    
-    /**
-     * Verifica si hay condiciones extremas en la ruta (sin calcular la causa específica)
-     * ⚠️ SOLO para compatibilidad con rutas antiguas que no tienen weatherHadExtremeConditions
-     * 
-     * Para rutas nuevas, SIEMPRE usar route.weatherHadExtremeConditions directamente
-     */
-    private fun checkExtremeConditions(route: com.zipstats.app.model.Route): Boolean {
-        // Usar los mismos factores que TrackingScreen.kt (líneas 473-496)
-        // Viento fuerte (>40 km/h)
-        if (route.weatherWindSpeed != null && route.weatherWindSpeed > 40) {
-            return true
-        }
-        
-        // Ráfagas (>60 km/h)
-        if (route.weatherWindGusts != null && route.weatherWindGusts > 60) {
-            return true
-        }
-        
-        // Temperatura extrema (<0°C o >35°C)
-        if (route.weatherTemperature != null) {
-            if (route.weatherTemperature < 0 || route.weatherTemperature > 35) {
-                return true
-            }
-        }
-        
-        // UV alto (>8, solo de día)
-        if (route.weatherIsDay == true && route.weatherUvIndex != null && route.weatherUvIndex > 8) {
-            return true
-        }
-        
-        // Tormenta
-        val isStorm = route.weatherEmoji?.let { emoji ->
-            emoji.contains("⛈") || emoji.contains("⚡")
-        } ?: false
-        val isStormByDescription = route.weatherDescription?.let { desc ->
-            desc.contains("Tormenta", ignoreCase = true) ||
-            desc.contains("granizo", ignoreCase = true) ||
-            desc.contains("rayo", ignoreCase = true)
-        } ?: false
-        if (isStorm || isStormByDescription) {
-            return true
-        }
-        
-        // Nieve
-        val isSnow = route.weatherEmoji?.let { emoji ->
-            emoji.contains("❄️")
-        } ?: false
-        val isSnowByDescription = route.weatherDescription?.let { desc ->
-            desc.contains("Nieve", ignoreCase = true) ||
-            desc.contains("nevada", ignoreCase = true) ||
-            desc.contains("snow", ignoreCase = true)
-        } ?: false
-        if (isSnow || isSnowByDescription) {
-            return true
-        }
-        
-        return false
     }
     
     /**
@@ -1556,84 +1484,6 @@ ${scooterTexts.joinToString("\n")}
         return 1
     }
     
-    /**
-     * Verifica si realmente hubo lluvia activa durante la ruta
-     * 🔒 IMPORTANTE: Esta función garantiza que los umbrales sean idénticos entre preavisos y badges
-     * 
-     * Implementa el "Filtro de Corte Barcelona": 
-     * Solo considera lluvia activa si la precipitación es >= 0.15mm
-     * Esto evita falsos positivos por humedad alta en Barcelona.
-     */
-    private fun isStrictRain(route: com.zipstats.app.model.Route): Boolean {
-        val description = route.weatherDescription?.uppercase() ?: ""
-        val precip = route.weatherMaxPrecipitation ?: 0.0
-
-        // Condiciones que Google considera lluvia real
-        // Google usa visión artificial y radares para decidir si es "Lluvia" o solo "Nubes que gotean"
-        val rainTerms = listOf("LLUVIA", "RAIN", "CHUBASCO", "TORMENTA", "DRIZZLE", "LLOVIZNA", "THUNDERSTORM", "SHOWER")
-        
-        // Solo es "Ruta con Lluvia" si Google dice que llueve Y hay agua medible (>= 0.15mm)
-        // Esto evita falsos positivos cuando solo hay humedad alta (típico de Barcelona)
-        val isRainyCondition = rainTerms.any { description.contains(it) }
-        
-        return isRainyCondition && precip >= 0.15
-    }
-    
-    /**
-     * Verifica si hay condiciones de calzada mojada (SIN lluvia activa real).
-     * 🔒 IMPORTANTE: Esta función garantiza que los umbrales sean idénticos entre preavisos y badges
-     * 
-     * Implementa el "Filtro de Humedad Mediterránea" para Barcelona:
-     * - Detecta llovizna fina que no llega a ser lluvia activa (< 0.15mm pero > 0.0mm)
-     * - Detecta condensación por humedad extrema (típico de costa mediterránea)
-     * - Corrige datos guardados incorrectamente (si fue marcado como lluvia pero no hubo >= 0.15mm)
-     */
-    private fun checkWetRoadConditions(route: com.zipstats.app.model.Route): Boolean {
-        val savedAsRain = route.weatherHadRain == true
-        val isStrictRainResult = isStrictRain(route)
-        
-        // 1. EXCLUSIÓN: Si realmente llovió (precipitación >= 0.15mm), NO es calzada mojada (es lluvia real)
-        if (isStrictRainResult) {
-            return false
-        }
-        
-        // 2. Si fue guardado como lluvia pero NO hubo precipitación real (>= 0.15mm),
-        // se degrada a calzada mojada (esto corrige datos guardados incorrectamente)
-        if (savedAsRain && !isStrictRainResult) {
-            return true
-        }
-        
-        val precip = route.weatherMaxPrecipitation ?: 0.0
-        val humidity = route.weatherHumidity ?: 0
-        
-        // Lógica Pro para Barcelona:
-        val isVeryHumid = humidity > 88
-        val hadRecentTrace = precip > 0.0 && precip < 0.2
-        
-        // Caso A: Hay trazas de precipitación (0.0mm < precip < 0.2mm) con humedad muy alta
-        // Esto indica llovizna fina ("meona") que moja el suelo pero no es lluvia activa
-        val isDrizzling = hadRecentTrace && isVeryHumid
-        
-        // Caso B: No llueve, pero la humedad es tan alta (88%+) que el asfalto condensa
-        // En Barcelona, especialmente de noche, el asfalto puede estar mojado por rocío o humedad marina
-        // Usamos el emoji o descripción como indicador si está disponible
-        val weatherDesc = route.weatherDescription?.uppercase() ?: ""
-        val isCondensing = isVeryHumid && (
-            weatherDesc.contains("NUBLADO") || 
-            weatherDesc.contains("CLOUDY") ||
-            route.weatherEmoji == "☁️"
-        )
-        
-        // Caso C: Niebla con alta humedad también moja el suelo
-        val isFogWetting = isVeryHumid && (
-            weatherDesc.contains("NIEBLA") || 
-            weatherDesc.contains("FOG") ||
-            route.weatherEmoji == "🌫️"
-        )
-        
-        return isDrizzling || isCondensing || isFogWetting
-    }
-
     private fun Double.roundToOneDecimal(): Double {
         return (this * 10.0).roundToInt() / 10.0
     }
@@ -1682,44 +1532,31 @@ ${scooterTexts.joinToString("\n")}
             var extremeCount = 0
             
             filteredRoutes.forEach { route ->
-                // 🔥 LÓGICA: Confiar COMPLETAMENTE en los datos guardados durante el tracking
-                // No recalcular - usar solo lo que TrackingViewModel ya detectó y guardó
-                // Las funciones de recálculo solo se usan como fallback para rutas antiguas (null)
+                // 🔥 LÓGICA: Solo leer valores guardados, sin recalcular
+                // Si el valor es null, tratar como false (no hubo lluvia/calzada mojada/condiciones extremas)
                 
-                // Contar rutas con lluvia: confiar en weatherHadRain
-                // 🔥 CORRECCIÓN: Solo recalcular para rutas antiguas (null), no para rutas verificadas como false
-                val hadRain = when (route.weatherHadRain) {
-                    true -> true
-                    false -> false
-                    null -> isStrictRain(route) // Solo recalcular para rutas antiguas
-                }
+                // Contar rutas con lluvia: solo leer valor guardado
+                // Si es null, tratar como false (no hubo lluvia)
+                val hadRain = route.weatherHadRain == true
                 if (hadRain) {
                     rainCount++
                 }
                 
-                // Contar rutas con calzada mojada: confiar en weatherHadWetRoad
-                // 🔥 CORRECCIÓN: Solo recalcular para rutas antiguas (null), no para rutas verificadas como false
+                // Contar rutas con calzada mojada: solo leer valor guardado
                 // IMPORTANTE: Calzada mojada y lluvia son excluyentes (si hay lluvia, no hay calzada mojada)
+                // Si es null, tratar como false (no hubo calzada mojada)
                 val hasWetRoad = if (route.weatherHadRain == true) {
                     false // Si hay lluvia activa, no hay calzada mojada (excluyentes)
                 } else {
-                    when (route.weatherHadWetRoad) {
-                        true -> true
-                        false -> false
-                        null -> checkWetRoadConditions(route) // Solo recalcular para rutas antiguas
-                    }
+                    route.weatherHadWetRoad == true
                 }
                 if (hasWetRoad) {
                     wetRoadCount++
                 }
                 
-                // Contar rutas con condiciones extremas: confiar en weatherHadExtremeConditions
-                // 🔥 CORRECCIÓN: Solo recalcular para rutas antiguas (null), no para rutas verificadas como false
-                val hasExtreme = when (route.weatherHadExtremeConditions) {
-                    true -> true
-                    false -> false
-                    null -> checkExtremeConditions(route) // Solo recalcular para rutas antiguas
-                }
+                // Contar rutas con condiciones extremas: solo leer valor guardado
+                // Si es null, tratar como false (no hubo condiciones extremas)
+                val hasExtreme = route.weatherHadExtremeConditions == true
                 if (hasExtreme) {
                     extremeCount++
                 }

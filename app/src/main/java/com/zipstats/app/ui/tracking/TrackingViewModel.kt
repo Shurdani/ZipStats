@@ -537,14 +537,8 @@ class TrackingViewModel @Inject constructor(
                         visibility = weather.visibility
                     )
                     
-                    // Detectar si hay lluvia usando condición de Google directamente
-                    val (isRaining, _, rainUserReason) = isRainingForScooter(
-                        condition = condition,
-                        precipitation = weather.precipitation
-                    )
-                    
                     // Determinar si es lluvia activa usando condición y descripción de Google
-                    val isActiveRain = checkActiveRain(
+                    val (isActiveRain, rainUserReason) = checkActiveRain(
                         condition = condition,
                         description = weatherDescription,
                         precipitation = weather.precipitation
@@ -847,90 +841,52 @@ class TrackingViewModel @Inject constructor(
     }
     
     /**
-     * Detecta si está lloviendo efectivamente para patinete
-     * Usa las condiciones de Google Weather API directamente (más confiables que códigos WMO)
-     * Devuelve: (isRaining, reasonCode, userFriendlyReason)
-     */
-    private fun isRainingForScooter(
-        condition: String, // Condition string de Google (ej: "RAIN", "LIGHT_RAIN", "CLEAR")
-        precipitation: Double
-    ): Triple<Boolean, String, String> {
-        val cond = condition.uppercase()
-
-        // 1️⃣ PRIORIDAD ABSOLUTA: Confirmación directa de Google
-        // Google usa IA para filtrar radares, así que si dice RAIN, es porque realmente está lloviendo
-        if (cond.contains("RAIN") || cond.contains("THUNDERSTORM")) {
-            return Triple(true, "GOOGLE_CONFIRMED", "Lluvia confirmada por Google Weather")
-        }
-
-        // 2️⃣ SEGURIDAD: Si Google no dice lluvia pero los sensores detectan > 0.4 mm
-        // Esto es un "seguro de vida" por si la API de Google tarda unos minutos en actualizarse
-        // cuando empieza a llover de golpe
-        if (precipitation >= 0.4) {
-            return Triple(true, "SENSORS_CONFIRMED", "Lluvia detectada por sensores (${LocationUtils.formatNumberSpanish(precipitation)} mm)")
-        }
-
-        // 3️⃣ Si no, NO es lluvia activa (podría ser calzada mojada, pero no lluvia activa)
-        return Triple(false, "NONE", "No se detectó lluvia")
-    }
-
-    /**
-     * Determina si hay lluvia activa usando condiciones y descripción de Google
-     * 🔒 IMPORTANTE: Esta función garantiza que los umbrales sean idénticos entre preavisos y badges
+     * Determina si hay lluvia activa confiando completamente en Google Weather
      * 
-     * Google usa visión artificial y radares para decidir si es "Lluvia" o solo "Nubes que gotean".
-     * Al filtrar por descripción + condición + precipitación, la app tiene un comportamiento más humano.
+     * Si Google dice que hay lluvia (en descripción o condición), activamos el badge/preaviso.
+     * No importa si es ligera o intensa - confiamos en la decisión de Google.
      * 
-     * Implementa el "Filtro de Corte Barcelona": 
-     * Solo es lluvia real si Google describe lluvia Y hay suficiente precipitación (>= 0.15mm).
-     * Esto evita falsos positivos por humedad alta en Barcelona.
+     * @return Pair<Boolean, String> donde el Boolean indica si hay lluvia activa y el String es la razón amigable para el usuario
      */
     private fun checkActiveRain(
         condition: String, // Condition string de Google (ej: "RAIN", "CLOUDY")
         description: String, // Descripción de Google (ej: "Lluvia", "Nublado")
         precipitation: Double
-    ): Boolean {
+    ): Pair<Boolean, String> {
         val cond = condition.uppercase()
         val desc = description.uppercase()
         
-        // Condiciones que Google considera lluvia real
+        // Términos que indican lluvia en la descripción de Google
         val rainTerms = listOf("LLUVIA", "RAIN", "CHUBASCO", "TORMENTA", "DRIZZLE", "LLOVIZNA", "THUNDERSTORM", "SHOWER")
-        val rainConditions = listOf("RAIN", "LIGHT_RAIN", "THUNDERSTORM", "DRIZZLE", "HEAVY_RAIN")
         
-        // Condiciones de lluvia intensa que siempre indican lluvia activa, incluso con precip < 0.15mm
-        // (puede ser un timing issue de la API o la lluvia acaba de empezar)
-        val heavyRainConditions = listOf("HEAVY_RAIN", "THUNDERSTORM")
-        val heavyRainTerms = listOf("FUERTE INTENSIDAD", "INTENSA", "HEAVY", "THUNDERSTORM")
+        // Condiciones de Google que indican lluvia
+        val rainConditions = listOf("RAIN", "LIGHT_RAIN", "HEAVY_RAIN", "THUNDERSTORM", "DRIZZLE", 
+                                    "LIGHT_RAIN_SHOWERS", "RAIN_SHOWERS", "HEAVY_RAIN_SHOWERS",
+                                    "CHANCE_OF_SHOWERS", "SCATTERED_SHOWERS")
         
-        // Verificar si Google describe lluvia intensa (en descripción O condición)
-        val isHeavyRainCondition = heavyRainConditions.any { cond.contains(it) } ||
-                                   heavyRainTerms.any { desc.contains(it) }
-        
-        // Si es lluvia intensa según Google, confiar en su palabra aunque precip < 0.15mm
-        if (isHeavyRainCondition) {
-            return true
+        // Si la condición contiene lluvia, es lluvia activa
+        if (rainConditions.any { cond.contains(it) }) {
+            return true to "Lluvia detectada por Google Weather"
         }
         
-        // Para lluvia normal, verificar condición Y precipitación suficiente
-        val isRainyCondition = rainConditions.any { cond.contains(it) } || 
-                               rainTerms.any { desc.contains(it) }
+        // Si la descripción menciona lluvia, es lluvia activa (incluso si es débil)
+        if (rainTerms.any { desc.contains(it) }) {
+            return true to "Lluvia detectada por Google Weather"
+        }
         
-        // Solo es lluvia activa si Google dice que llueve Y hay suficiente precipitación (>= 0.15mm)
-        val isHeavyEnough = precipitation >= 0.15
-        
-        return isRainyCondition && isHeavyEnough
+        // Si no hay indicación de lluvia en Google, no es lluvia activa
+        // (podría ser calzada mojada si ha parado de llover o hay mucha humedad)
+        return false to "No se detectó lluvia"
     }
     
     /**
-     * Verifica si hay calzada mojada usando condiciones de Google
-     * 🔒 IMPORTANTE: Esta función garantiza que los umbrales sean idénticos entre preavisos y badges
+     * Verifica si hay calzada mojada cuando NO hay lluvia activa
      * 
-     * Implementa el "Filtro de Humedad Mediterránea" para Barcelona:
-     * - Detecta llovizna fina (drizzling) que no llega a ser lluvia activa
-     * - Detecta condensación por humedad extrema (típico de costa mediterránea)
+     * Se activa en dos casos:
+     * 1. Histéresis: Ha parado de llover hace poco (<30 min) y la humedad sigue alta (>75%)
+     * 2. Alta humedad: No llueve pero hay mucha humedad (88%+) que condensa en el asfalto
      * 
-     * Incluye HISTÉRESIS: El aviso persiste 30 minutos después de que deje de llover
-     * si la humedad sigue alta (>75%), ya que en Barcelona el asfalto tarda en secarse.
+     * IMPORTANTE: Si hay lluvia activa (detectada por checkActiveRain), esta función siempre retorna false
      */
     private fun checkWetRoadConditions(
         condition: String, // Condition string de Google
@@ -941,80 +897,49 @@ class TrackingViewModel @Inject constructor(
         weatherDescription: String? = null
     ): Boolean {
         val currentTime = System.currentTimeMillis()
-        val cond = condition.uppercase()
         
-        // 1. EXCLUSIÓN: Si hay lluvia activa, NO mostramos "Calzada Mojada"
+        // 1. EXCLUSIÓN ABSOLUTA: Si hay lluvia activa, NO mostramos "Calzada Mojada"
+        // La lluvia activa tiene prioridad sobre calzada húmeda
         if (hasActiveRain) {
-            // Pero actualizamos el timestamp por si luego deja de llover
+            // Actualizar timestamp para histéresis cuando pare de llover
             _lastWetConditionTimestamp = currentTime
             return false
         }
         
-        // 2. Detección instantánea (lo que pasa ahora mismo)
+        // 2. Detección de alta humedad que condensa en el asfalto (Barcelona - humedad mediterránea)
         val isVeryHumid = humidity > 88
-        val hadRecentTrace = precipitation > 0.0 && precipitation < 0.2
+        val cond = condition.uppercase()
         
-        // Caso A: Está cayendo esa "meona" (gotitas) que no llega a ser lluvia
-        val isDrizzling = cond == "DRIZZLE" || (hadRecentTrace && isVeryHumid)
+        // Caso A: Humedad muy alta (88%+) con cielo nublado/niebla → condensa en asfalto
+        val isCondensing = isVeryHumid && (cond == "CLOUDY" || cond == "MOSTLY_CLOUDY" || cond == "FOG")
         
-        // Caso B: No llueve, pero la humedad es tan alta (88%+) que el asfalto condensa
-        val isCondensing = isVeryHumid && (cond == "CLOUDY" || cond == "MOSTLY_CLOUDY")
+        // Caso B: Humedad extrema (90%+) siempre indica suelo mojado
+        val isExtremelyHumid = humidity > 90
         
-        // Caso C: Niebla con alta humedad también moja el suelo
-        val isFogWetting = isVeryHumid && cond == "FOG"
-        
-        // Caso D: Nieve o aguanieve siempre moja el suelo (independientemente de la humedad)
-        // 🔥 NUEVO: La nieve/aguanieve activa el preaviso de calzada húmeda incluso sin humedad alta
+        // Caso C: Nieve o aguanieve siempre moja el suelo (si no hay lluvia activa)
+        val weatherDesc = weatherDescription?.uppercase() ?: ""
         val isSnowByCondition = cond == "SNOW" || cond == "SLEET" || cond.contains("SNOW") || cond.contains("SLEET")
         val isSnowByEmoji = weatherEmoji?.let { emoji ->
             emoji.contains("❄️") || emoji.contains("🥶")
         } ?: false
-        val weatherDesc = weatherDescription?.uppercase() ?: ""
         val isSnowByDescription = weatherDesc.contains("NIEVE") || 
                                   weatherDesc.contains("SNOW") ||
                                   weatherDesc.contains("AGUANIEVE") ||
-                                  weatherDesc.contains("SLEET") ||
-                                  (weatherDesc.contains("CHUBASCO") && weatherDesc.contains("NIEVE"))
+                                  weatherDesc.contains("SLEET")
         
         val hasSnowOrSleet = isSnowByCondition || isSnowByEmoji || isSnowByDescription
         
-        val isCurrentlyWet = isDrizzling || isCondensing || isFogWetting || 
-                             (precipitation > 0.0) || 
-                             (humidity > 90) || // Humedad muy alta siempre indica suelo mojado
-                             hasSnowOrSleet // Nieve/aguanieve siempre moja el suelo
+        // Si hay condiciones mojadas actuales (sin lluvia activa), actualizar timestamp y retornar true
+        val isCurrentlyWet = isCondensing || isExtremelyHumid || hasSnowOrSleet
         
-        // 3. Si detectamos que está mojado ahora, actualizamos el "reloj"
         if (isCurrentlyWet) {
             _lastWetConditionTimestamp = currentTime
             return true
         }
         
-        // 4. Lógica de persistencia (Histéresis)
-        // 🔥 IMPORTANTE: La histéresis NO puede prevalecer sobre el clima capturado actualmente
-        // Si el emoji o descripción indica lluvia (incluso ligera), NO usar histéresis
-        // La histéresis solo se aplica para condiciones mojadas SIN lluvia (condensación, humedad alta, etc.)
-        val rainTerms = listOf("LLUVIA", "RAIN", "CHUBASCO", "TORMENTA", "DRIZZLE", "LLOVIZNA", "THUNDERSTORM", "SHOWER")
-        val hasRainEmoji = weatherEmoji?.let { emoji ->
-            emoji.contains("🌧️") || emoji.contains("🌦️") || emoji.contains("⚡") || emoji.contains("⛈️")
-        } ?: false
-        val hasRainDescription = rainTerms.any { weatherDesc.contains(it) }
-        val hasRainIndicator = hasRainEmoji || hasRainDescription
-        
-        // Si hay indicadores de lluvia en el clima actual, NO usar histéresis (priorizar el clima actual)
-        if (hasRainIndicator) {
-            // Limpiar timestamp de histéresis si el clima actual indica lluvia
-            // Esto asegura que no se active calzada mojada por histéresis cuando hay lluvia
-            _lastWetConditionTimestamp = 0L
-            Log.d(TAG, "🌧️ [checkWetRoadConditions] Indicadores de lluvia detectados (emoji=$hasRainEmoji, desc=$hasRainDescription) - NO usar histéresis")
-            return false
-        }
-        
-        // Si no hay indicadores de lluvia, aplicar histéresis solo para condiciones mojadas SIN lluvia
-        // Si no está mojado ahora, ¿hace menos de 30 min que lo estaba?
+        // 3. HISTÉRESIS: Si ha parado de llover hace poco (<30 min) y la humedad sigue alta (>75%)
+        // El asfalto en Barcelona tarda en secarse con alta humedad
         val wasRecentlyWet = (currentTime - _lastWetConditionTimestamp) < WET_ROAD_PERSISTENCE
-        
-        // 5. Factor de secado (Barcelona): 
-        // Si la humedad baja del 75%, el suelo se seca rápido. Si sigue alta, mantenemos el aviso.
         val isAirStillDamp = humidity > 75
         
         return wasRecentlyWet && isAirStillDamp
@@ -1261,24 +1186,36 @@ class TrackingViewModel @Inject constructor(
                         result.onSuccess { weather ->
                             Log.d(TAG, "✅ [Monitoreo continuo] Clima obtenido: ${weather.temperature}°C, condición=${weather.icon}, precip=${weather.precipitation}mm, humedad=${weather.humidity}%")
                             
+                            // 🔥 IMPORTANTE: Actualizar weatherStatus SIEMPRE con el clima nuevo para que la UI se actualice
+                            // (temperatura, icono, viento) independientemente de si hay lluvia o no
+                            val currentStatus = _weatherStatus.value
+                            if (currentStatus is WeatherStatus.Success) {
+                                _weatherStatus.value = currentStatus.copy(
+                                    temperature = weather.temperature,
+                                    weatherEmoji = weather.weatherEmoji,
+                                    weatherCode = weather.weatherCode,
+                                    icon = weather.icon, // Condition string de Google
+                                    windSpeed = weather.windSpeed,
+                                    windDirection = weather.windDirection,
+                                    isDay = weather.isDay,
+                                    description = weather.description // Actualizar descripción también
+                                    // No actualizar: feelsLike, humidity, windGusts, uvIndex
+                                    // porque no se muestran en la tarjeta y al finalizar se guardan los datos del inicio
+                                )
+                            }
+                            
                             // Google Weather API ya devuelve condiciones efectivas
                             val condition = weather.icon.uppercase()
                             val weatherDescription = weather.description // Descripción de Google
                             
-                            // Detectar lluvia usando condición de Google directamente
-                            val (isRaining, _, rainUserReason) = isRainingForScooter(
-                                condition = condition,
-                                precipitation = weather.precipitation
-                            )
-                            
                             // Determinar si es lluvia activa usando condición y descripción de Google
-                            val isActiveRain = checkActiveRain(
+                            val (isActiveRain, rainUserReason) = checkActiveRain(
                                 condition = condition,
                                 description = weatherDescription,
                                 precipitation = weather.precipitation
                             )
                             
-                            Log.d(TAG, "🔍 [Monitoreo continuo] Detección: isRaining=$isRaining, isActiveRain=$isActiveRain, razón=$rainUserReason")
+                            Log.d(TAG, "🔍 [Monitoreo continuo] Detección: isActiveRain=$isActiveRain, razón=$rainUserReason")
                             
                             // Obtener emoji directamente de Google (ya viene correcto)
                             val weatherEmoji = weather.weatherEmoji
@@ -1416,7 +1353,7 @@ class TrackingViewModel @Inject constructor(
                             
                             // Lógica: solo actualizar si detecta lluvia nueva (para icono)
                             // Si ya había lluvia y ahora no, mantener el icono de lluvia
-                            if (isRaining) {
+                            if (isActiveRain) {
                                 if (!weatherHadRain) {
                                     // Nueva lluvia detectada - requiere confirmación (2 chequeos seguidos)
                                     if (pendingRainConfirmation && pendingRainMinute != null) {
@@ -1432,23 +1369,8 @@ class TrackingViewModel @Inject constructor(
                                         _shouldShowRainWarning.value = true
                                         _isActiveRainWarning.value = true
                                         
-                                        // Actualizar solo los campos visibles en la tarjeta de clima durante tracking
-                                        // (icono, temperatura, viento y dirección) ya que al finalizar se guardan los datos del inicio
-                                        // Google ya devuelve emoji y condición correctos, no necesitamos procesarlos
-                                        val currentStatus = _weatherStatus.value
-                                        if (currentStatus is WeatherStatus.Success) {
-                                            _weatherStatus.value = currentStatus.copy(
-                                                temperature = weather.temperature,
-                                                weatherEmoji = weather.weatherEmoji,
-                                                weatherCode = weather.weatherCode,
-                                                icon = weather.icon, // Condition string de Google
-                                                windSpeed = weather.windSpeed,
-                                                windDirection = weather.windDirection,
-                                                isDay = weather.isDay
-                                                // No actualizar: feelsLike, humidity, windGusts, uvIndex, description
-                                                // porque no se muestran en la tarjeta y al finalizar se guardan los datos del inicio
-                                            )
-                                        }
+                                        // Nota: weatherStatus ya se actualizó arriba al obtener el clima nuevo
+                                        // No es necesario actualizarlo aquí de nuevo
                                         
                                         // Limpiar confirmación pendiente
                                         pendingRainConfirmation = false
@@ -1523,14 +1445,8 @@ class TrackingViewModel @Inject constructor(
             val weatherEmoji = snapshot.weatherEmoji
             val weatherDescription = snapshot.description // Ya viene en español de Google
             
-            // Detectar lluvia usando condición de Google directamente
-            val (isRaining, _, rainUserReason) = isRainingForScooter(
-                condition = condition,
-                precipitation = snapshot.precipitation
-            )
-            
-            // Determinar si es lluvia activa
-            val isActiveRain = checkActiveRain(
+            // Determinar si es lluvia activa usando condición y descripción de Google
+            val (isActiveRain, rainUserReason) = checkActiveRain(
                 condition = condition,
                 description = weatherDescription,
                 precipitation = snapshot.precipitation
@@ -1582,7 +1498,7 @@ class TrackingViewModel @Inject constructor(
                 Log.d(TAG, "⚠️ [Precarga inicial] Estado actualizado: weatherHadExtremeConditions=true")
             }
             
-            if (isRaining) {
+            if (isActiveRain) {
                 if (!weatherHadRain) {
                     weatherHadRain = true
                     weatherRainStartMinute = 0 // Al inicio de la ruta
@@ -1755,14 +1671,8 @@ class TrackingViewModel @Inject constructor(
                             return@onSuccess
                         }
                         
-                        // Detectar lluvia usando condición de Google directamente
-                        val (isRaining, _, rainUserReason) = isRainingForScooter(
-                            condition = condition,
-                            precipitation = weather.precipitation
-                        )
-                        
-                        // Determinar si es lluvia activa
-                        val isActiveRain = checkActiveRain(
+                        // Determinar si es lluvia activa usando condición y descripción de Google
+                        val (isActiveRain, rainUserReason) = checkActiveRain(
                             condition = condition,
                             description = weatherDescription,
                             precipitation = weather.precipitation
@@ -1808,7 +1718,7 @@ class TrackingViewModel @Inject constructor(
                             _shouldShowExtremeWarning.value = true
                         }
                         
-                        if (isRaining) {
+                        if (isActiveRain) {
                             if (!weatherHadRain) {
                                 weatherHadRain = true
                                 weatherRainStartMinute = 0 // Al inicio de la ruta
@@ -1968,13 +1878,14 @@ class TrackingViewModel @Inject constructor(
                         return@launch
                     }
                     
-                    // Detectar lluvia usando condición de Google directamente
-                    val (isRaining, _, rainUserReason) = isRainingForScooter(
+                    // Determinar si es lluvia activa usando condición y descripción de Google
+                    val (isActiveRain, rainUserReason) = checkActiveRain(
                         condition = condition,
+                        description = weatherDescription,
                         precipitation = weather.precipitation
                     )
                     
-                    if (isRaining) {
+                    if (isActiveRain) {
                         if (!weatherHadRain) {
                             weatherHadRain = true
                             // Calcular minutos transcurridos desde el inicio
@@ -2256,13 +2167,14 @@ class TrackingViewModel @Inject constructor(
                                     savedDewPoint = weather.dewPoint
                                     hasValidWeather = true
                                     
-                                    // Detectar lluvia usando condición de Google directamente
-                                    val (isRaining, _, rainUserReason) = isRainingForScooter(
+                                    // Determinar si es lluvia activa usando condición y descripción de Google
+                                    val (isActiveRain, rainUserReason) = checkActiveRain(
                                         condition = condition,
+                                        description = weatherDescription,
                                         precipitation = weather.precipitation
                                     )
                                     
-                                    if (isRaining) {
+                                    if (isActiveRain) {
                                         if (!weatherHadRain) {
                                             weatherHadRain = true
                                             // Calcular minutos transcurridos desde el inicio

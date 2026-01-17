@@ -71,8 +71,9 @@ class WeatherRepository @Inject constructor(
          * Mapea condiciones de Google Weather API a códigos WMO antiguos
          * para mantener compatibilidad con el código existente
          * 
-         * Incluye el "Filtro de Corte Barcelona": LIGHT_RAIN con <0.15mm
-         * se tratan como nublado para evitar iconos de lluvia falsos
+         * Nota: Las condiciones explícitas de lluvia (DRIZZLE, LIGHT_RAIN, etc.)
+         * siempre muestran icono de lluvia, independientemente de la precipitación,
+         * ya que si la API indica lluvia, debe mostrarse como tal.
          */
         private fun mapConditionToOldCode(condition: String, precipitation: Double = 0.0): Int {
             return when (condition.uppercase()) {
@@ -85,15 +86,11 @@ class WeatherRepository @Inject constructor(
                 "WINDY" -> 4 // Viento fuerte (código personalizado para usar drawable windy)
                 "WIND_AND_RAIN" -> 63 // Lluvia con viento
                 // Lluvias intermitentes (showers)
-                "LIGHT_RAIN_SHOWERS", "CHANCE_OF_SHOWERS", "SCATTERED_SHOWERS" -> {
-                    if (precipitation < 0.15) 3 else 80 // Chubascos leves
-                }
+                "LIGHT_RAIN_SHOWERS", "CHANCE_OF_SHOWERS", "SCATTERED_SHOWERS" -> 80 // Chubascos leves - siempre usar icono de lluvia
                 "RAIN_SHOWERS" -> 81 // Chubascos moderados
                 "HEAVY_RAIN_SHOWERS" -> 82 // Chubascos violentos
                 // Lluvias continuas
-                "LIGHT_TO_MODERATE_RAIN", "LIGHT_RAIN" -> {
-                    if (precipitation < 0.15) 3 else 61 // Lluvia ligera
-                }
+                "LIGHT_TO_MODERATE_RAIN", "LIGHT_RAIN" -> 61 // Lluvia ligera - siempre usar icono de lluvia
                 "MODERATE_TO_HEAVY_RAIN", "RAIN" -> 63 // Lluvia moderada
                 "HEAVY_RAIN" -> 65 // Lluvia fuerte
                 "RAIN_PERIODICALLY_HEAVY" -> 65 // Lluvia fuerte intermitente
@@ -105,9 +102,9 @@ class WeatherRepository @Inject constructor(
                 "LIGHT_TO_MODERATE_SNOW", "LIGHT_SNOW" -> 71 // Nevada ligera
                 "MODERATE_TO_HEAVY_SNOW", "SNOW" -> 73 // Nevada moderada
                 "HEAVY_SNOW" -> 75 // Nevada fuerte
-                "SNOWSTORM" -> 95 // Tormenta de nieve (similar a tormenta eléctrica)
+                "SNOWSTORM" -> 75 // Tormenta de nieve - usar código de nieve fuerte
                 "SNOW_PERIODICALLY_HEAVY" -> 75 // Nevada fuerte intermitente
-                "HEAVY_SNOW_STORM" -> 96 // Tormenta de nieve intensa
+                "HEAVY_SNOW_STORM" -> 86 // Tormenta de nieve intensa - usar código de chubascos de nieve fuertes
                 "BLOWING_SNOW" -> 75 // Nieve con viento
                 "RAIN_AND_SNOW" -> 66 // Mezcla de lluvia y nieve (lluvia helada)
                 // Granizo
@@ -120,9 +117,7 @@ class WeatherRepository @Inject constructor(
                 "SCATTERED_THUNDERSTORMS" -> 95
                 "HEAVY_THUNDERSTORM" -> 96
                 // Condiciones legacy (compatibilidad)
-                "DRIZZLE" -> {
-                    if (precipitation < 0.15) 3 else 51 // Llovizna
-                }
+                "DRIZZLE" -> 51 // Llovizna - siempre usar icono de lluvia, aunque sea ligera
                 "THUNDERSTORM_WITH_HAIL" -> 96
                 "ICE", "FREEZING_RAIN" -> 66
                 else -> 0 // Default a despejado
@@ -317,16 +312,18 @@ class WeatherRepository @Inject constructor(
                 3 -> R.drawable.cloud
                 4 -> R.drawable.windy // Viento fuerte
                 45, 48 -> R.drawable.foggy
-                51, 53, 61 -> R.drawable.rainy
+                51, 53 -> R.drawable.rainy_light // Llovizna (ligera y moderada) - usar icono de lluvia ligera
+                55 -> R.drawable.rainy_light // Llovizna densa - sigue siendo llovizna, no lluvia fuerte
+                61 -> R.drawable.rainy // Lluvia ligera
                 80 -> R.drawable.rainy_light // Chubascos leves (LIGHT_RAIN_SHOWERS, CHANCE_OF_SHOWERS, SCATTERED_SHOWERS)
-                55, 63, 65, 81, 82 -> R.drawable.rainy_heavy // Lluvias moderadas a fuertes y chubascos intensos
-                56, 57 -> R.drawable.rainy_snow
+                63, 65, 81, 82 -> R.drawable.rainy_heavy // Lluvias moderadas a fuertes y chubascos intensos
+                56, 57 -> R.drawable.rainy_snow // Llovizna helada
                 66 -> R.drawable.weather_mix // Mezcla de lluvia y nieve
-                67 -> R.drawable.sleet_hail
+                67 -> R.drawable.rainy_snow // Lluvia helada - similar a llovizna helada, lluvia que se congela
                 71, 73, 75, 77 -> R.drawable.snowing // Nieve normal y con viento
-                85 -> R.drawable.ac_unit // Chubascos de nieve (LIGHT_SNOW_SHOWERS, CHANCE_OF_SNOW_SHOWERS, SCATTERED_SNOW_SHOWERS, SNOW_SHOWERS)
+                85 -> R.drawable.snowing // Chubascos de nieve (LIGHT_SNOW_SHOWERS, CHANCE_OF_SNOW_SHOWERS, SCATTERED_SNOW_SHOWERS, SNOW_SHOWERS) - usar icono de nieve consistente
                 86 -> R.drawable.snowing_heavy // Chubascos de nieve intensos (HEAVY_SNOW_SHOWERS)
-                95 -> R.drawable.thunderstorm // Tormentas eléctricas y tormentas de nieve
+                95 -> R.drawable.thunderstorm // Tormentas eléctricas
                 96, 99 -> R.drawable.hail
                 else -> R.drawable.help_outline
             }
@@ -593,7 +590,7 @@ class WeatherRepository @Inject constructor(
         }
         
         // Mapear condición de Google a código WMO antiguo para compatibilidad
-        // Pasamos precipitation para aplicar el "Filtro de Corte Barcelona"
+        // (precipitation se pasa por compatibilidad, pero ya no se usa para filtrar)
         val weatherCode = mapConditionToOldCode(condition, precipitation)
         
         // Obtener emoji desde la condición de Google

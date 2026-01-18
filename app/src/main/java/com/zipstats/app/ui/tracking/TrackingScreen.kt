@@ -481,9 +481,9 @@ fun PreRideSmartWarning(
         mutableListOf<String>().apply {
             if (shouldShowRainWarning) {
                 if (isActiveRainWarning) {
-                    add("🔵 Lluvia detectada")
+                    add("🔵 Lluvia")
                 } else {
-                    add("🟡 Calzada húmeda")
+                    add("🟡 Posible calzada mojada")
                 }
             }
             if (extremeBadgeText != null) {
@@ -1203,19 +1203,20 @@ fun TrackingWeatherCard(
     val weatherClickInteractionSource = remember { MutableInteractionSource() }
     // Los iconos de preaviso solo se muestran DURANTE el tracking activo
     // El estado se guarda en el ViewModel (como el clima), así que se restaura automáticamente
-    val preWarningEmoji = remember(shouldShowRainWarning, isActiveRainWarning, shouldShowExtremeWarning, isTracking) {
-        if (isTracking) {
-            when {
-                // Prioridad 1: Lluvia activa
-                shouldShowRainWarning && isActiveRainWarning -> "🔵"
-                // Prioridad 2: Calzada húmeda (sin lluvia activa)
-                shouldShowRainWarning -> "🟡"
-                // Prioridad 3: Condiciones extremas
-                shouldShowExtremeWarning -> "⚠️"
-                else -> null
-            }
-        } else {
+    val preWarningEmojiText = remember(shouldShowRainWarning, isActiveRainWarning, shouldShowExtremeWarning, isTracking) {
+        if (!isTracking) {
             null
+        } else {
+            buildString {
+                // Badge principal (lluvia o calzada mojada). Son excluyentes por lógica de ViewModel.
+                if (shouldShowRainWarning) {
+                    append(if (isActiveRainWarning) "🔵" else "🟡")
+                }
+                // Badge complementario: condiciones extremas (puede coexistir)
+                if (shouldShowExtremeWarning) {
+                    append("⚠️")
+                }
+            }.ifBlank { null }
         }
     }
     AnimatedVisibility(
@@ -1244,17 +1245,14 @@ fun TrackingWeatherCard(
                         ZipStatsText("Cargando clima...", style = MaterialTheme.typography.bodyMedium)
                     }
                     is WeatherStatus.Success -> {
-                        if (preWarningEmoji != null) {
-                            Box(
-                                modifier = Modifier.size(32.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                ZipStatsText(
-                                    text = preWarningEmoji,
-                                    style = MaterialTheme.typography.titleLarge
-                                )
-                            }
-                            Spacer(modifier = Modifier.width(8.dp))
+                        if (preWarningEmojiText != null) {
+                            // Importante: usar un único "slot" para evitar que el Row se quede sin espacio
+                            // y termine recortando uno de los iconos cuando hay 2 badges activos.
+                            ZipStatsText(
+                                text = preWarningEmojiText,
+                                style = MaterialTheme.typography.titleLarge,
+                                modifier = Modifier.padding(end = 8.dp)
+                            )
                         }
                         // Nota: usamos el helper que acepta nulo para seguridad
                         Image(

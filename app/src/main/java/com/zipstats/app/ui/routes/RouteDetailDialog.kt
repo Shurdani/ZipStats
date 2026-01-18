@@ -784,8 +784,8 @@ fun SafetyBadgesSection(route: Route) {
                 ) {
                     val badges = remember(hadRain, hasWetRoad, extremeBadgeText) {
                         mutableListOf<String>().apply {
-                            if (hadRain) add("🔵 Trayecto con lluvia")
-                            if (hasWetRoad) add("🟡 Calzada húmeda")
+                            if (hadRain) add("🔵 Ruta con lluvia")
+                            if (hasWetRoad) add("🟡 Ruta con calzada mojada")
                             if (extremeBadgeText != null) add(extremeBadgeText)
                         }
                     }
@@ -810,8 +810,8 @@ fun SafetyBadgesSection(route: Route) {
         } else {
             // Si hay solo 1 badge, mostrar tarjeta individual
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (hadRain) SafetyBadge("🔵 Trayecto con lluvia")
-                if (hasWetRoad) SafetyBadge("🟡 Calzada húmeda")
+                if (hadRain) SafetyBadge("🔵 Ruta con lluvia")
+                if (hasWetRoad) SafetyBadge("🟡 Ruta con calzada mojada")
                 if (extremeBadgeText != null) SafetyBadge(extremeBadgeText)
             }
         }
@@ -1305,8 +1305,8 @@ private fun WeatherInfoDialog(route: Route, onDismiss: () -> Unit) {
                                 ) {
                                     val badges = remember(hadRain, hasWetRoad, extremeBadgeText) {
                                         mutableListOf<String>().apply {
-                                            if (hadRain) add("🔵 Trayecto con lluvia")
-                                            if (hasWetRoad) add("🟡 Calzada húmeda")
+                                            if (hadRain) add("🔵 Ruta con lluvia")
+                                            if (hasWetRoad) add("🟡 Ruta con calzada mojada")
                                             if (extremeBadgeText != null) add(extremeBadgeText)
                                         }
                                     }
@@ -1332,10 +1332,10 @@ private fun WeatherInfoDialog(route: Route, onDismiss: () -> Unit) {
                             // Si hay solo 1 badge, mostrar tarjeta individual
                             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                 if (hadRain) {
-                                    SafetyBadge(text = "🔵 Trayecto con lluvia")
+                                    SafetyBadge(text = "🔵 Ruta con lluvia")
                                 }
                                 if (hasWetRoad) {
-                                    SafetyBadge(text = "🟡 Calzada húmeda")
+                                    SafetyBadge(text = "🟡 Ruta con calzada mojada")
                                 }
                                 if (extremeBadgeText != null) {
                                     SafetyBadge(text = extremeBadgeText)

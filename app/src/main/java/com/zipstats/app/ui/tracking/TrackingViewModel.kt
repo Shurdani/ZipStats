@@ -200,13 +200,8 @@ class TrackingViewModel @Inject constructor(
     private val _shouldShowExtremeWarning = MutableStateFlow(false)
     val shouldShowExtremeWarning: StateFlow<Boolean> = _shouldShowExtremeWarning.asStateFlow()
     
-    // Histéresis para calzada mojada: guarda el timestamp de la última vez que hubo condiciones mojadas
-    // Esto evita que el aviso desaparezca inmediatamente cuando deja de llover, ya que en Barcelona
-    // con alta humedad (97%), el asfalto tarda mucho en secarse
-    private var _lastWetConditionTimestamp: Long = 0L
-    
-    // Tiempo de persistencia del aviso de calzada mojada (30 minutos en milisegundos)
-    private val WET_ROAD_PERSISTENCE = 30 * 60 * 1000L
+    // Nota: se eliminó la histéresis de "calzada mojada".
+    // Ahora solo usamos señales de Google (histórico reciente + humedad/condensación/nieve).
     
     /**
      * Descarta el aviso preventivo de lluvia
@@ -237,6 +232,9 @@ class TrackingViewModel @Inject constructor(
     private var weatherHadWetRoad = false // Calzada mojada detectada (sin lluvia activa)
     private var weatherHadExtremeConditions = false // Condiciones extremas detectadas
     private var weatherExtremeReason: String? = null // Razón de condiciones extremas (WIND, GUSTS, STORM, SNOW, COLD, HEAT)
+
+    // Precipitación acumulada reciente (últimas 3h) basada en histórico de Google
+    private var recentPrecipitation3h: Double = 0.0
     
     // Valores máximos/mínimos durante la ruta (para reflejar el estado más adverso en los badges)
     private var maxWindSpeed = 0.0 // km/h
@@ -536,6 +534,18 @@ class TrackingViewModel @Inject constructor(
                         dewPoint = weather.dewPoint,
                         visibility = weather.visibility
                     )
+
+                    // Guardar precipitación máxima desde el inicio.
+                    // Nota: en WeatherRepository, `weather.precipitation` viene de Google:
+                    // `precipitation.qpf.quantity` (acumulación de precipitación en la ÚLTIMA HORA).
+                    weatherMaxPrecipitation = maxOf(weatherMaxPrecipitation, weather.precipitation)
+
+                    // Precipitación acumulada reciente (últimas 3h) desde histórico de Google
+                    recentPrecipitation3h = getRecentPrecipitation3h(
+                        latitude = preLocation.latitude,
+                        longitude = preLocation.longitude
+                    )
+                    weatherMaxPrecipitation = maxOf(weatherMaxPrecipitation, recentPrecipitation3h)
                     
                     // Determinar si es lluvia activa usando condición y descripción de Google
                     val (isActiveRain, rainUserReason) = checkActiveRain(
@@ -548,14 +558,16 @@ class TrackingViewModel @Inject constructor(
                     // Calzada mojada: Solo si NO hay lluvia activa
                     val isWetRoad = if (isActiveRain) {
                         // Si hay lluvia activa, NO debe haber calzada mojada
-                        // NO establecer timestamp de histéresis cuando hay lluvia activa
                         false // Excluir calzada mojada si hay lluvia activa
                     } else {
                         checkWetRoadConditions(
                             condition = condition,
                             humidity = weather.humidity,
-                            precipitation = weather.precipitation,
+                            recentPrecipitation3h = recentPrecipitation3h,
                             hasActiveRain = isActiveRain,
+                            isDay = weather.isDay,
+                            temperature = weather.temperature,
+                            dewPoint = weather.dewPoint,
                             weatherEmoji = weatherEmoji,
                             weatherDescription = weatherDescription
                         )
@@ -635,18 +647,6 @@ class TrackingViewModel @Inject constructor(
                         weatherHadExtremeConditions = true
                         _shouldShowExtremeWarning.value = true
                         Log.d(TAG, "⚠️ [Precarga] Condiciones extremas detectadas - badge ⚠️ activado")
-                    }
-                    
-                    // Histéresis: Establecer timestamp inicial solo si hay calzada mojada SIN lluvia activa
-                    // NO establecer timestamp si hay lluvia activa (previene confusión de badges)
-                    if (isActiveRain) {
-                        // Si hay lluvia activa, limpiar timestamp de histéresis para evitar badges incorrectos
-                        _lastWetConditionTimestamp = 0L
-                        Log.d(TAG, "🌧️ [Precarga] Lluvia activa detectada - timestamp de histéresis limpiado")
-                    } else if (isWetRoad || weather.precipitation > 0 || weather.humidity > 90) {
-                        // Solo establecer timestamp si NO hay lluvia activa
-                        _lastWetConditionTimestamp = System.currentTimeMillis()
-                        Log.d(TAG, "💧 [Precarga] Timestamp de condiciones mojadas establecido para histéresis")
                     }
                     
                     Log.d(TAG, "✅ [Precarga] Clima inicial capturado: ${weather.temperature}°C $weatherEmoji")
@@ -866,52 +866,65 @@ class TrackingViewModel @Inject constructor(
         
         // Si la condición contiene lluvia, es lluvia activa
         if (rainConditions.any { cond.contains(it) }) {
-            return true to "Lluvia detectada por Google Weather"
+            return true to "Lluvia detectada"
         }
         
         // Si la descripción menciona lluvia, es lluvia activa (incluso si es débil)
         if (rainTerms.any { desc.contains(it) }) {
-            return true to "Lluvia detectada por Google Weather"
+            return true to "Lluvia detectada"
         }
         
         // Si no hay indicación de lluvia en Google, no es lluvia activa
         // (podría ser calzada mojada si ha parado de llover o hay mucha humedad)
         return false to "No se detectó lluvia"
     }
+
+    private suspend fun getRecentPrecipitation3h(latitude: Double, longitude: Double): Double {
+        return weatherRepository
+            .getRecentPrecipitationHours(latitude = latitude, longitude = longitude, hours = 3)
+            .getOrElse { 0.0 }
+            .coerceAtLeast(0.0)
+    }
     
     /**
      * Verifica si hay calzada mojada cuando NO hay lluvia activa
      * 
-     * Se activa en dos casos:
-     * 1. Histéresis: Ha parado de llover hace poco (<30 min) y la humedad sigue alta (>75%)
-     * 2. Alta humedad: No llueve pero hay mucha humedad (88%+) que condensa en el asfalto
+     * Se activa por señales físicas basadas en datos de Google:
+     * - Lluvia reciente (histórico últimas 3h con precipitación acumulada > 0)
+     * - Alta humedad + cielo nublado/niebla (condensación)
+     * - Humedad extrema
+     * - Nieve / aguanieve
      * 
      * IMPORTANTE: Si hay lluvia activa (detectada por checkActiveRain), esta función siempre retorna false
      */
     private fun checkWetRoadConditions(
         condition: String, // Condition string de Google
         humidity: Int,
-        precipitation: Double,
+        recentPrecipitation3h: Double,
         hasActiveRain: Boolean,
+        isDay: Boolean,
+        temperature: Double?,
+        dewPoint: Double?,
         weatherEmoji: String? = null,
         weatherDescription: String? = null
     ): Boolean {
-        val currentTime = System.currentTimeMillis()
-        
-        // 1. EXCLUSIÓN ABSOLUTA: Si hay lluvia activa, NO mostramos "Calzada Mojada"
-        // La lluvia activa tiene prioridad sobre calzada húmeda
-        if (hasActiveRain) {
-            // Actualizar timestamp para histéresis cuando pare de llover
-            _lastWetConditionTimestamp = currentTime
-            return false
-        }
+        // EXCLUSIÓN ABSOLUTA: Si hay lluvia activa, NO mostramos "Calzada Mojada"
+        if (hasActiveRain) return false
         
         // 2. Detección de alta humedad que condensa en el asfalto (Barcelona - humedad mediterránea)
-        val isVeryHumid = humidity > 88
+        // 88% es un umbral físico relevante: con nubosidad/niebla, la evaporación cae mucho.
+        val isVeryHumid = humidity >= 88
         val cond = condition.uppercase()
         
-        // Caso A: Humedad muy alta (88%+) con cielo nublado/niebla → condensa en asfalto
-        val isCondensing = isVeryHumid && (cond == "CLOUDY" || cond == "MOSTLY_CLOUDY" || cond == "FOG")
+        // Caso A: Humedad muy alta (>=88%) con cielo nublado/niebla → condensa en asfalto
+        val isCondensingBySky = isVeryHumid && (cond == "CLOUDY" || cond == "MOSTLY_CLOUDY" || cond == "FOG")
+
+        // Caso A2: Noches muy húmedas con punto de rocío cercano a la temperatura → rocío en asfalto
+        // (dato 100% Google: dewPoint y temperature)
+        val dewSpread = if (temperature != null && dewPoint != null) temperature - dewPoint else null
+        val isCondensingByDewPoint = !isDay && isVeryHumid && (dewSpread != null && dewSpread <= 2.0)
+
+        val isCondensing = isCondensingBySky || isCondensingByDewPoint
         
         // Caso B: Humedad extrema (90%+) siempre indica suelo mojado
         val isExtremelyHumid = humidity > 90
@@ -928,21 +941,12 @@ class TrackingViewModel @Inject constructor(
                                   weatherDesc.contains("SLEET")
         
         val hasSnowOrSleet = isSnowByCondition || isSnowByEmoji || isSnowByDescription
+
+        // Caso D: Lluvia reciente según Google (histórico últimas 3h).
+        val hasRecentPrecipitation = recentPrecipitation3h > 0.0
         
-        // Si hay condiciones mojadas actuales (sin lluvia activa), actualizar timestamp y retornar true
-        val isCurrentlyWet = isCondensing || isExtremelyHumid || hasSnowOrSleet
-        
-        if (isCurrentlyWet) {
-            _lastWetConditionTimestamp = currentTime
-            return true
-        }
-        
-        // 3. HISTÉRESIS: Si ha parado de llover hace poco (<30 min) y la humedad sigue alta (>75%)
-        // El asfalto en Barcelona tarda en secarse con alta humedad
-        val wasRecentlyWet = (currentTime - _lastWetConditionTimestamp) < WET_ROAD_PERSISTENCE
-        val isAirStillDamp = humidity > 75
-        
-        return wasRecentlyWet && isAirStillDamp
+        // Condiciones mojadas actuales (sin lluvia activa)
+        return isCondensing || isExtremelyHumid || hasSnowOrSleet || hasRecentPrecipitation
     }
     
     /**
@@ -1219,18 +1223,28 @@ class TrackingViewModel @Inject constructor(
                             
                             // Obtener emoji directamente de Google (ya viene correcto)
                             val weatherEmoji = weather.weatherEmoji
+
+                            // Precipitación acumulada reciente (últimas 3h) desde histórico de Google
+                            // (solo necesaria si NO hay lluvia activa)
+                            val localRecentPrecip3h = if (isActiveRain) 0.0 else getRecentPrecipitation3h(
+                                latitude = currentPoint.latitude,
+                                longitude = currentPoint.longitude
+                            )
+                            recentPrecipitation3h = maxOf(recentPrecipitation3h, localRecentPrecip3h)
+                            weatherMaxPrecipitation = maxOf(weatherMaxPrecipitation, weather.precipitation, localRecentPrecip3h)
                             
                             // Calzada mojada: Solo si NO hay lluvia activa
                             val isWetRoad = if (isActiveRain) {
-                                // Si hay lluvia activa, actualizar timestamp para histéresis
-                                _lastWetConditionTimestamp = System.currentTimeMillis()
                                 false // Excluir calzada mojada si hay lluvia activa
                             } else {
                                 checkWetRoadConditions(
                                     condition = condition,
                                     humidity = weather.humidity,
-                                    precipitation = weather.precipitation,
+                                    recentPrecipitation3h = localRecentPrecip3h,
                                     hasActiveRain = isActiveRain,
+                                    isDay = weather.isDay,
+                                    temperature = weather.temperature,
+                                    dewPoint = weather.dewPoint,
                                     weatherEmoji = weatherEmoji,
                                     weatherDescription = weather.description
                                 )
@@ -1459,8 +1473,11 @@ class TrackingViewModel @Inject constructor(
                 checkWetRoadConditions(
                     condition = condition,
                     humidity = snapshot.humidity,
-                    precipitation = snapshot.precipitation,
+                    recentPrecipitation3h = recentPrecipitation3h,
                     hasActiveRain = isActiveRain,
+                    isDay = snapshot.isDay,
+                    temperature = snapshot.temperature,
+                    dewPoint = snapshot.dewPoint,
                     weatherEmoji = weatherEmoji,
                     weatherDescription = weatherDescription
                 )
@@ -1678,6 +1695,14 @@ class TrackingViewModel @Inject constructor(
                             precipitation = weather.precipitation
                         )
                         
+                        // Precipitación acumulada reciente (últimas 3h) desde histórico de Google
+                        val localRecentPrecip3h = if (isActiveRain) 0.0 else getRecentPrecipitation3h(
+                            latitude = firstPoint.latitude,
+                            longitude = firstPoint.longitude
+                        )
+                        recentPrecipitation3h = maxOf(recentPrecipitation3h, localRecentPrecip3h)
+                        weatherMaxPrecipitation = maxOf(weatherMaxPrecipitation, weather.precipitation, localRecentPrecip3h)
+
                         // Calzada mojada: Solo si NO hay lluvia activa
                         val isWetRoad = if (isActiveRain) {
                             false // Excluir calzada mojada si hay lluvia activa
@@ -1685,8 +1710,11 @@ class TrackingViewModel @Inject constructor(
                             checkWetRoadConditions(
                                 condition = condition,
                                 humidity = weather.humidity,
-                                precipitation = weather.precipitation,
+                                recentPrecipitation3h = localRecentPrecip3h,
                                 hasActiveRain = isActiveRain,
+                                isDay = weather.isDay,
+                                temperature = weather.temperature,
+                                dewPoint = weather.dewPoint,
                                 weatherEmoji = weatherEmoji,
                                 weatherDescription = weatherDescription
                             )

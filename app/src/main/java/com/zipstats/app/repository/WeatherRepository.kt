@@ -307,7 +307,7 @@ class WeatherRepository @Inject constructor(
             val isDayTime = (isDay == 1)
 
             return when (weatherCode) {
-                0 -> if (isDayTime) R.drawable.wb_sunny else R.drawable.nightlight
+                0 -> if (isDayTime) R.drawable.wb_sunny else R.drawable.achievement_explorador_1
                 1, 2 -> if (isDayTime) R.drawable.partly_cloudy_day else R.drawable.partly_cloudy_night
                 3 -> R.drawable.cloud
                 4 -> R.drawable.windy // Viento fuerte
@@ -429,6 +429,62 @@ class WeatherRepository @Inject constructor(
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "❌ Excepción al obtener clima: ${e.javaClass.simpleName} - ${e.message}", e)
+                Result.failure(e)
+            }
+        }
+    }
+
+    /**
+     * Obtiene precipitación acumulada reciente basada en histórico por horas de Google Weather.
+     *
+     * Devuelve la suma de `precipitation.qpf.quantity` de las últimas `hours` horas.
+     * (Según documentación de Google, `qpf` es acumulación por hora; aquí la agregamos.)
+     */
+    suspend fun getRecentPrecipitationHours(
+        latitude: Double,
+        longitude: Double,
+        hours: Int = 3
+    ): Result<Double> {
+        return withContext(Dispatchers.IO) {
+            try {
+                val apiKey = BuildConfig.GOOGLE_WEATHER_API_KEY
+                if (apiKey == "YOUR_GOOGLE_WEATHER_API_KEY" || apiKey.isEmpty()) {
+                    return@withContext Result.failure(Exception("Google Weather API Key no configurada. Configúrala en local.properties"))
+                }
+
+                val safeHours = hours.coerceIn(1, 24)
+                val urlString =
+                    "$BASE_URL/history/hours:lookup?key=$apiKey&location.latitude=$latitude&location.longitude=$longitude&hours=$safeHours&languageCode=es&unitsSystem=METRIC"
+
+                Log.d(TAG, "URL history.hours: ${urlString.replace(apiKey, "***")}")
+
+                val url = URL(urlString)
+                val connection = url.openConnection() as HttpURLConnection
+
+                try {
+                    connection.requestMethod = "GET"
+                    connection.connectTimeout = 10000
+                    connection.readTimeout = 10000
+
+                    val sha1 = getSigningCertificateSHA1()
+                    val sha1Value = sha1 ?: ""
+                    connection.setRequestProperty("X-Android-Package", context.packageName)
+                    connection.setRequestProperty("X-Android-Cert", sha1Value)
+
+                    val responseCode = connection.responseCode
+                    if (responseCode == HttpURLConnection.HTTP_OK) {
+                        val response = connection.inputStream.bufferedReader().use { it.readText() }
+                        val total = parseRecentPrecipitationHoursResponse(response)
+                        Result.success(total)
+                    } else {
+                        val errorMessage =
+                            connection.errorStream?.bufferedReader()?.use { it.readText() } ?: "Sin mensaje de error"
+                        Result.failure(Exception("Error al obtener histórico por horas: HTTP $responseCode - $errorMessage"))
+                    }
+                } finally {
+                    connection.disconnect()
+                }
+            } catch (e: Exception) {
                 Result.failure(e)
             }
         }
@@ -622,5 +678,39 @@ class WeatherRepository @Inject constructor(
             dewPoint = dewPoint,
             visibility = visibility
         )
+    }
+
+    /**
+     * Parse robusto para `history.hours:lookup`.
+     * Suma `precipitation.qpf.quantity` por hora y lo devuelve en milímetros.
+     */
+    private fun parseRecentPrecipitationHoursResponse(jsonString: String): Double {
+        val json = JSONObject(jsonString)
+
+        val hoursArray =
+            json.optJSONArray("historyHours")
+                ?: json.optJSONArray("hours")
+                ?: json.optJSONArray("hourlyHistory")
+                ?: json.optJSONArray("hourly")
+                ?: return 0.0
+
+        var totalMm = 0.0
+        for (i in 0 until hoursArray.length()) {
+            val hourObj = hoursArray.optJSONObject(i) ?: continue
+            val precipObj = hourObj.optJSONObject("precipitation") ?: continue
+            val qpfObj = precipObj.optJSONObject("qpf") ?: continue
+
+            val quantity = qpfObj.optDouble("quantity", 0.0).takeIf { !it.isNaN() && it.isFinite() } ?: 0.0
+            val unit = qpfObj.optString("unit", "MILLIMETERS").uppercase()
+
+            val quantityMm = when (unit) {
+                "INCHES", "INCH" -> quantity * 25.4
+                else -> quantity // MILLIMETERS (o desconocido → asumimos mm en unitsSystem=METRIC)
+            }
+
+            totalMm += quantityMm
+        }
+
+        return totalMm
     }
 }

@@ -61,14 +61,14 @@ enum class ComparisonMetricType {
 
 // CAUSAS ESPECÍFICAS DE CLIMA EXTREMO
 enum class ExtremeCause(val label: String, val emoji: String) {
-    NONE("Extremo", "⚠️"),
-    WIND("Viento Fuerte", "💨"),
-    GUSTS("Rachas de Viento", "🍃"),
+    NONE("Clima extremo", "⚠️"),
+    WIND("Viento intenso", "💨"),
+    GUSTS("Ráfagas", "🍃"),
     STORM("Tormenta", "⚡"),
     SNOW("Nieve", "❄️"),
     COLD("Helada", "🥶"),
-    HEAT("Ola de Calor", "🔥"),
-    VISIBILITY("Visibilidad Reducida", "🌫️")
+    HEAT("Calor intenso", "🔥"),
+    VISIBILITY("Visibilidad reducida", "🌫️")
 }
 
 // MODELO INTERNO PARA EL CÁLCULO DE CLIMA
@@ -119,9 +119,9 @@ enum class InsightMetric(
     FUEL("Gasolina", Icons.Outlined.LocalGasStation, Color(0xFFFFA726), "L", 0.07),
     
     // --- Nuevas Métricas Específicas (Factor 1.0 porque pasaremos el valor directo) ---
-    RAIN("Rutas con Lluvia", Icons.Filled.WaterDrop, Color(0xFF00B0FF), "km", 1.0), // Azul Cian
-    WET_ROAD("Calzada Mojada", Icons.Outlined.Water, Color(0xFFFF9100), "km", 1.0), // Naranja/Ámbar
-    EXTREME("Clima Extremo", Icons.Filled.Thermostat, Color(0xFFD50000), "km", 1.0) // Rojo
+    RAIN("Rutas con lluvia", Icons.Filled.WaterDrop, Color(0xFF00B0FF), "km", 1.0), // Azul Cian
+    WET_ROAD("Calzada mojada", Icons.Outlined.Water, Color(0xFFFF9100), "km", 1.0), // Naranja/Ámbar
+    EXTREME("Clima extremo", Icons.Filled.Thermostat, Color(0xFFD50000), "km", 1.0) // Rojo
 }
 
 // Datos listos para pintar en la tarjeta
@@ -1273,7 +1273,7 @@ ${scooterTexts.joinToString("\n")}
      * 🔥 IMPORTANTE: La distancia GPS SOLO se usa para las tarjetas de clima.
      * El resto de cálculos de la app (CO2, árboles, gasolina, logros) usan la distancia de registros manuales.
      * 
-     * - Lluvia, Calzada Mojada y Clima Extremo: Suma directa de las distancias de rutas GPS con badges
+     * - Lluvia, Calzada mojada y Clima extremo: Suma directa de las distancias de rutas GPS con badges
      * - manualTotalDistance: Solo se guarda para contexto (no se usa en los cálculos)
      */
     private fun calculateWeatherStats(

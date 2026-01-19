@@ -1,8 +1,6 @@
 package com.zipstats.app.repository
 
 import android.content.Context
-import android.content.pm.PackageManager
-import android.os.Build
 import android.util.Log
 import androidx.annotation.DrawableRes
 import com.zipstats.app.BuildConfig
@@ -13,7 +11,6 @@ import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
-import java.security.MessageDigest
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -307,7 +304,7 @@ class WeatherRepository @Inject constructor(
             val isDayTime = (isDay == 1)
 
             return when (weatherCode) {
-                0 -> if (isDayTime) R.drawable.wb_sunny else R.drawable.achievement_explorador_1
+                0 -> if (isDayTime) R.drawable.wb_sunny else R.drawable.nightlight
                 1, 2 -> if (isDayTime) R.drawable.partly_cloudy_day else R.drawable.partly_cloudy_night
                 3 -> R.drawable.cloud
                 4 -> R.drawable.windy // Viento fuerte
@@ -328,45 +325,17 @@ class WeatherRepository @Inject constructor(
                 else -> R.drawable.help_outline
             }
         }
-    }
 
-    /**
-     * Obtiene el SHA-1 de la firma con la que se instaló la app
-     * (ya sea la de debug de cualquier PC o la de producción)
-     */
-    private fun getSigningCertificateSHA1(): String? {
-        try {
-            val packageInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                context.packageManager.getPackageInfo(
-                    context.packageName,
-                    PackageManager.GET_SIGNING_CERTIFICATES
-                )
-            } else {
-                @Suppress("DEPRECATION")
-                context.packageManager.getPackageInfo(
-                    context.packageName,
-                    PackageManager.GET_SIGNATURES
-                )
-            }
-
-            val signatures = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                packageInfo.signingInfo?.apkContentsSigners // Usamos ?. para evitar el error de nulabilidad
-            } else {
-                @Suppress("DEPRECATION")
-                packageInfo.signatures
-            }
-
-            signatures?.let {
-                for (signature in it) {
-                    val md = MessageDigest.getInstance("SHA-1")
-                    val digest = md.digest(signature.toByteArray())
-                    return digest.joinToString(":") { String.format("%02X", it) }
-                }
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Error obteniendo SHA-1 dinámico", e)
+        /**
+         * Icono drawable desde el `weatherCondition.type` de Google (sin inferencias).
+         * Se usa para pintar UI basándonos estrictamente en lo que devuelve la API.
+         */
+        @DrawableRes
+        fun getIconResIdForCondition(condition: String?, isDay: Boolean): Int {
+            if (condition.isNullOrBlank()) return R.drawable.help_outline
+            val code = mapConditionToOldCode(condition)
+            return getIconResIdForWeather(code, if (isDay) 1 else 0)
         }
-        return null
     }
 
     /**
@@ -396,14 +365,7 @@ class WeatherRepository @Inject constructor(
                     connection.connectTimeout = 10000
                     connection.readTimeout = 10000
                     
-                    // Obtener SHA-1 dinámicamente de la firma de la app
-                    val sha1 = getSigningCertificateSHA1()
-                    Log.e("PRUEBA_SHA1", "El SHA1 que detecta la app es: $sha1")
-                    val sha1Value = sha1 ?: ""
-                    connection.setRequestProperty("X-Android-Package", context.packageName)
-                    connection.setRequestProperty("X-Android-Cert", sha1Value)
-                    
-                    Log.d(TAG, "Cabeceras HTTP: Package=${context.packageName}, SHA-1=${sha1Value.take(20)}...")
+                    // Cabeceras opcionales: si no usas restricciones por Android package/SHA-1, no son necesarias
 
                     Log.d(TAG, "Realizando petición HTTP...")
                     val responseCode = connection.responseCode
@@ -466,11 +428,6 @@ class WeatherRepository @Inject constructor(
                     connection.connectTimeout = 10000
                     connection.readTimeout = 10000
 
-                    val sha1 = getSigningCertificateSHA1()
-                    val sha1Value = sha1 ?: ""
-                    connection.setRequestProperty("X-Android-Package", context.packageName)
-                    connection.setRequestProperty("X-Android-Cert", sha1Value)
-
                     val responseCode = connection.responseCode
                     if (responseCode == HttpURLConnection.HTTP_OK) {
                         val response = connection.inputStream.bufferedReader().use { it.readText() }
@@ -523,6 +480,9 @@ class WeatherRepository @Inject constructor(
         } else {
             getDescriptionForCondition(condition)
         }
+
+        // Nota: NO inferimos ni corregimos el tipo a partir de la descripción.
+        // Nos ceñimos 100% al `weatherCondition.type` que devuelve Google.
         
         // temperature.degrees contiene la temperatura
         val temperatureObj = json.optJSONObject("temperature")
@@ -645,8 +605,8 @@ class WeatherRepository @Inject constructor(
             null
         }
         
-        // Mapear condición de Google a código WMO antiguo SOLO para compatibilidad legacy
-        // Confiamos 100% en Google, no modificamos sus condiciones
+        // Mapear condición de Google a código WMO antiguo SOLO para compatibilidad legacy (iconos/reglas antiguas).
+        // Confiamos 100% en Google: usamos su TYPE tal cual.
         val weatherCode = mapConditionToOldCode(condition)
         
         // Obtener emoji desde la condición de Google

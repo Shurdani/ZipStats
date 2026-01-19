@@ -168,6 +168,8 @@ class TrackingViewModel @Inject constructor(
     // Clima capturado al inicio de la ruta (se copia del snapshot al iniciar tracking)
     private var _startWeatherTemperature: Double? = null
     private var _startWeatherEmoji: String? = null
+    private var _startWeatherCode: Int? = null
+    private var _startWeatherCondition: String? = null
     private var _startWeatherDescription: String? = null
     private var _startWeatherIsDay: Boolean? = null
 
@@ -301,6 +303,8 @@ class TrackingViewModel @Inject constructor(
             // 1. Restauramos las variables privadas para el guardado final
             _startWeatherTemperature = savedWeather.temperature
             _startWeatherEmoji = savedWeather.weatherEmoji
+            _startWeatherCode = savedWeather.weatherCode
+            _startWeatherCondition = savedWeather.icon
             _startWeatherDescription = savedWeather.description
             _startWeatherIsDay = savedWeather.isDay
             _startWeatherFeelsLike = savedWeather.feelsLike
@@ -866,12 +870,12 @@ class TrackingViewModel @Inject constructor(
         
         // Si la condición contiene lluvia, es lluvia activa
         if (rainConditions.any { cond.contains(it) }) {
-            return true to "Lluvia detectada"
+            return true to "Lluvia detectada por Google"
         }
         
         // Si la descripción menciona lluvia, es lluvia activa (incluso si es débil)
         if (rainTerms.any { desc.contains(it) }) {
-            return true to "Lluvia detectada"
+            return true to "Lluvia detectada por Google"
         }
         
         // Si no hay indicación de lluvia en Google, no es lluvia activa
@@ -908,7 +912,7 @@ class TrackingViewModel @Inject constructor(
         weatherEmoji: String? = null,
         weatherDescription: String? = null
     ): Boolean {
-        // EXCLUSIÓN ABSOLUTA: Si hay lluvia activa, NO mostramos "Calzada Mojada"
+        // EXCLUSIÓN ABSOLUTA: Si hay lluvia activa, NO mostramos "Calzada mojada"
         if (hasActiveRain) return false
         
         // 2. Detección de alta humedad que condensa en el asfalto (Barcelona - humedad mediterránea)
@@ -1527,6 +1531,8 @@ class TrackingViewModel @Inject constructor(
             // Guardar en variables de inicio de ruta
             _startWeatherTemperature = snapshot.temperature
             _startWeatherEmoji = weatherEmoji
+            _startWeatherCode = snapshot.weatherCode
+            _startWeatherCondition = snapshot.icon
             _startWeatherDescription = weatherDescription
             _startWeatherIsDay = snapshot.isDay
             _startWeatherFeelsLike = snapshot.feelsLike
@@ -2068,6 +2074,8 @@ class TrackingViewModel @Inject constructor(
                 // IMPORTANTE: Solo usar clima si realmente se capturó correctamente (no valores genéricos)
                 var savedWeatherTemp = _startWeatherTemperature
                 var savedWeatherEmoji = _startWeatherEmoji
+                var savedWeatherCode = _startWeatherCode
+                var savedWeatherCondition = _startWeatherCondition
                 var savedWeatherDesc = _startWeatherDescription
                 var savedIsDay = _startWeatherIsDay ?: true
                 var savedFeelsLike = _startWeatherFeelsLike
@@ -2117,6 +2125,8 @@ class TrackingViewModel @Inject constructor(
                                     // Usar el snapshot FINAL del clima cuando hay badges activos
                                     savedWeatherTemp = weather.temperature
                                     savedWeatherEmoji = weather.weatherEmoji
+                                    savedWeatherCode = weather.weatherCode
+                                    savedWeatherCondition = weather.icon
                                     savedWeatherDesc = weather.description
                                     savedIsDay = weather.isDay
                                     savedFeelsLike = weather.feelsLike
@@ -2180,6 +2190,8 @@ class TrackingViewModel @Inject constructor(
                                     
                                     savedWeatherTemp = weather.temperature
                                     savedWeatherEmoji = weatherEmoji
+                                    savedWeatherCode = weather.weatherCode
+                                    savedWeatherCondition = weather.icon
                                     savedWeatherDesc = weatherDescription
                                     savedIsDay = weather.isDay
                                     savedFeelsLike = weather.feelsLike
@@ -2341,6 +2353,8 @@ class TrackingViewModel @Inject constructor(
                 
                 // El resto de variables vienen directamente del snapshot (final si hay badges, inicial si no)
                 val finalEmoji = savedWeatherEmoji
+                val finalWeatherCode = savedWeatherCode
+                val finalWeatherCondition = savedWeatherCondition
                 val finalDescription = savedWeatherDesc
                 val finalIsDay = savedIsDay
                 val finalFeelsLike = savedFeelsLike
@@ -2404,6 +2418,8 @@ class TrackingViewModel @Inject constructor(
                     baseRoute.copy(
                         weatherTemperature = finalTemperature,
                         weatherEmoji = finalEmoji,
+                        weatherCode = finalWeatherCode,
+                        weatherCondition = finalWeatherCondition,
                         weatherDescription = finalDescription,
                         weatherIsDay = finalIsDay,
                         weatherFeelsLike = finalFeelsLike,
@@ -2420,7 +2436,7 @@ class TrackingViewModel @Inject constructor(
                         weatherHadRain = finalHadRain,
                         weatherRainStartMinute = weatherRainStartMinute,
                         // 🌧️ Honestidad de datos: Usar exactamente lo que Google devuelve
-                        // No forzar precipitación si no la hubo - el badge de "Calzada Mojada" 
+                        // No forzar precipitación si no la hubo - el badge de "Calzada mojada"
                         // se activará por humedad y punto de rocío, no por valores inventados
                         // Esto mantiene las estadísticas precisas (0.0 mm = no llovió realmente)
                         weatherMaxPrecipitation = if (weatherMaxPrecipitation > 0.0) {
@@ -2439,6 +2455,8 @@ class TrackingViewModel @Inject constructor(
                     baseRoute.copy(
                         weatherTemperature = null,
                         weatherEmoji = null,
+                        weatherCode = null,
+                        weatherCondition = null,
                         weatherDescription = null,
                         weatherIsDay = true,
                         weatherFeelsLike = null,

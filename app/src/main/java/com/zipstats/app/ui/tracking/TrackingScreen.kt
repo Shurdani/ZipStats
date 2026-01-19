@@ -483,7 +483,7 @@ fun PreRideSmartWarning(
                 if (isActiveRainWarning) {
                     add("🔵 Lluvia")
                 } else {
-                    add("🟡 Posible calzada mojada")
+                    add("🟡 Calzada mojada")
                 }
             }
             if (extremeBadgeText != null) {
@@ -1254,11 +1254,17 @@ fun TrackingWeatherCard(
                                 modifier = Modifier.padding(end = 8.dp)
                             )
                         }
-                        // Nota: usamos el helper que acepta nulo para seguridad
+                        // Icono basado estrictamente en el `condition` de Google (sin inferencias).
+                        val iconResId = remember(weatherStatus.icon, weatherStatus.isDay) {
+                            com.zipstats.app.repository.WeatherRepository.getIconResIdForCondition(
+                                weatherStatus.icon,
+                                weatherStatus.isDay
+                            )
+                        }
                         Image(
-                            painter = painterResource(id = getWeatherIconResIdFromEmoji(weatherStatus.weatherEmoji, weatherStatus.isDay)),
+                            painter = painterResource(id = iconResId),
                             contentDescription = null,
-                            modifier = Modifier.size(32.dp) ,
+                            modifier = Modifier.size(32.dp),
                             colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.primary)
                         )
                         Spacer(modifier = Modifier.width(12.dp))

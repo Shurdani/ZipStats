@@ -29,6 +29,8 @@ data class Route(
     // Datos del clima al momento de la ruta
     val weatherTemperature: Double? = null, // temperatura en °C
     val weatherEmoji: String? = null, // emoji del clima (☀️, ☁️, etc.)
+    val weatherCode: Int? = null, // Código WMO (compat) para iconos correctos
+    val weatherCondition: String? = null, // Google `weatherCondition.type` (fuente de verdad)
     val weatherDescription: String? = null, // descripción del clima
     val weatherIsDay: Boolean = true, // <-- NUEVO CAMPO (Por defecto 'true' para rutas antiguas)
     val weatherFeelsLike: Double? = null, // Sensación térmica general en °C
@@ -99,6 +101,8 @@ data class Route(
         "movingPercentage" to movingPercentage,
         "weatherTemperature" to weatherTemperature,
         "weatherEmoji" to weatherEmoji,
+        "weatherCode" to weatherCode,
+        "weatherCondition" to weatherCondition,
         "weatherDescription" to weatherDescription,
         "weatherIsDay" to weatherIsDay,
         "weatherFeelsLike" to weatherFeelsLike,
@@ -161,6 +165,8 @@ data class Route(
                     !it.isNaN() && !it.isInfinite() && it >= -50 && it <= 60
                 },
                 weatherEmoji = (map["weatherEmoji"] as? String)?.takeIf { it.isNotBlank() },
+                weatherCode = (map["weatherCode"] as? Number)?.toInt(),
+                weatherCondition = map["weatherCondition"] as? String,
                 weatherDescription = map["weatherDescription"] as? String,
                 // <-- NUEVO CAMPO (Para leer). Si no existe (ruta antigua), usa 'true'
                 weatherIsDay = map["weatherIsDay"] as? Boolean ?: true,

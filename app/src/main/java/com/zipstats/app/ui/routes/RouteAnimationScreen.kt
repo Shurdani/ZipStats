@@ -92,6 +92,7 @@ import com.zipstats.app.repository.VehicleRepository
 import com.zipstats.app.ui.components.HideSystemBarsEffect
 import com.zipstats.app.ui.components.RouteSummaryCard
 import com.zipstats.app.utils.CityUtils
+import com.zipstats.app.utils.LocationUtils
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -515,8 +516,16 @@ fun RouteAnimationDialog(
                     null
                 }
             }
-            val weatherText = remember(route.weatherDescription) {
-                route.weatherDescription?.substringBefore("(")?.trim()
+            val weatherText = remember(route.weatherDescription, route.weatherHadRain, route.weatherMaxPrecipitation) {
+                // Si hay lluvia y hay precipitación medida, mostrar la cantidad de lluvia
+                val hadRain = route.weatherHadRain == true
+                val precip = route.weatherMaxPrecipitation ?: 0.0
+                if (hadRain && precip > 0.0) {
+                    "${LocationUtils.formatNumberSpanish(precip)} mm"
+                } else {
+                    // Si no hay lluvia o no hay precipitación medida, mostrar la descripción normal
+                    route.weatherDescription?.substringBefore("(")?.trim()
+                }
             }
             
             Box(

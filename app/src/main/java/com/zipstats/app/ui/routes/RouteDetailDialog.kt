@@ -526,8 +526,16 @@ fun TripDetailsOverlay(
         }
     }
 
-    val weatherText = remember(route.weatherDescription) {
-        route.weatherDescription?.substringBefore("(")?.trim()
+    val weatherText = remember(route.weatherDescription, route.weatherHadRain, route.weatherMaxPrecipitation) {
+        // Si hay lluvia y hay precipitación medida, mostrar la cantidad de lluvia
+        val hadRain = route.weatherHadRain == true
+        val precip = route.weatherMaxPrecipitation ?: 0.0
+        if (hadRain && precip > 0.0) {
+            "${LocationUtils.formatNumberSpanish(precip)} mm"
+        } else {
+            // Si no hay lluvia o no hay precipitación medida, mostrar la descripción normal
+            route.weatherDescription?.substringBefore("(")?.trim()
+        }
     }
 
     RouteSummaryCard(

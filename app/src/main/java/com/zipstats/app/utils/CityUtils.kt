@@ -304,11 +304,11 @@ object CityUtils {
 
     /**
      * Genera un título para la ruta basándose en las ciudades de inicio y fin
-     * @param vehicleType Tipo de vehículo (opcional). Si se proporciona y solo hay ciudad de inicio, se usa en lugar del nombre de la ciudad.
+     * @param vehicleType Tipo de vehículo (opcional). Se usa cuando no hay ciudad detectada.
      */
     fun getRouteTitleText(route: Route, vehicleType: VehicleType? = null): String {
         if (route.notes.isNotBlank()) return route.notes
-        if (route.points.isEmpty()) return "Mi paseo"
+        if (route.points.isEmpty()) return "Mi ruta"
 
         val startCity = getCityName(route.points.first().latitude, route.points.first().longitude)
         val endCity = getCityName(route.points.last().latitude, route.points.last().longitude)
@@ -316,14 +316,15 @@ object CityUtils {
         return if (startCity != null && endCity != null && startCity != endCity) {
             "$startCity → $endCity"
         } else if (startCity != null) {
-            // Si hay tipo de vehículo, usar el tipo en lugar de la ciudad
-            if (vehicleType != null) {
-                "Paseo en ${vehicleType.displayName.lowercase()}"
-            } else {
-                "Paseo en $startCity"
-            }
+            // Misma ciudad de origen y final: "Mi ruta por [ciudad]"
+            "Mi ruta por $startCity"
         } else {
-            "Mi paseo"
+            // Sin ciudad detectada: usar vehicleType si está disponible
+            if (vehicleType != null) {
+                "Mi ruta en ${vehicleType.displayName.lowercase()}"
+            } else {
+                "Mi ruta"
+            }
         }
     }
 }

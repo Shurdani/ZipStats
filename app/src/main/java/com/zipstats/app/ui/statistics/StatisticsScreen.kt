@@ -1387,6 +1387,43 @@ fun MonthYearPickerDialog(
                 }
             }
 
+            // Selector de año (siempre visible)
+            ExposedDropdownMenuBox(
+                expanded = showYearDropdown,
+                onExpandedChange = { showYearDropdown = it },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                OutlinedTextField(
+                    value = selectedYear.toString(),
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { ZipStatsText("Año") },
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = showYearDropdown) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .menuAnchor(
+                            type = MenuAnchorType.PrimaryNotEditable,
+                            enabled = true
+                        ),
+                    shape = MaterialTheme.shapes.medium
+                )
+
+                ExposedDropdownMenu(
+                    expanded = showYearDropdown,
+                    onDismissRequest = { showYearDropdown = false }
+                ) {
+                    availableYears.forEach { year ->
+                        DropdownMenuItem(
+                            text = { ZipStatsText(year.toString()) },
+                            onClick = {
+                                selectedYear = year
+                                showYearDropdown = false
+                            }
+                        )
+                    }
+                }
+            }
+
             // Selector de mes (solo si el modo es Month)
             if (selectedMode is SelectionMode.Month) {
                 ExposedDropdownMenuBox(
@@ -1422,43 +1459,6 @@ fun MonthYearPickerDialog(
                                 }
                             )
                         }
-                    }
-                }
-            }
-
-            // Selector de año
-            ExposedDropdownMenuBox(
-                expanded = showYearDropdown,
-                onExpandedChange = { showYearDropdown = it },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                OutlinedTextField(
-                    value = selectedYear.toString(),
-                    onValueChange = {},
-                    readOnly = true,
-                    label = { ZipStatsText("Año") },
-                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = showYearDropdown) },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .menuAnchor(
-                            type = MenuAnchorType.PrimaryNotEditable,
-                            enabled = true
-                        ),
-                    shape = MaterialTheme.shapes.medium
-                )
-
-                ExposedDropdownMenu(
-                    expanded = showYearDropdown,
-                    onDismissRequest = { showYearDropdown = false }
-                ) {
-                    availableYears.forEach { year ->
-                        DropdownMenuItem(
-                            text = { ZipStatsText(year.toString()) },
-                            onClick = {
-                                selectedYear = year
-                                showYearDropdown = false
-                            }
-                        )
                     }
                 }
             }

@@ -560,6 +560,10 @@ class TrackingViewModel @Inject constructor(
                     Log.d(TAG, "🔍 [Precarga] checkActiveRain: condition=$condition, description=$weatherDescription, precip=${weather.precipitation}, isActiveRain=$isActiveRain")
                     
                     // Calzada húmeda: Solo si NO hay lluvia activa
+                    val precip24h = if (isActiveRain) 0.0 else getRecentPrecipitation24h(
+                        latitude = preLocation.latitude,
+                        longitude = preLocation.longitude
+                    )
                     val isWetRoad = if (isActiveRain) {
                         // Si hay lluvia activa, NO debe haber calzada húmeda
                         false // Excluir calzada húmeda si hay lluvia activa
@@ -568,6 +572,7 @@ class TrackingViewModel @Inject constructor(
                             condition = condition,
                             humidity = weather.humidity,
                             recentPrecipitation3h = recentPrecipitation3h,
+                            precip24h = precip24h,
                             hasActiveRain = isActiveRain,
                             isDay = weather.isDay,
                             temperature = weather.temperature,
@@ -889,6 +894,13 @@ class TrackingViewModel @Inject constructor(
             .getOrElse { 0.0 }
             .coerceAtLeast(0.0)
     }
+
+    private suspend fun getRecentPrecipitation24h(latitude: Double, longitude: Double): Double {
+        return weatherRepository
+            .getRecentPrecipitationHours(latitude = latitude, longitude = longitude, hours = 24)
+            .getOrElse { 0.0 }
+            .coerceAtLeast(0.0)
+    }
     
     /**
      * Verifica si hay calzada húmeda cuando NO hay lluvia activa
@@ -896,6 +908,7 @@ class TrackingViewModel @Inject constructor(
      * Se activa por señales físicas basadas en datos de Google:
      * - Lluvia reciente (histórico últimas 3h con precipitación acumulada > 0)
      * - Alta humedad + cielo nublado/niebla (condensación)
+     * - Persistencia por temporal: humedad >= 80% + precipitación 24h > 0 + (temperature - dewPoint) <= 3°C
      * - Humedad extrema
      * - Nieve / aguanieve
      * 
@@ -905,6 +918,7 @@ class TrackingViewModel @Inject constructor(
         condition: String, // Condition string de Google
         humidity: Int,
         recentPrecipitation3h: Double,
+        precip24h: Double,
         hasActiveRain: Boolean,
         isDay: Boolean,
         temperature: Double?,
@@ -929,6 +943,14 @@ class TrackingViewModel @Inject constructor(
         val isCondensingByDewPoint = !isDay && isVeryHumid && (dewSpread != null && dewSpread <= 2.0)
 
         val isCondensing = isCondensingBySky || isCondensingByDewPoint
+
+        // Caso A3 (NUEVO): Persistencia por temporal
+        // Si hubo precipitación en las últimas 24h, el asfalto puede seguir mojado aunque ya no llueva.
+        // Requiere humedad alta y punto de rocío cercano (rocío / evaporación lenta).
+        val isHumidForStormPersistence = humidity >= 80
+        val isStormPersistence = isHumidForStormPersistence &&
+            precip24h > 0.0 &&
+            (dewSpread != null && dewSpread <= 3.0)
         
         // Caso B: Humedad extrema (90%+) siempre indica suelo mojado
         val isExtremelyHumid = humidity > 90
@@ -950,7 +972,7 @@ class TrackingViewModel @Inject constructor(
         val hasRecentPrecipitation = recentPrecipitation3h > 0.0
         
         // Condiciones húmeda actuales (sin lluvia activa)
-        return isCondensing || isExtremelyHumid || hasSnowOrSleet || hasRecentPrecipitation
+        return isCondensing || isStormPersistence || isExtremelyHumid || hasSnowOrSleet || hasRecentPrecipitation
     }
     
     /**
@@ -1234,6 +1256,10 @@ class TrackingViewModel @Inject constructor(
                                 latitude = currentPoint.latitude,
                                 longitude = currentPoint.longitude
                             )
+                            val localPrecip24h = if (isActiveRain) 0.0 else getRecentPrecipitation24h(
+                                latitude = currentPoint.latitude,
+                                longitude = currentPoint.longitude
+                            )
                             recentPrecipitation3h = maxOf(recentPrecipitation3h, localRecentPrecip3h)
                             weatherMaxPrecipitation = maxOf(weatherMaxPrecipitation, weather.precipitation, localRecentPrecip3h)
                             
@@ -1245,6 +1271,7 @@ class TrackingViewModel @Inject constructor(
                                     condition = condition,
                                     humidity = weather.humidity,
                                     recentPrecipitation3h = localRecentPrecip3h,
+                                    precip24h = localPrecip24h,
                                     hasActiveRain = isActiveRain,
                                     isDay = weather.isDay,
                                     temperature = weather.temperature,
@@ -1474,10 +1501,15 @@ class TrackingViewModel @Inject constructor(
             val isWetRoad = if (isActiveRain) {
                 false // Excluir calzada húmeda si hay lluvia activa
             } else {
+                val precip24h = getRecentPrecipitation24h(
+                    latitude = snapshot.latitude,
+                    longitude = snapshot.longitude
+                )
                 checkWetRoadConditions(
                     condition = condition,
                     humidity = snapshot.humidity,
                     recentPrecipitation3h = recentPrecipitation3h,
+                    precip24h = precip24h,
                     hasActiveRain = isActiveRain,
                     isDay = snapshot.isDay,
                     temperature = snapshot.temperature,
@@ -1706,6 +1738,10 @@ class TrackingViewModel @Inject constructor(
                             latitude = firstPoint.latitude,
                             longitude = firstPoint.longitude
                         )
+                        val localPrecip24h = if (isActiveRain) 0.0 else getRecentPrecipitation24h(
+                            latitude = firstPoint.latitude,
+                            longitude = firstPoint.longitude
+                        )
                         recentPrecipitation3h = maxOf(recentPrecipitation3h, localRecentPrecip3h)
                         weatherMaxPrecipitation = maxOf(weatherMaxPrecipitation, weather.precipitation, localRecentPrecip3h)
 
@@ -1717,6 +1753,7 @@ class TrackingViewModel @Inject constructor(
                                 condition = condition,
                                 humidity = weather.humidity,
                                 recentPrecipitation3h = localRecentPrecip3h,
+                                precip24h = localPrecip24h,
                                 hasActiveRain = isActiveRain,
                                 isDay = weather.isDay,
                                 temperature = weather.temperature,

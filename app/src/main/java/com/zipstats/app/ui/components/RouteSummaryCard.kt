@@ -170,8 +170,8 @@ fun RouteSummaryCard(
 
                         ZipStatsText(
                             text = weatherText,
-                            style = MaterialTheme.typography.bodyLarge,
-                            fontWeight = FontWeight.SemiBold,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
                             color = Color.White.copy(alpha = 0.85f),
                             maxLines = 1
                         )

@@ -164,6 +164,8 @@ class TrackingViewModel @Inject constructor(
     // Snapshot inicial del clima (capturado en precarga, antes de iniciar ruta)
     private var _initialWeatherSnapshot: com.zipstats.app.repository.WeatherData? = null
     private var _initialWeatherCaptured = false
+    private var _initialWeatherLatitude: Double? = null
+    private var _initialWeatherLongitude: Double? = null
     
     // Clima capturado al inicio de la ruta (se copia del snapshot al iniciar tracking)
     private var _startWeatherTemperature: Double? = null
@@ -514,6 +516,8 @@ class TrackingViewModel @Inject constructor(
                     // Guardar snapshot inicial
                     _initialWeatherSnapshot = weather
                     _initialWeatherCaptured = true
+                    _initialWeatherLatitude = preLocation.latitude
+                    _initialWeatherLongitude = preLocation.longitude
                     
                     // Actualizar estado de UI
                     _weatherStatus.value = WeatherStatus.Success(
@@ -1501,9 +1505,20 @@ class TrackingViewModel @Inject constructor(
             val isWetRoad = if (isActiveRain) {
                 false // Excluir calzada húmeda si hay lluvia activa
             } else {
-                val precip24h = getRecentPrecipitation24h(
-                    latitude = snapshot.latitude,
-                    longitude = snapshot.longitude
+                val (lat, lon) = when {
+                    _initialWeatherLatitude != null && _initialWeatherLongitude != null ->
+                        _initialWeatherLatitude!! to _initialWeatherLongitude!!
+                    _preLocation.value != null ->
+                        _preLocation.value!!.latitude to _preLocation.value!!.longitude
+                    else -> null
+                } ?: run {
+                    Log.w(TAG, "⚠️ No hay coordenadas disponibles para calcular precip24h (snapshot inicial). Se omite regla de 24h.")
+                    0.0 to 0.0
+                }
+
+                val precip24h = if (lat == 0.0 && lon == 0.0) 0.0 else getRecentPrecipitation24h(
+                    latitude = lat,
+                    longitude = lon
                 )
                 checkWetRoadConditions(
                     condition = condition,
@@ -2579,6 +2594,8 @@ class TrackingViewModel @Inject constructor(
                 // Limpiar snapshot inicial
                 _initialWeatherSnapshot = null
                 _initialWeatherCaptured = false
+                _initialWeatherLatitude = null
+                _initialWeatherLongitude = null
                 _shouldShowRainWarning.value = false
 
                 routeRepository.clearTempWeather()

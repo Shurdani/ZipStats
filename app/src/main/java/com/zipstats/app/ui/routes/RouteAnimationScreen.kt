@@ -92,7 +92,7 @@ import com.zipstats.app.repository.VehicleRepository
 import com.zipstats.app.ui.components.HideSystemBarsEffect
 import com.zipstats.app.ui.components.RouteSummaryCard
 import com.zipstats.app.utils.CityUtils
-import com.zipstats.app.utils.LocationUtils
+import com.zipstats.app.ui.components.RouteSummaryCardFromRoute
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -509,29 +509,6 @@ fun RouteAnimationDialog(
                 val formatter = java.time.format.DateTimeFormatter.ofPattern("d 'de' MMMM, yyyy", java.util.Locale("es", "ES"))
                 date.format(formatter)
             }
-            val weatherIconRes = remember(route.weatherCondition, route.weatherCode, route.weatherEmoji, route.weatherIsDay) {
-                if (route.weatherTemperature != null) {
-                    getWeatherIconResId(
-                        condition = route.weatherCondition,
-                        weatherCode = route.weatherCode,
-                        emoji = route.weatherEmoji,
-                        isDay = route.weatherIsDay
-                    )
-                } else {
-                    null
-                }
-            }
-            val weatherText = remember(route.weatherDescription, route.weatherHadRain, route.weatherMaxPrecipitation) {
-                // Si hay lluvia y hay precipitación medida, mostrar la cantidad de lluvia
-                val hadRain = route.weatherHadRain == true
-                val precip = route.weatherMaxPrecipitation ?: 0.0
-                if (hadRain && precip > 0.0) {
-                    "${LocationUtils.formatNumberSpanish(precip)} mm"
-                } else {
-                    // Si no hay lluvia o no hay precipitación medida, mostrar la descripción normal
-                    route.weatherDescription?.substringBefore("(")?.trim()
-                }
-            }
             
             Box(
                 modifier = Modifier
@@ -545,15 +522,11 @@ fun RouteAnimationDialog(
                     },
                 contentAlignment = Alignment.Center
             ) {
-                RouteSummaryCard(
+                RouteSummaryCardFromRoute(
+                    route = route,
                     title = tituloRuta,
                     subtitle = "${route.scooterName} • $fechaFormateada",
-                    distanceKm = route.totalDistance.toFloat(),
-                    duration = formatDurationWithUnits(route.totalDuration),
-                    avgSpeed = route.averageSpeed.toFloat(),
-                    temperature = route.weatherTemperature,
-                    weatherText = weatherText,
-                    weatherIconRes = weatherIconRes
+                    duration = formatDurationWithUnits(route.totalDuration)
                 )
             }
             
@@ -756,37 +729,4 @@ private fun formatDurationWithUnits(durationMs: Long): String {
     val minutes = durationMs / 1000 / 60
     val hours = minutes / 60
     return if (hours > 0) String.format("%d h %d min", hours, minutes % 60) else String.format("%d min", minutes)
-}
-
-private fun getWeatherIconResId(
-    condition: String?,
-    weatherCode: Int?,
-    emoji: String?,
-    isDay: Boolean
-): Int {
-    // Prioridad: `weatherCondition` de Google (fuente de verdad).
-    if (!condition.isNullOrBlank()) {
-        return com.zipstats.app.repository.WeatherRepository.getIconResIdForCondition(condition, isDay)
-    }
-
-    // Fallback: rutas antiguas sin condition (usar WMO guardado si existe).
-    if (weatherCode != null) {
-        return com.zipstats.app.repository.WeatherRepository.getIconResIdForWeather(weatherCode, if (isDay) 1 else 0)
-    }
-
-    // Último fallback: rutas muy antiguas con solo emoji.
-    if (emoji.isNullOrBlank()) return R.drawable.help_outline
-
-    return when (emoji) {
-        "☀️", "🌙" -> com.zipstats.app.repository.WeatherRepository.getIconResIdForWeather(0, if (isDay) 1 else 0)
-        "🌤️", "🌥️", "☁️🌙" -> com.zipstats.app.repository.WeatherRepository.getIconResIdForWeather(1, if (isDay) 1 else 0)
-        "☁️" -> com.zipstats.app.repository.WeatherRepository.getIconResIdForWeather(3, if (isDay) 1 else 0)
-        "🌫️" -> com.zipstats.app.repository.WeatherRepository.getIconResIdForWeather(45, if (isDay) 1 else 0)
-        "🌦️" -> com.zipstats.app.repository.WeatherRepository.getIconResIdForWeather(61, if (isDay) 1 else 0)
-        "🌧️" -> com.zipstats.app.repository.WeatherRepository.getIconResIdForWeather(65, if (isDay) 1 else 0)
-        "🥶" -> com.zipstats.app.repository.WeatherRepository.getIconResIdForWeather(66, if (isDay) 1 else 0)
-        "❄️" -> com.zipstats.app.repository.WeatherRepository.getIconResIdForWeather(71, if (isDay) 1 else 0)
-        "⛈️", "⚡" -> com.zipstats.app.repository.WeatherRepository.getIconResIdForWeather(95, if (isDay) 1 else 0)
-        else -> R.drawable.help_outline
-    }
 }

@@ -33,6 +33,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.zipstats.app.model.Route
+import com.zipstats.app.repository.WeatherRepository
 import com.zipstats.app.utils.LocationUtils
 
 @Composable
@@ -176,6 +178,77 @@ fun RouteSummaryCard(
                 }
             }
         }
+    }
+}
+
+/**
+ * Wrapper "tonto" para pantallas: recibe una `Route` y usa la misma `RouteSummaryCard`.
+ * La idea es que las pantallas NO tengan que calcular nada de clima (texto/icono).
+ */
+@Composable
+fun RouteSummaryCardFromRoute(
+    route: Route,
+    title: String,
+    subtitle: String,
+    duration: String,
+    modifier: Modifier = Modifier
+) {
+    val weatherText = route.weatherTemperature?.let {
+        // En la tarjeta resumen mostramos siempre la DESCRIPCIÓN, no los mm de lluvia.
+        route.weatherDescription
+            ?.substringBefore("(")
+            ?.trim()
+            ?.takeIf { it.isNotBlank() }
+            ?: route.weatherCondition
+                ?.takeIf { it.isNotBlank() }
+                ?.let { WeatherRepository.getDescriptionForCondition(it) }
+            ?: "Clima"
+    }
+
+    val weatherIconRes = route.weatherTemperature?.let {
+        when {
+            !route.weatherCondition.isNullOrBlank() ->
+                WeatherRepository.getIconResIdForCondition(route.weatherCondition, route.weatherIsDay)
+            route.weatherCode != null ->
+                WeatherRepository.getIconResIdForWeather(route.weatherCode, if (route.weatherIsDay) 1 else 0)
+            !route.weatherEmoji.isNullOrBlank() -> {
+                val inferredCode = inferWeatherCodeFromEmoji(route.weatherEmoji)
+                if (inferredCode != null) {
+                    WeatherRepository.getIconResIdForWeather(inferredCode, if (route.weatherIsDay) 1 else 0)
+                } else {
+                    null
+                }
+            }
+            else -> null
+        }
+    }
+
+    RouteSummaryCard(
+        title = title,
+        subtitle = subtitle,
+        distanceKm = route.totalDistance.toFloat(),
+        duration = duration,
+        avgSpeed = route.averageSpeed.toFloat(),
+        temperature = route.weatherTemperature,
+        weatherText = weatherText,
+        weatherIconRes = weatherIconRes,
+        modifier = modifier
+    )
+}
+
+private fun inferWeatherCodeFromEmoji(emoji: String?): Int? {
+    if (emoji.isNullOrBlank()) return null
+    return when (emoji) {
+        "☀️", "🌙" -> 0
+        "🌤️", "🌥️", "☁️🌙" -> 1
+        "☁️" -> 3
+        "🌫️" -> 45
+        "🌦️" -> 61
+        "🌧️" -> 65
+        "🥶" -> 66
+        "❄️" -> 71
+        "⛈️", "⚡" -> 95
+        else -> null
     }
 }
 

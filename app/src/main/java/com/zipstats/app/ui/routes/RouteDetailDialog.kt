@@ -91,7 +91,7 @@ import com.zipstats.app.repository.VehicleRepository
 import com.zipstats.app.repository.WeatherRepository
 import com.zipstats.app.ui.components.CapturableMapView
 import com.zipstats.app.ui.components.MapSnapshotTrigger
-import com.zipstats.app.ui.components.RouteSummaryCard
+import com.zipstats.app.ui.components.RouteSummaryCardFromRoute
 import com.zipstats.app.ui.components.ZipStatsText
 import com.zipstats.app.utils.CityUtils
 import com.zipstats.app.utils.DateUtils
@@ -518,27 +518,11 @@ fun TripDetailsOverlay(
         date.format(formatter)
     }
 
-    val weatherIconRes = remember(route.weatherCondition, route.weatherCode, route.weatherEmoji, route.weatherIsDay) {
-        if (route.weatherTemperature != null) {
-            getWeatherIconResId(route.weatherCondition, route.weatherCode, route.weatherEmoji, route.weatherIsDay)
-        } else {
-            null
-        }
-    }
-
-    val weatherText = remember(route.weatherDescription) {
-        route.weatherDescription?.substringBefore("(")?.trim()
-    }
-
-    RouteSummaryCard(
+    RouteSummaryCardFromRoute(
+        route = route,
         title = tituloRuta,
         subtitle = "${route.scooterName} • $fechaFormateada",
-        distanceKm = route.totalDistance.toFloat(),
         duration = formatDurationWithUnits(route.totalDuration),
-        avgSpeed = route.averageSpeed.toFloat(),
-        temperature = route.weatherTemperature,
-        weatherText = weatherText,
-        weatherIconRes = weatherIconRes,
         modifier = modifier
     )
 }
@@ -597,8 +581,8 @@ fun CleanMetricsRow(route: Route, onWeatherClick: () -> Unit) {
 
         // Clima (Interactivo)
         val weatherTemp = route.weatherTemperature?.let { "${formatTemperature(it, 0)}°" } ?: "--"
-        val weatherIconRes = remember(route.weatherCondition, route.weatherCode, route.weatherEmoji, route.weatherIsDay) {
-            getWeatherIconResId(route.weatherCondition, route.weatherCode, route.weatherEmoji, route.weatherIsDay ?: true)
+        val weatherIconRes = remember(route.weatherEmoji, route.weatherIsDay) {
+            getWeatherIconResId(route.weatherEmoji, route.weatherIsDay ?: true)
         }
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -733,7 +717,7 @@ fun AdvancedDetailsSection(route: Route, expanded: Boolean, onToggle: () -> Unit
 fun SafetyBadgesSection(route: Route) {
     // Leer datos guardados de la ruta (ya calculados al finalizar)
     val hadRain = route.weatherHadRain == true
-    val hasWetRoad = route.weatherHadWetRoad == true && !hadRain // Calzada húmeda solo si NO hay lluvia
+    val hasWetRoad = route.weatherHadWetRoad == true && !hadRain // Calzada mojada solo si NO hay lluvia
     val hasExtremeConditions = route.weatherHadExtremeConditions == true
 
     // Texto del badge de clima extremo (usar razón guardada si está disponible)
@@ -924,13 +908,13 @@ private fun RouteTitle(route: Route) {
 @Composable
 private fun StatsChips(route: Route, onWeatherClick: () -> Unit) {
     val context = LocalContext.current
-    var weatherIconRes by remember(route.id) { mutableStateOf(getWeatherIconResId(route.weatherCondition, route.weatherCode, route.weatherEmoji, route.weatherIsDay)) }
+    var weatherIconRes by remember(route.id) { mutableStateOf(getWeatherIconResId(route.weatherEmoji, route.weatherIsDay)) }
     var weatherTemp by remember(route.id) { mutableStateOf(if (route.weatherTemperature != null) "${formatTemperature(route.weatherTemperature, decimals = 0)}°C" else "--°C") }
     var isLoadingWeather by remember(route.id) { mutableStateOf(false) }
 
     LaunchedEffect(route.id) {
         if (route.weatherTemperature != null) {
-            weatherIconRes = getWeatherIconResId(route.weatherCondition, route.weatherCode, route.weatherEmoji, route.weatherIsDay)
+            weatherIconRes = getWeatherIconResId(route.weatherEmoji, route.weatherIsDay)
                     weatherTemp = "${formatTemperature(route.weatherTemperature, decimals = 0)}°C"
             return@LaunchedEffect
         }
@@ -944,7 +928,7 @@ private fun StatsChips(route: Route, onWeatherClick: () -> Unit) {
                 val firstPoint = route.points.first()
                 val result = weatherRepository.getCurrentWeather(firstPoint.latitude, firstPoint.longitude)
                 result.onSuccess { weather ->
-                    weatherIconRes = WeatherRepository.getIconResIdForWeather(weather.weatherCode, if (weather.isDay) 1 else 0)
+                    weatherIconRes = getWeatherIconResId(weather.weatherEmoji, weather.isDay)
                     weatherTemp = "${formatTemperature(weather.temperature, decimals = 0)}°C"
                 }
             } catch (e: Exception) {
@@ -1109,7 +1093,7 @@ private fun WeatherInfoDialog(route: Route, onDismiss: () -> Unit) {
                 ) {
                     // Leer datos guardados de la ruta (ya calculados al finalizar)
                     val hadRain = route.weatherHadRain == true
-                    val hasWetRoad = route.weatherHadWetRoad == true && !hadRain // Calzada húmeda solo si NO hay lluvia
+                    val hasWetRoad = route.weatherHadWetRoad == true && !hadRain // Calzada mojada solo si NO hay lluvia
                     val hasExtremeConditions = route.weatherHadExtremeConditions == true
                     
                     // Texto del badge de clima extremo (usar razón guardada si está disponible)
@@ -1139,7 +1123,7 @@ private fun WeatherInfoDialog(route: Route, onDismiss: () -> Unit) {
                     val effectiveDescription = route.weatherDescription?.substringBefore("(")?.trim() ?: "Clima"
                     
                     Image(
-                        painter = painterResource(id = getWeatherIconResId(route.weatherCondition, route.weatherCode, effectiveEmoji, route.weatherIsDay ?: true)),
+                        painter = painterResource(id = getWeatherIconResId(effectiveEmoji, route.weatherIsDay ?: true)),
                         contentDescription = null,
                         modifier = Modifier.size(72.dp), // Un pelín más grande
                         colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.primary)
@@ -1194,7 +1178,7 @@ private fun WeatherInfoDialog(route: Route, onDismiss: () -> Unit) {
                                 temp != null && temp > 26 && heatIndex != null -> {
                                     WeatherGridItem(
                                         icon = Icons.Default.Thermostat,
-                                        label = "Índice",
+                                        label = "I de Calor",
                                         value = "${formatTemperature(heatIndex)}°C"
                                     )
                                 }
@@ -1237,23 +1221,19 @@ private fun WeatherInfoDialog(route: Route, onDismiss: () -> Unit) {
 
                         // Columna Derecha (Peligros/Visibilidad)
                         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                            // Lógica inteligente precipitación vs probabilidad
-                            // 🔒 REGLA: Si hay precipitación medida (> 0), mostrar precipitación
-                            // Si hay lluvia detectada pero sin precipitación medida, mostrar probabilidad
+                            // Lógica de lluvia (evitar confusión con precipitación residual de horas anteriores):
+                            // - Solo mostrar "Lluvia: X mm" si realmente hubo lluvia durante la ruta (hadRain == true).
+                            // - Si NO hubo lluvia, mostrar solo probabilidad (si existe) y nunca los mm residuales.
                             val precip = route.weatherMaxPrecipitation ?: 0.0
-                            if (precip > 0.0) {
-                                // Hay precipitación medida → mostrar precipitación
+                            if (hadRain && precip > 0.0) {
                                 WeatherGridItem(Icons.Default.Grain, "Lluvia", "${LocationUtils.formatNumberSpanish(precip)} mm")
                             } else if (hadRain && route.weatherRainProbability != null) {
-                                // Lluvia detectada por condiciones pero sin precipitación medida → mostrar probabilidad
-                                WeatherGridItem(Icons.Default.Umbrella, "Prob. lluvia", "${route.weatherRainProbability}%")
+                                WeatherGridItem(Icons.Default.Umbrella, "Prob. Lluvia", "${route.weatherRainProbability}%")
                             } else if (hadRain) {
-                                // Lluvia detectada pero sin datos de precipitación ni probabilidad → mostrar "Sí"
-                                WeatherGridItem(Icons.Default.Grain, "Lluvia", "Sí")
+                                WeatherGridItem(Icons.Default.Grain, "Lluvia", "Detectada")
                             } else {
-                                // No hay lluvia → mostrar probabilidad (si está disponible)
                                 route.weatherRainProbability?.let {
-                                    WeatherGridItem(Icons.Default.Umbrella, "Prob. lluvia", "$it%")
+                                    WeatherGridItem(Icons.Default.Umbrella, "Prob. Lluvia", "$it%")
                                 }
                             }
                             
@@ -1432,20 +1412,11 @@ private fun WeatherDetailRow(
 // La lógica de compartir se ha movido a ShareUtils.kt
 
 @DrawableRes
-private fun getWeatherIconResId(condition: String?, weatherCode: Int?, emoji: String?, isDay: Boolean): Int {
-    // Preferir el `condition` de Google (fuente de verdad).
-    if (!condition.isNullOrBlank()) {
-        return WeatherRepository.getIconResIdForCondition(condition, isDay)
-    }
-    // Fallback: usar el código WMO guardado si existe.
-    if (weatherCode != null) {
-        return WeatherRepository.getIconResIdForWeather(weatherCode, if (isDay) 1 else 0)
-    }
-
+private fun getWeatherIconResId(emoji: String?, isDay: Boolean): Int {
     if (emoji.isNullOrBlank()) return R.drawable.help_outline
 
-    // Fallback legacy: mapear emoji a código WMO aproximado
-    val fallbackCode = when (emoji) {
+    // Mapeo de emoji a código de Open-Meteo para usar WeatherRepository
+    val weatherCode = when (emoji) {
         // ☀️ Cielo Despejado
         "☀️" -> 0
         "🌙" -> 0
@@ -1461,7 +1432,7 @@ private fun getWeatherIconResId(condition: String?, weatherCode: Int?, emoji: St
         "🌫️" -> 45
 
         // 🌦️ Lluvia Ligera / Chubascos leves
-        "🌦️" -> 61
+        "🌦️" -> if (isDay) 61 else 61
 
         // 🌧️ Lluvia Fuerte / Densa
         "🌧️" -> 65
@@ -1481,10 +1452,10 @@ private fun getWeatherIconResId(condition: String?, weatherCode: Int?, emoji: St
     }
 
     // Si no encontramos el código, usar icono por defecto
-    if (fallbackCode == -1) return R.drawable.help_outline
+    if (weatherCode == -1) return R.drawable.help_outline
 
     // Usar WeatherRepository para obtener el icono correcto
-    return WeatherRepository.getIconResIdForWeather(fallbackCode, if (isDay) 1 else 0)
+    return WeatherRepository.getIconResIdForWeather(weatherCode, if (isDay) 1 else 0)
 }
 
 private fun getVehicleIconResource(vehicleType: VehicleType?): Int {

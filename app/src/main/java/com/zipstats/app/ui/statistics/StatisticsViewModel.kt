@@ -31,7 +31,6 @@ import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.util.Date
 import javax.inject.Inject
-import kotlin.math.abs
 import kotlin.math.roundToInt
 
 data class Statistics(
@@ -120,10 +119,9 @@ enum class InsightMetric(
     
     // --- Nuevas Métricas Específicas (Factor 1.0 porque pasaremos el valor directo) ---
     RAIN("Rutas con lluvia", Icons.Filled.WaterDrop, Color(0xFF00B0FF), "km", 1.0), // Azul Cian
-    WET_ROAD("Calzada mojada", Icons.Outlined.Water, Color(0xFFFF9100), "km", 1.0), // Naranja/Ámbar
+    WET_ROAD("Calzada W", Icons.Outlined.Water, Color(0xFFFF9100), "km", 1.0), // Naranja/Ámbar
     EXTREME("Clima extremo", Icons.Filled.Thermostat, Color(0xFFD50000), "km", 1.0) // Rojo
 }
-
 // Datos listos para pintar en la tarjeta
 data class RandomInsightData(
     val metric: InsightMetric,
@@ -476,42 +474,29 @@ class StatisticsViewModel @Inject constructor(
     suspend fun getShareText(stats: StatisticsUiState.Success): String {
         val co2Saved = (stats.totalDistance * 0.15).toInt()
         val treesEquivalent = (stats.totalDistance * 0.005).toInt()
-        val gasSaved = (stats.totalDistance * 0.07).toInt() // 0.07 litros de gasolina por km ahorrado (7L/100km)
-        val topScooters = stats.scooterStats.sortedByDescending { it.totalKilometers }.take(2)
-        
-        // Contar rutas con condiciones climáticas (sin filtro de mes/año para "Todo")
-        val (rainRoutes, wetRoadRoutes, extremeRoutes) = countWeatherRoutes(null, null)
-        
-        val medals = listOf("🥇", "🥈")
-        val scooterTexts = topScooters.mapIndexed { index, scooter ->
-            "${medals[index]} ${scooter.model}: ${scooter.totalKilometers} km"
-        }
-        
-        // Construir texto de métricas meteorológicas solo para valores > 0
-        val weatherLines = mutableListOf<String>()
-        if (rainRoutes > 0) {
-            weatherLines.add("🌧️ Rutas con lluvia: $rainRoutes")
-        }
-        if (wetRoadRoutes > 0) {
-            weatherLines.add("💧 Rutas con calzada mojada: $wetRoadRoutes")
-        }
-        if (extremeRoutes > 0) {
-            weatherLines.add("⚠️ Rutas con condiciones extremas: $extremeRoutes")
-        }
-        val weatherText = if (weatherLines.isNotEmpty()) {
-            "\n${weatherLines.joinToString("\n")}"
-        } else {
-            ""
-        }
-        
-        return """ Estadísticas totales de ${userName.value} 
+        val gasSaved = (stats.totalDistance * 0.07).toInt() // 0.07 litros por km (7L/100km)
 
+        val weather = weatherStats.value
+        val rainKm = weather.rainKm.roundToOneDecimal()
+        val wetRoadKm = weather.wetRoadKm.roundToOneDecimal()
+        val extremeKm = weather.extremeKm.roundToOneDecimal()
+
+        val weatherLines = buildList {
+            if (rainKm > 0.0) add("🌧️ Distancia con lluvia: $rainKm km")
+            if (wetRoadKm > 0.0) add("💧 Distancia con calzada húmeda: $wetRoadKm km")
+            if (extremeKm > 0.0) add("⚠️ Distancia en condiciones extremas: $extremeKm km")
+        }
+        val weatherText = if (weatherLines.isNotEmpty()) "\n" + weatherLines.joinToString("\n") else ""
+
+        return """
+Estadísticas totales de ZipStats
 📊 Total recorrido: ${stats.totalDistance} km
-🌱 CO₂ ahorrado: $co2Saved kg ≈ $treesEquivalent árboles 🌳
-⛽ Gasolina ahorrada: $gasSaved Litros$weatherText
-🏆 Top Vehículos:
-${scooterTexts.joinToString("\n")}
-#ZipStats""".trimIndent()
+🌱 CO₂ ahorrado: $co2Saved kg
+🌳 Árboles: $treesEquivalent
+⛽ Gasolina ahorrada: $gasSaved L
+$weatherText
+#ZipStats
+        """.trimIndent()
     }
 
     suspend fun getMonthlyShareText(stats: StatisticsUiState.Success, month: Int? = null, year: Int? = null): String {
@@ -577,29 +562,27 @@ ${scooterTexts.joinToString("\n")}
 ⛽ Gasolina ahorrada: $gasSaved L""".trimIndent()
         }
         
-        // Contar rutas con condiciones climáticas para este mes
-        val (rainRoutes, wetRoadRoutes, extremeRoutes) = countWeatherRoutes(selectedMonth, selectedYear)
-        
-        // Construir texto de métricas meteorológicas solo para valores > 0
-        val weatherLines = mutableListOf<String>()
-        if (rainRoutes > 0) {
-            weatherLines.add("🌧️ Rutas con lluvia: $rainRoutes")
+        val weather = weatherStats.value
+        val rainKm = weather.rainKm.roundToOneDecimal()
+        val wetRoadKm = weather.wetRoadKm.roundToOneDecimal()
+        val extremeKm = weather.extremeKm.roundToOneDecimal()
+
+        val weatherLines = buildList {
+            if (rainKm > 0.0) add("🌧️ Distancia con lluvia: $rainKm km")
+            if (wetRoadKm > 0.0) add("💧 Distancia con calzada húmeda: $wetRoadKm km")
+            if (extremeKm > 0.0) add("⚠️ Distancia en condiciones extremas: $extremeKm km")
         }
-        if (wetRoadRoutes > 0) {
-            weatherLines.add("💧 Rutas con calzada mojada: $wetRoadRoutes")
-        }
-        if (extremeRoutes > 0) {
-            weatherLines.add("⚠️ Rutas con condiciones extremas: $extremeRoutes")
-        }
-        val weatherText = if (weatherLines.isNotEmpty()) {
-            "\n${weatherLines.joinToString("\n")}"
-        } else {
-            ""
-        }
-        
+        val weatherText = if (weatherLines.isNotEmpty()) "\n" + weatherLines.joinToString("\n") else ""
+
         return """
- Estadísticas de $monthName $selectedYear de ${userName.value} $percentagesText$weatherText
-#ZipStats""".trimIndent()
+Estadísticas de $monthName $selectedYear de ZipStats
+📊 Total recorrido: ${stats.monthlyDistance} km
+🌱 CO₂ ahorrado: $co2Saved kg
+🌳 Árboles: $treesEquivalent
+⛽ Gasolina ahorrada: $gasSaved L
+$weatherText
+#ZipStats
+        """.trimIndent()
     }
 
     suspend fun getYearlyShareText(stats: StatisticsUiState.Success, year: Int? = null): String {
@@ -656,29 +639,27 @@ ${scooterTexts.joinToString("\n")}
 ⛽ Gasolina ahorrada: $gasSaved L""".trimIndent()
         }
         
-        // Contar rutas con condiciones climáticas para este año
-        val (rainRoutes, wetRoadRoutes, extremeRoutes) = countWeatherRoutes(null, selectedYear)
-        
-        // Construir texto de métricas meteorológicas solo para valores > 0
-        val weatherLines = mutableListOf<String>()
-        if (rainRoutes > 0) {
-            weatherLines.add("🌧️ Rutas con lluvia: $rainRoutes")
+        val weather = weatherStats.value
+        val rainKm = weather.rainKm.roundToOneDecimal()
+        val wetRoadKm = weather.wetRoadKm.roundToOneDecimal()
+        val extremeKm = weather.extremeKm.roundToOneDecimal()
+
+        val weatherLines = buildList {
+            if (rainKm > 0.0) add("🌧️ Distancia con lluvia: $rainKm km")
+            if (wetRoadKm > 0.0) add("💧 Distancia con calzada húmeda: $wetRoadKm km")
+            if (extremeKm > 0.0) add("⚠️ Distancia en condiciones extremas: $extremeKm km")
         }
-        if (wetRoadRoutes > 0) {
-            weatherLines.add("💧 Rutas con calzada mojada: $wetRoadRoutes")
-        }
-        if (extremeRoutes > 0) {
-            weatherLines.add("⚠️ Rutas con condiciones extremas: $extremeRoutes")
-        }
-        val weatherText = if (weatherLines.isNotEmpty()) {
-            "\n${weatherLines.joinToString("\n")}"
-        } else {
-            ""
-        }
-        
+        val weatherText = if (weatherLines.isNotEmpty()) "\n" + weatherLines.joinToString("\n") else ""
+
         return """
- Estadísticas de $selectedYear de ${userName.value} $percentagesText$weatherText
-#ZipStats""".trimIndent()
+Estadísticas de $selectedYear de ZipStats
+📊 Total recorrido: ${stats.yearlyDistance} km
+🌱 CO₂ ahorrado: $co2Saved kg
+🌳 Árboles: $treesEquivalent
+⛽ Gasolina ahorrada: $gasSaved L
+$weatherText
+#ZipStats
+        """.trimIndent()
     }
 
     private fun calculateMonthlyChartData(records: List<com.zipstats.app.model.Record>): List<ChartDataPoint> {
@@ -1273,7 +1254,7 @@ ${scooterTexts.joinToString("\n")}
      * 🔥 IMPORTANTE: La distancia GPS SOLO se usa para las tarjetas de clima.
      * El resto de cálculos de la app (CO2, árboles, gasolina, logros) usan la distancia de registros manuales.
      * 
-     * - Lluvia, Calzada mojada y Clima extremo: Suma directa de las distancias de rutas GPS con badges
+     * - Lluvia, Calzada húmeda y Clima extremo: Suma directa de las distancias de rutas GPS con badges
      * - manualTotalDistance: Solo se guarda para contexto (no se usa en los cálculos)
      */
     private fun calculateWeatherStats(
@@ -1308,11 +1289,11 @@ ${scooterTexts.joinToString("\n")}
                 rainKm += dist
             }
 
-            // 2. CALZADA MOJADA: Solo leer el valor guardado (weatherHadWetRoad == true)
-            // IMPORTANTE: Calzada mojada y lluvia son excluyentes (si hay lluvia, no hay calzada mojada)
-            // Si es null, tratar como false (no hubo calzada mojada)
+            // 2. CALZADA húmeda: Solo leer el valor guardado (weatherHadWetRoad == true)
+            // IMPORTANTE: Calzada húmeda y lluvia son excluyentes (si hay lluvia, no hay calzada húmeda)
+            // Si es null, tratar como false (no hubo calzada húmeda)
             val hasWetRoad = if (route.weatherHadRain == true) {
-                false // Si hay lluvia activa, no hay calzada mojada (excluyentes)
+                false // Si hay lluvia activa, no hay calzada húmeda (excluyentes)
             } else {
                 route.weatherHadWetRoad == true
             }
@@ -1348,17 +1329,23 @@ ${scooterTexts.joinToString("\n")}
         if (route.weatherHadExtremeConditions != true) {
             // Verificar si hay condiciones extremas por valores guardados (compatibilidad con rutas antiguas)
             // IMPORTANTE: Debe incluir TODAS las causas que activan el badge, incluyendo visibilidad
+            val cond = route.weatherCondition?.uppercase() ?: ""
             val hasExtreme = (route.weatherWindSpeed != null && route.weatherWindSpeed > 40) ||
                             (route.weatherWindGusts != null && route.weatherWindGusts > 60) ||
                             (route.weatherTemperature != null && (route.weatherTemperature < 0 || route.weatherTemperature > 35)) ||
                             (route.weatherIsDay == true && route.weatherUvIndex != null && route.weatherUvIndex > 8) ||
+                            // Tormenta/Granizo: priorizar `weatherCondition` (Google)
+                            (cond.contains("THUNDER") || cond.contains("HAIL")) ||
+                            // Fallback legacy: emoji o descripción
                             (route.weatherEmoji?.let { it.contains("⛈") || it.contains("⚡") } == true) ||
                             (route.weatherDescription?.let { desc ->
                                 desc.contains("Tormenta", ignoreCase = true) ||
                                 desc.contains("granizo", ignoreCase = true) ||
                                 desc.contains("rayo", ignoreCase = true)
                             } == true) ||
-                            // Nieve: emoji o descripción (Route no tiene weatherCode)
+                            // Nieve: priorizar `weatherCondition` (Google)
+                            (cond.contains("SNOW") || cond == "RAIN_AND_SNOW" || cond == "FREEZING_RAIN" || cond == "ICE") ||
+                            // Fallback legacy: emoji o descripción
                             (route.weatherEmoji?.let { it.contains("❄️") } == true) ||
                             (route.weatherDescription?.let { desc ->
                                 desc.contains("Nieve", ignoreCase = true) ||
@@ -1389,7 +1376,9 @@ ${scooterTexts.joinToString("\n")}
         // (Para compatibilidad con rutas antiguas)
         
         // 1. Tormenta (prioridad máxima)
-        val isStorm = route.weatherEmoji?.let { emoji ->
+        val cond = route.weatherCondition?.uppercase() ?: ""
+        val isStormByCondition = cond.contains("THUNDER") || cond.contains("HAIL")
+        val isStormByEmoji = route.weatherEmoji?.let { emoji ->
             emoji.contains("⛈") || emoji.contains("⚡")
         } ?: false
         
@@ -1399,12 +1388,12 @@ ${scooterTexts.joinToString("\n")}
             desc.contains("rayo", ignoreCase = true)
         } ?: false
         
-        if (isStorm || isStormByDescription) {
+        if (isStormByCondition || isStormByEmoji || isStormByDescription) {
             return ExtremeCause.STORM
         }
         
-        // 2. Nieve (emoji ❄️ o descripción)
-        // Nota: Route no tiene weatherCode, así que detectamos por emoji y descripción
+        // 2. Nieve (priorizar condition, fallback emoji/descr)
+        val isSnowByCondition = cond.contains("SNOW") || cond == "RAIN_AND_SNOW" || cond == "FREEZING_RAIN" || cond == "ICE"
         val isSnowByEmoji = route.weatherEmoji?.let { emoji ->
             emoji.contains("❄️")
         } ?: false
@@ -1415,7 +1404,7 @@ ${scooterTexts.joinToString("\n")}
             desc.contains("snow", ignoreCase = true)
         } ?: false
         
-        if (isSnowByEmoji || isSnowByDescription) {
+        if (isSnowByCondition || isSnowByEmoji || isSnowByDescription) {
             return ExtremeCause.SNOW
         }
         
@@ -1494,7 +1483,7 @@ ${scooterTexts.joinToString("\n")}
     private suspend fun countWeatherRoutes(
         month: Int? = null,
         year: Int? = null
-    ): Triple<Int, Int, Int> { // (rutas con lluvia, rutas con calzada mojada, rutas con condiciones extremas)
+    ): Triple<Int, Int, Int> { // (rutas con lluvia, rutas con calzada húmeda, rutas con condiciones extremas)
         return try {
             val routesResult = routeRepository.getUserRoutes()
             val allRoutes = routesResult.getOrNull() ?: emptyList()
@@ -1533,7 +1522,7 @@ ${scooterTexts.joinToString("\n")}
             
             filteredRoutes.forEach { route ->
                 // 🔥 LÓGICA: Solo leer valores guardados, sin recalcular
-                // Si el valor es null, tratar como false (no hubo lluvia/calzada mojada/condiciones extremas)
+                // Si el valor es null, tratar como false (no hubo lluvia/calzada húmeda/condiciones extremas)
                 
                 // Contar rutas con lluvia: solo leer valor guardado
                 // Si es null, tratar como false (no hubo lluvia)
@@ -1542,11 +1531,11 @@ ${scooterTexts.joinToString("\n")}
                     rainCount++
                 }
                 
-                // Contar rutas con calzada mojada: solo leer valor guardado
-                // IMPORTANTE: Calzada mojada y lluvia son excluyentes (si hay lluvia, no hay calzada mojada)
-                // Si es null, tratar como false (no hubo calzada mojada)
+                // Contar rutas con calzada húmeda: solo leer valor guardado
+                // IMPORTANTE: Calzada húmeda y lluvia son excluyentes (si hay lluvia, no hay calzada húmeda)
+                // Si es null, tratar como false (no hubo calzada húmeda)
                 val hasWetRoad = if (route.weatherHadRain == true) {
-                    false // Si hay lluvia activa, no hay calzada mojada (excluyentes)
+                    false // Si hay lluvia activa, no hay calzada húmeda (excluyentes)
                 } else {
                     route.weatherHadWetRoad == true
                 }

@@ -433,7 +433,7 @@ fun RoutesScreen(
                                 trailingContent = {
                                     // Leer badges guardados de la ruta (ya calculados al finalizar)
                                     val hadRain = route.weatherHadRain == true
-                                    val hasWetRoad = route.weatherHadWetRoad == true && !hadRain // Calzada mojada solo si NO hay lluvia
+                                    val hasWetRoad = route.weatherHadWetRoad == true && !hadRain // Calzada húmeda solo si NO hay lluvia
                                     val hasExtremeConditions = route.weatherHadExtremeConditions == true
                                     
                                     Column(horizontalAlignment = Alignment.End) {
@@ -443,6 +443,16 @@ fun RoutesScreen(
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
                                             // Iconos de badges si están activos (a la izquierda del texto)
+                                            // IMPORTANTE: Si hay condiciones extremas, su icono debe ir primero (izquierda).
+                                            if (hasExtremeConditions) {
+                                                // Icono de exclamación amarillo para condiciones extremas (⚠️)
+                                                Icon(
+                                                    imageVector = Icons.Filled.Warning,
+                                                    contentDescription = "Condiciones extremas",
+                                                    modifier = Modifier.size(18.dp),
+                                                    tint = Color(0xFFFFC107)
+                                                )
+                                            }
                                             if (hadRain) {
                                                 // Punto azul para lluvia (🔵)
                                                 Box(
@@ -452,20 +462,11 @@ fun RoutesScreen(
                                                 )
                                             }
                                             if (hasWetRoad) {
-                                                // Punto amarillo para calzada mojada (🟡)
+                                                // Punto amarillo para calzada húmeda (🟡)
                                                 Box(
                                                     modifier = Modifier
                                                         .size(10.dp)
                                                         .background(Color(0xFFFFC107), CircleShape)
-                                                )
-                                            }
-                                            if (hasExtremeConditions) {
-                                                // Icono de exclamación amarillo para condiciones extremas (⚠️)
-                                                Icon(
-                                                    imageVector = Icons.Filled.Warning,
-                                                    contentDescription = "Condiciones extremas",
-                                                    modifier = Modifier.size(18.dp),
-                                                    tint = Color(0xFFFFC107)
                                                 )
                                             }
                                             ZipStatsText(

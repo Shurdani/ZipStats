@@ -27,8 +27,8 @@
 - ✅ Monitoreo continuo del clima cada 10 minutos durante la ruta
 - ✅ Preavisos inteligentes de lluvia y condiciones extremas antes de iniciar
 - ✅ Detección automática de lluvia durante la ruta con actualización en tiempo real
-- ✅ Sistema de calzada mojada con detección probabilística
-- ✅ Badges de seguridad en rutas finalizadas (lluvia, calzada mojada, condiciones extremas)
+- ✅ Sistema de calzada húmeda con detección probabilística
+- ✅ Badges de seguridad en rutas finalizadas (lluvia, calzada húmeda, condiciones extremas)
 - ✅ Compartir rutas con imágenes de mapas profesionales
 
 ### 📊 **Gestión de Vehículos**
@@ -50,7 +50,7 @@
 ### 🌦️ **Sistema Meteorológico Inteligente**
 - ✅ Preavisos preventivos antes de iniciar la ruta
   - Detección de lluvia activa con aviso azul/rosa
-  - Alerta de calzada mojada con aviso amarillo/naranja
+  - Alerta de calzada húmeda con aviso amarillo/naranja
   - Advertencia de condiciones extremas (viento fuerte, temperatura extrema, UV alto, tormentas)
 - ✅ Monitoreo continuo durante la ruta
   - Chequeo automático cada 10 minutos
@@ -63,7 +63,7 @@
   - Detección de diluvios urbanos mediterráneos
 - ✅ Badges de seguridad en rutas finalizadas:
   - 🔵 Ruta realizada con lluvia
-  - 🟡 Precaución: calzada mojada
+  - 🟡 Precaución: calzada húmeda
   - ⚠️ Condiciones extremas
 - ✅ Detección de condiciones extremas:
   - Viento fuerte (>40 km/h) y ráfagas (>60 km/h)
@@ -252,7 +252,7 @@ app/src/main/java/com/zipstats/app/
   - Precipitación medida directamente
   - Análisis probabilístico (humedad + probabilidad)
   - Detección de diluvios urbanos mediterráneos
-- Sistema de calzada mojada con consideración día/noche
+- Sistema de calzada húmeda con consideración día/noche
 - Detección de condiciones extremas (viento, temperatura, UV, tormentas)
 - Preavisos preventivos antes de iniciar la ruta
 - Actualización en tiempo real del clima cuando se detecta lluvia

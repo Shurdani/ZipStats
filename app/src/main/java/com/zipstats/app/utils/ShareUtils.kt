@@ -158,8 +158,13 @@ object ShareUtils {
             "${LocationUtils.formatNumberSpanish(route.averageSpeed)} km/h"
 
         // Configurar clima si está disponible
-        if (route.weatherEmoji != null && route.weatherTemperature != null) {
-            val weatherIconRes = getWeatherIconResId(route.weatherEmoji, route.weatherIsDay)
+        if (route.weatherTemperature != null) {
+            val weatherIconRes = getWeatherIconResId(
+                condition = route.weatherCondition,
+                weatherCode = route.weatherCode,
+                emoji = route.weatherEmoji,
+                isDay = route.weatherIsDay
+            )
             cardView.findViewById<android.widget.ImageView>(R.id.weatherIcon).setImageResource(weatherIconRes)
             cardView.findViewById<android.widget.ImageView>(R.id.weatherIcon).setColorFilter(android.graphics.Color.WHITE)
             cardView.findViewById<android.widget.TextView>(R.id.weatherTemp).text =
@@ -222,39 +227,35 @@ object ShareUtils {
     }
 
     @DrawableRes
-    private fun getWeatherIconResId(emoji: String?, isDay: Boolean): Int {
+    private fun getWeatherIconResId(
+        condition: String?,
+        weatherCode: Int?,
+        emoji: String?,
+        isDay: Boolean
+    ): Int {
+        // Prioridad: `weatherCondition` de Google (fuente de verdad).
+        if (!condition.isNullOrBlank()) {
+            return com.zipstats.app.repository.WeatherRepository.getIconResIdForCondition(condition, isDay)
+        }
+
+        // Fallback: rutas antiguas sin condition (usar WMO guardado si existe).
+        if (weatherCode != null) {
+            return com.zipstats.app.repository.WeatherRepository.getIconResIdForWeather(weatherCode, if (isDay) 1 else 0)
+        }
+
+        // Último fallback: rutas muy antiguas con solo emoji.
         if (emoji.isNullOrBlank()) return R.drawable.help_outline
 
         return when (emoji) {
-            // ☀️ Cielo Despejado
-            "☀️" -> R.drawable.wb_sunny
-            "🌙" -> R.drawable.nightlight
-
-            // ⛅ Nubes Parciales
-            "🌤️", "🌥️", "☁️🌙" -> if (isDay) R.drawable.partly_cloudy_day else R.drawable.partly_cloudy_night
-
-            // ☁️ Nublado (A veces la API manda esto de noche también)
-            "☁️" -> R.drawable.cloud
-
-            // 🌫️ Niebla
-            "🌫️" -> R.drawable.foggy
-
-            // 🌦️ Lluvia Ligera / Chubascos leves (Sol con lluvia) -> Icono Normal
-            "🌦️" -> R.drawable.rainy
-
-            // 🌧️ Lluvia Fuerte / Densa (Solo nube) -> Icono HEAVY (Nuevo)
-            "🌧️" -> R.drawable.rainy_heavy
-
-            // 🥶 Aguanieve / Hielo (Cara de frío) -> Icono SNOWY RAINY (Nuevo)
-            "🥶" -> R.drawable.rainy_snow
-
-            // ❄️ Nieve
-            "❄️" -> R.drawable.snowing
-
-            // ⛈️ Tormenta / Granizo / Rayo
-            "⛈️", "⚡" -> R.drawable.thunderstorm
-
-            // 🤷 Default
+            "☀️", "🌙" -> com.zipstats.app.repository.WeatherRepository.getIconResIdForWeather(0, if (isDay) 1 else 0)
+            "🌤️", "🌥️", "☁️🌙" -> com.zipstats.app.repository.WeatherRepository.getIconResIdForWeather(1, if (isDay) 1 else 0)
+            "☁️" -> com.zipstats.app.repository.WeatherRepository.getIconResIdForWeather(3, if (isDay) 1 else 0)
+            "🌫️" -> com.zipstats.app.repository.WeatherRepository.getIconResIdForWeather(45, if (isDay) 1 else 0)
+            "🌦️" -> com.zipstats.app.repository.WeatherRepository.getIconResIdForWeather(61, if (isDay) 1 else 0)
+            "🌧️" -> com.zipstats.app.repository.WeatherRepository.getIconResIdForWeather(65, if (isDay) 1 else 0)
+            "🥶" -> com.zipstats.app.repository.WeatherRepository.getIconResIdForWeather(66, if (isDay) 1 else 0)
+            "❄️" -> com.zipstats.app.repository.WeatherRepository.getIconResIdForWeather(71, if (isDay) 1 else 0)
+            "⛈️", "⚡" -> com.zipstats.app.repository.WeatherRepository.getIconResIdForWeather(95, if (isDay) 1 else 0)
             else -> R.drawable.help_outline
         }
     }

@@ -733,7 +733,7 @@ fun AdvancedDetailsSection(route: Route, expanded: Boolean, onToggle: () -> Unit
 fun SafetyBadgesSection(route: Route) {
     // Leer datos guardados de la ruta (ya calculados al finalizar)
     val hadRain = route.weatherHadRain == true
-    val hasWetRoad = route.weatherHadWetRoad == true && !hadRain // Calzada mojada solo si NO hay lluvia
+    val hasWetRoad = route.weatherHadWetRoad == true && !hadRain // Calzada húmeda solo si NO hay lluvia
     val hasExtremeConditions = route.weatherHadExtremeConditions == true
 
     // Texto del badge de clima extremo (usar razón guardada si está disponible)
@@ -785,7 +785,7 @@ fun SafetyBadgesSection(route: Route) {
                     val badges = remember(hadRain, hasWetRoad, extremeBadgeText) {
                         mutableListOf<String>().apply {
                             if (hadRain) add("🔵 Trayecto con lluvia")
-                            if (hasWetRoad) add("🟡 Calzada mojada")
+                            if (hasWetRoad) add("🟡 Calzada húmeda")
                             if (extremeBadgeText != null) add(extremeBadgeText)
                         }
                     }
@@ -811,7 +811,7 @@ fun SafetyBadgesSection(route: Route) {
             // Si hay solo 1 badge, mostrar tarjeta individual
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (hadRain) SafetyBadge("🔵 Trayecto con lluvia")
-                if (hasWetRoad) SafetyBadge("🟡 Calzada mojada")
+                if (hasWetRoad) SafetyBadge("🟡 Calzada húmeda")
                 if (extremeBadgeText != null) SafetyBadge(extremeBadgeText)
             }
         }
@@ -1109,7 +1109,7 @@ private fun WeatherInfoDialog(route: Route, onDismiss: () -> Unit) {
                 ) {
                     // Leer datos guardados de la ruta (ya calculados al finalizar)
                     val hadRain = route.weatherHadRain == true
-                    val hasWetRoad = route.weatherHadWetRoad == true && !hadRain // Calzada mojada solo si NO hay lluvia
+                    val hasWetRoad = route.weatherHadWetRoad == true && !hadRain // Calzada húmeda solo si NO hay lluvia
                     val hasExtremeConditions = route.weatherHadExtremeConditions == true
                     
                     // Texto del badge de clima extremo (usar razón guardada si está disponible)
@@ -1306,7 +1306,7 @@ private fun WeatherInfoDialog(route: Route, onDismiss: () -> Unit) {
                                     val badges = remember(hadRain, hasWetRoad, extremeBadgeText) {
                                         mutableListOf<String>().apply {
                                             if (hadRain) add("🔵 Trayecto con lluvia")
-                                            if (hasWetRoad) add("🟡 Calzada mojada")
+                                            if (hasWetRoad) add("🟡 Calzada húmeda")
                                             if (extremeBadgeText != null) add(extremeBadgeText)
                                         }
                                     }
@@ -1335,7 +1335,7 @@ private fun WeatherInfoDialog(route: Route, onDismiss: () -> Unit) {
                                     SafetyBadge(text = "🔵 Trayecto con lluvia")
                                 }
                                 if (hasWetRoad) {
-                                    SafetyBadge(text = "🟡 Calzada mojada")
+                                    SafetyBadge(text = "🟡 Calzada húmeda")
                                 }
                                 if (extremeBadgeText != null) {
                                     SafetyBadge(text = extremeBadgeText)

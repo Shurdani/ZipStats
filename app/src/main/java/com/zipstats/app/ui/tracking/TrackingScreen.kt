@@ -14,20 +14,20 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -55,8 +55,6 @@ import androidx.compose.material.icons.filled.Route
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.TwoWheeler
-import androidx.compose.material.icons.filled.Warning
-import androidx.compose.material.icons.filled.WaterDrop
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.Button
@@ -77,9 +75,9 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -101,7 +99,6 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -114,19 +111,17 @@ import com.zipstats.app.di.AppOverlayRepositoryEntryPoint
 import com.zipstats.app.model.Scooter
 import com.zipstats.app.model.VehicleType
 import com.zipstats.app.permission.PermissionManager
-import kotlin.random.Random
 import com.zipstats.app.repository.AppOverlayRepository
 import com.zipstats.app.repository.SettingsRepository
 import com.zipstats.app.ui.components.DialogCancelButton
-import com.zipstats.app.ui.components.DialogConfirmButton
 import com.zipstats.app.ui.components.DialogDeleteButton
 import com.zipstats.app.ui.components.ZipStatsText
 import com.zipstats.app.ui.shared.AppOverlayState
 import com.zipstats.app.ui.theme.DialogShape
 import com.zipstats.app.utils.LocationUtils
 import dagger.hilt.android.EntryPointAccessors
-import kotlin.math.roundToInt
 import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -407,7 +402,7 @@ fun TrackingScreen(
 
 /**
  * Centro de Notificaciones Unificado - Estilo simple como RouteDetailDialog
- * Prioridad: Lluvia/Calzada mojada > Condiciones extremas
+ * Prioridad: Lluvia/Calzada humeda > Condiciones extremas
  */
 @Composable
 fun PreRideSmartWarning(
@@ -483,7 +478,7 @@ fun PreRideSmartWarning(
                 if (isActiveRainWarning) {
                     add("🔵 Lluvia")
                 } else {
-                    add("🟡 Calzada mojada")
+                    add("🟡 Calzada húmeda")
                 }
             }
             if (extremeBadgeText != null) {
@@ -1208,13 +1203,14 @@ fun TrackingWeatherCard(
             null
         } else {
             buildString {
-                // Badge principal (lluvia o calzada mojada). Son excluyentes por lógica de ViewModel.
-                if (shouldShowRainWarning) {
-                    append(if (isActiveRainWarning) "🔵" else "🟡")
-                }
+                // IMPORTANTE: Si hay 2 badges, el de condiciones extremas debe ir primero (izquierda).
                 // Badge complementario: condiciones extremas (puede coexistir)
                 if (shouldShowExtremeWarning) {
                     append("⚠️")
+                }
+                // Badge principal (lluvia o calzada humeda). Son excluyentes por lógica de ViewModel.
+                if (shouldShowRainWarning) {
+                    append(if (isActiveRainWarning) "🔵" else "🟡")
                 }
             }.ifBlank { null }
         }

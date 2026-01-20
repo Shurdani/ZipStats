@@ -49,7 +49,7 @@ data class Route(
     val weatherRainStartMinute: Int? = null,
     val weatherMaxPrecipitation: Double? = null,
     val weatherRainReason: String? = null, // Razón de detección de lluvia (para debug)
-    // Detección de calzada mojada durante la ruta (sin lluvia activa)
+    // Detección de calzada húmeda durante la ruta (sin lluvia activa)
     val weatherHadWetRoad: Boolean? = null,
     // Detección de condiciones extremas durante la ruta
     val weatherHadExtremeConditions: Boolean? = null,

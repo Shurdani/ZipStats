@@ -194,7 +194,7 @@ class TrackingViewModel @Inject constructor(
     private val _shouldShowRainWarning = MutableStateFlow(false)
     val shouldShowRainWarning: StateFlow<Boolean> = _shouldShowRainWarning.asStateFlow()
     
-    // Tipo de aviso: true = lluvia activa, false = calzada mojada (sin lluvia activa)
+    // Tipo de aviso: true = lluvia activa, false = calzada humeda (sin lluvia activa)
     private val _isActiveRainWarning = MutableStateFlow(false)
     val isActiveRainWarning: StateFlow<Boolean> = _isActiveRainWarning.asStateFlow()
     
@@ -202,7 +202,7 @@ class TrackingViewModel @Inject constructor(
     private val _shouldShowExtremeWarning = MutableStateFlow(false)
     val shouldShowExtremeWarning: StateFlow<Boolean> = _shouldShowExtremeWarning.asStateFlow()
     
-    // Nota: se eliminó la histéresis de "calzada mojada".
+    // Nota: se eliminó la histéresis de "calzada humeda".
     // Ahora solo usamos señales de Google (histórico reciente + humedad/condensación/nieve).
     
     /**
@@ -230,8 +230,8 @@ class TrackingViewModel @Inject constructor(
     private var pendingRainReason: String? = null
     
     // Variables para rastrear el estado más adverso durante la ruta (para badges)
-    // Prioridad: Condiciones extremas > Lluvia > Calzada mojada
-    private var weatherHadWetRoad = false // Calzada mojada detectada (sin lluvia activa)
+    // Prioridad: Condiciones extremas > Lluvia > Calzada humeda
+    private var weatherHadWetRoad = false // Calzada húmeda detectada (sin lluvia activa)
     private var weatherHadExtremeConditions = false // Condiciones extremas detectadas
     private var weatherExtremeReason: String? = null // Razón de condiciones extremas (WIND, GUSTS, STORM, SNOW, COLD, HEAT)
 
@@ -559,10 +559,10 @@ class TrackingViewModel @Inject constructor(
                     )
                     Log.d(TAG, "🔍 [Precarga] checkActiveRain: condition=$condition, description=$weatherDescription, precip=${weather.precipitation}, isActiveRain=$isActiveRain")
                     
-                    // Calzada mojada: Solo si NO hay lluvia activa
+                    // Calzada húmeda: Solo si NO hay lluvia activa
                     val isWetRoad = if (isActiveRain) {
-                        // Si hay lluvia activa, NO debe haber calzada mojada
-                        false // Excluir calzada mojada si hay lluvia activa
+                        // Si hay lluvia activa, NO debe haber calzada húmeda
+                        false // Excluir calzada húmeda si hay lluvia activa
                     } else {
                         checkWetRoadConditions(
                             condition = condition,
@@ -578,7 +578,7 @@ class TrackingViewModel @Inject constructor(
                     }
                     
                     // 🔥 IMPORTANTE: NO establecer StateFlows aquí - se establecerán más abajo
-                    // después de verificar lluvia activa vs calzada mojada
+                    // después de verificar lluvia activa vs calzada húmeda
                     
                     // Detectar visibilidad reducida (crítico para Barcelona - niebla/talaia)
                     val (isLowVisibility, visReason) = checkLowVisibility(weather.visibility)
@@ -599,8 +599,8 @@ class TrackingViewModel @Inject constructor(
                     
                     // 🔥 JERARQUÍA DE BADGES (misma lógica que RouteDetailDialog):
                     // 1. Lluvia: Máxima prioridad (siempre se muestra si existe)
-                    // 2. Calzada mojada: Solo si NO hay lluvia (excluyente con lluvia)
-                    // 3. Condiciones extremas: COMPLEMENTARIO (puede coexistir con lluvia o calzada mojada)
+                    // 2. Calzada húmeda: Solo si NO hay lluvia (excluyente con lluvia)
+                    // 3. Condiciones extremas: COMPLEMENTARIO (puede coexistir con lluvia o calzada húmeda)
                     
                     // Detectar y guardar condiciones extremas (complementario, no excluye otros badges)
                     if (hasExtremeConditions) {
@@ -632,21 +632,21 @@ class TrackingViewModel @Inject constructor(
                         weatherHadRain = true
                         weatherRainStartMinute = 0 // Al inicio de la ruta
                         weatherRainReason = rainUserReason // Guardar razón amigable para el usuario
-                        weatherHadWetRoad = false // Lluvia excluye calzada mojada
+                        weatherHadWetRoad = false // Lluvia excluye calzada húmeda
                         // 🔥 IMPORTANTE: Actualizar StateFlows para que los badges se muestren en la UI
                         _shouldShowRainWarning.value = true
                         _isActiveRainWarning.value = true
                         Log.d(TAG, "🌧️ [Precarga] Lluvia activa detectada - badge 🔵 activado")
                     } else if (isWetRoad) {
-                        // Calzada mojada: Solo si NO hay lluvia activa
+                        // Calzada húmeda: Solo si NO hay lluvia activa
                         weatherHadWetRoad = true
                         // 🔥 IMPORTANTE: Actualizar StateFlows para que los badges se muestren en la UI
                         _shouldShowRainWarning.value = true
                         _isActiveRainWarning.value = false
-                        Log.d(TAG, "🛣️ [Precarga] Calzada mojada detectada - badge 🟡 activado")
+                        Log.d(TAG, "🛣️ [Precarga] Calzada húmeda detectada - badge 🟡 activado")
                     }
                     
-                    // Condiciones extremas: COMPLEMENTARIO (puede coexistir con lluvia o calzada mojada)
+                    // Condiciones extremas: COMPLEMENTARIO (puede coexistir con lluvia o calzada húmeda)
                     if (hasExtremeConditions) {
                         weatherHadExtremeConditions = true
                         _shouldShowExtremeWarning.value = true
@@ -654,7 +654,7 @@ class TrackingViewModel @Inject constructor(
                     }
                     
                     Log.d(TAG, "✅ [Precarga] Clima inicial capturado: ${weather.temperature}°C $weatherEmoji")
-                    // El log de lluvia se maneja arriba según si es lluvia activa o calzada mojada
+                    // El log de lluvia se maneja arriba según si es lluvia activa o calzada húmeda
                     // (líneas 629 y 636)
                 }.onFailure { error ->
                     Log.e(TAG, "❌ [Precarga] Error al capturar clima inicial: ${error.message}")
@@ -879,7 +879,7 @@ class TrackingViewModel @Inject constructor(
         }
         
         // Si no hay indicación de lluvia en Google, no es lluvia activa
-        // (podría ser calzada mojada si ha parado de llover o hay mucha humedad)
+        // (podría ser calzada húmeda si ha parado de llover o hay mucha humedad)
         return false to "No se detectó lluvia"
     }
 
@@ -891,7 +891,7 @@ class TrackingViewModel @Inject constructor(
     }
     
     /**
-     * Verifica si hay calzada mojada cuando NO hay lluvia activa
+     * Verifica si hay calzada húmeda cuando NO hay lluvia activa
      * 
      * Se activa por señales físicas basadas en datos de Google:
      * - Lluvia reciente (histórico últimas 3h con precipitación acumulada > 0)
@@ -912,7 +912,7 @@ class TrackingViewModel @Inject constructor(
         weatherEmoji: String? = null,
         weatherDescription: String? = null
     ): Boolean {
-        // EXCLUSIÓN ABSOLUTA: Si hay lluvia activa, NO mostramos "Calzada mojada"
+        // EXCLUSIÓN ABSOLUTA: Si hay lluvia activa, NO mostramos "Calzada húmeda"
         if (hasActiveRain) return false
         
         // 2. Detección de alta humedad que condensa en el asfalto (Barcelona - humedad mediterránea)
@@ -949,7 +949,7 @@ class TrackingViewModel @Inject constructor(
         // Caso D: Lluvia reciente según Google (histórico últimas 3h).
         val hasRecentPrecipitation = recentPrecipitation3h > 0.0
         
-        // Condiciones mojadas actuales (sin lluvia activa)
+        // Condiciones húmeda actuales (sin lluvia activa)
         return isCondensing || isExtremelyHumid || hasSnowOrSleet || hasRecentPrecipitation
     }
     
@@ -1237,9 +1237,9 @@ class TrackingViewModel @Inject constructor(
                             recentPrecipitation3h = maxOf(recentPrecipitation3h, localRecentPrecip3h)
                             weatherMaxPrecipitation = maxOf(weatherMaxPrecipitation, weather.precipitation, localRecentPrecip3h)
                             
-                            // Calzada mojada: Solo si NO hay lluvia activa
+                            // Calzada húmeda: Solo si NO hay lluvia activa
                             val isWetRoad = if (isActiveRain) {
-                                false // Excluir calzada mojada si hay lluvia activa
+                                false // Excluir calzada húmeda si hay lluvia activa
                             } else {
                                 checkWetRoadConditions(
                                     condition = condition,
@@ -1254,7 +1254,7 @@ class TrackingViewModel @Inject constructor(
                                 )
                             }
                             
-                            Log.d(TAG, "🛣️ [Monitoreo continuo] Calzada mojada: isWetRoad=$isWetRoad")
+                            Log.d(TAG, "🛣️ [Monitoreo continuo] Calzada húmeda: isWetRoad=$isWetRoad")
                             
                             // Detectar condiciones extremas
                             // Detectar visibilidad reducida durante monitoreo continuo
@@ -1281,8 +1281,8 @@ class TrackingViewModel @Inject constructor(
                             
                             // 🔥 JERARQUÍA DE BADGES (misma lógica que RouteDetailDialog):
                             // 1. Lluvia: Máxima prioridad (siempre se muestra si existe)
-                            // 2. Calzada mojada: Solo si NO hay lluvia (excluyente con lluvia)
-                            // 3. Condiciones extremas: COMPLEMENTARIO (puede coexistir con lluvia o calzada mojada)
+                            // 2. Calzada húmeda: Solo si NO hay lluvia (excluyente con lluvia)
+                            // 3. Condiciones extremas: COMPLEMENTARIO (puede coexistir con lluvia o calzada húmeda)
                             
                             // Detectar y guardar condiciones extremas (complementario, no excluye otros badges)
                             if (hasExtremeConditions) {
@@ -1320,28 +1320,28 @@ class TrackingViewModel @Inject constructor(
                             // Lluvia: Máxima prioridad (siempre se muestra si existe)
                             if (isActiveRain) {
                                 weatherHadRain = true
-                                weatherHadWetRoad = false // Lluvia excluye calzada mojada
+                                weatherHadWetRoad = false // Lluvia excluye calzada húmeda
                                 // Actualizar flags para mostrar icono en tarjeta del clima durante tracking
                                 _shouldShowRainWarning.value = true
                                 _isActiveRainWarning.value = true
                                 Log.d(TAG, "🌧️ [Monitoreo continuo] Estado actualizado: weatherHadRain=true, weatherHadWetRoad=false")
                             } else if (isWetRoad) {
-                                // Calzada mojada: Solo si NO hay lluvia activa
+                                // Calzada húmeda: Solo si NO hay lluvia activa
                                 weatherHadWetRoad = true
                                 // Actualizar flags para mostrar icono en tarjeta del clima durante tracking
                                 _shouldShowRainWarning.value = true
                                 _isActiveRainWarning.value = false
                                 // 🌧️ Honestidad de datos: No forzar precipitación - usar solo lo que Google devuelve
-                                // El badge de calzada mojada se activará por humedad/punto de rocío, no por valores inventados
+                                // El badge de calzada húmeda se activará por humedad/punto de rocío, no por valores inventados
                                 weatherMaxPrecipitation = maxOf(
                                     weatherMaxPrecipitation ?: 0.0,
                                     weather.precipitation // Usar solo lo que Google realmente reporta
                                 )
                                 Log.d(TAG, "🛣️ [Monitoreo continuo] Estado actualizado: weatherHadWetRoad=true, precipMax=${weatherMaxPrecipitation}mm (sin forzar valores)")
                             } else {
-                                // Si no hay lluvia ni calzada mojada, mantener los flags si ya estaban activos
+                                // Si no hay lluvia ni calzada húmeda, mantener los flags si ya estaban activos
                                 // (no los reseteamos para mantener el icono visible durante toda la ruta)
-                                Log.d(TAG, "☀️ [Monitoreo continuo] Sin lluvia ni calzada mojada")
+                                Log.d(TAG, "☀️ [Monitoreo continuo] Sin lluvia ni calzada húmeda")
                             }
                             
                             // Actualizar flag de condiciones extremas
@@ -1379,7 +1379,7 @@ class TrackingViewModel @Inject constructor(
                                         Log.d(TAG, "🌧️ [Monitoreo continuo] Lluvia CONFIRMADA en minuto $elapsedMinutes (detectada primero en minuto $pendingRainMinute): $rainUserReason")
                                         
                                         weatherHadRain = true
-                                        weatherHadWetRoad = false // Lluvia es más grave que calzada mojada
+                                        weatherHadWetRoad = false // Lluvia es más grave que calzada húmeda
                                         weatherRainStartMinute = pendingRainMinute // Usar el minuto del primer chequeo
                                         weatherRainReason = pendingRainReason ?: rainUserReason
                                         
@@ -1470,9 +1470,9 @@ class TrackingViewModel @Inject constructor(
                 precipitation = snapshot.precipitation
             )
             
-            // Calzada mojada: Solo si NO hay lluvia activa
+            // Calzada húmeda: Solo si NO hay lluvia activa
             val isWetRoad = if (isActiveRain) {
-                false // Excluir calzada mojada si hay lluvia activa
+                false // Excluir calzada húmeda si hay lluvia activa
             } else {
                 checkWetRoadConditions(
                     condition = condition,
@@ -1490,7 +1490,7 @@ class TrackingViewModel @Inject constructor(
             // Actualizar flags de preaviso para mostrar iconos en tarjeta del clima
             if (isActiveRain) {
                 weatherHadRain = true
-                weatherHadWetRoad = false // Lluvia excluye calzada mojada
+                weatherHadWetRoad = false // Lluvia excluye calzada húmeda
                 _shouldShowRainWarning.value = true
                 _isActiveRainWarning.value = true
             } else if (isWetRoad) {
@@ -1709,9 +1709,9 @@ class TrackingViewModel @Inject constructor(
                         recentPrecipitation3h = maxOf(recentPrecipitation3h, localRecentPrecip3h)
                         weatherMaxPrecipitation = maxOf(weatherMaxPrecipitation, weather.precipitation, localRecentPrecip3h)
 
-                        // Calzada mojada: Solo si NO hay lluvia activa
+                        // Calzada húmeda: Solo si NO hay lluvia activa
                         val isWetRoad = if (isActiveRain) {
-                            false // Excluir calzada mojada si hay lluvia activa
+                            false // Excluir calzada húmeda si hay lluvia activa
                         } else {
                             checkWetRoadConditions(
                                 condition = condition,
@@ -2099,7 +2099,7 @@ class TrackingViewModel @Inject constructor(
                 
                 Log.d(TAG, "🔍 Validación clima inicial: temp=$savedWeatherTemp, emoji=$savedWeatherEmoji, válido=$hasValidWeather")
                 
-                // 🔥 Si hay badges activos (lluvia, calzada mojada o condiciones extremas), 
+                // 🔥 Si hay badges activos (lluvia, calzada húmeda o condiciones extremas),
                 // capturar snapshot FINAL del clima actual para guardar el estado completo cuando cambió
                 val hasActiveBadges = weatherHadRain || weatherHadWetRoad || weatherHadExtremeConditions
                 if (hasActiveBadges && hasValidWeather && points.isNotEmpty()) {
@@ -2378,13 +2378,13 @@ class TrackingViewModel @Inject constructor(
                 Log.d(TAG, "💾 Guardando ruta: weatherHadRain=$finalHadRain (detectado=$weatherHadRain, badge activo=${_shouldShowRainWarning.value && _isActiveRainWarning.value})")
                 
                 // Sincronizar weatherHadWetRoad con el estado de los badges
-                // Si el badge de calzada mojada está activo (_shouldShowRainWarning=true y _isActiveRainWarning=false),
+                // Si el badge de calzada húmeda está activo (_shouldShowRainWarning=true y _isActiveRainWarning=false),
                 // entonces weatherHadWetRoad debe ser true, incluso si el monitoreo continuo no lo detectó
                 // IMPORTANTE: Una vez que weatherHadWetRoad es true, solo se puede resetear si hay lluvia activa
                 // Los badges se basan en lo detectado durante la ruta, no en el clima final del snapshot
                 val finalWetRoad = if (finalHadRain) {
-                    // Si hubo lluvia activa, no puede haber calzada mojada (son excluyentes)
-                    Log.d(TAG, "💾 Guardando ruta: weatherHadRain=true, weatherHadWetRoad=false (lluvia excluye calzada mojada)")
+                    // Si hubo lluvia activa, no puede haber calzada húmeda (son excluyentes)
+                    Log.d(TAG, "💾 Guardando ruta: weatherHadRain=true, weatherHadWetRoad=false (lluvia excluye calzada húmeda)")
                     false
                 } else {
                     // Si no hubo lluvia, mantener el estado detectado O sincronizar con badges activos
@@ -2436,7 +2436,7 @@ class TrackingViewModel @Inject constructor(
                         weatherHadRain = finalHadRain,
                         weatherRainStartMinute = weatherRainStartMinute,
                         // 🌧️ Honestidad de datos: Usar exactamente lo que Google devuelve
-                        // No forzar precipitación si no la hubo - el badge de "Calzada mojada"
+                        // No forzar precipitación si no la hubo - el badge de "Calzada húmeda"
                         // se activará por humedad y punto de rocío, no por valores inventados
                         // Esto mantiene las estadísticas precisas (0.0 mm = no llovió realmente)
                         weatherMaxPrecipitation = if (weatherMaxPrecipitation > 0.0) {

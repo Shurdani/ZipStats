@@ -70,6 +70,7 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -130,6 +131,9 @@ fun RouteDetailDialog(
     var vehicleType by remember { mutableStateOf<com.zipstats.app.model.VehicleType?>(null) }
     var showWeatherDialog by remember(route.id) { mutableStateOf(false) }
 
+    // Capturar valores de tema en contexto composable (NO dentro de LaunchedEffect)
+    val sharePrimaryColorArgb = MaterialTheme.colorScheme.primary.toArgb()
+
     // Lógica de Compartir (Tu código original)
     LaunchedEffect(isCapturingForShare, mapSnapshotTrigger) {
         if (isCapturingForShare && mapSnapshotTrigger != null) {
@@ -143,6 +147,7 @@ fun RouteDetailDialog(
                     route = route,
                     snapshotTrigger = mapSnapshotTrigger!!,
                     vehicleRepository = vehicleRepository,
+                    primaryColorArgb = sharePrimaryColorArgb,
                     onComplete = {
                         android.util.Log.d("RouteDetailDialog", "Proceso de compartir completado")
                         showFullscreenMap = false
@@ -209,6 +214,7 @@ fun RouteDetailDialog(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(280.dp) // Mapa grande
+                        .clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)) // Clip superior para coincidir con Card
                 ) {
                     // El Mapa
                     CapturableMapView(

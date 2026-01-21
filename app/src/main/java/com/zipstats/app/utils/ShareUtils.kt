@@ -1,17 +1,28 @@
 package com.zipstats.app.utils
 
 import android.content.Context
+import android.content.ContextWrapper
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.app.Activity
+import android.view.ViewGroup
+import android.widget.FrameLayout
 import android.widget.Toast
 import androidx.annotation.DrawableRes
 import androidx.core.content.FileProvider
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.darkColorScheme
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.ComposeView
 import com.zipstats.app.R
 import com.zipstats.app.model.Route
 import com.zipstats.app.model.Vehicle
 import com.zipstats.app.model.VehicleType
 import com.zipstats.app.repository.VehicleRepository
+import com.zipstats.app.ui.components.RouteSummaryCardFromRoute
+import com.zipstats.app.ui.theme.ZipStatsTypography
 import com.zipstats.app.ui.components.MapSnapshotTrigger
 import com.zipstats.app.utils.CityUtils
 import kotlinx.coroutines.CoroutineScope
@@ -20,6 +31,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
+import kotlin.math.roundToInt
 
 /**
  * Utilidades para compartir rutas como imágenes
@@ -34,6 +46,7 @@ object ShareUtils {
         route: Route,
         snapshotTrigger: MapSnapshotTrigger,
         vehicleRepository: VehicleRepository? = null,
+        primaryColorArgb: Int? = null,
         onComplete: () -> Unit
     ) {
         try {
@@ -72,7 +85,8 @@ object ShareUtils {
                                 context = context,
                                 route = route,
                                 mapBitmap = mapBitmap,
-                                vehicleRepository = vehicleRepository
+                                vehicleRepository = vehicleRepository,
+                                primaryColorArgb = primaryColorArgb
                             )
                         }
                         android.util.Log.d("ShareUtils", "Imagen final creada: width=${finalBitmap.width}, height=${finalBitmap.height}")
@@ -102,7 +116,8 @@ object ShareUtils {
         context: Context,
         route: Route,
         mapBitmap: Bitmap,
-        vehicleRepository: VehicleRepository?
+        vehicleRepository: VehicleRepository?,
+        primaryColorArgb: Int?
     ): Bitmap {
         val width = mapBitmap.width
         val height = mapBitmap.height
@@ -112,96 +127,136 @@ object ShareUtils {
         // 1. Dibujar mapa de fondo
         canvas.drawBitmap(mapBitmap, 0f, 0f, null)
 
-        // 2. Inflar y configurar la tarjeta XML
-        val inflater = android.view.LayoutInflater.from(context)
-        val cardView = inflater.inflate(R.layout.share_route_stats_card, null) as androidx.cardview.widget.CardView
+        // 2. Renderizar la MISMA tarjeta Compose que se muestra en pantalla (RouteSummaryCard)
+        val vehicle: Vehicle? = vehicleRepository?.let { repo ->
+            try {
+                repo.getUserVehicles().find { it.id == route.scooterId }
+            } catch (_: Exception) {
+                null
+            }
+        }
 
-        // Configurar la tarjeta con los datos de la ruta
-        configurarTarjetaCompartir(cardView, route, context, vehicleRepository)
+        val tituloRuta = CityUtils.getRouteTitleText(route, vehicle?.vehicleType)
+        val fechaFormateada = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            val date = java.time.LocalDate.ofEpochDay(route.startTime / (1000 * 60 * 60 * 24))
+            val formatter = java.time.format.DateTimeFormatter.ofPattern("d 'de' MMMM, yyyy", java.util.Locale("es", "ES"))
+            date.format(formatter)
+        } else {
+            val sdf = java.text.SimpleDateFormat("d 'de' MMMM, yyyy", java.util.Locale("es", "ES"))
+            sdf.format(java.util.Date(route.startTime))
+        }
+        val subtitle = "${route.scooterName} • $fechaFormateada"
+        val duration = formatDurationWithUnits(route.totalDuration)
 
-        // Medir y renderizar la tarjeta
-        val cardWidth = width - 64 // Márgenes de 32dp a cada lado
-        val measureSpec = android.view.View.MeasureSpec.makeMeasureSpec(cardWidth, android.view.View.MeasureSpec.EXACTLY)
-        cardView.measure(measureSpec, android.view.View.MeasureSpec.UNSPECIFIED)
+        // ComposeView debe medirse/dibujarse en Main.
+        val cardBitmap = withContext(Dispatchers.Main) {
+            renderRouteSummaryCardToBitmap(
+                context = context,
+                widthPx = width,
+                route = route,
+                title = tituloRuta,
+                subtitle = subtitle,
+                duration = duration,
+                primaryColorArgb = primaryColorArgb
+            )
+        }
 
-        val cardHeight = cardView.measuredHeight
-        val cardX = 32
-        val cardY = height - cardHeight - 32 // Anclar al borde inferior
+        val marginPx = dpToPx(context, 24f)
+        val cardY = (height - cardBitmap.height - marginPx).coerceAtLeast(0)
 
-        cardView.layout(0, 0, cardView.measuredWidth, cardHeight)
-
-        // Dibujar la tarjeta en el canvas
         canvas.save()
-        canvas.translate(cardX.toFloat(), cardY.toFloat())
-        cardView.draw(canvas)
+        canvas.translate(0f, cardY.toFloat())
+        canvas.drawBitmap(cardBitmap, 0f, 0f, null)
         canvas.restore()
 
         return finalBitmap
     }
 
-    private suspend fun configurarTarjetaCompartir(
-        cardView: androidx.cardview.widget.CardView,
-        route: Route,
+    private fun renderRouteSummaryCardToBitmap(
         context: Context,
-        vehicleRepository: VehicleRepository?
-    ) {
-        // Configurar título de la ruta
-        val routeTitle = CityUtils.getRouteTitleText(route, null)
-        cardView.findViewById<android.widget.TextView>(R.id.routeTitle).text = routeTitle
+        widthPx: Int,
+        route: Route,
+        title: String,
+        subtitle: String,
+        duration: String,
+        primaryColorArgb: Int?
+    ): Bitmap {
+        val activity = context.findActivity()
+        val root = activity?.window?.decorView as? ViewGroup
 
-        // Configurar métricas
-        cardView.findViewById<android.widget.TextView>(R.id.distanceValue).text =
-            "${LocationUtils.formatNumberSpanish(route.totalDistance)} km"
-        cardView.findViewById<android.widget.TextView>(R.id.timeValue).text =
-            formatDurationWithUnits(route.totalDuration)
-        cardView.findViewById<android.widget.TextView>(R.id.speedValue).text =
-            "${LocationUtils.formatNumberSpanish(route.averageSpeed)} km/h"
-
-        // Configurar clima si está disponible
-        if (route.weatherTemperature != null) {
-            val weatherIconRes = getWeatherIconResId(
-                condition = route.weatherCondition,
-                weatherCode = route.weatherCode,
-                emoji = route.weatherEmoji,
-                isDay = route.weatherIsDay
-            )
-            cardView.findViewById<android.widget.ImageView>(R.id.weatherIcon).setImageResource(weatherIconRes)
-            cardView.findViewById<android.widget.ImageView>(R.id.weatherIcon).setColorFilter(android.graphics.Color.WHITE)
-            cardView.findViewById<android.widget.TextView>(R.id.weatherTemp).text =
-                "${formatTemperature(route.weatherTemperature, 0)}°C"
-            cardView.findViewById<android.widget.LinearLayout>(R.id.weatherContainer).visibility = android.view.View.VISIBLE
-        } else {
-            cardView.findViewById<android.widget.LinearLayout>(R.id.weatherContainer).visibility = android.view.View.GONE
-        }
-
-        // Configurar icono del vehículo
-        val vehicle = vehicleRepository?.let { repo ->
-            try {
-                repo.getUserVehicles().find { it.id == route.scooterId }
-            } catch (e: Exception) {
-                null
+        val composeView = ComposeView(context).apply {
+            // Fondo transparente: el mapa se verá debajo y la tarjeta tendrá su propio fondo.
+            setBackgroundColor(android.graphics.Color.TRANSPARENT)
+            setContent {
+                ShareCardTheme(primaryColorArgb = primaryColorArgb) {
+                    RouteSummaryCardFromRoute(
+                        route = route,
+                        title = title,
+                        subtitle = subtitle,
+                        duration = duration
+                    )
+                }
             }
         }
-        val vehicleIconRes = getVehicleIconResource(vehicle?.vehicleType)
-        cardView.findViewById<android.widget.ImageView>(R.id.vehicleIcon).setImageResource(vehicleIconRes)
 
-        // Configurar información del vehículo y fecha
-        val vehicleInfoText = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-            val date = java.time.LocalDate.ofEpochDay(route.startTime / (1000 * 60 * 60 * 24))
-            val dateFormatter = java.time.format.DateTimeFormatter.ofPattern("d 'de' MMMM 'de' yyyy", java.util.Locale.forLanguageTag("es-ES"))
-            "${route.scooterName} | ${date.format(dateFormatter)}"
+        // Para asegurar que ComposeView compone/dibuja correctamente, lo adjuntamos temporalmente al root.
+        // Se coloca fuera de pantalla para que no “parpadee” en UI.
+        val hostContainer = if (root != null) {
+            FrameLayout(context).apply {
+                layoutParams = ViewGroup.LayoutParams(1, 1)
+                translationX = -10_000f
+                translationY = -10_000f
+                addView(
+                    composeView,
+                    FrameLayout.LayoutParams(
+                        widthPx,
+                        ViewGroup.LayoutParams.WRAP_CONTENT
+                    )
+                )
+            }.also { root.addView(it) }
         } else {
-            val simpleDateFormat = java.text.SimpleDateFormat("d 'de' MMMM 'de' yyyy", java.util.Locale.forLanguageTag("es-ES"))
-            "${route.scooterName} | ${simpleDateFormat.format(java.util.Date(route.startTime))}"
+            null
         }
-        cardView.findViewById<android.widget.TextView>(R.id.vehicleInfo).text = vehicleInfoText
 
-        // Eliminar el logo de ZipStats si existe
-        try {
-            cardView.findViewById<android.widget.TextView>(R.id.zipstatsBranding)?.setCompoundDrawables(null, null, null, null)
-        } catch (e: Exception) {
-            // Ignorar si no existe
+        val widthSpec = android.view.View.MeasureSpec.makeMeasureSpec(widthPx, android.view.View.MeasureSpec.EXACTLY)
+        val heightSpec = android.view.View.MeasureSpec.makeMeasureSpec(0, android.view.View.MeasureSpec.UNSPECIFIED)
+        composeView.measure(widthSpec, heightSpec)
+        composeView.layout(0, 0, composeView.measuredWidth, composeView.measuredHeight)
+
+        val bitmap = Bitmap.createBitmap(composeView.measuredWidth, composeView.measuredHeight, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+        composeView.draw(canvas)
+
+        // Limpieza para evitar fugas.
+        hostContainer?.let { root?.removeView(it) }
+
+        return bitmap
+    }
+
+    private fun Context.findActivity(): Activity? {
+        var ctx: Context = this
+        while (ctx is ContextWrapper) {
+            if (ctx is Activity) return ctx
+            ctx = ctx.baseContext
         }
+        return null
+    }
+
+    @Composable
+    private fun ShareCardTheme(
+        primaryColorArgb: Int?,
+        content: @Composable () -> Unit
+    ) {
+        val primary = primaryColorArgb?.let { Color(it) } ?: darkColorScheme().primary
+        MaterialTheme(
+            colorScheme = darkColorScheme(primary = primary),
+            typography = ZipStatsTypography,
+            content = content
+        )
+    }
+
+    private fun dpToPx(context: Context, dp: Float): Int {
+        return (dp * context.resources.displayMetrics.density).roundToInt()
     }
 
     private fun shareBitmap(context: Context, bitmap: Bitmap, route: Route) {

@@ -482,21 +482,26 @@ class StatisticsViewModel @Inject constructor(
         val extremeKm = weather.extremeKm.roundToOneDecimal()
 
         val weatherLines = buildList {
-            if (rainKm > 0.0) add("🌧️ Distancia con lluvia: $rainKm km")
-            if (wetRoadKm > 0.0) add("💧 Distancia con calzada húmeda: $wetRoadKm km")
-            if (extremeKm > 0.0) add("⚠️ Distancia en condiciones extremas: $extremeKm km")
+            if (rainKm > 0.0) add("🌧️ Con lluvia: $rainKm km")
+            if (wetRoadKm > 0.0) add("💧 Calzada húmeda: $wetRoadKm km")
+            if (extremeKm > 0.0) add("⚠️ Extremo: $extremeKm km")
         }
-        val weatherText = if (weatherLines.isNotEmpty()) "\n" + weatherLines.joinToString("\n") else ""
 
-        return """
-Estadísticas totales de ZipStats
-📊 Total recorrido: ${stats.totalDistance} km
-🌱 CO₂ ahorrado: $co2Saved kg
-🌳 Árboles: $treesEquivalent
-⛽ Gasolina ahorrada: $gasSaved L
-$weatherText
-#ZipStats
-        """.trimIndent()
+        val lines = mutableListOf(
+            "Estadísticas totales de ZipStats 🛴",
+            "📊 Total: ${stats.totalDistance.roundToOneDecimal()} km | CO₂: -$co2Saved kg",
+            "🌳 Árboles: $treesEquivalent | ⛽ Gasolina: $gasSaved L"
+        )
+
+        if (weatherLines.isNotEmpty()) {
+            lines.add("")
+            lines.addAll(weatherLines)
+        }
+
+        lines.add("")
+        lines.add("#ZipStats")
+
+        return lines.joinToString("\n")
     }
 
     suspend fun getMonthlyShareText(stats: StatisticsUiState.Success, month: Int? = null, year: Int? = null): String {
@@ -568,21 +573,26 @@ $weatherText
         val extremeKm = weather.extremeKm.roundToOneDecimal()
 
         val weatherLines = buildList {
-            if (rainKm > 0.0) add("🌧️ Distancia con lluvia: $rainKm km")
-            if (wetRoadKm > 0.0) add("💧 Distancia con calzada húmeda: $wetRoadKm km")
-            if (extremeKm > 0.0) add("⚠️ Distancia en condiciones extremas: $extremeKm km")
+            if (rainKm > 0.0) add("🌧️ Con lluvia: $rainKm km")
+            if (wetRoadKm > 0.0) add("💧 Calzada húmeda: $wetRoadKm km")
+            if (extremeKm > 0.0) add("⚠️ Extremo: $extremeKm km")
         }
-        val weatherText = if (weatherLines.isNotEmpty()) "\n" + weatherLines.joinToString("\n") else ""
 
-        return """
-Estadísticas de $monthName $selectedYear de ZipStats
-📊 Total recorrido: ${stats.monthlyDistance} km
-🌱 CO₂ ahorrado: $co2Saved kg
-🌳 Árboles: $treesEquivalent
-⛽ Gasolina ahorrada: $gasSaved L
-$weatherText
-#ZipStats
-        """.trimIndent()
+        val lines = mutableListOf(
+            "Estadísticas $monthName $selectedYear de ZipStats 🛴",
+            "📊 Total: ${stats.monthlyDistance.roundToOneDecimal()} km | CO₂: -$co2Saved kg",
+            "🌳 Árboles: $treesEquivalent | ⛽ Gasolina: $gasSaved L"
+        )
+
+        if (weatherLines.isNotEmpty()) {
+            lines.add("")
+            lines.addAll(weatherLines)
+        }
+
+        lines.add("")
+        lines.add("#ZipStats")
+
+        return lines.joinToString("\n")
     }
 
     suspend fun getYearlyShareText(stats: StatisticsUiState.Success, year: Int? = null): String {
@@ -645,21 +655,26 @@ $weatherText
         val extremeKm = weather.extremeKm.roundToOneDecimal()
 
         val weatherLines = buildList {
-            if (rainKm > 0.0) add("🌧️ Distancia con lluvia: $rainKm km")
-            if (wetRoadKm > 0.0) add("💧 Distancia con calzada húmeda: $wetRoadKm km")
-            if (extremeKm > 0.0) add("⚠️ Distancia en condiciones extremas: $extremeKm km")
+            if (rainKm > 0.0) add("🌧️ Con lluvia: $rainKm km")
+            if (wetRoadKm > 0.0) add("💧 Calzada húmeda: $wetRoadKm km")
+            if (extremeKm > 0.0) add("⚠️ Extremo: $extremeKm km")
         }
-        val weatherText = if (weatherLines.isNotEmpty()) "\n" + weatherLines.joinToString("\n") else ""
 
-        return """
-Estadísticas de $selectedYear de ZipStats
-📊 Total recorrido: ${stats.yearlyDistance} km
-🌱 CO₂ ahorrado: $co2Saved kg
-🌳 Árboles: $treesEquivalent
-⛽ Gasolina ahorrada: $gasSaved L
-$weatherText
-#ZipStats
-        """.trimIndent()
+        val lines = mutableListOf(
+            "Estadísticas $selectedYear de ZipStats 🛴",
+            "📊 Total: ${stats.yearlyDistance.roundToOneDecimal()} km | CO₂: -$co2Saved kg",
+            "🌳 Árboles: $treesEquivalent | ⛽ Gasolina: $gasSaved L"
+        )
+
+        if (weatherLines.isNotEmpty()) {
+            lines.add("")
+            lines.addAll(weatherLines)
+        }
+
+        lines.add("")
+        lines.add("#ZipStats")
+
+        return lines.joinToString("\n")
     }
 
     private fun calculateMonthlyChartData(records: List<com.zipstats.app.model.Record>): List<ChartDataPoint> {

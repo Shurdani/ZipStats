@@ -1092,45 +1092,6 @@ fun AnimatedTrackingIndicator(
     }
 }
 
-@Composable
-fun StatsGrid(
-    distance: Double,
-    speed: Double,
-    duration: Long,
-    pointsCount: Int
-) {
-    Column(modifier = Modifier.fillMaxWidth()) {
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            StatCard(
-                title = "Distancia",
-                value = LocationUtils.formatDistance(distance),
-                icon = Icons.Default.Route,
-                modifier = Modifier.weight(1f)
-            )
-            StatCard(
-                title = "Velocidad",
-                value = LocationUtils.formatSpeed(speed),
-                icon = Icons.Default.Speed,
-                modifier = Modifier.weight(1f)
-            )
-        }
-        Spacer(modifier = Modifier.height(16.dp))
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            StatCard(
-                title = "Duración",
-                value = formatDuration(duration),
-                icon = Icons.Default.Timer,
-                modifier = Modifier.weight(1f)
-            )
-            StatCard(
-                title = "Puntos GPS",
-                value = pointsCount.toString(),
-                icon = Icons.Default.Place,
-                modifier = Modifier.weight(1f)
-            )
-        }
-    }
-}
 
 @Composable
 fun StatCard(

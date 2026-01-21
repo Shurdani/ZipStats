@@ -587,8 +587,22 @@ fun CleanMetricsRow(route: Route, onWeatherClick: () -> Unit) {
 
         // Clima (Interactivo)
         val weatherTemp = route.weatherTemperature?.let { "${formatTemperature(it, 0)}°" } ?: "--"
-        val weatherIconRes = remember(route.weatherEmoji, route.weatherIsDay) {
-            getWeatherIconResId(route.weatherEmoji, route.weatherIsDay ?: true)
+        val weatherIconRes = remember(route.weatherCondition, route.weatherCode, route.weatherEmoji, route.weatherIsDay) {
+            when {
+                !route.weatherCondition.isNullOrBlank() ->
+                    WeatherRepository.getIconResIdForCondition(route.weatherCondition, route.weatherIsDay ?: true)
+                route.weatherCode != null ->
+                    WeatherRepository.getIconResIdForWeather(route.weatherCode, if (route.weatherIsDay ?: true) 1 else 0)
+                !route.weatherEmoji.isNullOrBlank() -> {
+                    val inferredCode = inferWeatherCodeFromEmoji(route.weatherEmoji)
+                    if (inferredCode != null) {
+                        WeatherRepository.getIconResIdForWeather(inferredCode, if (route.weatherIsDay ?: true) 1 else 0)
+                    } else {
+                        R.drawable.help_outline
+                    }
+                }
+                else -> R.drawable.help_outline
+            }
         }
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -914,14 +928,46 @@ private fun RouteTitle(route: Route) {
 @Composable
 private fun StatsChips(route: Route, onWeatherClick: () -> Unit) {
     val context = LocalContext.current
-    var weatherIconRes by remember(route.id) { mutableStateOf(getWeatherIconResId(route.weatherEmoji, route.weatherIsDay)) }
+    var weatherIconRes by remember(route.id) { 
+        mutableStateOf(
+            when {
+                !route.weatherCondition.isNullOrBlank() ->
+                    WeatherRepository.getIconResIdForCondition(route.weatherCondition, route.weatherIsDay ?: true)
+                route.weatherCode != null ->
+                    WeatherRepository.getIconResIdForWeather(route.weatherCode, if (route.weatherIsDay ?: true) 1 else 0)
+                !route.weatherEmoji.isNullOrBlank() -> {
+                    val inferredCode = inferWeatherCodeFromEmoji(route.weatherEmoji)
+                    if (inferredCode != null) {
+                        WeatherRepository.getIconResIdForWeather(inferredCode, if (route.weatherIsDay ?: true) 1 else 0)
+                    } else {
+                        R.drawable.help_outline
+                    }
+                }
+                else -> R.drawable.help_outline
+            }
+        )
+    }
     var weatherTemp by remember(route.id) { mutableStateOf(if (route.weatherTemperature != null) "${formatTemperature(route.weatherTemperature, decimals = 0)}°C" else "--°C") }
     var isLoadingWeather by remember(route.id) { mutableStateOf(false) }
 
     LaunchedEffect(route.id) {
         if (route.weatherTemperature != null) {
-            weatherIconRes = getWeatherIconResId(route.weatherEmoji, route.weatherIsDay)
-                    weatherTemp = "${formatTemperature(route.weatherTemperature, decimals = 0)}°C"
+            weatherIconRes = when {
+                !route.weatherCondition.isNullOrBlank() ->
+                    WeatherRepository.getIconResIdForCondition(route.weatherCondition, route.weatherIsDay ?: true)
+                route.weatherCode != null ->
+                    WeatherRepository.getIconResIdForWeather(route.weatherCode, if (route.weatherIsDay ?: true) 1 else 0)
+                !route.weatherEmoji.isNullOrBlank() -> {
+                    val inferredCode = inferWeatherCodeFromEmoji(route.weatherEmoji)
+                    if (inferredCode != null) {
+                        WeatherRepository.getIconResIdForWeather(inferredCode, if (route.weatherIsDay ?: true) 1 else 0)
+                    } else {
+                        R.drawable.help_outline
+                    }
+                }
+                else -> R.drawable.help_outline
+            }
+            weatherTemp = "${formatTemperature(route.weatherTemperature, decimals = 0)}°C"
             return@LaunchedEffect
         }
         if (route.points.isNotEmpty()) {
@@ -934,7 +980,22 @@ private fun StatsChips(route: Route, onWeatherClick: () -> Unit) {
                 val firstPoint = route.points.first()
                 val result = weatherRepository.getCurrentWeather(firstPoint.latitude, firstPoint.longitude)
                 result.onSuccess { weather ->
-                    weatherIconRes = getWeatherIconResId(weather.weatherEmoji, weather.isDay)
+                    // Usar condition si está disponible, sino emoji como fallback
+                    weatherIconRes = when {
+                        !weather.icon.isNullOrBlank() ->
+                            WeatherRepository.getIconResIdForCondition(weather.icon, weather.isDay)
+                        weather.weatherCode != null ->
+                            WeatherRepository.getIconResIdForWeather(weather.weatherCode, if (weather.isDay) 1 else 0)
+                        !weather.weatherEmoji.isNullOrBlank() -> {
+                            val inferredCode = inferWeatherCodeFromEmoji(weather.weatherEmoji)
+                            if (inferredCode != null) {
+                                WeatherRepository.getIconResIdForWeather(inferredCode, if (weather.isDay) 1 else 0)
+                            } else {
+                                R.drawable.help_outline
+                            }
+                        }
+                        else -> R.drawable.help_outline
+                    }
                     weatherTemp = "${formatTemperature(weather.temperature, decimals = 0)}°C"
                 }
             } catch (e: Exception) {
@@ -1125,11 +1186,27 @@ private fun WeatherInfoDialog(route: Route, onDismiss: () -> Unit) {
                     }
                     
                     // 1. HEADER (Icono + Temp) - Usar datos guardados directamente
-                    val effectiveEmoji = route.weatherEmoji ?: "🌡️"
                     val effectiveDescription = route.weatherDescription?.substringBefore("(")?.trim() ?: "Clima"
+                    val weatherIconRes = remember(route.weatherCondition, route.weatherCode, route.weatherEmoji, route.weatherIsDay) {
+                        when {
+                            !route.weatherCondition.isNullOrBlank() ->
+                                WeatherRepository.getIconResIdForCondition(route.weatherCondition, route.weatherIsDay ?: true)
+                            route.weatherCode != null ->
+                                WeatherRepository.getIconResIdForWeather(route.weatherCode, if (route.weatherIsDay ?: true) 1 else 0)
+                            !route.weatherEmoji.isNullOrBlank() -> {
+                                val inferredCode = inferWeatherCodeFromEmoji(route.weatherEmoji)
+                                if (inferredCode != null) {
+                                    WeatherRepository.getIconResIdForWeather(inferredCode, if (route.weatherIsDay ?: true) 1 else 0)
+                                } else {
+                                    R.drawable.help_outline
+                                }
+                            }
+                            else -> R.drawable.help_outline
+                        }
+                    }
                     
                     Image(
-                        painter = painterResource(id = getWeatherIconResId(effectiveEmoji, route.weatherIsDay ?: true)),
+                        painter = painterResource(id = weatherIconRes),
                         contentDescription = null,
                         modifier = Modifier.size(72.dp), // Un pelín más grande
                         colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.primary)
@@ -1227,17 +1304,21 @@ private fun WeatherInfoDialog(route: Route, onDismiss: () -> Unit) {
 
                         // Columna Derecha (Peligros/Visibilidad)
                         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                            // Lógica de lluvia (evitar confusión con precipitación residual de horas anteriores):
-                            // - Solo mostrar "Lluvia: X mm" si realmente hubo lluvia durante la ruta (hadRain == true).
-                            // - Si NO hubo lluvia, mostrar solo probabilidad (si existe) y nunca los mm residuales.
-                            val precip = route.weatherMaxPrecipitation ?: 0.0
-                            if (hadRain && precip > 0.0) {
-                                WeatherGridItem(Icons.Default.Grain, "Lluvia", "${LocationUtils.formatNumberSpanish(precip)} mm")
-                            } else if (hadRain && route.weatherRainProbability != null) {
-                                WeatherGridItem(Icons.Default.Umbrella, "Prob. Lluvia", "${route.weatherRainProbability}%")
-                            } else if (hadRain) {
-                                WeatherGridItem(Icons.Default.Grain, "Lluvia", "Detectada")
+                            // Lógica de lluvia:
+                            // - Si hubo lluvia (hadRain == true): mostrar mm si están disponibles, o "Detectada" si no.
+                            //   NO mostrar probabilidad si hubo lluvia real.
+                            // - Si NO hubo lluvia: mostrar solo probabilidad (si existe).
+                            if (hadRain) {
+                                // Hubo lluvia durante la ruta
+                                val precip = route.weatherMaxPrecipitation
+                                if (precip != null && precip > 0.0) {
+                                    WeatherGridItem(Icons.Default.Grain, "Lluvia", "${LocationUtils.formatNumberSpanish(precip)} mm")
+                                } else {
+                                    // Lluvia detectada pero sin mm registrados
+                                    WeatherGridItem(Icons.Default.Grain, "Lluvia", "Detectada")
+                                }
                             } else {
+                                // NO hubo lluvia: mostrar probabilidad si existe
                                 route.weatherRainProbability?.let {
                                     WeatherGridItem(Icons.Default.Umbrella, "Prob. Lluvia", "$it%")
                                 }
@@ -1417,51 +1498,23 @@ private fun WeatherDetailRow(
 
 // La lógica de compartir se ha movido a ShareUtils.kt
 
-@DrawableRes
-private fun getWeatherIconResId(emoji: String?, isDay: Boolean): Int {
-    if (emoji.isNullOrBlank()) return R.drawable.help_outline
-
-    // Mapeo de emoji a código de Open-Meteo para usar WeatherRepository
-    val weatherCode = when (emoji) {
-        // ☀️ Cielo Despejado
-        "☀️" -> 0
-        "🌙" -> 0
-
-        // ⛅ Nubes Parciales
-        "🌤️", "🌥️" -> if (isDay) 1 else 2
-        "☁️🌙" -> 2
-
-        // ☁️ Nublado
+/**
+ * Infiere un código de clima desde un emoji (último recurso cuando no hay weatherCondition ni weatherCode)
+ */
+private fun inferWeatherCodeFromEmoji(emoji: String?): Int? {
+    if (emoji.isNullOrBlank()) return null
+    return when (emoji) {
+        "☀️", "🌙" -> 0
+        "🌤️", "🌥️", "☁️🌙" -> 1
         "☁️" -> 3
-
-        // 🌫️ Niebla
         "🌫️" -> 45
-
-        // 🌦️ Lluvia Ligera / Chubascos leves
-        "🌦️" -> if (isDay) 61 else 61
-
-        // 🌧️ Lluvia Fuerte / Densa
+        "🌦️" -> 61
         "🌧️" -> 65
-
-        // 🥶 Aguanieve / Hielo
         "🥶" -> 66
-
-        // ❄️ Nieve
         "❄️" -> 71
-
-        // ⛈️ Tormenta / Granizo / Rayo
-        "⚡" -> 95
-        "⛈️" -> 96
-
-        // Default: código desconocido
-        else -> -1
+        "⛈️", "⚡" -> 95
+        else -> null
     }
-
-    // Si no encontramos el código, usar icono por defecto
-    if (weatherCode == -1) return R.drawable.help_outline
-
-    // Usar WeatherRepository para obtener el icono correcto
-    return WeatherRepository.getIconResIdForWeather(weatherCode, if (isDay) 1 else 0)
 }
 
 private fun getVehicleIconResource(vehicleType: VehicleType?): Int {

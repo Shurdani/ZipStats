@@ -25,6 +25,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -47,6 +48,7 @@ fun RouteSummaryCard(
     temperature: Double? = null,
     weatherText: String? = null,
     @DrawableRes weatherIconRes: Int? = null,
+    badgeEmojiText: String? = null, // Emojis de badges (⚠️, 🔵, 🟡) para mostrar antes del icono del clima
     modifier: Modifier = Modifier
 ) {
     Card(
@@ -151,6 +153,16 @@ fun RouteSummaryCard(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.Center
                     ) {
+                        // Badges de seguridad (lluvia, calzada húmeda, condiciones extremas)
+                        if (badgeEmojiText != null) {
+                            ZipStatsText(
+                                text = badgeEmojiText,
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White,
+                                modifier = Modifier.padding(end = 8.dp)
+                            )
+                        }
                         Image(
                             painter = painterResource(id = weatherIconRes),
                             contentDescription = null,
@@ -224,6 +236,27 @@ fun RouteSummaryCardFromRoute(
         }
     }
 
+    // Leer badges guardados de la ruta (ya calculados al finalizar)
+    val hadRain = route.weatherHadRain == true
+    val hasWetRoad = route.weatherHadWetRoad == true && !hadRain // Calzada mojada solo si NO hay lluvia
+    val hasExtremeConditions = route.weatherHadExtremeConditions == true
+    
+    // Construir emojis de badges (igual que en TrackingScreen.kt)
+    val badgeEmojiText = remember(hadRain, hasWetRoad, hasExtremeConditions) {
+        buildString {
+            // IMPORTANTE: Si hay 2 badges, el de condiciones extremas debe ir primero (izquierda).
+            if (hasExtremeConditions) {
+                append("⚠️")
+            }
+            // Badge principal (lluvia o calzada húmeda). Son excluyentes por lógica.
+            if (hadRain) {
+                append("🔵")
+            } else if (hasWetRoad) {
+                append("🟡")
+            }
+        }.takeIf { it.isNotBlank() }
+    }
+
     RouteSummaryCard(
         title = title,
         subtitle = subtitle,
@@ -233,6 +266,7 @@ fun RouteSummaryCardFromRoute(
         temperature = route.weatherTemperature,
         weatherText = weatherText,
         weatherIconRes = weatherIconRes,
+        badgeEmojiText = badgeEmojiText,
         modifier = modifier
     )
 }

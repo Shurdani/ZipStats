@@ -677,7 +677,7 @@ fun EditRecordBottomSheet(
     onDelete: () -> Unit
 ) {
     var selectedScooter by remember { mutableStateOf(record.patinete) }
-    var kilometraje by remember { mutableStateOf(record.kilometraje.toString()) }
+    var kilometraje by remember { mutableStateOf(LocationUtils.formatNumberSpanish(record.kilometraje, 1)) }
     var expanded by remember { mutableStateOf(false) }
     var showDatePicker by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }

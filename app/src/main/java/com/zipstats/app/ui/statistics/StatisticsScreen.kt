@@ -630,7 +630,8 @@ fun ImpactItem(
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.ExtraBold,
             color = MaterialTheme.colorScheme.onSurface,
-            maxLines = 1
+            maxLines = 1,
+            autoResize = true // Ajusta el tamaño automáticamente para que no se corte
         )
 
         // La unidad pequeña
@@ -747,7 +748,8 @@ fun StatMetric(
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
             maxLines = 1,
-            textAlign = TextAlign.Center // Asegurar centrado del texto
+            textAlign = TextAlign.Center, // Asegurar centrado del texto
+            autoResize = true // Ajusta el tamaño automáticamente para que no se corte
         )
         ZipStatsText(
             text = label,
@@ -783,7 +785,8 @@ fun StatMetricWithDrawable(
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
             maxLines = 1,
-            textAlign = TextAlign.Center // Asegurar centrado del texto
+            textAlign = TextAlign.Center, // Asegurar centrado del texto
+            autoResize = true // Ajusta el tamaño automáticamente para que no se corte
         )
         ZipStatsText(
             text = label,
@@ -1033,7 +1036,8 @@ private fun ComparisonValueColumn(
                         text = value,
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
-                        color = accentColor
+                        color = accentColor,
+                        autoResize = true // Ajusta el tamaño automáticamente para que no se corte
                     )
                     ZipStatsText(
                         text = unit,
@@ -1051,7 +1055,8 @@ private fun ComparisonValueColumn(
                     text = value,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = MaterialTheme.colorScheme.onSurface,
+                    autoResize = true // Ajusta el tamaño automáticamente para que no se corte
                 )
                 ZipStatsText(
                     text = unit,
@@ -1128,7 +1133,8 @@ fun SmartInsightCard(
                             text = LocationUtils.formatNumberSpanish(data.currentValue, 1), 
                             style = MaterialTheme.typography.headlineMedium,
                             fontWeight = FontWeight.ExtraBold,
-                            color = themeColor // El número toma el color del tema
+                            color = themeColor, // El número toma el color del tema
+                            autoResize = true // Ajusta el tamaño automáticamente para que no se corte
                         )
                         Spacer(modifier = Modifier.width(4.dp))
                         ZipStatsText(

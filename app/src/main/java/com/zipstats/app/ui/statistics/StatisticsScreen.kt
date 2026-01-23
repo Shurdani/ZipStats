@@ -1274,17 +1274,8 @@ fun DynamicMetricCard(
             }
             DynamicMetricType.WET_ROAD -> {
                 val current = weatherStats.wetRoadKm
-                val prev = if (comparison != null) {
-                    // Estimar basado en la tendencia de distancia
-                    val multiplier = if (comparison.isPositive) {
-                        1 + (comparison.percentageChange / 100.0)
-                    } else {
-                        1 - (comparison.percentageChange / 100.0)
-                    }
-                    if (multiplier > 0) current / multiplier else 0.0
-                } else {
-                    0.0
-                }
+                // Usar métricas reales del período comparado (sin estimaciones)
+                val prev = comparison?.comparisonWeatherMetrics?.wetRoadKm ?: 0.0
                 Triple(
                     current,
                     prev,
@@ -1293,16 +1284,8 @@ fun DynamicMetricCard(
             }
             DynamicMetricType.RAIN -> {
                 val current = weatherStats.rainKm
-                val prev = if (comparison != null) {
-                    val multiplier = if (comparison.isPositive) {
-                        1 + (comparison.percentageChange / 100.0)
-                    } else {
-                        1 - (comparison.percentageChange / 100.0)
-                    }
-                    if (multiplier > 0) current / multiplier else 0.0
-                } else {
-                    0.0
-                }
+                // Usar métricas reales del período comparado (sin estimaciones)
+                val prev = comparison?.comparisonWeatherMetrics?.rainKm ?: 0.0
                 Triple(
                     current,
                     prev,
@@ -1311,16 +1294,8 @@ fun DynamicMetricCard(
             }
             DynamicMetricType.EXTREME -> {
                 val current = weatherStats.extremeKm
-                val prev = if (comparison != null) {
-                    val multiplier = if (comparison.isPositive) {
-                        1 + (comparison.percentageChange / 100.0)
-                    } else {
-                        1 - (comparison.percentageChange / 100.0)
-                    }
-                    if (multiplier > 0) current / multiplier else 0.0
-                } else {
-                    0.0
-                }
+                // Usar métricas reales del período comparado (sin estimaciones)
+                val prev = comparison?.comparisonWeatherMetrics?.extremeKm ?: 0.0
                 Triple(
                     current,
                     prev,

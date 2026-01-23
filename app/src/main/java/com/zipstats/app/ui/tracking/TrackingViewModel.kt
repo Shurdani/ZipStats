@@ -2,14 +2,21 @@ package com.zipstats.app.ui.tracking
 
 import android.annotation.SuppressLint
 import android.app.Application
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
 import android.location.Location
+import android.os.Build
 import android.os.IBinder
 import android.os.Looper
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
 import android.util.Log
+import androidx.core.app.NotificationCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.android.gms.location.FusedLocationProviderClient
@@ -46,6 +53,16 @@ sealed class TrackingState {
     object Paused : TrackingState()
     object Saving : TrackingState()
     data class Error(val message: String) : TrackingState()
+}
+
+/**
+ * Estado del clima para notificaciones (simplificado)
+ */
+enum class WeatherBadgeState {
+    SECO,              // Sin badges activos
+    CALZADA_HUMEDA,   // Calzada húmeda (🟡)
+    LLUVIA,           // Lluvia activa (🔵)
+    EXTREMO           // Condiciones extremas (⚠️)
 }
 
 /**
@@ -204,6 +221,13 @@ class TrackingViewModel @Inject constructor(
     private val _shouldShowExtremeWarning = MutableStateFlow(false)
     val shouldShowExtremeWarning: StateFlow<Boolean> = _shouldShowExtremeWarning.asStateFlow()
     
+    // Estado anterior del clima para detectar cambios y mostrar notificaciones
+    private var lastWeatherBadgeState: WeatherBadgeState? = null
+    
+    // ID del canal de notificaciones de cambio de clima
+    private val WEATHER_CHANGE_CHANNEL_ID = "weather_change_channel"
+    private val WEATHER_CHANGE_NOTIFICATION_ID = 2000
+    
     // Nota: se eliminó la histéresis de "calzada humeda".
     // Ahora solo usamos señales de Google (histórico reciente + humedad/condensación/nieve).
     
@@ -321,12 +345,25 @@ class TrackingViewModel @Inject constructor(
             _startWeatherVisibility = savedWeather.visibility
             _startWeatherDewPoint = savedWeather.dewPoint
 
-            // 2. Restauramos los estados de advertencia
-            _shouldShowRainWarning.value = savedWeather.shouldShowRainWarning
-            _isActiveRainWarning.value = savedWeather.isActiveRainWarning
-            _shouldShowExtremeWarning.value = savedWeather.shouldShowExtremeWarning
+            // 2. 🔥 IMPORTANTE: NO restaurar los badges si estamos en estado Idle (pretracking)
+            // Los badges solo deben mostrarse durante el tracking activo, no en la pantalla de pretracking
+            // Se restaurarán automáticamente cuando se detecte el clima durante el tracking
+            if (_trackingState.value is TrackingState.Tracking || _trackingState.value is TrackingState.Paused) {
+                // Solo restaurar badges si hay tracking activo
+                _shouldShowRainWarning.value = savedWeather.shouldShowRainWarning
+                _isActiveRainWarning.value = savedWeather.isActiveRainWarning
+                _shouldShowExtremeWarning.value = savedWeather.shouldShowExtremeWarning
+                Log.d(TAG, "♻️ Badges restaurados (tracking activo)")
+            } else {
+                // En pretracking, los badges deben estar limpios
+                _shouldShowRainWarning.value = false
+                _isActiveRainWarning.value = false
+                _shouldShowExtremeWarning.value = false
+                lastWeatherBadgeState = null
+                Log.d(TAG, "🔄 Badges NO restaurados (estado Idle - pretracking)")
+            }
 
-            // 3. Restauramos el estado de la UI para que aparezca la tarjeta
+            // 3. Restauramos el estado de la UI para que aparezca la tarjeta (solo datos del clima, sin badges)
             _weatherStatus.value = WeatherStatus.Success(
                 temperature = savedWeather.temperature,
                 feelsLike = savedWeather.feelsLike,
@@ -349,6 +386,15 @@ class TrackingViewModel @Inject constructor(
                 dewPoint = savedWeather.dewPoint,
                 visibility = savedWeather.visibility
             )
+        } else {
+            // 🔥 IMPORTANTE: Si NO hay clima guardado, asegurar que TODO esté limpio
+            // Esto puede pasar si se finalizó/canceló una ruta y el ViewModel se mantiene vivo
+            _shouldShowRainWarning.value = false
+            _isActiveRainWarning.value = false
+            _shouldShowExtremeWarning.value = false
+            lastWeatherBadgeState = null
+            _weatherStatus.value = WeatherStatus.Idle // Resetear estado del clima también
+            Log.d(TAG, "🔄 No hay clima guardado, badges y estado del clima limpiados")
         }
     }
 
@@ -665,6 +711,10 @@ class TrackingViewModel @Inject constructor(
                     Log.d(TAG, "✅ [Precarga] Clima inicial capturado: ${weather.temperature}°C $weatherEmoji")
                     // El log de lluvia se maneja arriba según si es lluvia activa o calzada húmeda
                     // (líneas 629 y 636)
+                    
+                    // 🔔 Inicializar estado anterior del clima después de actualizar badges
+                    lastWeatherBadgeState = getCurrentWeatherBadgeState()
+                    Log.d(TAG, "🌤️ [Precarga] Estado inicial del clima establecido: $lastWeatherBadgeState")
                 }.onFailure { error ->
                     Log.e(TAG, "❌ [Precarga] Error al capturar clima inicial: ${error.message}")
                     _weatherStatus.value = WeatherStatus.Error(error.message ?: "Error al obtener clima")
@@ -800,8 +850,14 @@ class TrackingViewModel @Inject constructor(
      * Inicia el seguimiento de la ruta
      */
     fun startTracking() {
-        // NO resetear los flags de preaviso al iniciar - se mantendrán para mostrar iconos en tarjeta del clima
-        // Los flags se actualizarán durante el monitoreo continuo basándose en el clima real
+        // 🔥 IMPORTANTE: Resetear badges al iniciar una nueva ruta
+        // Esto asegura que cada ruta empiece limpia y los badges se actualicen según el clima real
+        _shouldShowRainWarning.value = false
+        _isActiveRainWarning.value = false
+        _shouldShowExtremeWarning.value = false
+        lastWeatherBadgeState = null // Resetear estado anterior para notificaciones
+        Log.d(TAG, "🔄 Badges reseteados al iniciar nueva ruta")
+        
         val scooter = _selectedScooter.value
         if (scooter == null) {
             _message.value = "Por favor, selecciona un vehículo primero"
@@ -839,9 +895,10 @@ class TrackingViewModel @Inject constructor(
                 Log.d(TAG, "Seguimiento iniciado")
                 
                 // Capturar el clima al INICIO de la ruta
+                // (El estado inicial del clima se establece dentro de captureStartWeather)
                 captureStartWeather()
                 
-                // Iniciar detección continua de lluvia cada 10 minutos
+                // Iniciar detección continua de lluvia cada 5 minutos
                 startContinuousWeatherMonitoring()
                 
                 // Mostrar toast de confirmación
@@ -1220,11 +1277,11 @@ class TrackingViewModel @Inject constructor(
                         result.onSuccess { weather ->
                             Log.d(TAG, "✅ [Monitoreo continuo] Clima obtenido: ${weather.temperature}°C, condición=${weather.icon}, precip=${weather.precipitation}mm, humedad=${weather.humidity}%")
                             
-                            // 🔥 IMPORTANTE: Actualizar weatherStatus SIEMPRE con el clima nuevo para que la UI se actualice
-                            // (temperatura, icono, viento) independientemente de si hay lluvia o no
+                            // 🔥 IMPORTANTE: Actualizar weatherStatus SIEMPRE para que la UI (tarjeta + badge) reaccione.
+                            // Antes solo lo actualizábamos si ya era Success; si estaba Idle/Loading/Error, la tarjeta no se refrescaba.
                             val currentStatus = _weatherStatus.value
-                            if (currentStatus is WeatherStatus.Success) {
-                                _weatherStatus.value = currentStatus.copy(
+                            _weatherStatus.value = if (currentStatus is WeatherStatus.Success) {
+                                currentStatus.copy(
                                     temperature = weather.temperature,
                                     weatherEmoji = weather.weatherEmoji,
                                     weatherCode = weather.weatherCode,
@@ -1232,9 +1289,30 @@ class TrackingViewModel @Inject constructor(
                                     windSpeed = weather.windSpeed,
                                     windDirection = weather.windDirection,
                                     isDay = weather.isDay,
-                                    description = weather.description // Actualizar descripción también
-                                    // No actualizar: feelsLike, humidity, windGusts, uvIndex
-                                    // porque no se muestran en la tarjeta y al finalizar se guardan los datos del inicio
+                                    description = weather.description
+                                )
+                            } else {
+                                WeatherStatus.Success(
+                                    temperature = weather.temperature,
+                                    feelsLike = weather.feelsLike,
+                                    windChill = weather.windChill,
+                                    heatIndex = weather.heatIndex,
+                                    description = weather.description,
+                                    icon = weather.icon,
+                                    humidity = weather.humidity,
+                                    windSpeed = weather.windSpeed,
+                                    weatherEmoji = weather.weatherEmoji,
+                                    weatherCode = weather.weatherCode,
+                                    isDay = weather.isDay,
+                                    uvIndex = weather.uvIndex,
+                                    windDirection = weather.windDirection,
+                                    windGusts = weather.windGusts,
+                                    rainProbability = weather.rainProbability,
+                                    precipitation = weather.precipitation,
+                                    rain = weather.rain,
+                                    showers = weather.showers,
+                                    dewPoint = weather.dewPoint,
+                                    visibility = weather.visibility
                                 )
                             }
                             
@@ -1454,6 +1532,9 @@ class TrackingViewModel @Inject constructor(
                             
                             // Resumen final del chequeo
                             Log.d(TAG, "📊 [Monitoreo continuo] Resumen: hadRain=$weatherHadRain, hadWetRoad=$weatherHadWetRoad, hadExtreme=$weatherHadExtremeConditions, precipMax=${weatherMaxPrecipitation}mm")
+                            
+                            // 🔔 Detectar cambios en el estado del clima y mostrar notificaciones
+                            checkAndNotifyWeatherChange()
                         }.onFailure { error ->
                             Log.w(TAG, "⚠️ [Monitoreo continuo] Error al obtener clima: ${error.message}")
                             // En caso de error, no limpiar pending - esperar al siguiente chequeo
@@ -1475,6 +1556,179 @@ class TrackingViewModel @Inject constructor(
             
             Log.d(TAG, "🌧️ [Monitoreo continuo] Detenido (tracking finalizado)")
         }
+    }
+
+    /**
+     * Determina el estado actual del clima basado en los badges activos
+     */
+    private fun getCurrentWeatherBadgeState(): WeatherBadgeState {
+        val hasRain = _shouldShowRainWarning.value && _isActiveRainWarning.value
+        val hasWetRoad = _shouldShowRainWarning.value && !_isActiveRainWarning.value
+        val hasExtreme = _shouldShowExtremeWarning.value
+        
+        return when {
+            hasRain -> WeatherBadgeState.LLUVIA
+            hasWetRoad -> WeatherBadgeState.CALZADA_HUMEDA
+            hasExtreme -> WeatherBadgeState.EXTREMO
+            else -> WeatherBadgeState.SECO
+        }
+    }
+
+    /**
+     * Crea el canal de notificaciones para cambios de clima
+     */
+    private fun createWeatherChangeNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                WEATHER_CHANGE_CHANNEL_ID,
+                "Avisos de Seguridad",
+                NotificationManager.IMPORTANCE_HIGH // Prioridad alta para que vibre y llegue al smartwatch
+            ).apply {
+                description = "Notificaciones cuando cambia el clima durante una ruta activa"
+                setShowBadge(true)
+                enableLights(true)
+                enableVibration(true)
+                setSound(null, null) // Sin sonido, solo vibración
+            }
+            val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            notificationManager.createNotificationChannel(channel)
+            Log.d(TAG, "📢 Canal de notificaciones de cambio de clima creado")
+        }
+    }
+
+    /**
+     * Obtiene el texto del badge según el estado
+     */
+    private fun getBadgeText(state: WeatherBadgeState, extremeReason: String? = null): String {
+        return when (state) {
+            WeatherBadgeState.LLUVIA -> "🔵 Lluvia"
+            WeatherBadgeState.CALZADA_HUMEDA -> "🟡 Calzada húmeda"
+            WeatherBadgeState.EXTREMO -> {
+                // Usar razón específica si está disponible
+                when (extremeReason) {
+                    "STORM" -> "⚠️ Tormenta"
+                    "SNOW" -> "⚠️ Nieve"
+                    "GUSTS" -> "⚠️ Ráfagas"
+                    "WIND" -> "⚠️ Viento intenso"
+                    "COLD" -> "⚠️ Helada"
+                    "HEAT" -> "⚠️ Calor intenso"
+                    "UV" -> "⚠️ Radiación UV alta"
+                    "VISIBILITY" -> "⚠️ Visibilidad reducida"
+                    else -> "⚠️ Clima extremo"
+                }
+            }
+            WeatherBadgeState.SECO -> "☀️ Clima seco"
+        }
+    }
+
+    /**
+     * Obtiene el icono del badge según el estado
+     */
+    private fun getBadgeIconResId(state: WeatherBadgeState, weatherStatus: WeatherStatus): Int {
+        // Usar el icono del clima actual si está disponible
+        if (weatherStatus is WeatherStatus.Success) {
+            return com.zipstats.app.repository.WeatherRepository.getIconResIdForCondition(
+                weatherStatus.icon,
+                weatherStatus.isDay
+            )
+        }
+        // Fallback: usar icono genérico de alerta
+        return android.R.drawable.ic_dialog_alert
+    }
+
+    /**
+     * Muestra una notificación de cambio de clima con vibración
+     */
+    private fun showWeatherChangeNotification(newState: WeatherBadgeState) {
+        try {
+            // Crear canal si no existe
+            createWeatherChangeNotificationChannel()
+            
+            val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            val weatherStatus = _weatherStatus.value
+            
+            // Obtener texto e icono del badge
+            val badgeText = getBadgeText(newState, weatherExtremeReason)
+            val iconResId = getBadgeIconResId(newState, weatherStatus)
+            
+            // Crear patrón de vibración de doble pulso
+            val vibrationPattern = longArrayOf(0, 200, 100, 200)
+            
+            // Intent para abrir la app en la pantalla de tracking
+            val intent = Intent(context, com.zipstats.app.MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+            }
+            val pendingIntent = android.app.PendingIntent.getActivity(
+                context,
+                0,
+                intent,
+                android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
+            )
+            
+            // Crear notificación
+            val notification = NotificationCompat.Builder(context, WEATHER_CHANGE_CHANNEL_ID)
+                .setSmallIcon(iconResId)
+                .setContentTitle("Aviso de Seguridad")
+                .setContentText(badgeText)
+                .setPriority(NotificationCompat.PRIORITY_HIGH)
+                .setCategory(NotificationCompat.CATEGORY_NAVIGATION) // Para que el sistema entienda que es información en tiempo real
+                .setVibrate(vibrationPattern)
+                .setAutoCancel(true) // Se cancela sola al tocarla
+                .setTimeoutAfter(5000) // Se cierra sola tras 5 segundos
+                .setContentIntent(pendingIntent)
+                .setStyle(NotificationCompat.BigTextStyle().bigText(badgeText))
+                .build()
+            
+            // Vibrar dispositivo (solo si tiene vibrator)
+            try {
+                val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    val vibratorManager = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager
+                    vibratorManager.defaultVibrator
+                } else {
+                    @Suppress("DEPRECATION")
+                    context.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+                }
+                
+                // Verificar que el vibrator esté disponible
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    if (vibrator.hasVibrator()) {
+                        val vibrationEffect = VibrationEffect.createWaveform(vibrationPattern, -1)
+                        vibrator.vibrate(vibrationEffect)
+                    }
+                } else {
+                    @Suppress("DEPRECATION")
+                    if (vibrator.hasVibrator()) {
+                        vibrator.vibrate(vibrationPattern, -1)
+                    }
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "⚠️ No se pudo vibrar el dispositivo: ${e.message}")
+            }
+            
+            // Mostrar notificación
+            notificationManager.notify(WEATHER_CHANGE_NOTIFICATION_ID, notification)
+            
+            Log.d(TAG, "📢 Notificación de cambio de clima mostrada: $badgeText")
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ Error al mostrar notificación de cambio de clima: ${e.message}", e)
+        }
+    }
+
+    /**
+     * Detecta cambios en el estado del clima y muestra notificaciones si es necesario
+     */
+    private fun checkAndNotifyWeatherChange() {
+        val currentState = getCurrentWeatherBadgeState()
+        val lastState = lastWeatherBadgeState
+        
+        // Solo notificar si hay un cambio de estado
+        if (currentState != lastState && lastState != null) {
+            Log.d(TAG, "🔄 Cambio de estado de clima detectado: $lastState -> $currentState")
+            showWeatherChangeNotification(currentState)
+        }
+        
+        // Actualizar estado anterior
+        lastWeatherBadgeState = currentState
     }
 
     /**
@@ -1594,6 +1848,10 @@ class TrackingViewModel @Inject constructor(
             _startWeatherVisibility = snapshot.visibility
             _startWeatherDewPoint = snapshot.dewPoint
 
+            // 🔔 Inicializar estado anterior del clima después de actualizar badges
+            lastWeatherBadgeState = getCurrentWeatherBadgeState()
+            Log.d(TAG, "🌤️ [Inicio de ruta] Estado inicial del clima establecido: $lastWeatherBadgeState")
+            
             // Guardar clima con estados de advertencia actuales
             routeRepository.saveTempWeather(
                 snapshot.copy(
@@ -2596,7 +2854,15 @@ class TrackingViewModel @Inject constructor(
                 _initialWeatherCaptured = false
                 _initialWeatherLatitude = null
                 _initialWeatherLongitude = null
+                
+                // 🔥 Limpiar TODOS los badges al finalizar
                 _shouldShowRainWarning.value = false
+                _isActiveRainWarning.value = false
+                _shouldShowExtremeWarning.value = false
+                
+                // 🔔 Resetear estado anterior del clima al finalizar tracking
+                lastWeatherBadgeState = null
+                Log.d(TAG, "🔄 Estado del clima y badges reseteados al finalizar tracking")
 
                 routeRepository.clearTempWeather()
                     
@@ -2720,8 +2986,25 @@ class TrackingViewModel @Inject constructor(
         pendingRainConfirmation = false
         pendingRainMinute = null
         pendingRainReason = null
-
+        
+        // 🔥 Limpiar TODOS los badges al cancelar
+        _shouldShowRainWarning.value = false
+        _isActiveRainWarning.value = false
+        _shouldShowExtremeWarning.value = false
+        
+        // 🔔 Resetear estado anterior del clima al cancelar tracking
+        lastWeatherBadgeState = null
+        
+        // Limpiar estado del clima en la UI
         _weatherStatus.value = WeatherStatus.Idle
+        
+        // Limpiar snapshot inicial
+        _initialWeatherSnapshot = null
+        _initialWeatherCaptured = false
+        _initialWeatherLatitude = null
+        _initialWeatherLongitude = null
+        
+        Log.d(TAG, "🔄 Estado del clima y badges reseteados al cancelar tracking")
         
         _message.value = "Ruta cancelada"
     }

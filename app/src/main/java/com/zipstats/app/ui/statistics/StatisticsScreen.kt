@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ListAlt
@@ -92,6 +93,7 @@ import com.zipstats.app.ui.components.DialogConfirmButton
 import com.zipstats.app.ui.components.ZipStatsText
 import com.zipstats.app.ui.theme.DialogShape
 import com.zipstats.app.utils.LocationUtils
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import kotlin.math.abs
@@ -102,6 +104,17 @@ private fun Double.roundToOneDecimal(): Double {
     return (this * 10.0).roundToInt() / 10.0
 }
 
+/**
+ * Métricas disponibles para la tarjeta dinámica (en orden fijo)
+ */
+enum class DynamicMetricType {
+    DISTANCE,      // Distancia
+    TREES,         // Árboles
+    CO2,           // CO2
+    WET_ROAD,      // Calzada Mojada
+    RAIN,          // Bajo la lluvia
+    EXTREME        // Cond. Extremas
+}
 
 enum class StatisticsPeriod {
     MONTHLY, ALL, YEARLY
@@ -123,8 +136,6 @@ fun StatisticsScreen(
     val selectedYear by viewModel.selectedYear.collectAsState()
     val availableMonthYears by viewModel.availableMonthYears.collectAsState()
     val periodTitle by viewModel.selectedPeriodTitle.collectAsState()
-    // Recoge el estado del insight
-    val randomInsight by viewModel.insightState.collectAsState()
     // Recoge las distancias con condiciones climáticas
     val weatherDistances by viewModel.weatherDistances.collectAsState()
     val context = LocalContext.current
@@ -376,23 +387,8 @@ fun StatisticsScreen(
                             )
                         }
 
-                        // TRIGGER PARA GENERAR INSIGHT
-                        // Se ejecuta cada vez que 'displayData' cambia (al cambiar de mes/año)
+                        // WeatherStats para la tarjeta dinámica
                         val weatherStats by viewModel.weatherStats.collectAsState()
-                        LaunchedEffect(displayData, weatherStats) {
-                            val periodLabel = when (selectedPeriod) {
-                                0 -> "Mes anterior" // Mensual
-                                1 -> "Año anterior" // Anual
-                                else -> "Histórico"
-                            }
-                            // Llamamos al ViewModel para que calcule una nueva tarjeta aleatoria
-                            viewModel.generateRandomInsight(
-                                currentDistanceKm = displayData.totalDistance,
-                                comparison = displayData.comparison,
-                                periodName = periodLabel,
-                                weatherStats = weatherStats
-                            )
-                        }
 
                         Column(
                             modifier = Modifier
@@ -442,34 +438,21 @@ fun StatisticsScreen(
                                 }
                             )
 
-                            // 3. >>> TARJETA DE INSIGHT ALEATORIO <<<
-                            // 🔥 CORRECCIÓN: Mostrar siempre si hay insight generado
-                            // Para insights de clima: mostrar si weatherStats.hasClimateData es true
-                            // Para otros insights: mostrar si hay distancia registrada
+                            // 3. >>> TARJETA DINÁMICA DE MÉTRICAS <<<
                             // No se muestra en la pestaña "Todo" (índice 2)
-                            if (selectedPeriod != 2) {
-                                randomInsight?.let { insight ->
-                                    // Verificar si el insight es de clima
-                                    val isClimateInsight = insight.metric == InsightMetric.RAIN || 
-                                                          insight.metric == InsightMetric.WET_ROAD || 
-                                                          insight.metric == InsightMetric.EXTREME
-                                    
-                                    // Mostrar si:
-                                    // - Es insight de clima Y hay datos de clima disponibles
-                                    // - O es otro tipo de insight Y hay distancia registrada
-                                    val shouldShow = if (isClimateInsight) {
-                                        weatherStats.hasClimateData
-                                    } else {
-                                        displayData.totalDistance > 0
-                                    }
-                                    
-                                    if (shouldShow) {
-                                        SmartInsightCard(
-                                            data = insight,
-                                            horizontalPadding = 16.dp
-                                        )
-                                    }
-                                }
+                            if (selectedPeriod != 2 && displayData.totalDistance > 0) {
+                                DynamicMetricCard(
+                                    totalDistance = displayData.totalDistance,
+                                    weatherStats = weatherStats,
+                                    comparison = displayData.comparison,
+                                    periodLabel = when (selectedPeriod) {
+                                        0 -> "vs Mes anterior"
+                                        1 -> "vs Año anterior"
+                                        else -> "vs Histórico"
+                                    },
+                                    selectedPeriod = selectedPeriod, // Para reactivar automático al cambiar pestaña
+                                    horizontalPadding = 16.dp
+                                )
                             }
 
                             // 4. Tarjeta "Tu Próximo Logro" (Rediseñada)
@@ -1071,14 +1054,15 @@ private fun ComparisonValueColumn(
 @Composable
 fun SmartInsightCard(
     data: RandomInsightData,
-    horizontalPadding: androidx.compose.ui.unit.Dp = 16.dp
+    horizontalPadding: androidx.compose.ui.unit.Dp = 16.dp,
+    modifier: Modifier = Modifier
 ) {
     val themeColor = data.metric.color
     // Fondo muy suave basado en el color de la métrica
     val containerColor = themeColor.copy(alpha = 0.12f) 
     
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = containerColor),
         shape = RoundedCornerShape(16.dp),
         elevation = CardDefaults.cardElevation(0.dp)
@@ -1188,6 +1172,195 @@ fun SmartInsightCard(
             }
         }
     }
+}
+
+/**
+ * Tarjeta dinámica que muestra métricas en orden fijo
+ * Cambia automáticamente cada 3 segundos o manualmente al pulsar
+ */
+@Composable
+fun DynamicMetricCard(
+    totalDistance: Double,
+    weatherStats: WeatherStats,
+    comparison: ComparisonData?,
+    periodLabel: String,
+    selectedPeriod: Int, // Para detectar cambios de pestaña
+    horizontalPadding: androidx.compose.ui.unit.Dp = 16.dp
+) {
+    // Estado: índice de la métrica actual
+    var currentMetricIndex by remember { mutableIntStateOf(0) }
+    // Estado: si el cambio automático está activo
+    var isAutoMode by remember { mutableStateOf(true) }
+    
+    // Reactivar modo automático cuando cambia de pestaña
+    LaunchedEffect(selectedPeriod) {
+        isAutoMode = true
+        currentMetricIndex = 0 // Resetear al inicio
+    }
+    
+    // Lista de métricas disponibles (filtrar las que no tienen datos)
+    val availableMetrics = remember(weatherStats) {
+        val metrics = mutableListOf<DynamicMetricType>()
+        
+        // Siempre incluir Distancia, Árboles y CO2 (basadas en distancia total)
+        metrics.add(DynamicMetricType.DISTANCE)
+        metrics.add(DynamicMetricType.TREES)
+        metrics.add(DynamicMetricType.CO2)
+        
+        // Incluir métricas de clima solo si hay datos
+        if (weatherStats.wetRoadKm > 0.0) {
+            metrics.add(DynamicMetricType.WET_ROAD)
+        }
+        if (weatherStats.rainKm > 0.0) {
+            metrics.add(DynamicMetricType.RAIN)
+        }
+        if (weatherStats.extremeKm > 0.0) {
+            metrics.add(DynamicMetricType.EXTREME)
+        }
+        
+        metrics
+    }
+    
+    // Si no hay métricas disponibles, no mostrar nada
+    if (availableMetrics.isEmpty()) return
+    
+    // Asegurar que el índice esté dentro del rango
+    if (currentMetricIndex >= availableMetrics.size) {
+        currentMetricIndex = 0
+    }
+    
+    val currentMetric = availableMetrics[currentMetricIndex]
+    
+    // Cambio automático cada 3 segundos (solo si está en modo automático)
+    LaunchedEffect(isAutoMode, availableMetrics.size) {
+        if (isAutoMode && availableMetrics.isNotEmpty()) {
+            while (isAutoMode) {
+                delay(3000) // 3 segundos
+                if (isAutoMode) {
+                    currentMetricIndex = (currentMetricIndex + 1) % availableMetrics.size
+                }
+            }
+        }
+    }
+    
+    // Calcular valores según la métrica actual
+    val (currentValue, previousValue, metricInfo) = remember(currentMetric, totalDistance, weatherStats, comparison) {
+        when (currentMetric) {
+            DynamicMetricType.DISTANCE -> {
+                val prev = comparison?.previousValue ?: 0.0
+                Triple(
+                    totalDistance,
+                    prev,
+                    InsightMetric.DISTANCE
+                )
+            }
+            DynamicMetricType.TREES -> {
+                val current = totalDistance * 0.005
+                val prev = (comparison?.previousValue ?: 0.0) * 0.005
+                Triple(
+                    current,
+                    prev,
+                    InsightMetric.TREES
+                )
+            }
+            DynamicMetricType.CO2 -> {
+                val current = totalDistance * 0.15
+                val prev = (comparison?.previousValue ?: 0.0) * 0.15
+                Triple(
+                    current,
+                    prev,
+                    InsightMetric.CO2
+                )
+            }
+            DynamicMetricType.WET_ROAD -> {
+                val current = weatherStats.wetRoadKm
+                val prev = if (comparison != null) {
+                    // Estimar basado en la tendencia de distancia
+                    val multiplier = if (comparison.isPositive) {
+                        1 + (comparison.percentageChange / 100.0)
+                    } else {
+                        1 - (comparison.percentageChange / 100.0)
+                    }
+                    if (multiplier > 0) current / multiplier else 0.0
+                } else {
+                    0.0
+                }
+                Triple(
+                    current,
+                    prev,
+                    InsightMetric.WET_ROAD
+                )
+            }
+            DynamicMetricType.RAIN -> {
+                val current = weatherStats.rainKm
+                val prev = if (comparison != null) {
+                    val multiplier = if (comparison.isPositive) {
+                        1 + (comparison.percentageChange / 100.0)
+                    } else {
+                        1 - (comparison.percentageChange / 100.0)
+                    }
+                    if (multiplier > 0) current / multiplier else 0.0
+                } else {
+                    0.0
+                }
+                Triple(
+                    current,
+                    prev,
+                    InsightMetric.RAIN
+                )
+            }
+            DynamicMetricType.EXTREME -> {
+                val current = weatherStats.extremeKm
+                val prev = if (comparison != null) {
+                    val multiplier = if (comparison.isPositive) {
+                        1 + (comparison.percentageChange / 100.0)
+                    } else {
+                        1 - (comparison.percentageChange / 100.0)
+                    }
+                    if (multiplier > 0) current / multiplier else 0.0
+                } else {
+                    0.0
+                }
+                Triple(
+                    current,
+                    prev,
+                    InsightMetric.EXTREME
+                )
+            }
+        }
+    }
+    
+    // Calcular porcentaje de cambio
+    val diff = currentValue - previousValue
+    val percentageChange = if (previousValue > 0.001) {
+        kotlin.math.abs((diff / previousValue) * 100)
+    } else if (currentValue > 0.001) {
+        100.0
+    } else {
+        0.0
+    }
+    val isPositive = diff >= 0
+    
+    // Crear datos para mostrar (similar a RandomInsightData)
+    val insightData = RandomInsightData(
+        metric = metricInfo,
+        periodLabel = periodLabel,
+        currentValue = currentValue.roundToOneDecimal(),
+        previousValue = previousValue.roundToOneDecimal(),
+        percentageChange = percentageChange.roundToOneDecimal(),
+        isPositive = isPositive
+    )
+    
+    // Mostrar la tarjeta con click para cambiar manualmente
+    SmartInsightCard(
+        data = insightData,
+        horizontalPadding = horizontalPadding,
+        modifier = Modifier.clickable {
+            // Al pulsar, desactivar modo automático y avanzar manualmente
+            isAutoMode = false
+            currentMetricIndex = (currentMetricIndex + 1) % availableMetrics.size
+        }
+    )
 }
 
 @Composable

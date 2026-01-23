@@ -214,39 +214,19 @@ fun RouteDetailDialog(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(280.dp) // Mapa grande
+                        .clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)) // Clip superior para coincidir con Card
                 ) {
-
-                    Box(
-                        modifier = Modifier
-                           .matchParentSize()
-                          .clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp))
-                          .background(MaterialTheme.colorScheme.surface)
-
-                         )
-
-
                     // El Mapa
-                        CapturableMapView(
-                            route = route,
-                             onMapReady = { mapboxMap -> mapboxMapRef = mapboxMap },
-                              modifier = Modifier
-                             .matchParentSize()
-                             .padding(top = 1.dp), // opcional, ultra defensivo
+                    CapturableMapView(
+                        route = route,
+                        onMapReady = { mapboxMap -> mapboxMapRef = mapboxMap },
+                        modifier = Modifier.fillMaxSize(),
                         isCompact = true,
-                    onStyleLoaded = { style ->
-                         style.getLayer("poi-label")?.visibility(Visibility.NONE)
-                        style.getLayer("transit-label")?.visibility(Visibility.NONE)
-      }
-    )
-
-                 // MÁSCARA SUPERIOR (esto es lo importante)
-                    Box(
-                       modifier = Modifier
-                            .matchParentSize()
-                           .clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp))
-                             .background(MaterialTheme.colorScheme.surface)
-
-                      )
+                        onStyleLoaded = { style ->
+                            style.getLayer("poi-label")?.visibility(Visibility.NONE)
+                            style.getLayer("transit-label")?.visibility(Visibility.NONE)
+                        }
+                    )
 
                     // Sombra gradiente inferior para legibilidad
                     Box(
@@ -492,8 +472,7 @@ private fun FullscreenMapDialog(
                     .padding(16.dp)
                     .zIndex(20f),
                 shape = CircleShape,
-                color = androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.5f),
-                shadowElevation = 8.dp
+                color = androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.5f)
             ) {
                 IconButton(onClick = onDismiss, modifier = Modifier.size(48.dp)) {
                     Icon(

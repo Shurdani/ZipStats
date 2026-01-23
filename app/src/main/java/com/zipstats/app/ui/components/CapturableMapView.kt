@@ -8,8 +8,6 @@ package com.zipstats.app.ui.components
 // Si usas la solución de abajo, añade también este:
 import android.content.Context
 import android.graphics.Bitmap
-import android.view.LayoutInflater
-import android.view.View
 import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
@@ -48,6 +46,7 @@ import com.mapbox.geojson.Feature
 import com.mapbox.geojson.LineString
 import com.mapbox.geojson.Point
 import com.mapbox.maps.EdgeInsets
+import com.mapbox.maps.MapInitOptions
 import com.mapbox.maps.MapView
 import com.mapbox.maps.Style
 import com.mapbox.maps.extension.style.expressions.generated.Expression
@@ -67,7 +66,6 @@ import com.mapbox.maps.plugin.scalebar.scalebar
 import com.mapbox.turf.TurfMeasurement
 import com.zipstats.app.R
 import com.zipstats.app.model.Route
-import com.mapbox.maps.MapInitOptions
 
 
 // Typealias para simplificar el tipo de función compleja del snapshot
@@ -176,15 +174,17 @@ fun CapturableMapView(
     // Render area
     Box(modifier = modifier.fillMaxSize()) {
         key(mapKey) {
-           AndroidView(
+            AndroidView(
                 factory = { ctx ->
-                  val mapView = MapView(
-                         ctx,
+                    val mapView = MapView(
+                        ctx,
                         MapInitOptions(
-                             context = ctx,
-                             textureView = true // 🔥 CLAVE ABSOLUTA
-                  )
-                )
+                            context = ctx,
+                            textureView = true // 🔥 CLAVE ABSOLUTA
+                        )
+                    )
+
+                    mapView.onStart()
 
                     mapViewRef = mapView
 
@@ -330,29 +330,29 @@ fun CapturableMapView(
 private fun LoadingOverlay(showTimeout: Boolean) {
     Box(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface.copy(alpha = 0.9f)),
-                contentAlignment = Alignment.Center
-            ) {
+        contentAlignment = Alignment.Center
+    ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(16.dp)) {
             CircularProgressIndicator(modifier = Modifier.size(48.dp))
             Spacer(Modifier.height(16.dp))
             ZipStatsText("Cargando mapa…")
-                    if (showTimeout) {
+            if (showTimeout) {
                 Spacer(Modifier.height(8.dp))
-                        ZipStatsText(
+                ZipStatsText(
                     "Esto está tardando más de lo normal.\nVerifica tu conexión.",
-                            textAlign = TextAlign.Center
-                        )
-                    }
-                }
+                    textAlign = TextAlign.Center
+                )
             }
         }
+    }
+}
         
 @Composable
 private fun ErrorOverlay(error: String) {
-            Box(
+    Box(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.errorContainer),
-                contentAlignment = Alignment.Center
-            ) {
+        contentAlignment = Alignment.Center
+    ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Icon(Icons.Default.ErrorOutline, contentDescription = null, modifier = Modifier.size(48.dp))
             Spacer(Modifier.height(8.dp))
@@ -367,8 +367,8 @@ private fun ErrorOverlay(error: String) {
 private fun NoPointsOverlay() {
     Box(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceVariant),
-                contentAlignment = Alignment.Center
-            ) {
+        contentAlignment = Alignment.Center
+    ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Icon(Icons.Default.Map, contentDescription = null, modifier = Modifier.size(48.dp))
             Spacer(Modifier.height(8.dp))

@@ -119,7 +119,7 @@ enum class InsightMetric(
     
     // --- Nuevas Métricas Específicas (Factor 1.0 porque pasaremos el valor directo) ---
     RAIN("Rutas con lluvia", Icons.Filled.WaterDrop, Color(0xFF00B0FF), "km", 1.0), // Azul Cian
-    WET_ROAD("Calzada W", Icons.Outlined.Water, Color(0xFFFF9100), "km", 1.0), // Naranja/Ámbar
+    WET_ROAD("Calzada Mojada", Icons.Outlined.Water, Color(0xFFFF9100), "km", 1.0), // Naranja/Ámbar
     EXTREME("Clima extremo", Icons.Filled.Thermostat, Color(0xFFD50000), "km", 1.0) // Rojo
 }
 // Datos listos para pintar en la tarjeta

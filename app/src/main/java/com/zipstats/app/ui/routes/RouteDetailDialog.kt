@@ -214,19 +214,39 @@ fun RouteDetailDialog(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(280.dp) // Mapa grande
-                        .clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)) // Clip superior para coincidir con Card
                 ) {
+
+                    Box(
+                        modifier = Modifier
+                           .matchParentSize()
+                          .clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp))
+                          .background(MaterialTheme.colorScheme.surface)
+
+                         )
+
+
                     // El Mapa
-                    CapturableMapView(
-                        route = route,
-                        onMapReady = { mapboxMap -> mapboxMapRef = mapboxMap },
-                        modifier = Modifier.fillMaxSize(),
+                        CapturableMapView(
+                            route = route,
+                             onMapReady = { mapboxMap -> mapboxMapRef = mapboxMap },
+                              modifier = Modifier
+                             .matchParentSize()
+                             .padding(top = 1.dp), // opcional, ultra defensivo
                         isCompact = true,
-                        onStyleLoaded = { style ->
-                            style.getLayer("poi-label")?.visibility(Visibility.NONE)
-                            style.getLayer("transit-label")?.visibility(Visibility.NONE)
-                        }
-                    )
+                    onStyleLoaded = { style ->
+                         style.getLayer("poi-label")?.visibility(Visibility.NONE)
+                        style.getLayer("transit-label")?.visibility(Visibility.NONE)
+      }
+    )
+
+                 // MÁSCARA SUPERIOR (esto es lo importante)
+                    Box(
+                       modifier = Modifier
+                            .matchParentSize()
+                           .clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp))
+                             .background(MaterialTheme.colorScheme.surface)
+
+                      )
 
                     // Sombra gradiente inferior para legibilidad
                     Box(

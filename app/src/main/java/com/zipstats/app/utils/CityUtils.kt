@@ -292,10 +292,12 @@ object CityUtils {
      */
     fun getCityName(latitude: Double?, longitude: Double?): String? {
         if (latitude == null || longitude == null) return null
+        val padding = 0.005 // Aprox 500 metros de margen
+
         val matchingCities = cityAreas.filter { city ->
-            latitude >= city.latMin && latitude <= city.latMax &&
-                    longitude >= city.lonMin && longitude <= city.lonMax
-        }
+        latitude >= (city.latMin - padding) && latitude <= (city.latMax + padding) &&
+        longitude >= (city.lonMin - padding) && longitude <= (city.lonMax + padding)
+    }
         if (matchingCities.isEmpty()) return null
         return matchingCities.minByOrNull { city ->
             (city.latMax - city.latMin) * (city.lonMax - city.lonMin)

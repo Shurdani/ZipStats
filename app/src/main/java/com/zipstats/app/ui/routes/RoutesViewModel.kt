@@ -224,7 +224,7 @@ class RoutesViewModel @Inject constructor(
                     kilometraje = newKilometraje,
                     fecha = formattedDate
                 ).onSuccess {
-                    _message.value = "Ruta añadida a registros: ${LocationUtils.formatNumberSpanish(route.totalDistance, 2)} km"
+                    _message.value = "Ruta añadida a registros: ${LocationUtils.formatNumberSpanish(route.totalDistance)} km"
                 }.onFailure { e ->
                     _errorMessage.value = "Error al añadir a registros: ${e.message}"
                 }

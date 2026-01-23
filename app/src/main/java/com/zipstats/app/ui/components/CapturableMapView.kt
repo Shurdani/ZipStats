@@ -67,6 +67,8 @@ import com.mapbox.maps.plugin.scalebar.scalebar
 import com.mapbox.turf.TurfMeasurement
 import com.zipstats.app.R
 import com.zipstats.app.model.Route
+import com.mapbox.maps.MapInitOptions
+
 
 // Typealias para simplificar el tipo de función compleja del snapshot
 typealias MapSnapshotTrigger = ((Bitmap?) -> Unit) -> Unit
@@ -174,14 +176,15 @@ fun CapturableMapView(
     // Render area
     Box(modifier = modifier.fillMaxSize()) {
         key(mapKey) {
-            AndroidView(
+           AndroidView(
                 factory = { ctx ->
-                    val mapView = LayoutInflater.from(ctx)
-                        .inflate(R.layout.mapview_no_attribution, null) as MapView
-
-                    // 🔥 TRUCO PRO: Forzar la aceleración de hardware para evitar parpadeos negros
-                    // y mejorar el rendimiento del renderizado
-                    mapView.setLayerType(View.LAYER_TYPE_HARDWARE, null)
+                  val mapView = MapView(
+                         ctx,
+                        MapInitOptions(
+                             context = ctx,
+                             textureView = true // 🔥 CLAVE ABSOLUTA
+                  )
+                )
 
                     mapViewRef = mapView
 

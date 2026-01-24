@@ -21,6 +21,7 @@ import com.zipstats.app.repository.RouteRepository
 import com.zipstats.app.repository.UserRepository
 import com.zipstats.app.repository.VehicleRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -28,6 +29,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.time.LocalDate
 import java.util.Date
 import javax.inject.Inject
@@ -753,7 +755,7 @@ class StatisticsViewModel @Inject constructor(
             )
         }
     }
-    
+
     private suspend fun calculateMonthlyComparison(
         records: List<com.zipstats.app.model.Record>,
         allRoutes: List<com.zipstats.app.model.Route>,
@@ -762,87 +764,66 @@ class StatisticsViewModel @Inject constructor(
     ): ComparisonData? {
         val today = LocalDate.now()
         val hasFilter = _selectedMonth.value != null || _selectedYear.value != null
-        
-        // Determinar qué comparar:
-        // - Si NO hay filtro: comparar mes actual con mismo mes del año anterior
-        // - Si HAY filtro Y es el mismo que el período actual: comparar con mismo mes del año anterior
-        // - Si HAY filtro Y es diferente al período actual: comparar filtro con período actual
+
         val (targetMonth, targetYear, comparisonMonth, comparisonYear) = if (hasFilter) {
             val filterMonth = _selectedMonth.value ?: today.monthValue
             val filterYear = _selectedYear.value ?: today.year
             val nowMonth = today.monthValue
             val nowYear = today.year
-            
-            // Si el filtro es el mismo que el período actual, comparar con el año anterior
+
             if (filterMonth == nowMonth && filterYear == nowYear) {
-                // Filtro = período actual: comparar con mismo mes del año anterior
                 Quadruple(filterMonth, filterYear, filterMonth, filterYear - 1)
             } else {
-                // Filtro diferente: comparar filtro con período actual
                 Quadruple(filterMonth, filterYear, nowMonth, nowYear)
             }
         } else {
-            // Sin filtro: comparar mes actual con mismo mes del año anterior
             val nowMonth = today.monthValue
             val nowYear = today.year
-            val previousYear = nowYear - 1
-            Quadruple(nowMonth, nowYear, nowMonth, previousYear)
+            Quadruple(nowMonth, nowYear, nowMonth, nowYear - 1)
         }
-        
-        // Obtener registros del período actual (target)
-        val isCurrentPeriod = targetMonth == today.monthValue && targetYear == today.year
-        val targetDayOfMonth = if (isCurrentPeriod) {
-            today.dayOfMonth
-        } else {
-            LocalDate.of(targetYear, targetMonth, 1).lengthOfMonth()
-        }
-        
+
+        // --- SOLUCIÓN: Límite por día del mes ---
+        // Si hoy es día 24, limitamos la suma de registros hasta el día 24 en ambos meses.
+        val limitDayOfMonth = today.dayOfMonth
+
         val targetRecords = records.filter {
             try {
                 val recordDate = LocalDate.parse(it.fecha)
-                recordDate.monthValue == targetMonth && 
-                recordDate.year == targetYear &&
-                recordDate.dayOfMonth <= targetDayOfMonth
-            } catch (e: Exception) {
-                false
-            }
+                recordDate.monthValue == targetMonth &&
+                        recordDate.year == targetYear &&
+                        recordDate.dayOfMonth <= limitDayOfMonth // Filtro equitativo
+            } catch (e: Exception) { false }
         }
-        
+
         val targetDistance = targetRecords.sumOf { it.diferencia }
-        
-        // Obtener registros del período de comparación
-        val isComparisonCurrent = comparisonMonth == today.monthValue && comparisonYear == today.year
-        val comparisonDayOfMonth = if (isComparisonCurrent) {
-            today.dayOfMonth
-        } else {
-            LocalDate.of(comparisonYear, comparisonMonth, 1).lengthOfMonth()
-        }
-        
+
         val comparisonRecords = records.filter {
             try {
                 val recordDate = LocalDate.parse(it.fecha)
-                recordDate.monthValue == comparisonMonth && 
-                recordDate.year == comparisonYear &&
-                recordDate.dayOfMonth <= comparisonDayOfMonth
-            } catch (e: Exception) {
-                false
-            }
+                recordDate.monthValue == comparisonMonth &&
+                        recordDate.year == comparisonYear &&
+                        recordDate.dayOfMonth <= limitDayOfMonth // Filtro equitativo
+            } catch (e: Exception) { false }
         }
-        
+
         val comparisonDistance = comparisonRecords.sumOf { it.diferencia }
-        
-        // Solo comparar si hay datos del período de comparación
+
         if (comparisonRecords.isEmpty() || comparisonDistance < 0.1) return null
-        
-        // Obtener métricas de clima del período comparado
-        val comparisonWeatherMetrics = getWeatherMetricsForPeriod(comparisonMonth, comparisonYear, allRoutes)
+
+        // Obtenemos métricas de clima proporcionales al día del mes
+        val comparisonWeatherMetrics = getWeatherMetricsForPeriod(
+            month = comparisonMonth,
+            year = comparisonYear,
+            allRoutes = allRoutes,
+            limitDayOfMonth = limitDayOfMonth // Necesitamos añadir este parámetro también
+        )
+
         val weatherMetrics = WeatherComparisonMetrics(
             rainKm = comparisonWeatherMetrics.first,
             wetRoadKm = comparisonWeatherMetrics.second,
             extremeKm = comparisonWeatherMetrics.third
         )
-        
-        // Devolver siempre la métrica de DISTANCIA (primera métrica)
+
         return createComparisonMetric(
             currentDistance = targetDistance,
             previousDistance = comparisonDistance,
@@ -852,7 +833,7 @@ class StatisticsViewModel @Inject constructor(
             weatherMetrics = weatherMetrics
         )
     }
-    
+
     private suspend fun calculateYearlyComparison(
         records: List<com.zipstats.app.model.Record>,
         allRoutes: List<com.zipstats.app.model.Route>,
@@ -860,82 +841,68 @@ class StatisticsViewModel @Inject constructor(
     ): ComparisonData? {
         val today = LocalDate.now()
         val hasFilter = _selectedYear.value != null
-        
-        // Determinar qué comparar:
-        // - Si NO hay filtro: comparar año actual con año anterior
-        // - Si HAY filtro Y es el mismo que el año actual: comparar con año anterior
-        // - Si HAY filtro Y es diferente al año actual: comparar filtro con año actual
+
         val (targetYear, comparisonYear) = if (hasFilter) {
             val filterYear = _selectedYear.value ?: today.year
             val nowYear = today.year
-            
-            // Si el filtro es el mismo que el año actual, comparar con el año anterior
+
             if (filterYear == nowYear) {
-                // Filtro = año actual: comparar con año anterior
                 Pair(filterYear, filterYear - 1)
             } else {
-                // Filtro diferente: comparar filtro con año actual
                 Pair(filterYear, nowYear)
             }
         } else {
-            // Sin filtro: comparar año actual con año anterior
             val nowYear = today.year
-            val previousYear = nowYear - 1
-            Pair(nowYear, previousYear)
+            Pair(nowYear, nowYear - 1)
         }
-        
-        // Obtener registros del período actual (target)
-        val isCurrentPeriod = targetYear == today.year
-        val targetDayOfYear = if (isCurrentPeriod) {
-            today.dayOfYear
-        } else {
-            if (java.time.Year.of(targetYear).isLeap) 366 else 365
-        }
-        
+
+        // --- SOLUCIÓN: Límite equitativo ---
+        // Usamos siempre el día actual del año para que la comparación sea "Year-to-Date" (YTD)
+        // Ejemplo: Si hoy es 24 de enero, comparamos hasta el día 24 de ambos años.
+        val limitDayOfYear = today.dayOfYear
+
+        // Filtramos registros del año objetivo hasta el día de hoy
         val targetRecords = records.filter {
             try {
                 val recordDate = LocalDate.parse(it.fecha)
                 recordDate.year == targetYear &&
-                recordDate.dayOfYear <= targetDayOfYear
+                        recordDate.dayOfYear <= limitDayOfYear
             } catch (e: Exception) {
                 false
             }
         }
-        
+
         val targetDistance = targetRecords.sumOf { it.diferencia }
-        
-        // Obtener registros del período de comparación
-        val isComparisonCurrent = comparisonYear == today.year
-        val comparisonDayOfYear = if (isComparisonCurrent) {
-            today.dayOfYear
-        } else {
-            if (java.time.Year.of(comparisonYear).isLeap) 366 else 365
-        }
-        
+
+        // Filtramos registros del año de comparación hasta el mismo día
         val comparisonRecords = records.filter {
             try {
                 val recordDate = LocalDate.parse(it.fecha)
                 recordDate.year == comparisonYear &&
-                recordDate.dayOfYear <= comparisonDayOfYear
+                        recordDate.dayOfYear <= limitDayOfYear
             } catch (e: Exception) {
                 false
             }
         }
-        
+
         val comparisonDistance = comparisonRecords.sumOf { it.diferencia }
-        
-        // Solo comparar si hay datos del período de comparación
+
         if (comparisonRecords.isEmpty() || comparisonDistance < 0.1) return null
-        
-        // Obtener métricas de clima del período comparado (año completo, sin mes específico)
-        val comparisonWeatherMetrics = getWeatherMetricsForPeriod(null, comparisonYear, allRoutes)
+
+        // Ajustamos las métricas de clima para que también respeten el límite temporal
+// Dentro de calculateYearlyComparison, cambia esta línea:
+        val comparisonWeatherMetrics = getWeatherMetricsForPeriod(
+            month = null,
+            year = comparisonYear,
+            allRoutes = allRoutes,
+            limitDayOfYear = limitDayOfYear // Ahora pasamos el límite
+        )
         val weatherMetrics = WeatherComparisonMetrics(
             rainKm = comparisonWeatherMetrics.first,
             wetRoadKm = comparisonWeatherMetrics.second,
             extremeKm = comparisonWeatherMetrics.third
         )
-        
-        // Devolver siempre la métrica de DISTANCIA (primera métrica)
+
         return createComparisonMetric(
             currentDistance = targetDistance,
             previousDistance = comparisonDistance,
@@ -1126,50 +1093,56 @@ class StatisticsViewModel @Inject constructor(
      * Obtiene las métricas de clima (lluvia, calzada mojada, condiciones extremas) desde rutas GPS
      * para un período específico (mes y año).
      */
+    // Actualiza esta función en StatisticsViewModel.kt
     private suspend fun getWeatherMetricsForPeriod(
         month: Int?,
         year: Int,
-        allRoutes: List<com.zipstats.app.model.Route>
-    ): Triple<Double, Double, Double> { // (rainKm, wetRoadKm, extremeKm)
-        val filteredRoutes = allRoutes.filter { route ->
+        allRoutes: List<com.zipstats.app.model.Route>,
+        limitDayOfYear: Int? = null,
+        limitDayOfMonth: Int? = null // Añadimos este
+    ): Triple<Double, Double, Double> {
+        return withContext(Dispatchers.Default) {
             try {
-                val routeDate = java.time.Instant.ofEpochMilli(route.startTime)
-                    .atZone(java.time.ZoneId.systemDefault())
-                    .toLocalDate()
-                
-                val matchesMonth = month == null || routeDate.monthValue == month
-                val matchesYear = routeDate.year == year
-                
-                matchesMonth && matchesYear
-            } catch (e: Exception) {
-                false
-            }
+                val filteredRoutes = allRoutes.filter { route ->
+                    val routeDate = java.time.Instant.ofEpochMilli(route.startTime)
+                        .atZone(java.time.ZoneId.systemDefault())
+                        .toLocalDate()
+
+                    val matchesYear = routeDate.year == year
+                    val matchesMonth = month == null || routeDate.monthValue == month
+
+                    // Filtro dinámico: o por día del año (anual) o por día del mes (mensual)
+                    val matchesDay = when {
+                        limitDayOfYear != null -> routeDate.dayOfYear <= limitDayOfYear
+                        limitDayOfMonth != null -> routeDate.dayOfMonth <= limitDayOfMonth
+                        else -> true
+                    }
+
+                    matchesYear && matchesMonth && matchesDay
+                }
+
+                var rainKm = 0.0
+                var wetRoadKm = 0.0
+                var extremeKm = 0.0
+
+                filteredRoutes.forEach { route ->
+                    // IMPORTANTE: En tu modelo Route se llama 'totalDistance'
+                    val d = route.totalDistance
+
+                    if (route.weatherHadRain == true) {
+                        rainKm += d
+                    } else if (route.weatherHadWetRoad == true) {
+                        wetRoadKm += d
+                    }
+
+                    if (route.weatherHadExtremeConditions == true) {
+                        extremeKm += d
+                    }
+                }
+
+                Triple(rainKm, wetRoadKm, extremeKm)
+            } catch (e: Exception) { Triple(0.0, 0.0, 0.0) }
         }
-        
-        var rainKm = 0.0
-        var wetRoadKm = 0.0
-        var extremeKm = 0.0
-        
-        filteredRoutes.forEach { route ->
-            val dist = route.totalDistance
-            
-            // Lluvia
-            if (route.weatherHadRain == true) {
-                rainKm += dist
-            }
-            
-            // Calzada mojada (excluyente con lluvia)
-            if (route.weatherHadRain != true && route.weatherHadWetRoad == true) {
-                wetRoadKm += dist
-            }
-            
-            // Condiciones extremas
-            if (route.weatherHadExtremeConditions == true) {
-                extremeKm += dist
-            }
-        }
-        
-        return Triple(rainKm, wetRoadKm, extremeKm)
     }
     
     /**

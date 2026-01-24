@@ -345,11 +345,10 @@ class TrackingViewModel @Inject constructor(
             _startWeatherVisibility = savedWeather.visibility
             _startWeatherDewPoint = savedWeather.dewPoint
 
-            // 2. 🔥 IMPORTANTE: NO restaurar los badges si estamos en estado Idle (pretracking)
-            // Los badges solo deben mostrarse durante el tracking activo, no en la pantalla de pretracking
-            // Se restaurarán automáticamente cuando se detecte el clima durante el tracking
-            if (_trackingState.value is TrackingState.Tracking || _trackingState.value is TrackingState.Paused) {
-                // Solo restaurar badges si hay tracking activo
+            // 2. 🔥 IMPORTANTE: Restaurar badges SOLO si hay tracking ACTIVO de verdad.
+            // Ojo: en init, `_trackingState` aún puede ser Idle hasta que `syncWithGlobalState()` emita.
+            // Por eso usamos el estado global del TrackingStateManager.
+            if (trackingStateManager.isTracking.value) {
                 _shouldShowRainWarning.value = savedWeather.shouldShowRainWarning
                 _isActiveRainWarning.value = savedWeather.isActiveRainWarning
                 _shouldShowExtremeWarning.value = savedWeather.shouldShowExtremeWarning
@@ -420,6 +419,9 @@ class TrackingViewModel @Inject constructor(
                     } else {
                         TrackingState.Tracking
                     }
+                    // 🔁 Si el usuario cambia de pantalla y vuelve, el ViewModel puede recrearse y el job
+                    // de monitoreo continuo no estar corriendo. Lo reanudamos automáticamente.
+                    ensureContinuousWeatherMonitoringRunning()
                 } else {
                     // Si no hay tracking activo, resetear estado local
                     _trackingState.value = TrackingState.Idle
@@ -430,9 +432,26 @@ class TrackingViewModel @Inject constructor(
                     _timeInMotion.value = 0L
                     _duration.value = 0L
                     _gpsSignalStrength.value = 0f
+                    // Cortar el monitoreo si estaba activo
+                    continuousWeatherJob?.cancel()
+                    continuousWeatherJob = null
                 }
             }
         }
+    }
+
+    /**
+     * Asegura que el monitoreo continuo del clima esté corriendo si hay tracking activo.
+     * Se usa al volver a la pantalla (ViewModel recreado / servicio reconectado).
+     */
+    private fun ensureContinuousWeatherMonitoringRunning() {
+        val isTrackingActive =
+            _trackingState.value is TrackingState.Tracking || _trackingState.value is TrackingState.Paused
+        if (!isTrackingActive) return
+        if (continuousWeatherJob?.isActive == true) return
+
+        Log.d(TAG, "🌧️ Reanudando monitoreo continuo del clima (job no activo)")
+        startContinuousWeatherMonitoring()
     }
     
     /**
@@ -1258,6 +1277,12 @@ class TrackingViewModel @Inject constructor(
                    _trackingState.value is TrackingState.Paused) {
                 
                 val points = _routePoints.value
+                // Si acabamos de volver a la pantalla, puede tardar unos segundos en rehidratarse la lista.
+                // No esperemos 5 minutos: reintentar rápido hasta tener puntos.
+                if (points.isEmpty()) {
+                    kotlinx.coroutines.delay(5_000)
+                    continue
+                }
                 if (points.isNotEmpty()) {
                     val currentPoint = points.last()
                     val elapsedMinutes = if (_startTime.value > 0) {
@@ -1532,6 +1557,17 @@ class TrackingViewModel @Inject constructor(
                             
                             // Resumen final del chequeo
                             Log.d(TAG, "📊 [Monitoreo continuo] Resumen: hadRain=$weatherHadRain, hadWetRoad=$weatherHadWetRoad, hadExtreme=$weatherHadExtremeConditions, precipMax=${weatherMaxPrecipitation}mm")
+                            
+                            // 💾 Guardar SIEMPRE el último clima obtenido (con badges actuales)
+                            // para que, si el usuario cambia de pantalla y vuelve, se recupere el
+                            // estado MÁS RECIENTE y no solo el clima inicial.
+                            routeRepository.saveTempWeather(
+                                weather.copy(
+                                    shouldShowRainWarning = _shouldShowRainWarning.value,
+                                    isActiveRainWarning = _isActiveRainWarning.value,
+                                    shouldShowExtremeWarning = _shouldShowExtremeWarning.value
+                                )
+                            )
                             
                             // 🔔 Detectar cambios en el estado del clima y mostrar notificaciones
                             checkAndNotifyWeatherChange()

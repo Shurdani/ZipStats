@@ -180,12 +180,20 @@ fun RouteSummaryCard(
 
                         Spacer(modifier = Modifier.width(8.dp))
 
+                        // Descripción del clima: permitir hasta 2 líneas y ajustar tamaño si es muy larga
+                        val baseStyle = MaterialTheme.typography.titleMedium
+                        // Si el texto es largo, reducir ligeramente el tamaño de fuente para que quepa mejor
+                        val weatherTextStyle = if (weatherText.length > 26) {
+                            baseStyle.copy(fontSize = baseStyle.fontSize * 0.9f)
+                        } else {
+                            baseStyle
+                        }
                         ZipStatsText(
                             text = weatherText,
-                            style = MaterialTheme.typography.titleMedium,
+                            style = weatherTextStyle,
                             fontWeight = FontWeight.Bold,
                             color = Color.White.copy(alpha = 0.85f),
-                            maxLines = 1
+                            maxLines = 2
                         )
                     }
                 }

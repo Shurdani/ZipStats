@@ -438,23 +438,22 @@ fun StatisticsScreen(
                                 }
                             )
 
-                            // 3. >>> TARJETA DINÁMICA DE MÉTRICAS <<<
-                            // No se muestra en la pestaña "Todo" (índice 2)
-                            if (selectedPeriod != 2 && displayData.totalDistance > 0) {
+                          // 3. >>> TARJETA DINÁMICA DE MÉTRICAS <<<
+                         if (selectedPeriod != 2 && displayData.totalDistance > 0) {
+                           // Usamos el operador safe call (?.) y let para asegurar que comparison no sea null
+                            displayData.comparison?.let { comparisonInfo ->
                                 DynamicMetricCard(
-                                    totalDistance = displayData.totalDistance,
-                                    weatherStats = weatherStats,
-                                    comparison = displayData.comparison,
-                                    periodLabel = when (selectedPeriod) {
-                                        0 -> "vs Mes anterior"
-                                        1 -> "vs Año anterior"
-                                        else -> "vs Histórico"
-                                    },
-                                    selectedPeriod = selectedPeriod, // Para reactivar automático al cambiar pestaña
-                                    horizontalPadding = 16.dp
-                                )
+                                 totalDistance = displayData.totalDistance,
+                                  weatherStats = weatherStats,
+                                  comparison = comparisonInfo,
+                                  // Extraemos dinámicamente el periodo (ej: "Enero 2025" o "2025") 
+                                 // del título que ya genera el ViewModel
+                                 periodLabel = "vs ${comparisonInfo.title.substringAfter(" vs ")}",
+                                  selectedPeriod = selectedPeriod,
+                                  horizontalPadding = 16.dp
+                                      )
+                                 } 
                             }
-
                             // 4. Tarjeta "Tu Próximo Logro" (Rediseñada)
                             stats.nextAchievement?.let { nextAchievement ->
                                 NextAchievementCard(

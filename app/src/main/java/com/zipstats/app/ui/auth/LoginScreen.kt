@@ -229,7 +229,7 @@ fun LoginScreen(
                 Spacer(modifier = Modifier.height(24.dp))
 
                 ZipStatsText(
-                    text = "Bienvenido",
+                    text = "ZipStats",
                     style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onBackground

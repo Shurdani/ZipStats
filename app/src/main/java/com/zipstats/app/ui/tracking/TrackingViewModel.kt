@@ -200,8 +200,6 @@ class TrackingViewModel @Inject constructor(
 
     private var _startWeatherWindSpeed: Double? = null
 
-    // ... (tus otras variables _startWeather...)
-
     private var _startWeatherUvIndex: Double? = null
     private var _startWeatherWindDirection: Int? = null
     private var _startWeatherWindGusts: Double? = null
@@ -1006,34 +1004,35 @@ class TrackingViewModel @Inject constructor(
         weatherEmoji: String? = null,
         weatherDescription: String? = null
     ): Boolean {
-        // EXCLUSIÓN ABSOLUTA: Si hay lluvia activa, NO mostramos "Calzada húmeda"
         if (hasActiveRain) return false
-        
-        // 2. Detección de alta humedad que condensa en el asfalto (Barcelona - humedad mediterránea)
-        // 88% es un umbral físico relevante: con nubosidad/niebla, la evaporación cae mucho.
-        val isVeryHumid = humidity >= 88
-        val cond = condition.uppercase()
-        
-        // Caso A: Humedad muy alta (>=88%) con cielo nublado/niebla → condensa en asfalto
-        val isCondensingBySky = isVeryHumid && (cond == "CLOUDY" || cond == "MOSTLY_CLOUDY" || cond == "FOG")
 
-        // Caso A2: Noches muy húmedas con punto de rocío cercano a la temperatura → rocío en asfalto
-        // (dato 100% Google: dewPoint y temperature)
         val dewSpread = if (temperature != null && dewPoint != null) temperature - dewPoint else null
-        val isCondensingByDewPoint = !isDay && isVeryHumid && (dewSpread != null && dewSpread <= 2.0)
+        val cond = condition.uppercase()
+
+        // 1. Caso A: Humedad muy alta.
+        // SUBIMOS el umbral de 88% a 92%. A 88% en la costa el suelo suele estar seco.
+        val isVeryHumid = humidity >= 92
+
+        // Caso A: Condensación por cielo. Solo si está MUY nublado o hay NIEBLA real.
+        val isCondensingBySky = isVeryHumid && (cond == "FOG" || cond == "HAZE")
+
+        // Caso A2: Rocío nocturno.
+        // Reducimos el dewSpread a 1.0 (antes 2.0).
+        // Con 2.0 de diferencia en zona costera casi nunca llega a mojar el asfalto.
+        val isCondensingByDewPoint = !isDay && isVeryHumid && (dewSpread != null && dewSpread <= 1.0)
 
         val isCondensing = isCondensingBySky || isCondensingByDewPoint
 
-        // Caso A3 (NUEVO): Persistencia por temporal
-        // Si hubo precipitación en las últimas 24h, el asfalto puede seguir mojado aunque ya no llueva.
-        // Requiere humedad alta y punto de rocío cercano (rocío / evaporación lenta).
-        val isHumidForStormPersistence = humidity >= 80
+        // Caso A3: Persistencia por temporal.
+        // Si llovió en las últimas 24h, el suelo solo sigue mojado si la humedad es altísima (>90%).
+        val isHumidForStormPersistence = humidity >= 90 // Antes 80
         val isStormPersistence = isHumidForStormPersistence &&
-            precip24h > 0.0 &&
-            (dewSpread != null && dewSpread <= 3.0)
-        
-        // Caso B: Humedad extrema (90%+) siempre indica suelo mojado
-        val isExtremelyHumid = humidity > 90
+                precip24h > 0.0 &&
+                (dewSpread != null && dewSpread <= 1.5) // Antes 3.0 (3.0 es demasiado margen)
+
+        // Caso B: Humedad extrema.
+        // Subimos a 95%. Con 90% en Barcelona un día de verano el suelo está seco.
+        val isExtremelyHumid = humidity >= 95
         
         // Caso C: Nieve o aguanieve siempre moja el suelo (si no hay lluvia activa)
         val weatherDesc = weatherDescription?.uppercase() ?: ""

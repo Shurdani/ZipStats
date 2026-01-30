@@ -1272,6 +1272,10 @@ class TrackingViewModel @Inject constructor(
             // Mientras esté en tracking activo, chequear el clima cada 5 minutos
             // Esto permite detectar cambios de condiciones más rápido (lluvia, condiciones extremas, etc.)
             // Para una ruta típica de 30-60 min, serán ~6-12 llamadas, que es razonable para Google Weather API
+
+            Log.d(TAG, "⏱️ [Monitoreo continuo] Esperando 5 min para la primera actualización (usando precarga)...")
+            kotlinx.coroutines.delay(5 * 60 * 1000)
+
             while (_trackingState.value is TrackingState.Tracking || 
                    _trackingState.value is TrackingState.Paused) {
                 
@@ -1708,8 +1712,7 @@ class TrackingViewModel @Inject constructor(
                 .setPriority(NotificationCompat.PRIORITY_HIGH)
                 .setCategory(NotificationCompat.CATEGORY_NAVIGATION) // Para que el sistema entienda que es información en tiempo real
                 .setVibrate(vibrationPattern)
-                .setAutoCancel(true) // Se cancela sola al tocarla
-                .setTimeoutAfter(5000) // Se cierra sola tras 5 segundos
+                .setAutoCancel(false)
                 .setContentIntent(pendingIntent)
                 .setStyle(NotificationCompat.BigTextStyle().bigText(badgeText))
                 .build()
@@ -2367,13 +2370,26 @@ class TrackingViewModel @Inject constructor(
     fun finishTracking(notes: String = "", addToRecords: Boolean = false) {
         viewModelScope.launch {
             try {
-                // 🛑 CORTE DE SEGURIDAD TOTAL 🛑
-                // Cancelamos la escucha del estado global. 
-                // A partir de esta línea, NADA externo puede cambiar el estado de esta pantalla.
+                // 🛑 CORTE DE SEGURIDAD Y LIMPIEZA DE UI 🛑
+
+                // 1. Cancelar la notificación de clima inmediatamente
+                try {
+                    val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+                    notificationManager.cancel(WEATHER_CHANGE_NOTIFICATION_ID)
+                    Log.d(TAG, "🧹 Notificación de clima eliminada al finalizar ruta")
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error al cancelar notificación: ${e.message}")
+                }
+
+                // 2. Cancelar jobs de monitoreo (viento, lluvia, etc.)
+                continuousWeatherJob?.cancel()
+                continuousWeatherJob = null
+
+                // Cancelamos la escucha del estado global.
                 globalStateJob?.cancel()
                 globalStateJob = null
 
-                // 1. Establecemos estado local GUARDANDO
+                // 3. Establecemos estado local GUARDANDO
                 _trackingState.value = TrackingState.Saving
                 
                 // 2. Mostrar overlay (UI)
@@ -3170,13 +3186,23 @@ class TrackingViewModel @Inject constructor(
 
     override fun onCleared() {
         super.onCleared()
-        // Cancelar jobs de clima
+
+        // 1. Limpiar la notificación de la barra de estado
+        try {
+            val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            notificationManager.cancel(WEATHER_CHANGE_NOTIFICATION_ID)
+            Log.d(TAG, "🧹 Notificación de clima limpiada en onCleared")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error al limpiar notificación: ${e.message}")
+        }
+
+        // 2. Cancelar jobs de clima
         weatherJob?.cancel()
         continuousWeatherJob?.cancel()
-        
-        // Detener posicionamiento previo si está activo
+
+        // 3. Detener posicionamiento previo si está activo
         stopPreLocationTracking()
-        
+
         if (serviceBound) {
             context.unbindService(serviceConnection)
         }

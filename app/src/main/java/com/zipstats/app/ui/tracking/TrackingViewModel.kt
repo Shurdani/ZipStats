@@ -42,6 +42,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+import kotlin.Double
 import kotlin.math.roundToInt
 
 /**
@@ -645,8 +646,10 @@ class TrackingViewModel @Inject constructor(
                             temperature = weather.temperature,
                             dewPoint = weather.dewPoint,
                             weatherEmoji = weatherEmoji,
-                            weatherDescription = weatherDescription
-                        )
+                            weatherDescription = weatherDescription,
+                            windSpeed= weather.windSpeed
+
+                            )
                     }
                     
                     // 🔥 IMPORTANTE: NO establecer StateFlows aquí - se establecerán más abajo
@@ -993,7 +996,7 @@ class TrackingViewModel @Inject constructor(
      * IMPORTANTE: Si hay lluvia activa (detectada por checkActiveRain), esta función siempre retorna false
      */
     private fun checkWetRoadConditions(
-        condition: String, // Condition string de Google
+        condition: String,
         humidity: Int,
         recentPrecipitation3h: Double,
         precip24h: Double,
@@ -1002,65 +1005,87 @@ class TrackingViewModel @Inject constructor(
         temperature: Double?,
         dewPoint: Double?,
         weatherEmoji: String? = null,
-        weatherDescription: String? = null
+        weatherDescription: String? = null,
+        windSpeed: Double? = null
     ): Boolean {
+
+        // ─────────────────────────────
+        // CORTES RÁPIDOS
+        // ─────────────────────────────
         if (hasActiveRain) return false
 
-        val dewSpread = if (temperature != null && dewPoint != null) temperature - dewPoint else null
         val cond = condition.uppercase()
+        val desc = weatherDescription?.uppercase().orEmpty()
+        val windSpeedKmh = (windSpeed ?: 0.0) * 3.6
+        val dewSpread = if (temperature != null && dewPoint != null) temperature - dewPoint else null
 
-        // 1. Caso A: Humedad muy alta.
-        // SUBIMOS el umbral de 88% a 92%. A 88% en la costa el suelo suele estar seco.
+        // ─────────────────────────────
+        // FILTRO DE AUTOSECADO
+        // ─────────────────────────────
+        val isAutoDrying = humidity < 65 && windSpeedKmh > 15.0
+        if (isAutoDrying) return false
+
+        // ─────────────────────────────
+        // CONDENSACIÓN (SIN LLUVIA)
+        // ─────────────────────────────
         val isVeryHumid = humidity >= 92
 
-        // Caso A: Condensación por cielo. Solo si está MUY nublado o hay NIEBLA real.
-        val isCondensingBySky = isVeryHumid && (cond == "FOG" || cond == "HAZE")
+        val isCondensingBySky =
+            isVeryHumid && (cond == "FOG" || cond == "HAZE")
 
-        // Caso A2: Rocío nocturno.
-        // Reducimos el dewSpread a 1.0 (antes 2.0).
-        // Con 2.0 de diferencia en zona costera casi nunca llega a mojar el asfalto.
-        val isCondensingByDewPoint = !isDay && isVeryHumid && (dewSpread != null && dewSpread <= 1.0)
+        val isCondensingByDewPoint =
+            !isDay &&
+                    isVeryHumid &&
+                    dewSpread != null &&
+                    dewSpread <= 1.0
 
         val isCondensing = isCondensingBySky || isCondensingByDewPoint
 
-        // Caso A3: Persistencia por temporal.
-        // Si llovió en las últimas 24h, el suelo solo sigue mojado si la humedad es altísima (>90%).
-        val isHumidForStormPersistence = humidity >= 90 // Antes 80
-        val isStormPersistence = isHumidForStormPersistence &&
-                precip24h > 0.0 &&
-                (dewSpread != null && dewSpread <= 1.5) // Antes 3.0 (3.0 es demasiado margen)
+        // ─────────────────────────────
+        // PERSISTENCIA POR TEMPORAL
+        // ─────────────────────────────
+        val isStormPersistence =
+            humidity >= 90 &&
+                    precip24h > 0.0 &&
+                    dewSpread != null &&
+                    dewSpread <= 1.5
 
-        // Caso B: Humedad extrema.
-        // Subimos a 95%. Con 90% en Barcelona un día de verano el suelo está seco.
+        // ─────────────────────────────
+        // HUMEDAD EXTREMA
+        // ─────────────────────────────
         val isExtremelyHumid = humidity >= 95
-        
-        // Caso C: Nieve o aguanieve siempre moja el suelo (si no hay lluvia activa)
-        val weatherDesc = weatherDescription?.uppercase() ?: ""
-        val isSnowByCondition = cond == "SNOW" || cond == "SLEET" || cond.contains("SNOW") || cond.contains("SLEET")
-        val isSnowByEmoji = weatherEmoji?.let { emoji ->
-            emoji.contains("❄️") || emoji.contains("🥶")
-        } ?: false
-        val isSnowByDescription = weatherDesc.contains("NIEVE") || 
-                                  weatherDesc.contains("SNOW") ||
-                                  weatherDesc.contains("AGUANIEVE") ||
-                                  weatherDesc.contains("SLEET")
-        
-        val hasSnowOrSleet = isSnowByCondition || isSnowByEmoji || isSnowByDescription
 
-        // Caso D: Lluvia reciente según Google (histórico últimas 3h).
-        val hasRecentPrecipitation = recentPrecipitation3h > 0.0
-        
-        // Condiciones húmeda actuales (sin lluvia activa)
-        return isCondensing || isStormPersistence || isExtremelyHumid || hasSnowOrSleet || hasRecentPrecipitation
+        // ─────────────────────────────
+        // NIEVE / AGUANIEVE
+        // ─────────────────────────────
+        val hasSnowOrSleet =
+            cond == "SNOW" ||
+                    cond == "SLEET" ||
+                    cond.contains("SNOW") ||
+                    cond.contains("SLEET") ||
+                    desc.contains("NIEVE") ||
+                    desc.contains("AGUANIEVE") ||
+                    desc.contains("SNOW") ||
+                    desc.contains("SLEET") ||
+                    weatherEmoji?.contains("❄️") == true ||
+                    weatherEmoji?.contains("🥶") == true
+
+        // ─────────────────────────────
+        // LLUVIA RECIENTE (HISTÓRICO)
+        // ─────────────────────────────
+        val hasRecentPrecipitation =
+            recentPrecipitation3h > 0.0 && humidity > 70
+
+        // ─────────────────────────────
+        // RESULTADO FINAL
+        // ─────────────────────────────
+        return isCondensing ||
+                isStormPersistence ||
+                isExtremelyHumid ||
+                hasSnowOrSleet ||
+                hasRecentPrecipitation
     }
-    
-    /**
-     * Verifica si hay visibilidad reducida (crítico para Barcelona - niebla/talaia)
-     * Umbrales:
-     * - < 1000m: Niebla cerrada (Peligroso)
-     * - 1000m - 3000m: Neblina / Visibilidad reducida (Advertencia)
-     * - > 5000m: Seguro
-     */
+
     private fun checkLowVisibility(visibility: Double?): Pair<Boolean, String?> {
         if (visibility == null) return false to null
         
@@ -1387,7 +1412,9 @@ class TrackingViewModel @Inject constructor(
                                     temperature = weather.temperature,
                                     dewPoint = weather.dewPoint,
                                     weatherEmoji = weatherEmoji,
-                                    weatherDescription = weather.description
+                                    weatherDescription = weather.description,
+                                    windSpeed= weather.windSpeed
+
                                 )
                             }
                             
@@ -1822,7 +1849,9 @@ class TrackingViewModel @Inject constructor(
                     temperature = snapshot.temperature,
                     dewPoint = snapshot.dewPoint,
                     weatherEmoji = weatherEmoji,
-                    weatherDescription = weatherDescription
+                    weatherDescription = weatherDescription,
+                    windSpeed= snapshot.windSpeed
+
                 )
             }
             
@@ -2070,7 +2099,8 @@ class TrackingViewModel @Inject constructor(
                                 temperature = weather.temperature,
                                 dewPoint = weather.dewPoint,
                                 weatherEmoji = weatherEmoji,
-                                weatherDescription = weatherDescription
+                                weatherDescription = weatherDescription,
+                                weather.windSpeed
                             )
                         }
                         

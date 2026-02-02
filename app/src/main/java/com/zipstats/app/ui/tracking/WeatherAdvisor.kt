@@ -1,5 +1,7 @@
 package com.zipstats.app.ui.tracking
 
+import android.util.Log
+
 
 class WeatherAdvisor {
 /**
@@ -133,16 +135,20 @@ class WeatherAdvisor {
     // LLUVIA RECIENTE (HISTÓRICO)
     // ─────────────────────────────
     val hasRecentPrecipitation =
-        recentPrecipitation3h > 0.0 && humidity > 70
+        (recentPrecipitation3h >= 0.5 && humidity > 75) || (recentPrecipitation3h > 0.1 && humidity > 92)
 
     // ─────────────────────────────
     // RESULTADO FINAL
     // ─────────────────────────────
-    return isCondensing ||
-            isStormPersistence ||
-            isExtremelyHumid ||
-            hasSnowOrSleet ||
-            hasRecentPrecipitation
+    val isWet = isCondensing || isStormPersistence || isExtremelyHumid || hasSnowOrSleet || hasRecentPrecipitation
+
+    if (isWet) {
+        if (isCondensing) Log.d("WeatherAdvisor", "Motivo: Condensación")
+        if (isStormPersistence) Log.d("WeatherAdvisor", "Motivo: Persistencia de tormenta")
+        if (hasRecentPrecipitation) Log.d("WeatherAdvisor", "Motivo: Lluvia reciente detectada ($recentPrecipitation3h mm)")
+    }
+
+    return isWet
 }
 
  fun checkLowVisibility(visibility: Double?): Pair<Boolean, String?> {

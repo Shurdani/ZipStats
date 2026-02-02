@@ -2519,5 +2519,3 @@ class TrackingViewModel @Inject constructor(
     }
 
 }
-
-

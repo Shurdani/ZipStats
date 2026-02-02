@@ -24,6 +24,7 @@ google-services.json
 *.keystore
 *.jks
 .vscode/
+.kotlin/
 
 # Sensitive files - NEVER commit these!
 local.properties

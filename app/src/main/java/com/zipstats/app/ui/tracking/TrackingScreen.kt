@@ -52,7 +52,6 @@ import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Route
-import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.TwoWheeler
 import androidx.compose.material3.AlertDialog
@@ -235,11 +234,15 @@ fun TrackingScreen(
 
     // Navegar cuando el overlay se oculte después de guardar
     LaunchedEffect(overlay, message) {
-        if (message?.contains("Ruta guardada exitosamente") == true && overlay is AppOverlayState.None && !routeSaved) {
+        // 1. Capturamos el valor actual en una constante local
+        val currentMessage = message
+
+        // 2. Ahora sí podemos hacer el smart cast con la constante
+        if (currentMessage != null && currentMessage.contains("Ruta guardada") &&
+            overlay is AppOverlayState.None && !routeSaved) {
+
             routeSaved = true
-            viewModel.stopPreLocationTracking() // Detener GPS previo para evitar mostrar la pantalla de precarga
-            // Usar onNavigateToRoutes para navegar correctamente a Routes
-            // en lugar de onNavigateBack que puede mostrar la pantalla de pre-carga
+            viewModel.stopPreLocationTracking()
             onNavigateToRoutes()
             viewModel.clearMessage()
         }

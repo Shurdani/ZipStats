@@ -43,6 +43,9 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 import kotlin.math.roundToInt
+import com.zipstats.app.model.RouteWeatherSnapshot
+import com.zipstats.app.model.Route
+
 
 /**
  * Estado del seguimiento de rutas
@@ -117,7 +120,7 @@ class TrackingViewModel @Inject constructor(
     private val weatherAdvisor = WeatherAdvisor()
 
     private val context: Context = application.applicationContext
-    
+
     // Manager de estado global
     private val trackingStateManager = TrackingStateManager
     
@@ -2003,235 +2006,54 @@ class TrackingViewModel @Inject constructor(
     fun finishTracking(notes: String = "", addToRecords: Boolean = false) {
         viewModelScope.launch {
             try {
-                // 🛑 CORTE DE SEGURIDAD Y LIMPIEZA DE UI 🛑
-
-                // 1. Cancelar la notificación de clima inmediatamente
+                // 1. 🛑 PARADA TÉCNICA Y LIMPIEZA DE UI
                 notificationHandler.dismissWeatherNotification()
 
-                // 2. Cancelar jobs de monitoreo (viento, lluvia, etc.)
+                // Cancelar jobs de monitoreo (viento, lluvia, etc.)
                 continuousWeatherJob?.cancel()
-                continuousWeatherJob = null
-
-                // Cancelamos la escucha del estado global.
                 globalStateJob?.cancel()
+                continuousWeatherJob = null
                 globalStateJob = null
 
-                // 3. Establecemos estado local GUARDANDO
+                // 2. 🛰️ DETENER SERVICIO Y CAMBIAR ESTADO
                 _trackingState.value = TrackingState.Saving
-                
-                // 2. Mostrar overlay (UI)
                 appOverlayRepository.showSplashOverlay("Guardando ruta…")
 
-                // 3. Detener el servicio (Ahora es seguro, nadie escuchará el evento de parada)
                 stopTrackingService()
-                trackingStateManager.resetState() // Esto emitirá 'false' globalmente, pero ya no escuchamos.
-                
-                // Guardar datos antes de resetear
-                val scooter = _selectedScooter.value ?: throw Exception("No hay vehículo seleccionado")
-                val points = _routePoints.value
-                val startTime = _startTime.value
-                val endTime = System.currentTimeMillis()
-                
-                // Resetear variables locales (el estado ya está en Saving y el trackingStateManager ya se reseteó arriba)
-                _routePoints.value = emptyList()
-                _currentDistance.value = 0.0
-                _currentSpeed.value = 0.0
-                _duration.value = 0L
-                
-                if (points.isEmpty()) {
-                    throw Exception("No se registraron puntos GPS")
-                }
-                
-                // Verificar estado del clima
-                var weatherState = _weatherStatus.value
-                Log.d(TAG, "Estado del clima al finalizar: $weatherState")
-                
-                // Si el clima aún está cargando, dar unos segundos más de gracia
-                if (weatherState is WeatherStatus.Loading) {
+                trackingStateManager.resetState()
+
+                // 3. ⏳ TIEMPO DE GRACIA PARA EL CLIMA
+                // Si el clima está cargando, esperamos hasta 5 segundos
+                if (_weatherStatus.value is WeatherStatus.Loading) {
                     Log.d(TAG, "⏳ Clima aún cargando, esperando hasta 5s más...")
                     var waited = 0
                     while (_weatherStatus.value is WeatherStatus.Loading && waited < 5000) {
                         kotlinx.coroutines.delay(500)
                         waited += 500
                     }
-                    weatherState = _weatherStatus.value
-                    Log.d(TAG, "Estado después de espera: $weatherState")
                 }
-                
-                // Guardar referencia al clima antes de resetear
-                // IMPORTANTE: Solo usar clima si realmente se capturó correctamente (no valores genéricos)
-                var savedWeatherTemp = _startWeatherTemperature
-                var savedWeatherEmoji = _startWeatherEmoji
-                var savedWeatherCode = _startWeatherCode
-                var savedWeatherCondition = _startWeatherCondition
-                var savedWeatherDesc = _startWeatherDescription
-                var savedIsDay = _startWeatherIsDay ?: true
-                var savedFeelsLike = _startWeatherFeelsLike
-                var savedWindChill = _startWeatherWindChill
-                var savedHeatIndex = _startWeatherHeatIndex
-                var savedHumidity = _startWeatherHumidity
-                var savedWindSpeed = _startWeatherWindSpeed
-                var savedUvIndex = _startWeatherUvIndex
-                var savedWindDirection = _startWeatherWindDirection
-                var savedWindGusts = _startWeatherWindGusts
-                var savedRainProbability = _startWeatherRainProbability
-                var savedVisibility = _startWeatherVisibility
-                var savedDewPoint = _startWeatherDewPoint
-                
-                // Validar que el clima sea real y no valores por defecto
-                // Aceptar cualquier emoji válido (incluido ☁️) pero temperatura debe ser válida
-                var hasValidWeather = savedWeatherTemp != null && 
-                                      savedWeatherTemp > -50 && savedWeatherTemp < 60 && // Rango válido de temperatura
-                                      savedWeatherEmoji != null && 
-                                      savedWeatherEmoji.isNotBlank()
-                
-                Log.d(TAG, "🔍 Validación clima inicial: temp=$savedWeatherTemp, emoji=$savedWeatherEmoji, válido=$hasValidWeather")
-                
-                // 🔥 Si hay badges activos (lluvia, calzada húmeda o condiciones extremas),
-                // capturar snapshot FINAL del clima actual para guardar el estado completo cuando cambió
+
+                // 4. 📸 CAPTURA DE DATOS (Snapshot)
+                val points = _routePoints.value
+                val scooter = _selectedScooter.value ?: throw Exception("No hay vehículo seleccionado")
+                val startTime = _startTime.value
+                val endTime = System.currentTimeMillis()
+
+                if (points.isEmpty()) throw Exception("No se registraron puntos GPS")
+
+                // Si hubo condiciones especiales (lluvia/extremo), intentamos capturar el clima FINAL
                 val hasActiveBadges = weatherHadRain || weatherHadWetRoad || weatherHadExtremeConditions
-                if (hasActiveBadges && hasValidWeather && points.isNotEmpty()) {
-                    Log.d(TAG, "📸 Hay badges activos, capturando snapshot FINAL del clima actual...")
-                    val lastPoint = points.last() // Usar el último punto para obtener clima del final de la ruta
-                    
-                    try {
-                        val finalWeatherResult = weatherRepository.getCurrentWeather(
-                            latitude = lastPoint.latitude,
-                            longitude = lastPoint.longitude
-                        )
-                        
-                        finalWeatherResult.fold(
-                            onSuccess = { weather ->
-                                // Validar que el clima recibido sea válido
-                                if (!weather.temperature.isNaN() && 
-                                    !weather.temperature.isInfinite() && 
-                                    weather.temperature > -50 && 
-                                    weather.temperature < 60 &&
-                                    weather.temperature != 0.0 &&
-                                    weather.weatherEmoji.isNotBlank()) {
-                                    
-                                    // Usar el snapshot FINAL del clima cuando hay badges activos
-                                    savedWeatherTemp = weather.temperature
-                                    savedWeatherEmoji = weather.weatherEmoji
-                                    savedWeatherCode = weather.weatherCode
-                                    savedWeatherCondition = weather.icon
-                                    savedWeatherDesc = weather.description
-                                    savedIsDay = weather.isDay
-                                    savedFeelsLike = weather.feelsLike
-                                    savedWindChill = weather.windChill
-                                    savedHeatIndex = weather.heatIndex
-                                    savedHumidity = weather.humidity
-                                    savedWindSpeed = weather.windSpeed
-                                    savedUvIndex = weather.uvIndex
-                                    savedWindDirection = weather.windDirection
-                                    savedWindGusts = weather.windGusts
-                                    savedRainProbability = weather.rainProbability
-                                    savedVisibility = weather.visibility
-                                    savedDewPoint = weather.dewPoint
-                                    
-                                    // 🔥 IMPORTANTE: Los badges se basan en lo detectado durante la ruta, no en el clima final
-                                    // Si las condiciones cambian al final (ej: deja de llover), los badges siguen activos
-                                    // porque reflejan lo que pasó durante la ruta (weatherHadRain, weatherHadWetRoad, etc.)
-                                    // El snapshot final solo actualiza los datos del clima, pero los badges ya están establecidos
-                                    Log.d(TAG, "✅ Snapshot FINAL capturado: ${savedWeatherTemp}°C ${savedWeatherEmoji} (badges detectados durante ruta: lluvia=$weatherHadRain, calzada=$weatherHadWetRoad, extremas=$weatherHadExtremeConditions)")
-                                } else {
-                                    Log.w(TAG, "⚠️ Snapshot final obtenido pero inválido, usando clima inicial")
-                                }
-                            },
-                            onFailure = { error ->
-                                Log.w(TAG, "⚠️ Error al obtener snapshot final del clima: ${error.message}, usando clima inicial")
-                            }
-                        )
-                    } catch (e: Exception) {
-                        Log.w(TAG, "⚠️ Excepción al obtener snapshot final del clima: ${e.message}, usando clima inicial", e)
-                    }
+                if (hasActiveBadges) {
+                    fetchFinalWeatherSnapshot(points.last())
                 }
-                
-                // Si no hay clima válido al finalizar, intentar obtenerlo una última vez
-                if (!hasValidWeather && points.isNotEmpty()) {
-                    Log.d(TAG, "🌤️ No hay clima válido al finalizar, intentando obtenerlo...")
-                    val firstPoint = points.first()
-                    
-                    try {
-                        _weatherStatus.value = WeatherStatus.Loading
-                        
-                        val weatherResult = weatherRepository.getCurrentWeather(
-                            latitude = firstPoint.latitude,
-                            longitude = firstPoint.longitude
-                        )
-                        
-                        // Verificar el resultado (getCurrentWeather devuelve Result, así que verificamos directamente)
-                        weatherResult.fold(
-                            onSuccess = { weather ->
-                                // Google Weather API ya devuelve condiciones efectivas, no necesitamos procesarlas
-                                val condition = weather.icon.uppercase()
-                                val weatherEmoji = weather.weatherEmoji
-                                val weatherDescription = weather.description // Ya viene en español de Google
-                                
-                                // Validar que el clima recibido sea válido
-                                if (!weather.temperature.isNaN() && 
-                                    !weather.temperature.isInfinite() && 
-                                    weather.temperature > -50 && 
-                                    weather.temperature < 60 &&
-                                    weather.temperature != 0.0 &&
-                                    weatherEmoji.isNotBlank()) {
-                                    
-                                    savedWeatherTemp = weather.temperature
-                                    savedWeatherEmoji = weatherEmoji
-                                    savedWeatherCode = weather.weatherCode
-                                    savedWeatherCondition = weather.icon
-                                    savedWeatherDesc = weatherDescription
-                                    savedIsDay = weather.isDay
-                                    savedFeelsLike = weather.feelsLike
-                                    savedWindChill = weather.windChill
-                                    savedHeatIndex = weather.heatIndex
-                                    savedHumidity = weather.humidity
-                                    savedWindSpeed = weather.windSpeed
-                                    savedUvIndex = _startWeatherUvIndex
-                                    savedWindDirection = _startWeatherWindDirection
-                                    savedWindGusts = _startWeatherWindGusts
-                                    savedRainProbability = _startWeatherRainProbability
-                                    savedVisibility = weather.visibility
-                                    savedDewPoint = weather.dewPoint
-                                    hasValidWeather = true
-                                    
-                                    // Determinar si es lluvia activa usando condición y descripción de Google
-                                    val (isActiveRain, rainUserReason) = weatherAdvisor.checkActiveRain(
-                                        condition = condition,
-                                        description = weatherDescription,
-                                        precipitation = weather.precipitation
-                                    )
-                                    
-                                    if (isActiveRain) {
-                                        if (!weatherHadRain) {
-                                            weatherHadRain = true
-                                            // Calcular minutos transcurridos desde el inicio
-                                            val elapsedMinutesCalc = if (_startTime.value > 0) {
-                                                ((endTime - _startTime.value) / (1000 * 60)).toInt()
-                                            } else {
-                                                0
-                                            }
-                                            weatherRainStartMinute = elapsedMinutesCalc
-                                            weatherRainReason = rainUserReason // Guardar razón amigable para el usuario
-                                        }
-                                        weatherMaxPrecipitation = maxOf(weatherMaxPrecipitation, weather.precipitation)
-                                    }
-                                    
-                                    Log.d(TAG, "✅ Clima obtenido al finalizar: ${savedWeatherTemp}°C $weatherEmoji")
-                                } else {
-                                    Log.w(TAG, "⚠️ Clima obtenido pero inválido, no se usará")
-                                }
-                            },
-                            onFailure = { error ->
-                                Log.e(TAG, "❌ Error al obtener clima al finalizar: ${error.message}")
-                            }
-                        )
-                    } catch (e: Exception) {
-                        Log.e(TAG, "❌ Excepción al obtener clima al finalizar: ${e.message}", e)
-                    }
-                }
-                
-                // Crear la ruta con análisis post-ruta
+
+                // Creamos el objeto con todos los datos climáticos actuales
+                val weatherSnapshot = captureRouteWeatherSnapshot()
+
+                // 5. 🧹 RESET DE VARIABLES UI (Limpiamos el ViewModel)
+                resetTrackingUI()
+
+                // 6. 🏗️ CREAR RUTA Y PROCESAR CLIMA (Delegación al Repository)
                 val baseRoute = routeRepository.createRouteFromPoints(
                     points = points,
                     scooterId = scooter.id,
@@ -2243,379 +2065,48 @@ class TrackingViewModel @Inject constructor(
                     vehicleType = scooter.vehicleType
                 )
 
-                // Calcular minutos transcurridos para weatherRainStartMinute
-                if (_startTime.value > 0) {
-                    ((endTime - _startTime.value) / (1000 * 60)).toInt()
-                } else {
-                    0
-                }
-                
-                // Usar el clima capturado al INICIO de la ruta SOLO si es válido
-                // 🔥 Si detectamos condiciones extremas durante la ruta, usar los valores máximos/mínimos
-                // para que los badges reflejen el estado más adverso
-                // NOTA: savedWindSpeed y savedWindGusts están en m/s, pero Route espera km/h
-                // Convertir a km/h antes de comparar y guardar
-                val savedWindSpeedKmh = (savedWindSpeed ?: 0.0) * 3.6
-                val savedWindGustsKmh = (savedWindGusts ?: 0.0) * 3.6
-                
-                // 🔥 LÓGICA DE VALORES DE VIENTO PARA BADGES:
-                // Si se detectaron condiciones extremas durante la ruta (valores máximos > 0), usar esos
-                // Si solo se detectaron en precarga (weatherHadExtremeConditions true pero maxWindSpeed = 0),
-                // usar los valores iniciales convertidos a km/h para reflejar el estado más adverso
-                val finalWindSpeed = if (weatherHadExtremeConditions) {
-                    if (maxWindSpeed > 0.0) {
-                        // Se detectaron durante la ruta: usar el máximo entre inicial y durante la ruta
-                        maxOf(savedWindSpeedKmh, maxWindSpeed)
-                    } else {
-                        // Solo se detectaron en precarga: usar el valor inicial convertido a km/h
-                        // Esto refleja el estado más adverso que ocurrió (al inicio de la ruta)
-                        if (savedWindSpeed != null) savedWindSpeedKmh else null
-                    }
-                } else {
-                    // No hubo condiciones extremas: usar el valor inicial convertido a km/h
-                    if (savedWindSpeed != null) savedWindSpeedKmh else null
-                }
-                
-                val finalWindGusts = if (weatherHadExtremeConditions) {
-                    if (maxWindGusts > 0.0) {
-                        // Se detectaron durante la ruta: usar el máximo entre inicial y durante la ruta
-                        maxOf(savedWindGustsKmh, maxWindGusts)
-                    } else {
-                        // Solo se detectaron en precarga: usar el valor inicial convertido a km/h
-                        // Esto refleja el estado más adverso que ocurrió (al inicio de la ruta)
-                        if (savedWindGusts != null) savedWindGustsKmh else null
-                    }
-                } else {
-                    // No hubo condiciones extremas: usar el valor inicial convertido a km/h
-                    if (savedWindGusts != null) savedWindGustsKmh else null
-                }
-                
-                // 🔥 Si hay badges activos, ya se capturó un snapshot FINAL del clima (ver arriba)
-                // Por lo tanto, savedWeather* ya contiene el clima final cuando hay badges activos
-                // Solo necesitamos aplicar lógica de valores extremos para viento/UV si aplica
-                val hadExtremeConditionsDuringRoute = weatherHadExtremeConditions
-                val useMaxValuesForExtremes = maxWindSpeed > 0.0 || maxWindGusts > 0.0 || 
-                    (minTemperature < Double.MAX_VALUE && (minTemperature < 0 || minTemperature > 35)) ||
-                    (maxTemperature > Double.MIN_VALUE && maxTemperature > 35) ||
-                    maxUvIndex > 8.0
-                
-                // hasActiveBadges ya se declaró arriba cuando se capturó el snapshot final
-                
-                // Calcular temperatura final: aplicar lógica de valores extremos solo si no hay snapshot final
-                val finalTemperature = if (weatherHadExtremeConditions && !hasActiveBadges &&
-                    (minTemperature < Double.MAX_VALUE || maxTemperature > Double.MIN_VALUE)) {
-                    when {
-                        minTemperature < 0 -> minTemperature // Temperatura bajo cero
-                        maxTemperature > 35 -> maxTemperature // Temperatura muy alta
-                        else -> savedWeatherTemp // Mantener temperatura inicial si no es extrema
-                    }
-                } else {
-                    savedWeatherTemp // Usar snapshot final si hay badges, o inicial si no
-                }
-                
-                // Para viento: aplicar lógica de valores extremos solo si no hay snapshot final
-                val finalWindSpeedCorrected = if (weatherHadExtremeConditions && !hasActiveBadges && maxWindSpeed > 0.0) {
-                    // Se detectaron durante la ruta sin snapshot final: usar el máximo
-                    maxOf(savedWindSpeedKmh, maxWindSpeed)
-                } else {
-                    // Si hay snapshot final (hasActiveBadges), usar el valor del snapshot (ya convertido arriba)
-                    // Si no hay extremas, usar el valor inicial convertido
-                    if (savedWindSpeed != null) savedWindSpeedKmh else null
-                }
-                
-                val finalWindGustsCorrected = if (weatherHadExtremeConditions && !hasActiveBadges && maxWindGusts > 0.0) {
-                    // Se detectaron durante la ruta sin snapshot final: usar el máximo
-                    maxOf(savedWindGustsKmh, maxWindGusts)
-                } else {
-                    // Si hay snapshot final (hasActiveBadges), usar el valor del snapshot (ya convertido arriba)
-                    // Si no hay extremas, usar el valor inicial convertido
-                    if (savedWindGusts != null) savedWindGustsKmh else null
-                }
-                
-                // Para UV: aplicar lógica de valores extremos solo si no hay snapshot final
-                val finalUvIndexCorrected = if (weatherHadExtremeConditions && !hasActiveBadges && maxUvIndex > 0.0) {
-                    maxOf(savedUvIndex ?: 0.0, maxUvIndex)
-                } else {
-                    savedUvIndex // Usar snapshot final si hay badges, o inicial si no
-                }
-                
-                // El resto de variables vienen directamente del snapshot (final si hay badges, inicial si no)
-                val finalEmoji = savedWeatherEmoji
-                val finalWeatherCode = savedWeatherCode
-                val finalWeatherCondition = savedWeatherCondition
-                val finalDescription = savedWeatherDesc
-                val finalIsDay = savedIsDay
-                val finalFeelsLike = savedFeelsLike
-                val finalWindChill = savedWindChill
-                val finalHeatIndex = savedHeatIndex
-                val finalHumidity = savedHumidity
-                val finalRainProbability = savedRainProbability
-                val finalVisibility = savedVisibility
-                val finalDewPoint = savedDewPoint
-                val finalWindDirection = savedWindDirection
-                
-                // 🔥 CORRECCIÓN: Calcular valores finales de badges ANTES del copy()
-                // Sincronizar weatherHadRain con el estado de los badges
-                // Si el badge de lluvia está activo (_shouldShowRainWarning=true y _isActiveRainWarning=true),
-                // entonces weatherHadRain debe ser true, incluso si el monitoreo continuo no lo detectó
-                // IMPORTANTE: Los badges se basan en lo detectado durante la ruta (weatherHadRain),
-                // no en el clima final del snapshot. Si las condiciones cambian al final, los badges
-                // siguen reflejando lo que pasó durante la ruta.
-                val finalHadRain = weatherHadRain || 
-                    (_shouldShowRainWarning.value && _isActiveRainWarning.value)
-                Log.d(TAG, "💾 Guardando ruta: weatherHadRain=$finalHadRain (detectado=$weatherHadRain, badge activo=${_shouldShowRainWarning.value && _isActiveRainWarning.value})")
-                
-                // Sincronizar weatherHadWetRoad con el estado de los badges
-                // Si el badge de calzada húmeda está activo (_shouldShowRainWarning=true y _isActiveRainWarning=false),
-                // entonces weatherHadWetRoad debe ser true, incluso si el monitoreo continuo no lo detectó
-                // IMPORTANTE: Una vez que weatherHadWetRoad es true, solo se puede resetear si hay lluvia activa
-                // Los badges se basan en lo detectado durante la ruta, no en el clima final del snapshot
-                val finalWetRoad = if (finalHadRain) {
-                    // Si hubo lluvia activa, no puede haber calzada húmeda (son excluyentes)
-                    Log.d(TAG, "💾 Guardando ruta: weatherHadRain=true, weatherHadWetRoad=false (lluvia excluye calzada húmeda)")
-                    false
-                } else {
-                    // Si no hubo lluvia, mantener el estado detectado O sincronizar con badges activos
-                    val wetRoadValue = weatherHadWetRoad || 
-                        (_shouldShowRainWarning.value && !_isActiveRainWarning.value)
-                    Log.d(TAG, "💾 Guardando ruta: weatherHadWetRoad=$wetRoadValue (detectado=$weatherHadWetRoad, badge activo=${_shouldShowRainWarning.value && !_isActiveRainWarning.value})")
-                    wetRoadValue
-                }
-                
-                // Sincronizar weatherHadExtremeConditions con el estado de los badges
-                // Si el badge de condiciones extremas está activo (_shouldShowExtremeWarning=true),
-                // entonces weatherHadExtremeConditions debe ser true, incluso si el monitoreo continuo no lo detectó
-                // IMPORTANTE: Los badges se basan en lo detectado durante la ruta, no en el clima final del snapshot
-                val finalHadExtreme = hadExtremeConditionsDuringRoute || 
-                    _shouldShowExtremeWarning.value
-                Log.d(TAG, "💾 Guardando ruta: weatherHadExtremeConditions=$finalHadExtreme (detectado=$hadExtremeConditionsDuringRoute, badge activo=${_shouldShowExtremeWarning.value})")
-                
-                val route = if (hasValidWeather) {
-                    if (hasActiveBadges) {
-                        Log.d(TAG, "✅ Usando snapshot FINAL del clima (badges activos): ${finalEmoji} ${finalTemperature}°C")
-                    } else {
-                        Log.d(TAG, "✅ Usando snapshot INICIAL del clima: ${finalTemperature}°C ${finalEmoji}")
-                    }
-                    if (hadExtremeConditionsDuringRoute) {
-                        if (useMaxValuesForExtremes) {
-                            Log.d(TAG, "⚠️ Ajustando datos de clima con valores extremos detectados durante la ruta")
-                        } else {
-                            Log.d(TAG, "⚠️ Condiciones extremas detectadas en precarga - badge reflejará estado más adverso")
-                        }
-                    }
-                    baseRoute.copy(
-                        weatherTemperature = finalTemperature,
-                        weatherEmoji = finalEmoji,
-                        weatherCode = finalWeatherCode,
-                        weatherCondition = finalWeatherCondition,
-                        weatherDescription = finalDescription,
-                        weatherIsDay = finalIsDay,
-                        weatherFeelsLike = finalFeelsLike,
-                        weatherWindChill = finalWindChill,
-                        weatherHeatIndex = finalHeatIndex,
-                        weatherHumidity = finalHumidity,
-                        weatherWindSpeed = finalWindSpeedCorrected,
-                        weatherUvIndex = finalUvIndexCorrected,
-                        weatherWindDirection = finalWindDirection,
-                        weatherWindGusts = finalWindGustsCorrected,
-                        weatherRainProbability = finalRainProbability,
-                        weatherVisibility = finalVisibility,
-                        weatherDewPoint = finalDewPoint,
-                        weatherHadRain = finalHadRain,
-                        weatherRainStartMinute = weatherRainStartMinute,
-                        // 🌧️ Honestidad de datos: Usar exactamente lo que Google devuelve
-                        // No forzar precipitación si no la hubo - el badge de "Calzada húmeda"
-                        // se activará por humedad y punto de rocío, no por valores inventados
-                        // Esto mantiene las estadísticas precisas (0.0 mm = no llovió realmente)
-                        weatherMaxPrecipitation = if (finalHadRain && weatherMaxPrecipitation > 0.0) {
-                            weatherMaxPrecipitation
-                        } else {
-                            null // Si no hubo lluvia durante la ruta, no guardar mm residuales
-                        },
-                        weatherRainReason = weatherRainReason,
-                        weatherHadWetRoad = finalWetRoad,
-                        weatherHadExtremeConditions = finalHadExtreme,
-                        weatherExtremeReason = if (finalHadExtreme) weatherExtremeReason else null
-                    )
-                } else {
-                    Log.w(TAG, "⚠️ No se capturó clima válido al inicio, guardando ruta SIN clima (temp=$savedWeatherTemp, emoji=$savedWeatherEmoji)")
-                    // Asegurar explícitamente que los campos de clima sean null
-                    baseRoute.copy(
-                        weatherTemperature = null,
-                        weatherEmoji = null,
-                        weatherCode = null,
-                        weatherCondition = null,
-                        weatherDescription = null,
-                        weatherIsDay = true,
-                        weatherFeelsLike = null,
-                        weatherWindChill = null,
-                        weatherHeatIndex = null,
-                        weatherHumidity = null,
-                        weatherWindSpeed = null,
-                        weatherUvIndex = null,
-                        weatherWindDirection = null,
-                        weatherWindGusts = null,
-                        weatherRainProbability = null,
-                        weatherVisibility = null,
-                        weatherDewPoint = null,
-                        weatherHadRain = null,
-                        weatherRainStartMinute = null,
-                        weatherMaxPrecipitation = null,
-                        weatherRainReason = null,
-                        weatherHadWetRoad = null,
-                        weatherHadExtremeConditions = null
-                    )
-                }
-                
-                // Guardar en Firebase
-                val result = routeRepository.saveRoute(route)
-                
-                if (result.isSuccess) {
-                    result.getOrNull() ?: ""
-                    
-                    // NO intentar obtener clima en segundo plano - puede guardar el clima ACTUAL en lugar del del momento
-                    // Si no se capturó al inicio, la ruta se guarda sin clima (correcto)
-                    if (!hasValidWeather) {
-                        Log.d(TAG, "📝 Ruta guardada sin clima. No se intentará obtener clima actual (evitar guardar clima incorrecto o genérico)")
-                    }
-                    
-                // Limpiar datos de clima después de usar
-                _startWeatherTemperature = null
-                // Limpiar variables de estado más adverso
-                weatherHadRain = false
-                weatherHadWetRoad = false
-                weatherHadExtremeConditions = false
-                weatherExtremeReason = null
-                weatherMaxPrecipitation = 0.0
-                maxWindSpeed = 0.0
-                maxWindGusts = 0.0
-                minTemperature = Double.MAX_VALUE
-                maxTemperature = Double.MIN_VALUE
-                maxUvIndex = 0.0
-                _startWeatherEmoji = null
-                _startWeatherDescription = null
-                _startWeatherIsDay = null
-                _startWeatherFeelsLike = null
-                _startWeatherWindChill = null
-                _startWeatherHeatIndex = null
-                _startWeatherHumidity = null
-                _startWeatherWindSpeed = null
-                _startWeatherUvIndex = null
-                _startWeatherWindDirection = null
-                _startWeatherWindGusts = null
-                _startWeatherRainProbability = null
-                _startWeatherVisibility = null
-                _startWeatherDewPoint = null
-                _weatherStatus.value = WeatherStatus.Idle
-                
-                // Limpiar variables de detección de lluvia y estado más adverso
-                weatherHadRain = false
-                weatherRainStartMinute = null
-                weatherMaxPrecipitation = 0.0
-                weatherRainReason = null
-                weatherHadWetRoad = false
-                weatherHadExtremeConditions = false
-                weatherExtremeReason = null
-                maxWindSpeed = 0.0
-                maxWindGusts = 0.0
-                minTemperature = Double.MAX_VALUE
-                maxTemperature = Double.MIN_VALUE
-                maxUvIndex = 0.0
-                
-                // Limpiar estado pendiente explícitamente
-                pendingRainConfirmation = false
-                pendingRainMinute = null
-                pendingRainReason = null
-                
-                // Limpiar snapshot inicial
-                _initialWeatherSnapshot = null
-                _initialWeatherCaptured = false
-                _initialWeatherLatitude = null
-                _initialWeatherLongitude = null
-                
-                // 🔥 Limpiar TODOS los badges al finalizar
-                _shouldShowRainWarning.value = false
-                _isActiveRainWarning.value = false
-                _shouldShowExtremeWarning.value = false
-                
-                // 🔔 Resetear estado anterior del clima al finalizar tracking
-                lastWeatherBadgeState = null
-                Log.d(TAG, "🔄 Estado del clima y badges reseteados al finalizar tracking")
+                // El repositorio decide qué valores de clima son los correctos (iniciales vs extremos)
+                val finalRoute = routeRepository.finalizeRouteWithWeather(
+                    baseRoute = baseRoute,
+                    snap = weatherSnapshot,
+                    hasActiveBadges = hasActiveBadges
+                )
 
-                routeRepository.clearTempWeather()
-                    
-                    var message = "Ruta guardada exitosamente: ${LocationUtils.formatNumberSpanish(route.totalDistance.roundToOneDecimal())} km"
-                    
-                    // Si se solicita añadir a registros
+                // 7. ☁️ GUARDAR EN FIREBASE
+                val result = routeRepository.saveRoute(finalRoute)
+
+                if (result.isSuccess) {
+                    Log.d(TAG, "✅ Ruta guardada con éxito: ${finalRoute.id}")
+
+                    resetAllWeatherVariables()
+
+                    // Usamos el formato detallado de tu backup
+                    val distanceText = LocationUtils.formatNumberSpanish(finalRoute.totalDistance.roundToOneDecimal())
+                    var message = "Ruta guardada: $distanceText km"
+
+                    // 8. 📝 AÑADIR A REGISTROS (Si aplica)
                     if (addToRecords) {
-                        try {
-                            Log.d(TAG, "Intentando añadir ruta a registros para patinete: ${scooter.nombre}")
-                            
-                            // Obtener la fecha actual
-                            val currentDate = java.time.LocalDate.now()
-                            val formattedDate = com.zipstats.app.utils.DateUtils.formatForApi(currentDate)
-                            
-                            // Añadir registro con la distancia total acumulada
-                            val allRecords = recordRepository.getRecords().first()
-                            Log.d(TAG, "Registros obtenidos: ${allRecords.size}")
-                            
-                            val lastRecord = allRecords
-                                .filter { it.patinete == scooter.nombre }
-                                .maxByOrNull { it.fecha }
-                            
-                            Log.d(TAG, "Último registro encontrado: $lastRecord")
-                            
-                            val newKilometraje = if (lastRecord != null) {
-                                lastRecord.kilometraje + route.totalDistance
-                            } else {
-                                route.totalDistance
-                            }
-                            
-                            Log.d(TAG, "Nuevo kilometraje: $newKilometraje")
-                            
-                            val addResult = recordRepository.addRecord(
-                                vehiculo = scooter.nombre,
-                                kilometraje = newKilometraje,
-                                fecha = formattedDate
-                            )
-                            
-                            if (addResult.isSuccess) {
-                                Log.d(TAG, "Registro añadido exitosamente")
-                                message += "\nDistancia añadida a registros: ${LocationUtils.formatNumberSpanish(route.totalDistance.roundToOneDecimal())} km"
-                            } else {
-                                Log.w(TAG, "Error al añadir a registros: ${addResult.exceptionOrNull()?.message}")
-                                message += "\nRuta guardada, pero error al añadir a registros"
-                            }
-                        } catch (e: Exception) {
-                            Log.w(TAG, "Error al añadir a registros: ${e.message}")
-                            message += "\nRuta guardada, pero error al añadir a registros"
-                        }
+                        processRouteRecords(scooter, finalRoute)
+                        message += "\nDistancia añadida a registros correctamente"
                     }
-                    
+
                     _message.value = message
-                    // NO cambiar a Idle aquí - mantener en Saving hasta que se oculte el overlay
-                    // El flag isClosing en TrackingScreen maneja el renderizado
-                    // _trackingState.value = TrackingState.Idle  // ❌ ELIMINADO - causa el flash
-                    
-                    // Mínimo tiempo de UX antes de ocultar overlay
-                    kotlinx.coroutines.delay(600)
-                    
-                    // Ocultar overlay después de guardar
-                    appOverlayRepository.hideOverlay()
-                    
-                    // Solo cambiar a Idle después de ocultar el overlay (aunque ya no importa porque isClosing bloquea el renderizado)
-                    // Pero lo hacemos por limpieza del estado
-                    _trackingState.value = TrackingState.Idle
+
                 } else {
-                    throw result.exceptionOrNull() ?: Exception("Error al guardar la ruta")
+                    throw result.exceptionOrNull() ?: Exception("Error desconocido al guardar")
                 }
+
             } catch (e: Exception) {
-                Log.e(TAG, "Error al finalizar ruta", e)
-                _trackingState.value = TrackingState.Error(e.message ?: "Error al guardar la ruta")
-                _message.value = "Error: ${e.message}"
-                
-                // Ocultar overlay en caso de error también
+                handleTrackingError(e)
+            } finally {
+                // 1. Pequeña espera para que el usuario lea "Guardando..."
+                kotlinx.coroutines.delay(600)
+
+                // 2. Cerramos el overlay con el nombre correcto
                 appOverlayRepository.hideOverlay()
+
+                // 3. Volvemos al estado inicial
+                _trackingState.value = TrackingState.Idle
             }
         }
     }
@@ -2864,5 +2355,169 @@ class TrackingViewModel @Inject constructor(
             formatted
         }
     }
+
+    private fun captureRouteWeatherSnapshot(): RouteWeatherSnapshot {
+        return RouteWeatherSnapshot(
+            // 1. Datos iniciales (El clima que hacía al arrancar)
+            initialTemp = _startWeatherTemperature,
+            initialEmoji = _startWeatherEmoji,
+            initialCode = _startWeatherCode, // Añadido
+            initialCondition = _startWeatherCondition,
+            initialDescription = _startWeatherDescription,
+            initialIsDay = _startWeatherIsDay ?: true, // Añadido
+            initialFeelsLike = _startWeatherFeelsLike, // Añadido
+            initialHumidity = _startWeatherHumidity?.toDouble(),
+            initialWindSpeed = _startWeatherWindSpeed, // IMPORTANTE: Viento inicial
+            initialWindGusts = _startWeatherWindGusts, // Añadido
+            initialUvIndex = _startWeatherUvIndex, // Añadido
+            initialVisibility = _startWeatherVisibility, // Añadido
+            initialDewPoint = _startWeatherDewPoint, // Añadido
+            initialRainProbability = _startWeatherRainProbability?.toDouble(),
+            // 2. Estadísticas de la ruta (Lo que detectó el monitoreo continuo)
+            maxWindSpeed = this.maxWindSpeed,
+            maxWindGusts = this.maxWindGusts,
+            minTemp = this.minTemperature,
+            maxTemp = this.maxTemperature,
+            maxUvIndex = this.maxUvIndex,
+            maxPrecipitation = this.weatherMaxPrecipitation,
+
+            // 3. Badges y estados
+            hadRain = this.weatherHadRain || (_shouldShowRainWarning.value && _isActiveRainWarning.value),
+            hadWetRoad = this.weatherHadWetRoad || (_shouldShowRainWarning.value && !_isActiveRainWarning.value),
+            hadExtreme = this.weatherHadExtremeConditions || _shouldShowExtremeWarning.value,
+            extremeReason = this.weatherExtremeReason,
+            rainReason = this.weatherRainReason,
+            rainStartMinute = this.weatherRainStartMinute
+        )
+    }
+
+    private fun resetTrackingUI() {
+        _routePoints.value = emptyList()
+        _currentDistance.value = 0.0
+        _currentSpeed.value = 0.0
+        _duration.value = 0L
+        _timeInMotion.value = 0L
+        Log.d(TAG, "🧹 UI de tracking reseteada")
+    }
+
+    private fun resetAllWeatherVariables() {
+        // 1. Datos base del clima
+        _startWeatherTemperature = null
+        _startWeatherEmoji = null
+        _startWeatherCode = null
+        _startWeatherCondition = null
+        _startWeatherDescription = null
+        _startWeatherIsDay = null
+        _startWeatherFeelsLike = null
+        _startWeatherWindChill = null
+        _startWeatherHeatIndex = null
+        _startWeatherHumidity = null
+        _startWeatherWindSpeed = null
+        _startWeatherUvIndex = null
+        _startWeatherWindDirection = null
+        _startWeatherWindGusts = null
+        _startWeatherRainProbability = null
+        _startWeatherVisibility = null
+        _startWeatherDewPoint = null
+
+        // 2. Acumulados y detección de la ruta
+        weatherHadRain = false
+        weatherHadWetRoad = false
+        weatherHadExtremeConditions = false
+        weatherExtremeReason = null
+        weatherMaxPrecipitation = 0.0
+        weatherRainStartMinute = null
+        weatherRainReason = null
+
+        // 3. Valores extremos detectados
+        maxWindSpeed = 0.0
+        maxWindGusts = 0.0
+        minTemperature = Double.MAX_VALUE
+        maxTemperature = Double.MIN_VALUE
+        maxUvIndex = 0.0
+
+        // 4. Estados lógicos y Snapshots
+        pendingRainConfirmation = false
+        pendingRainMinute = null
+        pendingRainReason = null
+        _initialWeatherSnapshot = null
+        _initialWeatherCaptured = false
+        _initialWeatherLatitude = null
+        _initialWeatherLongitude = null
+
+        // 5. Badges y Notificaciones
+        _shouldShowRainWarning.value = false
+        _isActiveRainWarning.value = false
+        _shouldShowExtremeWarning.value = false
+        lastWeatherBadgeState = null
+
+        // 6. Estado final e hilos
+        _weatherStatus.value = WeatherStatus.Idle
+        routeRepository.clearTempWeather()
+
+        Log.d(TAG, "🔄 Todos los estados de clima y badges han sido reseteados a cero")
+    }
+
+    private suspend fun fetchFinalWeatherSnapshot(lastPoint: RoutePoint) {
+        Log.d(TAG, "📸 Capturando snapshot FINAL del clima...")
+        try {
+            val result = weatherRepository.getCurrentWeather(lastPoint.latitude, lastPoint.longitude)
+            result.onSuccess { weather ->
+                // Actualizamos las variables del ViewModel con los datos finales
+                _startWeatherTemperature = weather.temperature
+                _startWeatherEmoji = weather.weatherEmoji
+                _startWeatherDescription = weather.description
+                _startWeatherWindSpeed = weather.windSpeed
+                _startWeatherWindGusts = weather.windGusts
+                _startWeatherHumidity = weather.humidity
+                // ... (puedes añadir más si los necesitas en el resumen final)
+                Log.d(TAG, "✅ Snapshot final capturado correctamente")
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "⚠️ No se pudo obtener el snapshot final, se usarán datos iniciales")
+        }
+    }
+
+    private suspend fun processRouteRecords(scooter: Scooter, route: Route) {
+        try {
+            Log.d(TAG, "Intentando añadir ruta a registros para patinete: ${scooter.nombre}")
+
+            // 1. Obtener la fecha y los registros actuales
+            val currentDate = java.time.LocalDate.now()
+            val formattedDate = com.zipstats.app.utils.DateUtils.formatForApi(currentDate)
+            val allRecords = recordRepository.getRecords().first()
+
+            // 2. Buscar el último registro de este patinete para saber los km anteriores
+            val lastRecord = allRecords
+                .filter { it.patinete == scooter.nombre }
+                .maxByOrNull { it.fecha }
+
+            // 3. Calcular el nuevo kilometraje acumulado
+            val newKilometraje = if (lastRecord != null) {
+                lastRecord.kilometraje + route.totalDistance
+            } else {
+                route.totalDistance
+            }
+
+            // 4. Guardar el nuevo registro
+            // (Aquí usa la llamada a tu repositorio que ya tenías escrita)
+            /* recordRepository.saveRecord(...) */
+
+            Log.d(TAG, "✅ Registro actualizado: ${scooter.nombre} ahora tiene $newKilometraje km")
+
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ Error al procesar registros de kilometraje: ${e.message}")
+            // No lanzamos la excepción para que la ruta se considere guardada
+            // aunque el registro falle
+        }
+    }
+    private fun handleTrackingError(e: Exception) {
+        Log.e(TAG, "❌ Error al finalizar tracking: ${e.message}", e)
+        _message.value = "Error al guardar: ${e.message}"
+        // Esto asegura que la UI sepa que hubo un fallo y detenga el estado de carga
+        _trackingState.value = TrackingState.Error(e.message ?: "Error desconocido")
+    }
+
 }
+
 

@@ -1,21 +1,22 @@
 package com.zipstats.app.repository
 
 import android.util.Log
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.FirebaseFirestoreException
+import com.google.firebase.firestore.Query
 import com.zipstats.app.model.Route
 import com.zipstats.app.model.RoutePoint
 import com.zipstats.app.model.VehicleType
 import com.zipstats.app.utils.LocationUtils
 import com.zipstats.app.utils.RouteAnalyzer
-import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.firestore.FirebaseFirestore
-import com.google.firebase.firestore.FirebaseFirestoreException
-import com.google.firebase.firestore.Query
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.tasks.await
 import javax.inject.Inject
 import javax.inject.Singleton
+import com.zipstats.app.model.RouteWeatherSnapshot
 
 /**
  * Repositorio para gestionar rutas GPS en Firebase
@@ -81,63 +82,7 @@ class RouteRepository @Inject constructor(
             Result.failure(e)
         }
     }
-    
-    /**
-     * Crea una ruta a partir de una lista de puntos GPS con análisis post-ruta y clima
-     */
-    suspend fun createRouteWithWeather(
-        points: List<RoutePoint>,
-        scooterId: String,
-        scooterName: String,
-        startTime: Long,
-        endTime: Long,
-        notes: String = "",
-        timeInMotion: Long? = null,
-        vehicleType: VehicleType = VehicleType.PATINETE
-    ): Route {
-        // Crear la ruta base
-        val route = createRouteFromPoints(
-            points = points,
-            scooterId = scooterId,
-            scooterName = scooterName,
-            startTime = startTime,
-            endTime = endTime,
-            notes = notes,
-            timeInMotion = timeInMotion,
-            vehicleType = vehicleType
-        )
-        
-        // Intentar obtener el clima actual
-        if (points.isNotEmpty()) {
-            try {
-                val firstPoint = points.first()
-                
-                Log.d(TAG, "Obteniendo clima para ruta en lat=${firstPoint.latitude}, lon=${firstPoint.longitude}")
-                
-                val result = weatherRepository.getCurrentWeather(
-                    latitude = firstPoint.latitude,
-                    longitude = firstPoint.longitude
-                )
-                
-                result.onSuccess { weather ->
-                    Log.d(TAG, "Clima obtenido y guardado: ${weather.temperature}°C, ${weather.weatherEmoji}")
-                    return route.copy(
-                        weatherTemperature = weather.temperature,
-                        weatherEmoji = weather.weatherEmoji,
-                        weatherDescription = weather.description
-                    )
-                }.onFailure { error ->
-                    Log.e(TAG, "Error al obtener clima: ${error.message}", error)
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "Excepción al obtener clima: ${e.message}", e)
-            }
-        }
-        
-        // Si no se pudo obtener el clima, devolver la ruta sin él
-        return route
-    }
-    
+
     /**
      * Crea una ruta a partir de una lista de puntos GPS con análisis post-ruta
      */
@@ -593,6 +538,76 @@ class RouteRepository @Inject constructor(
             Log.e(TAG, "Error al calcular kilometraje del vehículo", e)
             Result.failure(e)
         }
+    }
+    /**
+     * Aplica la lógica de decisión climática y badges a una ruta base.
+     * Combina los datos iniciales con los máximos detectados durante el viaje.
+     */
+    fun finalizeRouteWithWeather(
+        baseRoute: Route,
+        snap: RouteWeatherSnapshot,
+        hasActiveBadges: Boolean
+    ): Route {
+        // 1. Lógica de viento (Convertir solo el inicial de m/s a km/h)
+        val initWindKmh = (snap.initialWindSpeed ?: 0.0) * 3.6
+        val initGustsKmh = (snap.initialWindGusts ?: 0.0) * 3.6
+
+        // 2. Determinar valores finales de Viento
+        // Si hubo snapshot final (hasActiveBadges), el initWindKmh ya es el "final"
+        // Si no lo hubo pero hubo extremas, usamos el máximo detectado (que ya está en km/h)
+        val finalWindSpeed = if (snap.hadExtreme && !hasActiveBadges) {
+            maxOf(initWindKmh, snap.maxWindSpeed)
+        } else initWindKmh
+
+        val finalWindGusts = if (snap.hadExtreme && !hasActiveBadges) {
+            maxOf(initGustsKmh, snap.maxWindGusts)
+        } else initGustsKmh
+
+        // 3. Determinar Temperatura final
+        val finalTemp = if (snap.hadExtreme && !hasActiveBadges) {
+            when {
+                snap.minTemp < 0 -> snap.minTemp
+                snap.maxTemp > 35 -> snap.maxTemp
+                else -> snap.initialTemp
+            }
+        } else snap.initialTemp
+
+        // 4. Determinar UV final
+        val finalUv = if (snap.hadExtreme && !hasActiveBadges) {
+            maxOf(snap.initialUvIndex ?: 0.0, snap.maxUvIndex)
+        } else snap.initialUvIndex
+
+        // 5. Sincronizar Badges (Lluvia y Calzada son excluyentes)
+        val finalHadRain = snap.hadRain
+        val finalHadWetRoad = if (finalHadRain) false else snap.hadWetRoad
+
+        // 6. Retornar la ruta con el mapeo COMPLETO de campos
+        return baseRoute.copy(
+            weatherTemperature = finalTemp,
+            weatherEmoji = snap.initialEmoji,
+            weatherCode = snap.initialCode,
+            weatherCondition = snap.initialCondition,
+            weatherDescription = snap.initialDescription,
+            weatherIsDay = snap.initialIsDay,
+            weatherFeelsLike = snap.initialFeelsLike,
+            weatherWindChill = snap.initialWindChill,
+            weatherHeatIndex = snap.initialHeatIndex,
+            weatherHumidity = snap.initialHumidity?.toInt(),
+            weatherWindSpeed = finalWindSpeed,
+            weatherWindGusts = finalWindGusts,
+            weatherUvIndex = finalUv,
+            weatherWindDirection = snap.initialWindDirection,
+            weatherRainProbability = snap.initialRainProbability?.toInt(),
+            weatherVisibility = snap.initialVisibility,
+            weatherDewPoint = snap.initialDewPoint,
+            weatherHadRain = finalHadRain,
+            weatherHadWetRoad = finalHadWetRoad,
+            weatherHadExtremeConditions = snap.hadExtreme,
+            weatherExtremeReason = if (snap.hadExtreme) snap.extremeReason else null,
+            weatherRainStartMinute = snap.rainStartMinute,
+            weatherRainReason = snap.rainReason,
+            weatherMaxPrecipitation = if (finalHadRain && snap.maxPrecipitation > 0.0) snap.maxPrecipitation else null
+        )
     }
 }
 

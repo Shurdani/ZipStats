@@ -38,7 +38,7 @@ data class Route(
     val weatherHeatIndex: Double? = null, // Índice de calor en °C (Heat Index - solo relevante >26°C)
     val weatherHumidity: Int? = null, // Humedad en %
     val weatherWindSpeed: Double? = null, // Velocidad del viento en km/h,
-    val weatherWindDirection: Int? = null, // Dirección del viento en grados (0-360),
+    val weatherWindDirection: String? = null, // Antes era Int? // Dirección del viento en grados (0-360),
     val weatherRainProbability: Int? = null, // Probabilidad de lluvia en %
     val weatherUvIndex: Double? = null,// Índice UV
     val weatherWindGusts: Double? = null, // La velocidad del viento en km/h
@@ -175,7 +175,7 @@ data class Route(
                 weatherHeatIndex = (map["weatherHeatIndex"] as? Number)?.toDouble(),
                 weatherHumidity = (map["weatherHumidity"] as? Number)?.toInt(),
                 weatherWindSpeed = (map["weatherWindSpeed"] as? Number)?.toDouble(),
-                weatherWindDirection = (map["weatherWindDirection"] as? Number)?.toInt(),
+                weatherWindDirection = map["weatherWindDirection"] as? String,
                 weatherRainProbability = (map["weatherRainProbability"] as? Number)?.toInt(),
                 weatherUvIndex = (map["weatherUvIndex"] as? Number)?.toDouble(),
                 weatherWindGusts = (map["weatherWindGusts"] as? Number)?.toDouble(),

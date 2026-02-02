@@ -112,6 +112,8 @@ class TrackingViewModel @Inject constructor(
     private val weatherRepository: com.zipstats.app.repository.WeatherRepository
 ) : AndroidViewModel(application) {
 
+    private val notificationHandler = TrackingNotificationHandler(getApplication())
+
     private val weatherAdvisor = WeatherAdvisor()
 
     private val context: Context = application.applicationContext
@@ -224,9 +226,7 @@ class TrackingViewModel @Inject constructor(
     // Estado anterior del clima para detectar cambios y mostrar notificaciones
     private var lastWeatherBadgeState: WeatherBadgeState? = null
     
-    // ID del canal de notificaciones de cambio de clima
-    private val WEATHER_CHANGE_CHANNEL_ID = "weather_change_channel"
-    private val WEATHER_CHANGE_NOTIFICATION_ID = 2000
+
     
     // Nota: se eliminó la histéresis de "calzada humeda".
     // Ahora solo usamos señales de Google (histórico reciente + humedad/condensación/nieve).
@@ -1339,27 +1339,6 @@ class TrackingViewModel @Inject constructor(
         }
     }
 
-    /**
-     * Crea el canal de notificaciones para cambios de clima
-     */
-    private fun createWeatherChangeNotificationChannel() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                WEATHER_CHANGE_CHANNEL_ID,
-                "Avisos de Seguridad",
-                NotificationManager.IMPORTANCE_HIGH // Prioridad alta para que vibre y llegue al smartwatch
-            ).apply {
-                description = "Notificaciones cuando cambia el clima durante una ruta activa"
-                setShowBadge(true)
-                enableLights(true)
-                enableVibration(true)
-                setSound(null, null) // Sin sonido, solo vibración
-            }
-            val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            notificationManager.createNotificationChannel(channel)
-            Log.d(TAG, "📢 Canal de notificaciones de cambio de clima creado")
-        }
-    }
 
     /**
      * Obtiene el texto del badge según el estado
@@ -1401,82 +1380,7 @@ class TrackingViewModel @Inject constructor(
         return android.R.drawable.ic_dialog_alert
     }
 
-    /**
-     * Muestra una notificación de cambio de clima con vibración
-     */
-    private fun showWeatherChangeNotification(newState: WeatherBadgeState) {
-        try {
-            // Crear canal si no existe
-            createWeatherChangeNotificationChannel()
-            
-            val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            val weatherStatus = _weatherStatus.value
-            
-            // Obtener texto e icono del badge
-            val badgeText = getBadgeText(newState, weatherExtremeReason)
-            val iconResId = getBadgeIconResId(newState, weatherStatus)
-            
-            // Crear patrón de vibración de doble pulso
-            val vibrationPattern = longArrayOf(0, 200, 100, 200)
-            
-            // Intent para abrir la app en la pantalla de tracking
-            val intent = Intent(context, com.zipstats.app.MainActivity::class.java).apply {
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-            }
-            val pendingIntent = android.app.PendingIntent.getActivity(
-                context,
-                0,
-                intent,
-                android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
-            )
-            
-            // Crear notificación
-            val notification = NotificationCompat.Builder(context, WEATHER_CHANGE_CHANNEL_ID)
-                .setSmallIcon(iconResId)
-                .setContentTitle("Aviso de Seguridad")
-                .setContentText(badgeText)
-                .setPriority(NotificationCompat.PRIORITY_HIGH)
-                .setCategory(NotificationCompat.CATEGORY_NAVIGATION) // Para que el sistema entienda que es información en tiempo real
-                .setVibrate(vibrationPattern)
-                .setAutoCancel(false)
-                .setContentIntent(pendingIntent)
-                .setStyle(NotificationCompat.BigTextStyle().bigText(badgeText))
-                .build()
-            
-            // Vibrar dispositivo (solo si tiene vibrator)
-            try {
-                val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                    val vibratorManager = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager
-                    vibratorManager.defaultVibrator
-                } else {
-                    @Suppress("DEPRECATION")
-                    context.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
-                }
-                
-                // Verificar que el vibrator esté disponible
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    if (vibrator.hasVibrator()) {
-                        val vibrationEffect = VibrationEffect.createWaveform(vibrationPattern, -1)
-                        vibrator.vibrate(vibrationEffect)
-                    }
-                } else {
-                    @Suppress("DEPRECATION")
-                    if (vibrator.hasVibrator()) {
-                        vibrator.vibrate(vibrationPattern, -1)
-                    }
-                }
-            } catch (e: Exception) {
-                Log.w(TAG, "⚠️ No se pudo vibrar el dispositivo: ${e.message}")
-            }
-            
-            // Mostrar notificación
-            notificationManager.notify(WEATHER_CHANGE_NOTIFICATION_ID, notification)
-            
-            Log.d(TAG, "📢 Notificación de cambio de clima mostrada: $badgeText")
-        } catch (e: Exception) {
-            Log.e(TAG, "❌ Error al mostrar notificación de cambio de clima: ${e.message}", e)
-        }
-    }
+
 
     /**
      * Detecta cambios en el estado del clima y muestra notificaciones si es necesario
@@ -1484,14 +1388,17 @@ class TrackingViewModel @Inject constructor(
     private fun checkAndNotifyWeatherChange() {
         val currentState = getCurrentWeatherBadgeState()
         val lastState = lastWeatherBadgeState
-        
-        // Solo notificar si hay un cambio de estado
+
         if (currentState != lastState && lastState != null) {
-            Log.d(TAG, "🔄 Cambio de estado de clima detectado: $lastState -> $currentState")
-            showWeatherChangeNotification(currentState)
+            // 1. El ViewModel calcula los datos específicos (porque tiene acceso a weatherStatus)
+            val weatherStatus = _weatherStatus.value
+            val badgeText = getBadgeText(currentState, weatherExtremeReason)
+            val iconResId = getBadgeIconResId(currentState, weatherStatus)
+
+            // 2. Le pasa los datos finales al Handler
+            notificationHandler.showWeatherChangeNotification(badgeText, iconResId)
         }
-        
-        // Actualizar estado anterior
+
         lastWeatherBadgeState = currentState
     }
 
@@ -2099,13 +2006,7 @@ class TrackingViewModel @Inject constructor(
                 // 🛑 CORTE DE SEGURIDAD Y LIMPIEZA DE UI 🛑
 
                 // 1. Cancelar la notificación de clima inmediatamente
-                try {
-                    val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-                    notificationManager.cancel(WEATHER_CHANGE_NOTIFICATION_ID)
-                    Log.d(TAG, "🧹 Notificación de clima eliminada al finalizar ruta")
-                } catch (e: Exception) {
-                    Log.e(TAG, "Error al cancelar notificación: ${e.message}")
-                }
+                notificationHandler.dismissWeatherNotification()
 
                 // 2. Cancelar jobs de monitoreo (viento, lluvia, etc.)
                 continuousWeatherJob?.cancel()
@@ -2914,13 +2815,7 @@ class TrackingViewModel @Inject constructor(
         super.onCleared()
 
         // 1. Limpiar la notificación de la barra de estado
-        try {
-            val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            notificationManager.cancel(WEATHER_CHANGE_NOTIFICATION_ID)
-            Log.d(TAG, "🧹 Notificación de clima limpiada en onCleared")
-        } catch (e: Exception) {
-            Log.e(TAG, "Error al limpiar notificación: ${e.message}")
-        }
+        notificationHandler.dismissWeatherNotification()
 
         // 2. Cancelar jobs de clima
         weatherJob?.cancel()
@@ -2941,10 +2836,7 @@ class TrackingViewModel @Inject constructor(
     private fun Double.roundToOneDecimal(): Double {
         return (this * 10.0).roundToInt() / 10.0
     }
-    
-    /**
-     * Formatea la temperatura asegurándose de que 0 se muestre sin signo menos
-     */
+
     /**
      * Formatea la temperatura y evita el "-0" o "-0.0"
      */

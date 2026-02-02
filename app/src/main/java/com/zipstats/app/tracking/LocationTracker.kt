@@ -3,9 +3,16 @@ package com.zipstats.app.tracking
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
+import android.location.Location
 import android.os.Looper
+import androidx.annotation.RequiresPermission
 import androidx.core.app.ActivityCompat
-import com.google.android.gms.location.*
+import com.google.android.gms.location.FusedLocationProviderClient
+import com.google.android.gms.location.Granularity
+import com.google.android.gms.location.LocationCallback
+import com.google.android.gms.location.LocationRequest
+import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.Priority
 
 /**
  * Configuración óptima de GPS para seguimiento de vehículos de movilidad personal
@@ -88,6 +95,7 @@ class LocationTracker(private val context: Context) {
      * @param callback Callback para recibir actualizaciones
      * @return true si se inició correctamente, false si no hay permisos
      */
+    @RequiresPermission(allOf = [Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION])
     fun startTracking(
         locationRequest: LocationRequest,
         callback: LocationCallback
@@ -111,6 +119,7 @@ class LocationTracker(private val context: Context) {
      * @param callback Callback para recibir actualizaciones
      * @return true si se inició correctamente, false si no hay permisos
      */
+    @RequiresPermission(allOf = [Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION])
     fun startBackgroundTracking(
         locationRequest: LocationRequest,
         callback: LocationCallback
@@ -140,7 +149,8 @@ class LocationTracker(private val context: Context) {
      * Obtiene la última ubicación conocida
      * @param callback Callback para recibir la ubicación
      */
-    fun getLastLocation(callback: (android.location.Location?) -> Unit) {
+    @RequiresPermission(allOf = [Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION])
+    fun getLastLocation(callback: (Location?) -> Unit) {
         if (!hasLocationPermission()) {
             callback(null)
             return
@@ -191,6 +201,7 @@ class LocationTracker(private val context: Context) {
      * Obtiene la precisión GPS actual (0-100)
      * @param callback Callback con la precisión estimada
      */
+    @RequiresPermission(allOf = [Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION])
     fun getGpsAccuracy(callback: (Int) -> Unit) {
         getLastLocation { location ->
             if (location != null && location.hasAccuracy()) {

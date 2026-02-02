@@ -4,7 +4,7 @@ import android.util.Log
 
 
 class WeatherAdvisor {
-/**
+    /**
  * Determina si hay lluvia activa confiando completamente en Google Weather
  *
  * Si Google dice que hay lluvia (en descripción o condición), activamos el badge/preaviso.

@@ -2,21 +2,15 @@ package com.zipstats.app.ui.tracking
 
 import android.annotation.SuppressLint
 import android.app.Application
-import android.app.NotificationChannel
-import android.app.NotificationManager
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
+import kotlinx.coroutines.delay
 import android.location.Location
-import android.os.Build
 import android.os.IBinder
 import android.os.Looper
-import android.os.VibrationEffect
-import android.os.Vibrator
-import android.os.VibratorManager
 import android.util.Log
-import androidx.core.app.NotificationCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.android.gms.location.FusedLocationProviderClient
@@ -24,7 +18,9 @@ import com.google.android.gms.location.LocationCallback
 import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.LocationResult
 import com.google.android.gms.location.LocationServices
+import com.zipstats.app.model.Route
 import com.zipstats.app.model.RoutePoint
+import com.zipstats.app.model.RouteWeatherSnapshot
 import com.zipstats.app.model.Scooter
 import com.zipstats.app.repository.AppOverlayRepository
 import com.zipstats.app.repository.RecordRepository
@@ -43,8 +39,6 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 import kotlin.math.roundToInt
-import com.zipstats.app.model.RouteWeatherSnapshot
-import com.zipstats.app.model.Route
 
 
 /**
@@ -551,54 +545,56 @@ class TrackingViewModel @Inject constructor(
             Log.d(TAG, "🌤️ Clima inicial ya capturado, omitiendo")
             return
         }
-        
+
         val preLocation = _preLocation.value
         if (preLocation == null) {
             Log.w(TAG, "⚠️ No hay ubicación GPS previa para capturar clima inicial")
             return
         }
-        
-        Log.d(TAG, "🌤️ [Precarga] Capturando clima inicial en lat=${preLocation.latitude}, lon=${preLocation.longitude}")
-        
-        // Cancelar cualquier job anterior de clima
+
+        Log.d(
+            TAG,
+            "🌤️ [Precarga] Capturando clima inicial en lat=${preLocation.latitude}, lon=${preLocation.longitude}"
+        )
+
+        // Cancelar job anterior si existe
         weatherJob?.cancel()
-        
+
         weatherJob = viewModelScope.launch {
             try {
                 _weatherStatus.value = WeatherStatus.Loading
-                
+
                 val result = weatherRepository.getCurrentWeather(
                     latitude = preLocation.latitude,
                     longitude = preLocation.longitude
                 )
-                
+
                 result.onSuccess { weather ->
-                    // Google Weather API ya devuelve condiciones efectivas, no necesitamos "adivinar"
-                    // weather.icon contiene el condition string (ej: "RAIN", "CLEAR", "LIGHT_RAIN")
+
                     val condition = weather.icon.uppercase()
-                    
-                    // Obtener emoji y descripción directamente desde Google (ya vienen correctos)
                     val weatherEmoji = weather.weatherEmoji
-                    val weatherDescription = weather.description // Ya viene en español de Google
-                    
+                    val weatherDescription = weather.description
+
                     // Guardar snapshot inicial
                     _initialWeatherSnapshot = weather
                     _initialWeatherCaptured = true
                     _initialWeatherLatitude = preLocation.latitude
                     _initialWeatherLongitude = preLocation.longitude
-                    
-                    // Actualizar estado de UI
+
+                    // ----------------------------
+                    // UI: estado base
+                    // ----------------------------
                     _weatherStatus.value = WeatherStatus.Success(
                         temperature = weather.temperature,
                         feelsLike = weather.feelsLike,
                         windChill = weather.windChill,
                         heatIndex = weather.heatIndex,
                         description = weatherDescription,
-                        icon = weather.icon, // Condition string de Google
+                        icon = weather.icon,
                         humidity = weather.humidity,
                         windSpeed = weather.windSpeed,
                         weatherEmoji = weatherEmoji,
-                        weatherCode = weather.weatherCode, // Mapeado para compatibilidad
+                        weatherCode = weather.weatherCode,
                         isDay = weather.isDay,
                         uvIndex = weather.uvIndex,
                         windDirection = weather.windDirection,
@@ -611,41 +607,51 @@ class TrackingViewModel @Inject constructor(
                         visibility = weather.visibility
                     )
 
-                    // Guardar precipitación máxima desde el inicio.
-                    // Nota: en WeatherRepository, `weather.precipitation` viene de Google:
-                    // `precipitation.qpf.quantity` (acumulación de precipitación en la ÚLTIMA HORA).
-                    weatherMaxPrecipitation = maxOf(weatherMaxPrecipitation, weather.precipitation)
+                    // ----------------------------
+                    // Precipitación histórica
+                    // ----------------------------
+                    weatherMaxPrecipitation =
+                        maxOf(weatherMaxPrecipitation, weather.precipitation)
 
-                    // Precipitación acumulada reciente (últimas 3h) desde histórico de Google
                     recentPrecipitation3h = getRecentPrecipitation3h(
                         latitude = preLocation.latitude,
                         longitude = preLocation.longitude
                     )
-                    weatherMaxPrecipitation = maxOf(weatherMaxPrecipitation, recentPrecipitation3h)
-                    
-                    // Determinar si es lluvia activa usando condición y descripción de Google
-                    val (isActiveRain, rainUserReason) = weatherAdvisor.checkActiveRain(
-                        condition = condition,
-                        description = weatherDescription,
-                        precipitation = weather.precipitation
+                    weatherMaxPrecipitation =
+                        maxOf(weatherMaxPrecipitation, recentPrecipitation3h)
+
+                    // ----------------------------
+                    // Lluvia activa (Google)
+                    // ----------------------------
+                    val (isActiveRain, rainUserReason) =
+                        weatherAdvisor.checkActiveRain(
+                            condition = condition,
+                            description = weatherDescription,
+                            precipitation = weather.precipitation
+                        )
+
+                    Log.d(
+                        TAG,
+                        "🔍 [Precarga] checkActiveRain: condition=$condition, precip=${weather.precipitation}, isActiveRain=$isActiveRain"
                     )
-                    Log.d(TAG, "🔍 [Precarga] weatherAdvisor.checkActiveRain: condition=$condition, description=$weatherDescription, precip=${weather.precipitation}, isActiveRain=$isActiveRain")
-                    
-                    // Calzada húmeda: Solo si NO hay lluvia activa
+
+                    // ----------------------------
+                    // Calzada húmeda (solo si NO llueve)
+                    // ----------------------------
                     val precip24h = if (isActiveRain) 0.0 else getRecentPrecipitation24h(
                         latitude = preLocation.latitude,
                         longitude = preLocation.longitude
                     )
+
                     val isWetRoad = if (isActiveRain) {
-                        // Si hay lluvia activa, NO debe haber calzada húmeda
-                        false // Excluir calzada húmeda si hay lluvia activa
+                        false
                     } else {
                         weatherAdvisor.checkWetRoadConditions(
                             condition = condition,
                             humidity = weather.humidity,
                             recentPrecipitation3h = recentPrecipitation3h,
                             precip24h = precip24h,
-                            hasActiveRain = isActiveRain,
+                            hasActiveRain = false,
                             isDay = weather.isDay,
                             temperature = weather.temperature,
                             dewPoint = weather.dewPoint,
@@ -653,36 +659,58 @@ class TrackingViewModel @Inject constructor(
                             weatherDescription = weatherDescription
                         )
                     }
-                    
-                    // 🔥 IMPORTANTE: NO establecer StateFlows aquí - se establecerán más abajo
-                    // después de verificar lluvia activa vs calzada húmeda
-                    
-                    // Detectar visibilidad reducida (crítico para Barcelona - niebla/talaia)
-                    val (isLowVisibility, visReason) = checkLowVisibility(weather.visibility)
-                    
-                    // Detectar condiciones extremas (incluye visibilidad reducida)
-                    val hasExtremeConditions = weatherAdvisor.checkExtremeConditions(
-                        windSpeed = weather.windSpeed,
-                        windGusts = weather.windGusts,
-                        temperature = weather.temperature,
-                        uvIndex = weather.uvIndex,
-                        isDay = weather.isDay,
-                        weatherEmoji = weatherEmoji,
-                        weatherDescription = weatherDescription,
-                        weatherCode = weather.weatherCode,
-                        visibility = weather.visibility
-                    )
-                    _shouldShowExtremeWarning.value = hasExtremeConditions
-                    
-                    // 🔥 JERARQUÍA DE BADGES (misma lógica que RouteDetailDialog):
-                    // 1. Lluvia: Máxima prioridad (siempre se muestra si existe)
-                    // 2. Calzada húmeda: Solo si NO hay lluvia (excluyente con lluvia)
-                    // 3. Condiciones extremas: COMPLEMENTARIO (puede coexistir con lluvia o calzada húmeda)
-                    
-                    // Detectar y guardar condiciones extremas (complementario, no excluye otros badges)
+
+                    // ----------------------------
+                    // Condiciones extremas
+                    // ----------------------------
+                    val (isLowVisibility, visReason) =
+                        weatherAdvisor.checkLowVisibility(weather.visibility)
+
+                    val hasExtremeConditions =
+                        weatherAdvisor.checkExtremeConditions(
+                            windSpeed = weather.windSpeed,
+                            windGusts = weather.windGusts,
+                            temperature = weather.temperature,
+                            uvIndex = weather.uvIndex,
+                            isDay = weather.isDay,
+                            weatherEmoji = weatherEmoji,
+                            weatherDescription = weatherDescription,
+                            weatherCode = weather.weatherCode,
+                            visibility = weather.visibility
+                        )
+
+                    // ----------------------------
+                    // BADGES — JERARQUÍA OFICIAL
+                    // ----------------------------
+
+                    // 1️⃣ Lluvia (máxima prioridad)
+                    if (isActiveRain) {
+                        weatherHadRain = true
+                        weatherRainStartMinute = 0
+                        weatherRainReason = rainUserReason
+
+                        weatherHadWetRoad = false
+
+                        _shouldShowRainWarning.value = true
+                        _isActiveRainWarning.value = true
+
+                        Log.d(TAG, "🌧️ [Precarga] Lluvia activa al inicio de la ruta")
+                    }
+                    // 2️⃣ Calzada húmeda (solo si NO llueve)
+                    else if (isWetRoad) {
+                        weatherHadWetRoad = true
+
+                        _shouldShowRainWarning.value = true
+                        _isActiveRainWarning.value = false
+
+                        Log.d(TAG, "🛣️ [Precarga] Calzada húmeda detectada")
+                    }
+
+                    // 3️⃣ Condiciones extremas (complementarias)
                     if (hasExtremeConditions) {
                         weatherHadExtremeConditions = true
-                        // Detectar y guardar la causa específica en precarga
+                        _shouldShowExtremeWarning.value = true
+
                         val cause = weatherAdvisor.detectExtremeCause(
                             windSpeed = weather.windSpeed,
                             windGusts = weather.windGusts,
@@ -694,59 +722,54 @@ class TrackingViewModel @Inject constructor(
                             weatherCode = weather.weatherCode,
                             visibility = weather.visibility
                         )
+
                         if (cause != null) {
                             weatherExtremeReason = cause
                         }
-                        
-                        // Log específico para visibilidad en Barcelona
+
                         if (isLowVisibility) {
-                            Log.d(TAG, "🌫️ [Precarga] Visibilidad crítica detectada: ${weather.visibility}m - $visReason")
+                            Log.d(
+                                TAG,
+                                "🌫️ [Precarga] Visibilidad crítica: ${weather.visibility}m - $visReason"
+                            )
                         }
+
+                        Log.d(TAG, "⚠️ [Precarga] Condiciones extremas detectadas")
                     }
-                    
-                    // Lluvia: Máxima prioridad (siempre se muestra si existe)
-                    if (isActiveRain) {
-                        weatherHadRain = true
-                        weatherRainStartMinute = 0 // Al inicio de la ruta
-                        weatherRainReason = rainUserReason // Guardar razón amigable para el usuario
-                        weatherHadWetRoad = false // Lluvia excluye calzada húmeda
-                        // 🔥 IMPORTANTE: Actualizar StateFlows para que los badges se muestren en la UI
-                        _shouldShowRainWarning.value = true
-                        _isActiveRainWarning.value = true
-                        Log.d(TAG, "🌧️ [Precarga] Lluvia activa detectada - badge 🔵 activado")
-                    } else if (isWetRoad) {
-                        // Calzada húmeda: Solo si NO hay lluvia activa
-                        weatherHadWetRoad = true
-                        // 🔥 IMPORTANTE: Actualizar StateFlows para que los badges se muestren en la UI
-                        _shouldShowRainWarning.value = true
-                        _isActiveRainWarning.value = false
-                        Log.d(TAG, "🛣️ [Precarga] Calzada húmeda detectada - badge 🟡 activado")
-                    }
-                    
-                    // Condiciones extremas: COMPLEMENTARIO (puede coexistir con lluvia o calzada húmeda)
-                    if (hasExtremeConditions) {
-                        weatherHadExtremeConditions = true
-                        _shouldShowExtremeWarning.value = true
-                        Log.d(TAG, "⚠️ [Precarga] Condiciones extremas detectadas - badge ⚠️ activado")
-                    }
-                    
-                    Log.d(TAG, "✅ [Precarga] Clima inicial capturado: ${weather.temperature}°C $weatherEmoji")
-                    // El log de lluvia se maneja arriba según si es lluvia activa o calzada húmeda
-                    // (líneas 629 y 636)
-                    
-                    // 🔔 Inicializar estado anterior del clima después de actualizar badges
+
+                    // ----------------------------
+                    // Estado inicial para notificaciones
+                    // ----------------------------
                     lastWeatherBadgeState = getCurrentWeatherBadgeState()
-                    Log.d(TAG, "🌤️ [Precarga] Estado inicial del clima establecido: $lastWeatherBadgeState")
+
+                    Log.d(
+                        TAG,
+                        "✅ [Precarga] Clima inicial capturado: ${weather.temperature}°C $weatherEmoji"
+                    )
+                    Log.d(
+                        TAG,
+                        "🌤️ [Precarga] Estado inicial de badges: $lastWeatherBadgeState"
+                    )
                 }.onFailure { error ->
-                    Log.e(TAG, "❌ [Precarga] Error al capturar clima inicial: ${error.message}")
-                    _weatherStatus.value = WeatherStatus.Error(error.message ?: "Error al obtener clima")
+                    Log.e(
+                        TAG,
+                        "❌ [Precarga] Error al capturar clima inicial: ${error.message}"
+                    )
+                    _weatherStatus.value =
+                        WeatherStatus.Error(error.message ?: "Error al obtener clima")
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "❌ [Precarga] Excepción al capturar clima inicial: ${e.message}", e)
-                _weatherStatus.value = WeatherStatus.Error("Excepción: ${e.message}")
+                Log.e(
+                    TAG,
+                    "❌ [Precarga] Excepción al capturar clima inicial: ${e.message}",
+                    e
+                )
+                _weatherStatus.value =
+                    WeatherStatus.Error("Excepción: ${e.message}")
             }
         }
     }
+
 
     /**
      * Inicia la escucha de GPS previa (sin grabar ruta aún)
@@ -955,94 +978,69 @@ class TrackingViewModel @Inject constructor(
             .getOrElse { 0.0 }
             .coerceAtLeast(0.0)
     }
-    
-    /**
-     * Verifica si hay calzada húmeda cuando NO hay lluvia activa
-     * 
-     * Se activa por señales físicas basadas en datos de Google:
-     * - Lluvia reciente (histórico últimas 3h con precipitación acumulada > 0)
-     * - Alta humedad + cielo nublado/niebla (condensación)
-     * - Persistencia por temporal: humedad >= 80% + precipitación 24h > 0 + (temperature - dewPoint) <= 3°C
-     * - Humedad extrema
-     * - Nieve / aguanieve
-     * 
-     * IMPORTANTE: Si hay lluvia activa (detectada por weatherAdvisor.checkActiveRain), esta función siempre retorna false
-     */
 
-    private fun checkLowVisibility(visibility: Double?): Pair<Boolean, String?> {
-        if (visibility == null) return false to null
-        
-        return when {
-            visibility < 1000 -> true to "Niebla cerrada: Visibilidad < 1km"
-            visibility < 3000 -> true to "Visibilidad reducida por neblina"
-            else -> false to null
-        }
-    }
-
-
-
-    /**
-     * Inicia el monitoreo continuo de lluvia durante la ruta
-     * - Primer chequeo: 5 minutos
-     * - Luego: cada 10 minutos
-     * - Solo actualiza el icono si detecta lluvia nueva (no si ya había lluvia y mejora)
-     * - Requiere 2 chequeos seguidos para confirmar lluvia nueva (evitar falsos positivos)
-     */
     private fun startContinuousWeatherMonitoring() {
         // Cancelar cualquier monitoreo anterior
         continuousWeatherJob?.cancel()
-        
+
         // Limpiar estado pendiente antes de iniciar nuevo monitoreo
         pendingRainConfirmation = false
         pendingRainMinute = null
         pendingRainReason = null
-        
+
         continuousWeatherJob = viewModelScope.launch {
-            // Mientras esté en tracking activo, chequear el clima cada 5 minutos
-            // Esto permite detectar cambios de condiciones más rápido (lluvia, condiciones extremas, etc.)
-            // Para una ruta típica de 30-60 min, serán ~6-12 llamadas, que es razonable para Google Weather API
 
-            Log.d(TAG, "⏱️ [Monitoreo continuo] Esperando 5 min para la primera actualización (usando precarga)...")
-            kotlinx.coroutines.delay(5 * 60 * 1000)
+            Log.d(
+                TAG,
+                "⏱️ [Monitoreo continuo] Esperando 5 min para la primera actualización (usando precarga)..."
+            )
+            delay(5 * 60 * 1000)
 
-            while (_trackingState.value is TrackingState.Tracking || 
-                   _trackingState.value is TrackingState.Paused) {
-                
+            while (
+                _trackingState.value is TrackingState.Tracking ||
+                _trackingState.value is TrackingState.Paused
+            ) {
+
                 val points = _routePoints.value
-                // Si acabamos de volver a la pantalla, puede tardar unos segundos en rehidratarse la lista.
-                // No esperemos 5 minutos: reintentar rápido hasta tener puntos.
+
+                // Esperar a que haya puntos (rehidratación tras volver a la pantalla)
                 if (points.isEmpty()) {
-                    kotlinx.coroutines.delay(5_000)
+                    delay(5_000)
                     continue
                 }
-                if (points.isNotEmpty()) {
-                    val currentPoint = points.last()
-                    val elapsedMinutes = if (_startTime.value > 0) {
+
+                val currentPoint = points.last()
+                val elapsedMinutes =
+                    if (_startTime.value > 0)
                         ((System.currentTimeMillis() - _startTime.value) / (1000 * 60)).toInt()
-                    } else {
-                        0
-                    }
-                    
-                    Log.d(TAG, "🌧️ [Monitoreo continuo] Chequeando clima en minuto $elapsedMinutes...")
-                    
-                    try {
-                        val result = weatherRepository.getCurrentWeather(
-                            latitude = currentPoint.latitude,
-                            longitude = currentPoint.longitude
+                    else 0
+
+                Log.d(TAG, "🌧️ [Monitoreo continuo] Chequeando clima en minuto $elapsedMinutes...")
+
+                try {
+                    val result = weatherRepository.getCurrentWeather(
+                        latitude = currentPoint.latitude,
+                        longitude = currentPoint.longitude
+                    )
+
+                    result.onSuccess { weather ->
+
+                        Log.d(
+                            TAG,
+                            "✅ [Monitoreo continuo] Clima obtenido: ${weather.temperature}°C, " +
+                                    "condición=${weather.icon}, precip=${weather.precipitation}mm, " +
+                                    "humedad=${weather.humidity}%"
                         )
-                        
-                        result.onSuccess { weather ->
-                            Log.d(TAG, "✅ [Monitoreo continuo] Clima obtenido: ${weather.temperature}°C, condición=${weather.icon}, precip=${weather.precipitation}mm, humedad=${weather.humidity}%")
-                            
-                            // 🔥 IMPORTANTE: Actualizar weatherStatus SIEMPRE para que la UI (tarjeta + badge) reaccione.
-                            // Antes solo lo actualizábamos si ya era Success; si estaba Idle/Loading/Error, la tarjeta no se refrescaba.
-                            val currentStatus = _weatherStatus.value
-                            _weatherStatus.value = if (currentStatus is WeatherStatus.Success) {
+
+                        // 🔥 Actualizar SIEMPRE el estado del clima para la UI
+                        val currentStatus = _weatherStatus.value
+                        _weatherStatus.value =
+                            if (currentStatus is WeatherStatus.Success) {
                                 currentStatus.copy(
                                     temperature = weather.temperature,
                                     weatherEmoji = weather.weatherEmoji,
                                     weatherCode = weather.weatherCode,
-                                    icon = weather.icon, // Condition string de Google
+                                    icon = weather.icon,
                                     windSpeed = weather.windSpeed,
                                     windDirection = weather.windDirection,
                                     isDay = weather.isDay,
@@ -1072,39 +1070,47 @@ class TrackingViewModel @Inject constructor(
                                     visibility = weather.visibility
                                 )
                             }
-                            
-                            // Google Weather API ya devuelve condiciones efectivas
-                            val condition = weather.icon.uppercase()
-                            val weatherDescription = weather.description // Descripción de Google
-                            
-                            // Determinar si es lluvia activa usando condición y descripción de Google
-                            val (isActiveRain, rainUserReason) = weatherAdvisor.checkActiveRain(
+
+                        val condition = weather.icon.uppercase()
+                        val weatherDescription = weather.description
+                        val weatherEmoji = weather.weatherEmoji
+
+                        // 🌧️ Lluvia activa
+                        val (isActiveRain, rainUserReason) =
+                            weatherAdvisor.checkActiveRain(
                                 condition = condition,
                                 description = weatherDescription,
                                 precipitation = weather.precipitation
                             )
-                            
-                            Log.d(TAG, "🔍 [Monitoreo continuo] Detección: isActiveRain=$isActiveRain, razón=$rainUserReason")
-                            
-                            // Obtener emoji directamente de Google (ya viene correcto)
-                            val weatherEmoji = weather.weatherEmoji
 
-                            // Precipitación acumulada reciente (últimas 3h) desde histórico de Google
-                            // (solo necesaria si NO hay lluvia activa)
-                            val localRecentPrecip3h = if (isActiveRain) 0.0 else getRecentPrecipitation3h(
+                        Log.d(
+                            TAG,
+                            "🔍 [Monitoreo continuo] Detección: isActiveRain=$isActiveRain, razón=$rainUserReason"
+                        )
+
+                        // Precipitación histórica (solo si NO hay lluvia activa)
+                        val localRecentPrecip3h =
+                            if (isActiveRain) 0.0 else getRecentPrecipitation3h(
                                 latitude = currentPoint.latitude,
                                 longitude = currentPoint.longitude
                             )
-                            val localPrecip24h = if (isActiveRain) 0.0 else getRecentPrecipitation24h(
+
+                        val localPrecip24h =
+                            if (isActiveRain) 0.0 else getRecentPrecipitation24h(
                                 latitude = currentPoint.latitude,
                                 longitude = currentPoint.longitude
                             )
-                            recentPrecipitation3h = maxOf(recentPrecipitation3h, localRecentPrecip3h)
-                            weatherMaxPrecipitation = maxOf(weatherMaxPrecipitation, weather.precipitation, localRecentPrecip3h)
-                            
-                            // Calzada húmeda: Solo si NO hay lluvia activa
-                            val isWetRoad = if (isActiveRain) {
-                                false // Excluir calzada húmeda si hay lluvia activa
+
+                        recentPrecipitation3h =
+                            maxOf(recentPrecipitation3h, localRecentPrecip3h)
+
+                        weatherMaxPrecipitation =
+                            maxOf(weatherMaxPrecipitation, weather.precipitation, localRecentPrecip3h)
+
+                        // 🛣️ Calzada húmeda (excluida si hay lluvia activa)
+                        val isWetRoad =
+                            if (isActiveRain) {
+                                false
                             } else {
                                 weatherAdvisor.checkWetRoadConditions(
                                     condition = condition,
@@ -1119,14 +1125,26 @@ class TrackingViewModel @Inject constructor(
                                     weatherDescription = weather.description
                                 )
                             }
-                            
-                            Log.d(TAG, "🛣️ [Monitoreo continuo] Calzada húmeda: isWetRoad=$isWetRoad")
-                            
-                            // Detectar condiciones extremas
-                            // Detectar visibilidad reducida durante monitoreo continuo
-                            val (isLowVisibility, visReason) = checkLowVisibility(weather.visibility)
-                            
-                            val hasExtremeConditions = weatherAdvisor.checkExtremeConditions(
+
+                        Log.d(
+                            TAG,
+                            "🛣️ [Monitoreo continuo] Calzada húmeda: isWetRoad=$isWetRoad"
+                        )
+
+                        // 🌫️ Visibilidad reducida
+                        val (isLowVisibility, visReason) =
+                            weatherAdvisor.checkLowVisibility(weather.visibility)
+
+                        if (isLowVisibility) {
+                            Log.d(
+                                TAG,
+                                "🌫️ [Monitoreo continuo] Visibilidad crítica: ${weather.visibility}m - $visReason"
+                            )
+                        }
+
+                        // ⚠️ Condiciones extremas (complementarias)
+                        val hasExtremeConditions =
+                            weatherAdvisor.checkExtremeConditions(
                                 windSpeed = weather.windSpeed,
                                 windGusts = weather.windGusts,
                                 temperature = weather.temperature,
@@ -1137,25 +1155,17 @@ class TrackingViewModel @Inject constructor(
                                 weatherCode = weather.weatherCode,
                                 visibility = weather.visibility
                             )
-                            
-                            // Log específico para visibilidad en Barcelona
-                            if (isLowVisibility) {
-                                Log.d(TAG, "🌫️ [Monitoreo continuo] Visibilidad crítica detectada: ${weather.visibility}m - $visReason")
-                            }
-                            
-                            Log.d(TAG, "⚠️ [Monitoreo continuo] Condiciones extremas: hasExtremeConditions=$hasExtremeConditions")
-                            
-                            // 🔥 JERARQUÍA DE BADGES (misma lógica que RouteDetailDialog):
-                            // 1. Lluvia: Máxima prioridad (siempre se muestra si existe)
-                            // 2. Calzada húmeda: Solo si NO hay lluvia (excluyente con lluvia)
-                            // 3. Condiciones extremas: COMPLEMENTARIO (puede coexistir con lluvia o calzada húmeda)
-                            
-                            // Detectar y guardar condiciones extremas (complementario, no excluye otros badges)
-                            if (hasExtremeConditions) {
-                                weatherHadExtremeConditions = true
-                                
-                                // Detectar y guardar la causa específica
-                                val cause = weatherAdvisor.detectExtremeCause(
+
+                        Log.d(
+                            TAG,
+                            "⚠️ [Monitoreo continuo] Condiciones extremas: $hasExtremeConditions"
+                        )
+
+                        if (hasExtremeConditions) {
+                            weatherHadExtremeConditions = true
+
+                            val cause =
+                                weatherAdvisor.detectExtremeCause(
                                     windSpeed = weather.windSpeed,
                                     windGusts = weather.windGusts,
                                     temperature = weather.temperature,
@@ -1165,166 +1175,105 @@ class TrackingViewModel @Inject constructor(
                                     weatherDescription = weather.description,
                                     weatherCode = weather.weatherCode
                                 )
-                                if (cause != null && weatherExtremeReason == null) {
-                                    // Guardar la primera causa detectada (la más grave por prioridad)
-                                    weatherExtremeReason = cause
-                                }
-                                
-                                // Rastrear valores extremos para reflejarlos en los badges
-                                val windSpeedKmh = (weather.windSpeed ?: 0.0) * 3.6
-                                val windGustsKmh = (weather.windGusts ?: 0.0) * 3.6
-                                maxWindSpeed = maxOf(maxWindSpeed, windSpeedKmh)
-                                maxWindGusts = maxOf(maxWindGusts, windGustsKmh)
-                                // weather.temperature es Double (no nullable), siempre tiene valor
-                                minTemperature = minOf(minTemperature, weather.temperature)
-                                maxTemperature = maxOf(maxTemperature, weather.temperature)
-                                if (weather.uvIndex != null && weather.isDay) {
-                                    maxUvIndex = maxOf(maxUvIndex, weather.uvIndex)
-                                }
+
+                            if (cause != null && weatherExtremeReason == null) {
+                                weatherExtremeReason = cause
                             }
-                            
-                            // Lluvia: Máxima prioridad (siempre se muestra si existe)
-                            if (isActiveRain) {
-                                weatherHadRain = true
-                                weatherHadWetRoad = false // Lluvia excluye calzada húmeda
-                                // Actualizar flags para mostrar icono en tarjeta del clima durante tracking
+
+                            val windSpeedKmh = (weather.windSpeed ?: 0.0) * 3.6
+                            val windGustsKmh = (weather.windGusts ?: 0.0) * 3.6
+
+                            maxWindSpeed = maxOf(maxWindSpeed, windSpeedKmh)
+                            maxWindGusts = maxOf(maxWindGusts, windGustsKmh)
+                            minTemperature = minOf(minTemperature, weather.temperature)
+                            maxTemperature = maxOf(maxTemperature, weather.temperature)
+
+                            if (weather.uvIndex != null && weather.isDay) {
+                                maxUvIndex = maxOf(maxUvIndex, weather.uvIndex)
+                            }
+                        }
+
+                        // 🌧️ JERARQUÍA DE LLUVIA
+                        if (isActiveRain) {
+                            if (weatherHadRain) {
                                 _shouldShowRainWarning.value = true
                                 _isActiveRainWarning.value = true
-                                Log.d(TAG, "🌧️ [Monitoreo continuo] Estado actualizado: weatherHadRain=true, weatherHadWetRoad=false")
-                            } else if (isWetRoad) {
-                                // Calzada húmeda: Solo si NO hay lluvia activa
-                                weatherHadWetRoad = true
-                                // Actualizar flags para mostrar icono en tarjeta del clima durante tracking
-                                _shouldShowRainWarning.value = true
-                                _isActiveRainWarning.value = false
-                                // 🌧️ Honestidad de datos: No forzar precipitación - usar solo lo que Google devuelve
-                                // El badge de calzada húmeda se activará por humedad/punto de rocío, no por valores inventados
-                                weatherMaxPrecipitation = maxOf(
-                                    weatherMaxPrecipitation ?: 0.0,
-                                    weather.precipitation // Usar solo lo que Google realmente reporta
-                                )
-                                Log.d(TAG, "🛣️ [Monitoreo continuo] Estado actualizado: weatherHadWetRoad=true, precipMax=${weatherMaxPrecipitation}mm (sin forzar valores)")
                             } else {
-                                // Si no hay lluvia ni calzada húmeda, mantener los flags si ya estaban activos
-                                // (no los reseteamos para mantener el icono visible durante toda la ruta)
-                                Log.d(TAG, "☀️ [Monitoreo continuo] Sin lluvia ni calzada húmeda")
-                            }
-                            
-                            // Actualizar flag de condiciones extremas
-                            if (hasExtremeConditions) {
-                                weatherHadExtremeConditions = true // 🔥 IMPORTANTE: Establecer aquí también cuando aparece durante la ruta
-                                _shouldShowExtremeWarning.value = true
-                                
-                                // Detectar y guardar la causa específica si aún no está establecida
-                                val cause = weatherAdvisor.detectExtremeCause(
-                                    windSpeed = weather.windSpeed,
-                                    windGusts = weather.windGusts,
-                                    temperature = weather.temperature,
-                                    uvIndex = weather.uvIndex,
-                                    isDay = weather.isDay,
-                                    weatherEmoji = weatherEmoji,
-                                    weatherDescription = weather.description,
-                                    weatherCode = weather.weatherCode,
-                                    visibility = weather.visibility
-                                )
-                                if (cause != null && weatherExtremeReason == null) {
-                                    // Guardar la primera causa detectada (la más grave por prioridad)
-                                    weatherExtremeReason = cause
-                                }
-                                
-                                Log.d(TAG, "⚠️ [Monitoreo continuo] Condiciones extremas detectadas: weatherHadExtremeConditions=true")
-                            }
-                            
-                            // Lógica: solo actualizar si detecta lluvia nueva (para icono)
-                            // Si ya había lluvia y ahora no, mantener el icono de lluvia
-                            if (isActiveRain) {
-                                if (!weatherHadRain) {
-                                    // Nueva lluvia detectada - requiere confirmación (2 chequeos seguidos)
-                                    if (pendingRainConfirmation && pendingRainMinute != null) {
-                                        // Confirmación: segundo chequeo también detecta lluvia
-                                        Log.d(TAG, "🌧️ [Monitoreo continuo] Lluvia CONFIRMADA en minuto $elapsedMinutes (detectada primero en minuto $pendingRainMinute): $rainUserReason")
-                                        
-                                        weatherHadRain = true
-                                        weatherHadWetRoad = false // Lluvia es más grave que calzada húmeda
-                                        weatherRainStartMinute = pendingRainMinute // Usar el minuto del primer chequeo
-                                        weatherRainReason = pendingRainReason ?: rainUserReason
-                                        
-                                        // Actualizar flags para mostrar icono en tarjeta del clima durante tracking
-                                        _shouldShowRainWarning.value = true
-                                        _isActiveRainWarning.value = true
-                                        
-                                        // Nota: weatherStatus ya se actualizó arriba al obtener el clima nuevo
-                                        // No es necesario actualizarlo aquí de nuevo
-                                        
-                                        // Limpiar confirmación pendiente
-                                        pendingRainConfirmation = false
-                                        pendingRainMinute = null
-                                        pendingRainReason = null
-                                    } else {
-                                        // Primer chequeo detecta lluvia - marcar como pendiente de confirmación
-                                        Log.d(TAG, "🌧️ [Monitoreo continuo] Lluvia detectada en minuto $elapsedMinutes (pendiente de confirmación): $rainUserReason")
-                                        pendingRainConfirmation = true
-                                        pendingRainMinute = elapsedMinutes
-                                        pendingRainReason = rainUserReason
-                                    }
-                                }
-                                
-                                // Actualizar precipitación máxima
-                                weatherMaxPrecipitation = maxOf(weatherMaxPrecipitation, weather.precipitation)
-                            } else {
-                                // No hay lluvia ahora
                                 if (pendingRainConfirmation) {
-                                    // Falso positivo - cancelar confirmación pendiente
-                                    Log.d(TAG, "🌧️ [Monitoreo continuo] Falso positivo cancelado - no llueve en minuto $elapsedMinutes")
+                                    weatherHadRain = true
+                                    weatherHadWetRoad = false
+
+                                    weatherRainStartMinute =
+                                        pendingRainMinute ?: elapsedMinutes
+                                    weatherRainReason =
+                                        pendingRainReason ?: rainUserReason
+
+                                    _shouldShowRainWarning.value = true
+                                    _isActiveRainWarning.value = true
+
                                     pendingRainConfirmation = false
                                     pendingRainMinute = null
                                     pendingRainReason = null
-                                }
-                                
-                                // Si ya había lluvia y ahora no, mantener el icono de lluvia
-                                if (weatherHadRain) {
-                                    Log.d(TAG, "🌧️ [Monitoreo continuo] Ya no llueve, pero manteniendo icono de lluvia (ya llovió antes)")
+
+                                    Log.d(
+                                        TAG,
+                                        "🌧️ [Monitoreo] Lluvia CONFIRMADA en minuto $weatherRainStartMinute: $weatherRainReason"
+                                    )
+                                } else {
+                                    pendingRainConfirmation = true
+                                    pendingRainMinute = elapsedMinutes
+                                    pendingRainReason = rainUserReason
+
+                                    Log.d(
+                                        TAG,
+                                        "🌧️ [Monitoreo] Lluvia detectada (pendiente confirmación)"
+                                    )
                                 }
                             }
-                            
-                            // Resumen final del chequeo
-                            Log.d(TAG, "📊 [Monitoreo continuo] Resumen: hadRain=$weatherHadRain, hadWetRoad=$weatherHadWetRoad, hadExtreme=$weatherHadExtremeConditions, precipMax=${weatherMaxPrecipitation}mm")
-                            
-                            // 💾 Guardar SIEMPRE el último clima obtenido (con badges actuales)
-                            // para que, si el usuario cambia de pantalla y vuelve, se recupere el
-                            // estado MÁS RECIENTE y no solo el clima inicial.
-                            routeRepository.saveTempWeather(
-                                weather.copy(
-                                    shouldShowRainWarning = _shouldShowRainWarning.value,
-                                    isActiveRainWarning = _isActiveRainWarning.value,
-                                    shouldShowExtremeWarning = _shouldShowExtremeWarning.value
+
+                            weatherMaxPrecipitation =
+                                maxOf(weatherMaxPrecipitation, weather.precipitation)
+
+                        } else {
+                            if (pendingRainConfirmation) {
+                                pendingRainConfirmation = false
+                                pendingRainMinute = null
+                                pendingRainReason = null
+
+                                Log.d(
+                                    TAG,
+                                    "🌧️ [Monitoreo] Falso positivo de lluvia cancelado"
                                 )
-                            )
-                            
-                            // 🔔 Detectar cambios en el estado del clima y mostrar notificaciones
-                            checkAndNotifyWeatherChange()
-                        }.onFailure { error ->
-                            Log.w(TAG, "⚠️ [Monitoreo continuo] Error al obtener clima: ${error.message}")
-                            // En caso de error, no limpiar pending - esperar al siguiente chequeo
+                            }
+
+                            if (weatherHadRain) {
+                                _shouldShowRainWarning.value = true
+                                _isActiveRainWarning.value = false
+                            }
                         }
-                    } catch (e: Exception) {
-                        Log.e(TAG, "❌ [Monitoreo continuo] Excepción: ${e.message}", e)
-                        // En caso de excepción, no limpiar pending - esperar al siguiente chequeo
                     }
+
+                } catch (e: Exception) {
+                    Log.e(
+                        TAG,
+                        "❌ [Monitoreo continuo] Error obteniendo clima",
+                        e
+                    )
                 }
-                
-                // Esperar 5 minutos antes del siguiente chequeo
-                kotlinx.coroutines.delay(5 * 60 * 1000L)
+
+                delay(5 * 60 * 1000)
             }
-            
-            // Limpiar estado pendiente explícitamente al detener el monitoreo
+
+            // Limpieza final al detener tracking
             pendingRainConfirmation = false
             pendingRainMinute = null
             pendingRainReason = null
-            
+
             Log.d(TAG, "🌧️ [Monitoreo continuo] Detenido (tracking finalizado)")
         }
     }
+
+
 
     /**
      * Determina el estado actual del clima basado en los badges activos
@@ -1392,17 +1341,24 @@ class TrackingViewModel @Inject constructor(
         val currentState = getCurrentWeatherBadgeState()
         val lastState = lastWeatherBadgeState
 
-        if (currentState != lastState && lastState != null) {
-            // 1. El ViewModel calcula los datos específicos (porque tiene acceso a weatherStatus)
+        // 1. Si es la primera vez que detectamos el clima (lastState == null),
+        // guardamos el estado inicial pero NO notificamos.
+        if (lastState == null) {
+            lastWeatherBadgeState = currentState
+            return
+        }
+
+        // 2. Solo notificamos si el estado es REALMENTE diferente al anterior
+        if (currentState != lastState) {
             val weatherStatus = _weatherStatus.value
             val badgeText = getBadgeText(currentState, weatherExtremeReason)
             val iconResId = getBadgeIconResId(currentState, weatherStatus)
 
-            // 2. Le pasa los datos finales al Handler
             notificationHandler.showWeatherChangeNotification(badgeText, iconResId)
-        }
 
-        lastWeatherBadgeState = currentState
+            // Actualizamos el estado para la próxima comparación
+            lastWeatherBadgeState = currentState
+        }
     }
 
     /**
@@ -1411,7 +1367,7 @@ class TrackingViewModel @Inject constructor(
      * Tiene hasta 60 segundos para obtener el clima antes de marcar error
      * Se ejecuta en segundo plano y no bloquea el inicio del tracking
      */
-    private suspend fun captureStartWeather() {
+     suspend fun captureStartWeather() {
         // Si ya hay snapshot inicial, reutilizarlo
         val snapshot = _initialWeatherSnapshot
         if (snapshot != null && _initialWeatherCaptured) {
@@ -2356,7 +2312,7 @@ class TrackingViewModel @Inject constructor(
         }
     }
 
-    private fun captureRouteWeatherSnapshot(): RouteWeatherSnapshot {
+     fun captureRouteWeatherSnapshot(): RouteWeatherSnapshot {
         return RouteWeatherSnapshot(
             // 1. Datos iniciales (El clima que hacía al arrancar)
             initialTemp = _startWeatherTemperature,
@@ -2391,7 +2347,7 @@ class TrackingViewModel @Inject constructor(
         )
     }
 
-    private fun resetTrackingUI() {
+     fun resetTrackingUI() {
         _routePoints.value = emptyList()
         _currentDistance.value = 0.0
         _currentSpeed.value = 0.0
@@ -2400,7 +2356,7 @@ class TrackingViewModel @Inject constructor(
         Log.d(TAG, "🧹 UI de tracking reseteada")
     }
 
-    private fun resetAllWeatherVariables() {
+     fun resetAllWeatherVariables() {
         // 1. Datos base del clima
         _startWeatherTemperature = null
         _startWeatherEmoji = null

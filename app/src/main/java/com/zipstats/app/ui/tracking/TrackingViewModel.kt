@@ -1250,7 +1250,10 @@ class TrackingViewModel @Inject constructor(
                                 _shouldShowRainWarning.value = true
                                 _isActiveRainWarning.value = false
                             }
+
                         }
+                        checkAndNotifyWeatherChange()
+
                     }
 
                 } catch (e: Exception) {
@@ -1260,7 +1263,6 @@ class TrackingViewModel @Inject constructor(
                         e
                     )
                 }
-
                 delay(5 * 60 * 1000)
             }
 
@@ -1338,25 +1340,33 @@ class TrackingViewModel @Inject constructor(
      * Detecta cambios en el estado del clima y muestra notificaciones si es necesario
      */
     private fun checkAndNotifyWeatherChange() {
+        // 1. Obtenemos la "Foto" actual de los badges
         val currentState = getCurrentWeatherBadgeState()
         val lastState = lastWeatherBadgeState
 
-        // 1. Si es la primera vez que detectamos el clima (lastState == null),
-        // guardamos el estado inicial pero NO notificamos.
+        // 2. Si es la primera vez que entramos (arranque), guardamos y salimos
         if (lastState == null) {
             lastWeatherBadgeState = currentState
+            Log.d(TAG, "📍 Punto de control inicial: $currentState (Sin notificación)")
             return
         }
 
-        // 2. Solo notificamos si el estado es REALMENTE diferente al anterior
+        // 3. Si el Badge ha cambiado respecto a la última vez
         if (currentState != lastState) {
-            val weatherStatus = _weatherStatus.value
-            val badgeText = getBadgeText(currentState, weatherExtremeReason)
-            val iconResId = getBadgeIconResId(currentState, weatherStatus)
+            Log.d(TAG, "🔔 Cambio de Badge detectado: $lastState -> $currentState")
 
-            notificationHandler.showWeatherChangeNotification(badgeText, iconResId)
+            // Solo notificamos si el nuevo estado no es "SECO"
+            // (Para no molestar cuando sale el sol, solo cuando hay peligro)
+            if (currentState != WeatherBadgeState.SECO) {
 
-            // Actualizamos el estado para la próxima comparación
+                // Obtenemos textos e iconos dinámicamente
+                val text = getBadgeText(currentState, weatherExtremeReason)
+                val icon = getBadgeIconResId(currentState, _weatherStatus.value)
+
+                notificationHandler.showWeatherChangeNotification(text, icon)
+            }
+
+            // 4. Actualizamos la memoria para la próxima comparación
             lastWeatherBadgeState = currentState
         }
     }

@@ -272,183 +272,116 @@ class StatisticsViewModel @Inject constructor(
         viewModelScope.launch {
             _statistics.value = StatisticsUiState.Loading
             try {
-                // Obtener rutas para calcular distancias con condiciones climáticas
+                // 1. Obtener rutas GPS y registros manuales
                 val routesResult = routeRepository.getUserRoutes()
                 val allRoutes = routesResult.getOrNull() ?: emptyList()
-                
+
                 scooterRepository.getScooters().collect { scooters ->
                     recordRepository.getRecords().collect { records ->
-                        // Calcular los meses/años disponibles
+
+                        // --- REGENERAR LISTA DE MESES PARA EL FILTRO ---
                         val monthYears = records.mapNotNull { record ->
                             try {
                                 val date = LocalDate.parse(record.fecha)
                                 Pair(date.monthValue, date.year)
-                            } catch (e: Exception) {
-                                null
-                            }
+                            } catch (e: Exception) { null }
                         }.distinct().sortedWith(compareByDescending<Pair<Int, Int>> { it.second }.thenByDescending { it.first })
-                        
-                        _availableMonthYears.value = monthYears
-                        
-                        val totalDistance = records.sumOf { it.diferencia }.roundToOneDecimal()
-                        val maxDistance = records.maxOfOrNull { it.diferencia }?.roundToOneDecimal() ?: 0.0
-                        val averageDistance = if (records.isNotEmpty()) {
-                            (records.sumOf { it.diferencia } / records.size).roundToOneDecimal()
-                        } else {
-                            0.0
-                        }
-                        val totalRecords = records.size
-                        val lastRecord = records.maxByOrNull { it.fecha }
 
-                        // Si solo hay año seleccionado (sin mes), usar el mes actual para cálculos internos
-                        // pero las estadísticas mensuales solo se mostrarán si hay mes seleccionado
-                        val currentMonth = _selectedMonth.value ?: LocalDate.now().monthValue
-                        val currentYear = _selectedYear.value ?: LocalDate.now().year
-                        
-                        // Estadísticas mensuales (solo si hay mes seleccionado, o del mes actual si no hay selección)
+                        _availableMonthYears.value = monthYears
+
+                        // --- CONTEXTO TEMPORAL ---
+                        val today = LocalDate.now()
+                        val currentMonth = _selectedMonth.value ?: today.monthValue
+                        val currentYear = _selectedYear.value ?: today.year
+
+                        // --- CÁLCULOS DE DISTANCIA ---
+                        val totalDistance = records.sumOf { it.diferencia }.roundToOneDecimal()
+
+                        // Estadísticas mensuales (Mes seleccionado o actual)
                         val monthlyRecords = records.filter {
                             try {
                                 val recordDate = LocalDate.parse(it.fecha)
-                                // Si hay mes seleccionado, usar ese mes; si no, usar el mes actual
-                                val targetMonth = _selectedMonth.value ?: LocalDate.now().monthValue
-                                recordDate.monthValue == targetMonth && recordDate.year == currentYear
-                            } catch (e: Exception) {
-                                false
-                            }
+                                recordDate.monthValue == currentMonth && recordDate.year == currentYear
+                            } catch (e: Exception) { false }
                         }
-
                         val monthlyDistance = monthlyRecords.sumOf { it.diferencia }.roundToOneDecimal()
-                        val monthlyMaxDistance = monthlyRecords.maxOfOrNull { it.diferencia }?.roundToOneDecimal() ?: 0.0
-                        val monthlyAverageDistance = if (monthlyRecords.isNotEmpty()) {
-                            (monthlyRecords.sumOf { it.diferencia } / monthlyRecords.size).roundToOneDecimal()
-                        } else {
-                            0.0
-                        }
-                        val monthlyRecordsCount = monthlyRecords.size
 
-                        // Estadísticas anuales
+                        // Estadísticas anuales (Año seleccionado o actual)
                         val yearlyRecords = records.filter {
                             try {
                                 val recordDate = LocalDate.parse(it.fecha)
                                 recordDate.year == currentYear
-                            } catch (e: Exception) {
-                                false
-                            }
+                            } catch (e: Exception) { false }
                         }
-
                         val yearlyDistance = yearlyRecords.sumOf { it.diferencia }.roundToOneDecimal()
-                        val yearlyMaxDistance = yearlyRecords.maxOfOrNull { it.diferencia }?.roundToOneDecimal() ?: 0.0
-                        val yearlyAverageDistance = if (yearlyRecords.isNotEmpty()) {
-                            (yearlyRecords.sumOf { it.diferencia } / yearlyRecords.size).roundToOneDecimal()
-                        } else {
-                            0.0
-                        }
-                        val yearlyRecordsCount = yearlyRecords.size
 
-                        val scooterStats = scooters.map { scooter ->
-                            val scooterRecords = records.filter { it.patinete == scooter.nombre }
-                            ScooterStats(
-                                model = scooter.modelo,
-                                totalKilometers = scooterRecords.sumOf { it.diferencia }.roundToOneDecimal()
-                            )
-                        }
-
-                        // Datos del gráfico mensual (últimos 30 días)
-                        val monthlyChartData = calculateMonthlyChartData(records)
-                        
-                        // Datos del gráfico anual (por mes)
-                        val yearlyChartData = calculateYearlyChartData(records, currentYear)
-                        
-                        // Datos del gráfico de todo el tiempo (por mes)
-                        val allTimeChartData = calculateAllTimeChartData(records)
-                        
-                        // Comparación mensual (mes actual vs mes anterior)
-                        val monthlyComparison = calculateMonthlyComparison(records, allRoutes, currentMonth, currentYear)
-                        
-                        // Comparación anual (año actual vs año anterior)
-                        val yearlyComparison = calculateYearlyComparison(records, allRoutes, currentYear)
-                        
-                        // Filtrar rutas GPS por período para calcular estadísticas climáticas
-                        // 🔥 CORRECCIÓN: Usar la misma lógica de filtrado que los registros manuales
-                        // para asegurar consistencia entre estadísticas de distancia y clima
+                        // --- FILTRADO DE CLIMA CORREGIDO ---
                         val filteredGpsRoutes = allRoutes.filter { route ->
                             try {
                                 val routeDate = java.time.Instant.ofEpochMilli(route.startTime)
-                                    .atZone(java.time.ZoneId.systemDefault())
-                                    .toLocalDate()
-                                
-                                // Si hay mes seleccionado, filtrar por mes y año
-                                // Si solo hay año seleccionado, filtrar solo por año
-                                // Si no hay selección, usar el mes y año actuales
-                                val targetMonth = _selectedMonth.value
-                                val targetYear = _selectedYear.value ?: currentYear
-                                
-                                val matchesMonth = targetMonth == null || routeDate.monthValue == targetMonth
-                                val matchesYear = routeDate.year == targetYear
-                                
-                                matchesMonth && matchesYear
-                            } catch (e: Exception) {
-                                false
-                            }
-                        }
-                        
-                        // Calcular estadísticas climáticas
-                        // 🔥 IMPORTANTE: La distancia GPS SOLO se usa para las tarjetas de clima
-                        // El resto de cálculos (CO2, árboles, gasolina, logros) usan la distancia de registros manuales
-                        // La distancia manual se pasa solo para contexto, pero los cálculos de clima usan directamente
-                        // la distancia real de las rutas GPS (sin proyección)
-                        val manualDistance = when {
-                            _selectedMonth.value != null -> monthlyDistance // Mes seleccionado: usar distancia mensual
-                            _selectedYear.value != null -> yearlyDistance // Solo año seleccionado: usar distancia anual
-                            else -> totalDistance // Sin selección: usar distancia total
-                        }
-                        
-                        val calculatedWeatherStats = calculateWeatherStats(manualDistance, filteredGpsRoutes)
-                        
-                        // Guardar estadísticas completas
-                        _weatherStats.value = calculatedWeatherStats
-                        
-                        // Mantener compatibilidad con el código existente (para EcologicalImpactCard)
-                        _weatherDistances.value = Triple(calculatedWeatherStats.rainKm, calculatedWeatherStats.wetRoadKm, calculatedWeatherStats.extremeKm)
-                        
-                        // Calcular el siguiente logro (ahora basado en múltiples métricas)
-                        val nextAchievement = try {
-                            calculateNextAchievement()
-                        } catch (e: Exception) {
-                            null
+                                    .atZone(java.time.ZoneId.systemDefault()).toLocalDate()
+
+                                when {
+                                    // 1. Si hay mes seleccionado: Filtrar por ese mes y año
+                                    _selectedMonth.value != null -> {
+                                        routeDate.monthValue == _selectedMonth.value && routeDate.year == currentYear
+                                    }
+                                    // 2. Si solo hay año seleccionado: Filtrar por todo ese año
+                                    _selectedYear.value != null -> {
+                                        routeDate.year == _selectedYear.value
+                                    }
+                                    // 3. VISTA POR DEFECTO (Entrada a la App): Forzar mes y año actual
+                                    // 🔥 Esto evita que 'weatherStats' use los totales históricos
+                                    else -> {
+                                        routeDate.monthValue == today.monthValue && routeDate.year == today.year
+                                    }
+                                }
+                            } catch (e: Exception) { false }
                         }
 
+                        // Actualizar métricas de clima para la UI y la Tarjeta Dinámica
+                        val manualDist = when {
+                            _selectedMonth.value != null -> monthlyDistance
+                            _selectedYear.value != null -> yearlyDistance
+                            else -> monthlyDistance // Por defecto mostramos el contexto del mes actual
+                        }
+
+                        _weatherStats.value = calculateWeatherStats(manualDist, filteredGpsRoutes)
+
+                        // --- EMITIR RESULTADOS ---
                         _statistics.value = StatisticsUiState.Success(
                             totalDistance = totalDistance,
-                            maxDistance = maxDistance,
-                            averageDistance = averageDistance,
-                            totalRecords = totalRecords,
-                            lastRecordDate = lastRecord?.fecha ?: "No hay registros",
-                            lastRecordDistance = lastRecord?.diferencia?.roundToOneDecimal() ?: 0.0,
-                            scooterStats = scooterStats,
                             monthlyDistance = monthlyDistance,
-                            monthlyMaxDistance = monthlyMaxDistance,
-                            monthlyAverageDistance = monthlyAverageDistance,
-                            monthlyRecords = monthlyRecordsCount,
                             yearlyDistance = yearlyDistance,
-                            yearlyMaxDistance = yearlyMaxDistance,
-                            yearlyAverageDistance = yearlyAverageDistance,
-                            yearlyRecords = yearlyRecordsCount,
-                            monthlyChartData = monthlyChartData,
-                            yearlyChartData = yearlyChartData,
-                            allTimeChartData = allTimeChartData,
-                            monthlyComparison = monthlyComparison,
-                            yearlyComparison = yearlyComparison,
-                            nextAchievement = nextAchievement
+                            scooterStats = scooters.map { scooter ->
+                                val sRecords = records.filter { it.patinete == scooter.nombre }
+                                ScooterStats(scooter.modelo, sRecords.sumOf { it.diferencia }.roundToOneDecimal())
+                            },
+                            maxDistance = records.maxOfOrNull { it.diferencia }?.roundToOneDecimal() ?: 0.0,
+                            averageDistance = if (records.isNotEmpty()) (records.sumOf { it.diferencia } / records.size).roundToOneDecimal() else 0.0,
+                            totalRecords = records.size,
+                            lastRecordDate = records.maxByOrNull { it.fecha }?.fecha ?: "No hay registros",
+                            lastRecordDistance = records.maxByOrNull { it.fecha }?.diferencia?.roundToOneDecimal() ?: 0.0,
+                            monthlyMaxDistance = monthlyRecords.maxOfOrNull { it.diferencia }?.roundToOneDecimal() ?: 0.0,
+                            monthlyAverageDistance = if (monthlyRecords.isNotEmpty()) (monthlyRecords.sumOf { it.diferencia } / monthlyRecords.size).roundToOneDecimal() else 0.0,
+                            monthlyRecords = monthlyRecords.size,
+                            yearlyMaxDistance = yearlyRecords.maxOfOrNull { it.diferencia }?.roundToOneDecimal() ?: 0.0,
+                            yearlyAverageDistance = if (yearlyRecords.isNotEmpty()) (yearlyRecords.sumOf { it.diferencia } / yearlyRecords.size).roundToOneDecimal() else 0.0,
+                            yearlyRecords = yearlyRecords.size,
+                            monthlyChartData = calculateMonthlyChartData(records),
+                            yearlyChartData = calculateYearlyChartData(records, currentYear),
+                            allTimeChartData = calculateAllTimeChartData(records),
+                            monthlyComparison = calculateMonthlyComparison(records, allRoutes, currentMonth, currentYear),
+                            yearlyComparison = calculateYearlyComparison(records, allRoutes, currentYear),
+                            nextAchievement = try { calculateNextAchievement() } catch (e: Exception) { null }
                         )
                     }
                 }
             } catch (e: Exception) {
-                _statistics.value = StatisticsUiState.Error(e.message ?: "Error al cargar las estadísticas")
+                _statistics.value = StatisticsUiState.Error(e.message ?: "Error al cargar datos")
             }
         }
     }
-
     private fun loadScooters() {
         viewModelScope.launch {
             try {
@@ -495,7 +428,6 @@ class StatisticsViewModel @Inject constructor(
 
         val lines = mutableListOf(
             "Estadísticas totales de ${userName.value}",
-            lines.add("")
             
             "📊 Total: ${stats.totalDistance.roundToOneDecimal()} km | CO₂: -$co2Saved kg",
             "🌳 Árboles: $treesEquivalent | ⛽ Gasolina: $gasSaved L"
@@ -513,84 +445,54 @@ class StatisticsViewModel @Inject constructor(
     }
 
     suspend fun getMonthlyShareText(stats: StatisticsUiState.Success, month: Int? = null, year: Int? = null): String {
+        // 1. Cálculos base
         val co2Saved = (stats.monthlyDistance * 0.15).toInt()
         val treesEquivalent = (stats.monthlyDistance * 0.005).toInt()
         val gasSaved = (stats.monthlyDistance * 0.07).toInt()
-        
-        // Usar el mes y año seleccionados, o el actual si no hay selección
+
+        // 2. Determinar mes y año exactos
         val selectedMonth = (month ?: _selectedMonth.value ?: LocalDate.now().monthValue).coerceIn(1, 12)
         val selectedYear = year ?: _selectedYear.value ?: LocalDate.now().year
-        
-        // Verificar si es el mes actual (sin selección manual)
-        // Si month y year son null (no hay selección manual), y el mes calculado es el actual, mostrar porcentajes
-        val today = LocalDate.now()
-        val hasManualSelection = (month != null || year != null)
-        val isCurrentMonth = !hasManualSelection && 
-                            selectedMonth == today.monthValue && selectedYear == today.year
-        
-        // Lista de nombres de meses en español
+
         val monthNames = listOf(
             "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
             "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
         )
         val monthName = monthNames.getOrElse(selectedMonth - 1) { "Mes" }
-        
-        // Si es el mes actual, calcular porcentajes de variación
-        val percentagesText = if (isCurrentMonth && stats.monthlyComparison != null) {
-            val comparison = stats.monthlyComparison
-            // Calcular porcentajes para todas las métricas basándonos en la distancia
-            val currentDistance = stats.monthlyDistance
-            val previousDistance = when (comparison.metricType) {
-                ComparisonMetricType.DISTANCE -> comparison.previousValue
-                ComparisonMetricType.CO2 -> comparison.previousValue / 0.15
-                ComparisonMetricType.TREES -> comparison.previousValue / 0.005
-                ComparisonMetricType.GAS -> comparison.previousValue / 0.07
+
+        // 3. 🔥 SOLUCIÓN CRÍTICA: Filtrado y cálculo de clima LOCAL
+        // No usamos weatherStats.value porque puede tener datos de todo el año
+        val allRoutes = routeRepository.getUserRoutes().getOrNull() ?: emptyList()
+        val monthlyGpsRoutes = allRoutes.filter { route ->
+            try {
+                val routeDate = java.time.Instant.ofEpochMilli(route.startTime)
+                    .atZone(java.time.ZoneId.systemDefault())
+                    .toLocalDate()
+                routeDate.monthValue == selectedMonth && routeDate.year == selectedYear
+            } catch (e: Exception) {
+                false
             }
-            
-            if (previousDistance > 0.1) {
-                val distancePercent = ((currentDistance - previousDistance) / previousDistance * 100).roundToInt()
-                val distanceSign = if (distancePercent >= 0) "+" else ""
-                
-                """
-
-📊 Total recorrido: ${stats.monthlyDistance} km ($distanceSign$distancePercent%)
-🌱 CO₂ ahorrado: $co2Saved kg
-🌳 Árboles: $treesEquivalent
-⛽ Gasolina ahorrada: $gasSaved L""".trimIndent()
-            } else {
-                """
-
-📊 Total recorrido: ${stats.monthlyDistance} km
-🌱 CO₂ ahorrado: $co2Saved kg
-🌳 Árboles: $treesEquivalent
-⛽ Gasolina ahorrada: $gasSaved L""".trimIndent()
-            }
-        } else {
-            // Si no es el mes actual o no hay comparación, mostrar sin porcentajes
-            """
-
-📊 Total recorrido: ${stats.monthlyDistance} km
-🌱 CO₂ ahorrado: $co2Saved kg
-🌳 Árboles: $treesEquivalent
-⛽ Gasolina ahorrada: $gasSaved L""".trimIndent()
         }
-        
-        val weather = weatherStats.value
-        val rainKm = weather.rainKm.roundToOneDecimal()
-        val wetRoadKm = weather.wetRoadKm.roundToOneDecimal()
-        val extremeKm = weather.extremeKm.roundToOneDecimal()
 
+        // Calculamos el clima específico para este mes usando tu función motor
+        val monthlyWeather = calculateWeatherStats(stats.monthlyDistance, monthlyGpsRoutes)
+
+        val rainKm = monthlyWeather.rainKm.roundToOneDecimal()
+        val wetRoadKm = monthlyWeather.wetRoadKm.roundToOneDecimal()
+        val extremeKm = monthlyWeather.extremeKm.roundToOneDecimal()
+
+        // 4. Preparar líneas de clima
         val weatherLines = buildList {
             if (rainKm > 0.0) add("🌧️ Con lluvia: $rainKm km")
             if (wetRoadKm > 0.0) add("💧 Calzada húmeda: $wetRoadKm km")
             if (extremeKm > 0.0) add("⚠️ Extremo: $extremeKm km")
         }
 
+        // 5. Construcción del mensaje final (Limpio y sin redundancias)
         val lines = mutableListOf(
-            "Estadísticas $monthName $selectedYear de ${userName.value} ",
-            lines.add("")
-
-            "📊 Total: ${stats.monthlyDistance.roundToOneDecimal()} km | CO₂: -$co2Saved kg",
+            "Estadísticas $monthName $selectedYear de ${userName.value}",
+            "",
+            "📊 Total: ${stats.monthlyDistance.roundToOneDecimal()} km | 🌱 CO₂: -$co2Saved kg",
             "🌳 Árboles: $treesEquivalent | ⛽ Gasolina: $gasSaved L"
         )
 
@@ -600,81 +502,52 @@ class StatisticsViewModel @Inject constructor(
         }
 
         lines.add("")
-        lines.add("#ZipStats")
+        lines.add("#ZipStats 🛴")
 
         return lines.joinToString("\n")
     }
 
     suspend fun getYearlyShareText(stats: StatisticsUiState.Success, year: Int? = null): String {
+        // 1. Cálculos de ahorro basados en la distancia anual
         val co2Saved = (stats.yearlyDistance * 0.15).toInt()
         val treesEquivalent = (stats.yearlyDistance * 0.005).toInt()
         val gasSaved = (stats.yearlyDistance * 0.07).toInt()
-        
-        // Usar el año seleccionado, o el actual si no hay selección
+
+        // 2. Determinar el año seleccionado
         val selectedYear = year ?: _selectedYear.value ?: LocalDate.now().year
-        
-        // Verificar si es el año actual (sin selección manual)
-        // Si year es null (no hay selección manual), y el año calculado es el actual, mostrar porcentajes
-        val today = LocalDate.now()
-        val hasManualSelection = (year != null)
-        val isCurrentYear = !hasManualSelection && selectedYear == today.year
-        
-        // Si es el año actual, calcular porcentajes de variación
-        val percentagesText = if (isCurrentYear && stats.yearlyComparison != null) {
-            val comparison = stats.yearlyComparison
-            // Calcular porcentajes para todas las métricas basándonos en la distancia
-            val currentDistance = stats.yearlyDistance
-            val previousDistance = when (comparison.metricType) {
-                ComparisonMetricType.DISTANCE -> comparison.previousValue
-                ComparisonMetricType.CO2 -> comparison.previousValue / 0.15
-                ComparisonMetricType.TREES -> comparison.previousValue / 0.005
-                ComparisonMetricType.GAS -> comparison.previousValue / 0.07
+
+        // 3. 🔥 SOLUCIÓN LOCAL: Filtrar rutas GPS solo para este año
+        val allRoutes = routeRepository.getUserRoutes().getOrNull() ?: emptyList()
+        val yearlyGpsRoutes = allRoutes.filter { route ->
+            try {
+                val routeDate = java.time.Instant.ofEpochMilli(route.startTime)
+                    .atZone(java.time.ZoneId.systemDefault())
+                    .toLocalDate()
+                routeDate.year == selectedYear
+            } catch (e: Exception) {
+                false
             }
-            
-            if (previousDistance > 0.1) {
-                val distancePercent = ((currentDistance - previousDistance) / previousDistance * 100).roundToInt()
-                val distanceSign = if (distancePercent >= 0) "+" else ""
-                
-                """
-
-📊 Total recorrido: ${stats.yearlyDistance} km ($distanceSign$distancePercent%)
-🌱 CO₂ ahorrado: $co2Saved kg
-🌳 Árboles: $treesEquivalent
-⛽ Gasolina ahorrada: $gasSaved L""".trimIndent()
-            } else {
-                """
-
-📊 Total recorrido: ${stats.yearlyDistance} km
-🌱 CO₂ ahorrado: $co2Saved kg
-🌳 Árboles: $treesEquivalent
-⛽ Gasolina ahorrada: $gasSaved L""".trimIndent()
-            }
-        } else {
-            // Si no es el año actual o no hay comparación, mostrar sin porcentajes
-            """
-
-📊 Total recorrido: ${stats.yearlyDistance} km
-🌱 CO₂ ahorrado: $co2Saved kg
-🌳 Árboles: $treesEquivalent
-⛽ Gasolina ahorrada: $gasSaved L""".trimIndent()
         }
-        
-        val weather = weatherStats.value
-        val rainKm = weather.rainKm.roundToOneDecimal()
-        val wetRoadKm = weather.wetRoadKm.roundToOneDecimal()
-        val extremeKm = weather.extremeKm.roundToOneDecimal()
 
+        // Calculamos el clima específico para este año
+        val yearlyWeather = calculateWeatherStats(stats.yearlyDistance, yearlyGpsRoutes)
+
+        val rainKm = yearlyWeather.rainKm.roundToOneDecimal()
+        val wetRoadKm = yearlyWeather.wetRoadKm.roundToOneDecimal()
+        val extremeKm = yearlyWeather.extremeKm.roundToOneDecimal()
+
+        // 4. Preparar líneas de clima del año
         val weatherLines = buildList {
             if (rainKm > 0.0) add("🌧️ Con lluvia: $rainKm km")
             if (wetRoadKm > 0.0) add("💧 Calzada húmeda: $wetRoadKm km")
             if (extremeKm > 0.0) add("⚠️ Extremo: $extremeKm km")
         }
 
+        // 5. Construcción del mensaje (Limpio y profesional)
         val lines = mutableListOf(
-            "Estadísticas $selectedYear de ${userName.value} ",
-            lines.add("")
-
-            "📊 Total: ${stats.yearlyDistance.roundToOneDecimal()} km | CO₂: -$co2Saved kg",
+            "Resumen Anual $selectedYear - ${userName.value}",
+            "",
+            "📊 Recorrido: ${stats.yearlyDistance.roundToOneDecimal()} km | 🌱 CO₂: -$co2Saved kg",
             "🌳 Árboles: $treesEquivalent | ⛽ Gasolina: $gasSaved L"
         )
 
@@ -684,7 +557,7 @@ class StatisticsViewModel @Inject constructor(
         }
 
         lines.add("")
-        lines.add("#ZipStats")
+        lines.add("#ZipStats 🛴")
 
         return lines.joinToString("\n")
     }
@@ -771,56 +644,55 @@ class StatisticsViewModel @Inject constructor(
         val (targetMonth, targetYear, comparisonMonth, comparisonYear) = if (hasFilter) {
             val filterMonth = _selectedMonth.value ?: today.monthValue
             val filterYear = _selectedYear.value ?: today.year
-            val nowMonth = today.monthValue
-            val nowYear = today.year
-
-            if (filterMonth == nowMonth && filterYear == nowYear) {
+            // Si miramos el mes actual, comparamos con el mismo mes del año pasado
+            if (filterMonth == today.monthValue && filterYear == today.year) {
                 Quadruple(filterMonth, filterYear, filterMonth, filterYear - 1)
             } else {
-                Quadruple(filterMonth, filterYear, nowMonth, nowYear)
+                // Si miramos un mes pasado, lo comparamos con el mes actual (o podrías decidir mes anterior)
+                Quadruple(filterMonth, filterYear, today.monthValue, today.year)
             }
         } else {
-            val nowMonth = today.monthValue
-            val nowYear = today.year
-            Quadruple(nowMonth, nowYear, nowMonth, nowYear - 1)
+            Quadruple(today.monthValue, today.year, today.monthValue, today.year - 1)
         }
 
-        // --- SOLUCIÓN: Límite por día del mes ---
-        // Si hoy es día 24, limitamos la suma de registros hasta el día 24 en ambos meses.
         val limitDayOfMonth = today.dayOfMonth
 
-        val targetRecords = records.filter {
+        // 1. Distancia actual (Target)
+        val targetDistance = records.filter {
             try {
-                val recordDate = LocalDate.parse(it.fecha)
-                recordDate.monthValue == targetMonth &&
-                        recordDate.year == targetYear &&
-                        recordDate.dayOfMonth <= limitDayOfMonth // Filtro equitativo
+                val d = LocalDate.parse(it.fecha)
+                d.monthValue == targetMonth && d.year == targetYear && d.dayOfMonth <= limitDayOfMonth
             } catch (e: Exception) { false }
-        }
+        }.sumOf { it.diferencia }
 
-        val targetDistance = targetRecords.sumOf { it.diferencia }
-
-        val comparisonRecords = records.filter {
+        // 2. Distancia anterior (Comparison)
+        val comparisonDistance = records.filter {
             try {
-                val recordDate = LocalDate.parse(it.fecha)
-                recordDate.monthValue == comparisonMonth &&
-                        recordDate.year == comparisonYear &&
-                        recordDate.dayOfMonth <= limitDayOfMonth // Filtro equitativo
+                val d = LocalDate.parse(it.fecha)
+                d.monthValue == comparisonMonth && d.year == comparisonYear && d.dayOfMonth <= limitDayOfMonth
             } catch (e: Exception) { false }
-        }
+        }.sumOf { it.diferencia }
 
-        val comparisonDistance = comparisonRecords.sumOf { it.diferencia }
+        if (comparisonDistance < 0.1) return null
 
-        if (comparisonRecords.isEmpty() || comparisonDistance < 0.1) return null
+        // 3. 🔥 CLIMA ACTUAL (Target) - Esto es lo que le falta a la tarjeta para ser "Dynamic"
+        val targetWeatherMetrics = getWeatherMetricsForPeriod(
+            month = targetMonth,
+            year = targetYear,
+            allRoutes = allRoutes,
+            limitDayOfMonth = limitDayOfMonth
+        )
 
-        // Obtenemos métricas de clima proporcionales al día del mes
+        // 4. CLIMA ANTERIOR (Comparison)
         val comparisonWeatherMetrics = getWeatherMetricsForPeriod(
             month = comparisonMonth,
             year = comparisonYear,
             allRoutes = allRoutes,
-            limitDayOfMonth = limitDayOfMonth // Necesitamos añadir este parámetro también
+            limitDayOfMonth = limitDayOfMonth
         )
 
+        // El objeto WeatherComparisonMetrics en tu data class suele guardar los datos del periodo anterior
+        // para calcular la diferencia con el 'weatherStats' actual de la pantalla.
         val weatherMetrics = WeatherComparisonMetrics(
             rainKm = comparisonWeatherMetrics.first,
             wetRoadKm = comparisonWeatherMetrics.second,
@@ -859,47 +731,36 @@ class StatisticsViewModel @Inject constructor(
             Pair(nowYear, nowYear - 1)
         }
 
-        // --- SOLUCIÓN: Límite equitativo ---
-        // Usamos siempre el día actual del año para que la comparación sea "Year-to-Date" (YTD)
-        // Ejemplo: Si hoy es 24 de enero, comparamos hasta el día 24 de ambos años.
+        // --- Límite equitativo YTD (Día del año) ---
         val limitDayOfYear = today.dayOfYear
 
-        // Filtramos registros del año objetivo hasta el día de hoy
-        val targetRecords = records.filter {
+        // 1. Distancia del año objetivo (Target)
+        val targetDistance = records.filter {
             try {
                 val recordDate = LocalDate.parse(it.fecha)
-                recordDate.year == targetYear &&
-                        recordDate.dayOfYear <= limitDayOfYear
-            } catch (e: Exception) {
-                false
-            }
-        }
+                recordDate.year == targetYear && recordDate.dayOfYear <= limitDayOfYear
+            } catch (e: Exception) { false }
+        }.sumOf { it.diferencia }
 
-        val targetDistance = targetRecords.sumOf { it.diferencia }
-
-        // Filtramos registros del año de comparación hasta el mismo día
-        val comparisonRecords = records.filter {
+        // 2. Distancia del año de comparación (Comparison)
+        val comparisonDistance = records.filter {
             try {
                 val recordDate = LocalDate.parse(it.fecha)
-                recordDate.year == comparisonYear &&
-                        recordDate.dayOfYear <= limitDayOfYear
-            } catch (e: Exception) {
-                false
-            }
-        }
+                recordDate.year == comparisonYear && recordDate.dayOfYear <= limitDayOfYear
+            } catch (e: Exception) { false }
+        }.sumOf { it.diferencia }
 
-        val comparisonDistance = comparisonRecords.sumOf { it.diferencia }
+        if (comparisonDistance < 0.1) return null
 
-        if (comparisonRecords.isEmpty() || comparisonDistance < 0.1) return null
-
-        // Ajustamos las métricas de clima para que también respeten el límite temporal
-// Dentro de calculateYearlyComparison, cambia esta línea:
+        // 3. 🔥 CLIMA DEL AÑO DE COMPARACIÓN (Pasado)
+        // Usamos el límite temporal para que si el año pasado llovió mucho en diciembre, no nos penalice ahora en febrero
         val comparisonWeatherMetrics = getWeatherMetricsForPeriod(
             month = null,
             year = comparisonYear,
             allRoutes = allRoutes,
-            limitDayOfYear = limitDayOfYear // Ahora pasamos el límite
+            limitDayOfYear = limitDayOfYear
         )
+
         val weatherMetrics = WeatherComparisonMetrics(
             rainKm = comparisonWeatherMetrics.first,
             wetRoadKm = comparisonWeatherMetrics.second,

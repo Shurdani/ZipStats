@@ -494,7 +494,8 @@ class StatisticsViewModel @Inject constructor(
         }
 
         val lines = mutableListOf(
-            "Estadísticas totales de \${userName.value}",
+            "Estadísticas totales de ${userName.value}",
+            lines.add("")
             
             "📊 Total: ${stats.totalDistance.roundToOneDecimal()} km | CO₂: -$co2Saved kg",
             "🌳 Árboles: $treesEquivalent | ⛽ Gasolina: $gasSaved L"
@@ -587,6 +588,7 @@ class StatisticsViewModel @Inject constructor(
 
         val lines = mutableListOf(
             "Estadísticas $monthName $selectedYear de ${userName.value} ",
+            lines.add("")
 
             "📊 Total: ${stats.monthlyDistance.roundToOneDecimal()} km | CO₂: -$co2Saved kg",
             "🌳 Árboles: $treesEquivalent | ⛽ Gasolina: $gasSaved L"
@@ -670,6 +672,7 @@ class StatisticsViewModel @Inject constructor(
 
         val lines = mutableListOf(
             "Estadísticas $selectedYear de ${userName.value} ",
+            lines.add("")
 
             "📊 Total: ${stats.yearlyDistance.roundToOneDecimal()} km | CO₂: -$co2Saved kg",
             "🌳 Árboles: $treesEquivalent | ⛽ Gasolina: $gasSaved L"

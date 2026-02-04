@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -47,10 +46,9 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberModalBottomSheetState
-import com.zipstats.app.ui.components.ZipStatsText
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -67,25 +65,20 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.painter.Painter
-import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
-import com.zipstats.app.R
 import com.zipstats.app.model.Record
 import com.zipstats.app.model.Repair
 import com.zipstats.app.model.Scooter
-import com.zipstats.app.model.VehicleType
 import com.zipstats.app.ui.components.DialogCancelButton
-import com.zipstats.app.ui.components.DialogConfirmButton
 import com.zipstats.app.ui.components.DialogDeleteButton
 import com.zipstats.app.ui.components.StandardDatePickerDialogWithValidation
+import com.zipstats.app.ui.components.ZipStatsText
 import com.zipstats.app.utils.DateUtils
 import com.zipstats.app.utils.LocationUtils
 import kotlinx.coroutines.delay
@@ -131,6 +124,14 @@ fun ScooterDetailScreen(
     var showEditDialog by remember { mutableStateOf(false) }
     var showMenu by remember { mutableStateOf(false) } // Estado para el menú de 3 puntos
     var showUsageExplanationDialog by remember { mutableStateOf(false) } // Estado para el diálogo de uso
+
+    // 🚩 AQUÍ COLOCAS EL NUEVO CÓDIGO:
+    var vehiclesForRanking by remember { mutableStateOf<List<Scooter>>(emptyList()) }
+
+    LaunchedEffect(Unit) {
+        // Esto se ejecuta una sola vez cuando se abre la pantalla
+        vehiclesForRanking = viewModel.getAllVehiclesWithTotals()
+    }
 
     Scaffold(
         topBar = {
@@ -263,8 +264,7 @@ fun ScooterDetailScreen(
             vehicleName = scooter.nombre,
             vehicleKm = scooter.kilometrajeActual ?: 0.0,
             usagePercentage = usagePercentage.toInt(),
-            userName = userName,
-            allVehicles = allScooters,
+            allVehicles = vehiclesForRanking,
             onDismiss = { showUsageExplanationDialog = false }
         )
     }
@@ -478,69 +478,52 @@ fun UsageExplanationDialog(
     vehicleName: String,
     vehicleKm: Double,
     usagePercentage: Int,
-    userName: String,
     allVehicles: List<Scooter>,
     onDismiss: () -> Unit
 ) {
-    // Calcular el ranking de vehículos ordenados por kilometraje descendente
+    // 1. Ranking (ya con kms hidratados)
     val rankedVehicles = remember(allVehicles) {
         allVehicles.sortedByDescending { it.kilometrajeActual ?: 0.0 }
     }
-    
-    // Encontrar la posición del vehículo actual en el ranking (1-indexed)
+
     val vehiclePosition = remember(rankedVehicles, vehicleName) {
-        rankedVehicles.indexOfFirst { it.nombre == vehicleName } + 1
+        val index = rankedVehicles.indexOfFirst { it.nombre.trim().equals(vehicleName.trim(), true) }
+        if (index != -1) index + 1 else 1
     }
-    
-    // Generar el texto con negrita estratégica según la posición
-    val explanationText = remember(vehiclePosition, vehicleName, vehicleKm, usagePercentage, userName) {
+
+    val explanationText = remember(vehiclePosition, vehicleName, vehicleKm, usagePercentage) {
         val kmFormatted = LocationUtils.formatNumberSpanish(vehicleKm, 1)
-        val baseText = when (vehiclePosition) {
-            1 -> "Tu $vehicleName lidera tu historial con $kmFormatted km recorridos, representando el $usagePercentage% de tu actividad total registrada."
-            2 -> "Tu $vehicleName ocupa el segundo lugar en tu historial con $kmFormatted km recorridos, representando el $usagePercentage% de tu actividad total registrada."
-            3 -> "Tu $vehicleName ocupa el tercer lugar en tu historial con $kmFormatted km recorridos, representando el $usagePercentage% de tu actividad total registrada."
-            else -> "Tu $vehicleName ocupa el ${getOrdinalNumber(vehiclePosition)} lugar en tu historial con $kmFormatted km recorridos, representando el $usagePercentage% de tu actividad total registrada."
+
+        // Solo definimos la medalla y la frase introductoria
+        val (medal, intro) = when (vehiclePosition) {
+            1 -> "🥇" to "¡El rey de la ruta! Tu $vehicleName lidera el historial"
+            2 -> "🥈" to "¡Muy cerca! Tu $vehicleName es tu segunda opción favorita"
+            3 -> "🥉" to "En el podio: Tu $vehicleName ocupa el tercer lugar"
+            else -> "🚲" to "Tu $vehicleName ocupa la posición $vehiclePosition"
         }
-        
-        // Construir AnnotatedString con negrita en distancia y porcentaje
+
         buildAnnotatedString {
-            val kmPattern = "$kmFormatted km"
-            val percentagePattern = "$usagePercentage%"
-            
-            var currentIndex = 0
-            val text = baseText
-            
-            // Encontrar y marcar la distancia
-            val kmIndex = text.indexOf(kmPattern)
-            if (kmIndex >= 0) {
-                // Agregar texto antes de la distancia
-                append(text.substring(currentIndex, kmIndex))
-                // Agregar distancia en negrita
-                withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
-                    append(kmPattern)
-                }
-                currentIndex = kmIndex + kmPattern.length
+            // 1. Medalla y frase de posición en negrita
+            append("$medal ")
+            withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
+                append(intro)
             }
-            
-            // Encontrar y marcar el porcentaje
-            val percentageIndex = text.indexOf(percentagePattern, currentIndex)
-            if (percentageIndex >= 0) {
-                // Agregar texto entre distancia y porcentaje
-                append(text.substring(currentIndex, percentageIndex))
-                // Agregar porcentaje en negrita
-                withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
-                    append(percentagePattern)
-                }
-                currentIndex = percentageIndex + percentagePattern.length
+
+            append(" con ")
+
+            // 2. Kilómetros en negrita
+            withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
+                append("$kmFormatted km")
             }
-            
-            // Agregar el resto del texto (después del porcentaje o todo si no se encontraron patrones)
-            if (currentIndex < text.length) {
-                append(text.substring(currentIndex))
-            } else if (currentIndex == 0) {
-                // Si no se encontró ningún patrón, agregar todo el texto
-                append(text)
+
+            append(". Representa un ")
+
+            // 3. Porcentaje en negrita
+            withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
+                append("$usagePercentage%")
             }
+
+            append(" de tu actividad total.")
         }
     }
     

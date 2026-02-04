@@ -53,7 +53,6 @@ import java.time.LocalDate
 import javax.inject.Inject
 
 
-
 data class UserProfile(
     val name: String,
     val email: String,
@@ -1372,6 +1371,26 @@ class ProfileViewModel @Inject constructor(
         } catch (e: Exception) {
             Log.e("ProfileViewModel", "Error al calcular porcentaje de uso", e)
             0.0
+        }
+    }
+    suspend fun getAllVehiclesWithTotals(): List<Scooter> {
+        return try {
+            // Asegúrate de que estos métodos existan en tus repositorios
+            val vehicles = vehicleRepository.getVehicles().first()
+            val records = recordRepository.getRecords().first()
+
+            vehicles.map { v ->
+                // Usamos 'scooterId' y 'difference' que son los nombres de tu VehicleRecord
+                val totalKm = records.filter { record ->
+                    record.scooterId == v.id ||
+                            (record.scooterId.isEmpty() && record.vehicleName == v.nombre)
+                }.sumOf { it.diferencia } // Si 'difference' es Double, sumOf ya sabe qué hacer
+
+                v.copy(kilometrajeActual = totalKm)
+            }
+        } catch (e: Exception) {
+            Log.e("ProfileViewModel", "Error al calcular totales: ${e.message}")
+            emptyList()
         }
     }
 

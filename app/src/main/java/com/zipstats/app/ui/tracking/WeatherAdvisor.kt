@@ -56,7 +56,7 @@ class WeatherAdvisor {
  *
  * IMPORTANTE: Si hay lluvia activa (detectada por checkActiveRain), esta función siempre retorna false
  */
- fun checkWetRoadConditions(
+fun checkWetRoadConditions(
     condition: String,
     humidity: Int,
     recentPrecipitation3h: Double,
@@ -78,16 +78,43 @@ class WeatherAdvisor {
     val cond = condition.uppercase()
     val desc = weatherDescription?.uppercase().orEmpty()
     val windSpeedKmh = (windSpeed ?: 0.0) * 3.6
-    val dewSpread = if (temperature != null && dewPoint != null) temperature - dewPoint else null
+    val dewSpread =
+        if (temperature != null && dewPoint != null) temperature - dewPoint else null
 
     // ─────────────────────────────
-    // FILTRO DE AUTOSECADO
-    // ─────────────────────────────
-    val isAutoDrying = humidity < 65 && windSpeedKmh > 15.0
-    if (isAutoDrying) return false
+// FILTRO DE AUTOSECADO (CORREGIDO)
+// ─────────────────────────────
+    val canAutoDry =
+        precip24h < 0.3 &&
+                humidity < 60 &&
+                windSpeedKmh > 20.0 &&
+                isDay &&
+                dewSpread != null &&
+                dewSpread > 5.0
+
+// Bloqueo por noche + lluvia >= 2mm + viento fuerte
+    if (!isDay && precip24h >= 2.0 && windSpeedKmh > 30) {
+        Log.d(
+            "WeatherAdvisor",
+            "Bloqueo autosecado: noche + lluvia >=2mm + viento fuerte (${precip24h}mm/24h, ${windSpeedKmh}km/h)"
+        )
+        return false
+    }
+
+// Log explicativo de cualquier otra noche con lluvia
+    if (!isDay && precip24h > 0.0) {
+        Log.d(
+            "WeatherAdvisor",
+            "Bloqueo autosecado: noche + lluvia previa (${precip24h} mm/24h)"
+        )
+    }
+
+// Autosecado permitido
+    if (canAutoDry) return false
+
 
     // ─────────────────────────────
-    // CONDENSACIÓN (SIN LLUVIA)
+    // CONDENSACIÓN
     // ─────────────────────────────
     val isVeryHumid = humidity >= 92
 
@@ -120,9 +147,7 @@ class WeatherAdvisor {
     // NIEVE / AGUANIEVE
     // ─────────────────────────────
     val hasSnowOrSleet =
-        cond == "SNOW" ||
-                cond == "SLEET" ||
-                cond.contains("SNOW") ||
+        cond.contains("SNOW") ||
                 cond.contains("SLEET") ||
                 desc.contains("NIEVE") ||
                 desc.contains("AGUANIEVE") ||
@@ -132,20 +157,41 @@ class WeatherAdvisor {
                 weatherEmoji?.contains("🥶") == true
 
     // ─────────────────────────────
-    // LLUVIA RECIENTE (HISTÓRICO)
+    // LLUVIA RECIENTE
     // ─────────────────────────────
     val hasRecentPrecipitation =
-        (recentPrecipitation3h >= 0.5 && humidity > 75) || (recentPrecipitation3h > 0.1 && humidity > 92)
+        (recentPrecipitation3h >= 0.5 && humidity > 75) ||
+                (recentPrecipitation3h > 0.1 && humidity > 92)
+
+    val isNightUrbanPersistence =
+        !isDay &&
+                precip24h >= 1.0
+
 
     // ─────────────────────────────
     // RESULTADO FINAL
     // ─────────────────────────────
-    val isWet = isCondensing || isStormPersistence || isExtremelyHumid || hasSnowOrSleet || hasRecentPrecipitation
+    val isWet =
+        isCondensing ||
+                isStormPersistence ||
+                isExtremelyHumid ||
+                hasSnowOrSleet ||
+                hasRecentPrecipitation ||
+                isNightUrbanPersistence
+
 
     if (isWet) {
         if (isCondensing) Log.d("WeatherAdvisor", "Motivo: Condensación")
         if (isStormPersistence) Log.d("WeatherAdvisor", "Motivo: Persistencia de tormenta")
-        if (hasRecentPrecipitation) Log.d("WeatherAdvisor", "Motivo: Lluvia reciente detectada ($recentPrecipitation3h mm)")
+        if (hasRecentPrecipitation)
+            Log.d("WeatherAdvisor", "Motivo: Lluvia reciente ($recentPrecipitation3h mm)")
+        if (isNightUrbanPersistence) {
+            Log.d(
+                "WeatherAdvisor",
+                "Motivo: Persistencia nocturna tras lluvia (${precip24h} mm/24h)"
+            )
+        }
+
     }
 
     return isWet

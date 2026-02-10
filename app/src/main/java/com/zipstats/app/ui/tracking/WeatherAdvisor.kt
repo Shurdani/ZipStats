@@ -70,128 +70,71 @@ fun checkWetRoadConditions(
     windSpeed: Double? = null
 ): Boolean {
 
-    // ─────────────────────────────
-    // CORTES RÁPIDOS
-    // ─────────────────────────────
-    if (hasActiveRain) return false
-
     val cond = condition.uppercase()
     val desc = weatherDescription?.uppercase().orEmpty()
     val windSpeedKmh = (windSpeed ?: 0.0) * 3.6
-    val dewSpread =
-        if (temperature != null && dewPoint != null) temperature - dewPoint else null
+    val dewSpread = if (temperature != null && dewPoint != null) temperature - dewPoint else null
 
-    // ─────────────────────────────
-// FILTRO DE AUTOSECADO (CORREGIDO)
-// ─────────────────────────────
-    val canAutoDry =
-        precip24h < 0.3 &&
-                humidity < 60 &&
-                windSpeedKmh > 20.0 &&
-                isDay &&
-                dewSpread != null &&
-                dewSpread > 5.0
+    // 1. CORTE RÁPIDO
+    if (hasActiveRain) return false
 
-// Bloqueo por noche + lluvia >= 2mm + viento fuerte
-    if (!isDay && precip24h >= 2.0 && windSpeedKmh > 30) {
-        Log.d(
-            "WeatherAdvisor",
-            "Bloqueo autosecado: noche + lluvia >=2mm + viento fuerte (${precip24h}mm/24h, ${windSpeedKmh}km/h)"
-        )
+    // 2. FILTRO DE AUTOSECADO (Solo si hay sol y viento suficiente)
+    val canAutoDry = isDay &&
+            humidity < 65 &&
+            windSpeedKmh > 15.0 &&
+            (dewSpread ?: 0.0) > 5.0
+
+    if (canAutoDry && recentPrecipitation3h < 0.1) {
+        Log.d("WeatherAdvisor", "Autosecado detectado: Sol, viento y baja humedad.")
         return false
     }
 
-// Log explicativo de cualquier otra noche con lluvia
-    if (!isDay && precip24h > 0.0) {
-        Log.d(
-            "WeatherAdvisor",
-            "Bloqueo autosecado: noche + lluvia previa (${precip24h} mm/24h)"
-        )
-    }
+    // ──────────────────────────────────────────────────────────
+    // LÓGICA DE PERSISTENCIA (El fallo de tu versión anterior)
+    // ──────────────────────────────────────────────────────────
 
-// Autosecado permitido
-    if (canAutoDry) return false
+    // 3. PERSISTENCIA TRAS LLUVIA DIURNA/NOCTURNA (24h)
+    // Si llovió > 1mm y la humedad es > 70%, el suelo no se seca rápido, menos con poco viento.
+    val isStillWetFromPastRain = precip24h >= 1.0 && (humidity > 70 || windSpeedKmh < 12)
 
+    // 4. LLUVIA RECIENTE (3h)
+    // Umbrales más sensibles si la humedad es alta.
+    val hasRecentPrecipitation = (recentPrecipitation3h >= 0.4 && humidity > 70) ||
+            (recentPrecipitation3h > 0.1 && humidity > 85)
 
-    // ─────────────────────────────
-    // CONDENSACIÓN
-    // ─────────────────────────────
-    val isVeryHumid = humidity >= 92
+    // 5. CONDENSACIÓN Y ROCÍO
+    val isCondensing = humidity >= 90 && (
+            (cond == "FOG" || cond == "HAZE") ||
+                    (!isDay && (dewSpread ?: 10.0) <= 1.5)
+            )
 
-    val isCondensingBySky =
-        isVeryHumid && (cond == "FOG" || cond == "HAZE")
-
-    val isCondensingByDewPoint =
-        !isDay &&
-                isVeryHumid &&
-                dewSpread != null &&
-                dewSpread <= 1.0
-
-    val isCondensing = isCondensingBySky || isCondensingByDewPoint
-
-    // ─────────────────────────────
-    // PERSISTENCIA POR TEMPORAL
-    // ─────────────────────────────
-    val isStormPersistence =
-        humidity >= 90 &&
-                precip24h > 0.0 &&
-                dewSpread != null &&
-                dewSpread <= 1.5
-
-    // ─────────────────────────────
-    // HUMEDAD EXTREMA
-    // ─────────────────────────────
+    // 6. HUMEDAD EXTREMA (Saturación del ambiente)
     val isExtremelyHumid = humidity >= 95
 
-    // ─────────────────────────────
-    // NIEVE / AGUANIEVE
-    // ─────────────────────────────
-    val hasSnowOrSleet =
-        cond.contains("SNOW") ||
-                cond.contains("SLEET") ||
-                desc.contains("NIEVE") ||
-                desc.contains("AGUANIEVE") ||
-                desc.contains("SNOW") ||
-                desc.contains("SLEET") ||
-                weatherEmoji?.contains("❄️") == true ||
-                weatherEmoji?.contains("🥶") == true
+    // 7. NIEVE / AGUANIEVE
+    val hasSnowOrSleet = cond.contains("SNOW") || cond.contains("SLEET") ||
+            desc.contains("NIEVE") || desc.contains("AGUANIEVE") ||
+            weatherEmoji?.contains("❄️") == true
 
-    // ─────────────────────────────
-    // LLUVIA RECIENTE
-    // ─────────────────────────────
-    val hasRecentPrecipitation =
-        (recentPrecipitation3h >= 0.5 && humidity > 75) ||
-                (recentPrecipitation3h > 0.1 && humidity > 92)
-
-    val isNightUrbanPersistence =
-        !isDay &&
-                precip24h >= 1.0
-
-
-    // ─────────────────────────────
+    // ──────────────────────────────────────────────────────────
     // RESULTADO FINAL
-    // ─────────────────────────────
-    val isWet =
-        isCondensing ||
-                isStormPersistence ||
-                isExtremelyHumid ||
-                hasSnowOrSleet ||
-                hasRecentPrecipitation ||
-                isNightUrbanPersistence
-
+    // ──────────────────────────────────────────────────────────
+    val isWet = isCondensing ||
+            isExtremelyHumid ||
+            hasSnowOrSleet ||
+            hasRecentPrecipitation ||
+            isStillWetFromPastRain
 
     if (isWet) {
-        if (isCondensing) Log.d("WeatherAdvisor", "Motivo: Condensación")
-        if (isStormPersistence) Log.d("WeatherAdvisor", "Motivo: Persistencia de tormenta")
-        if (hasRecentPrecipitation)
-            Log.d("WeatherAdvisor", "Motivo: Lluvia reciente ($recentPrecipitation3h mm)")
-        if (isNightUrbanPersistence) {
-            Log.d(
-                "WeatherAdvisor",
-                "Motivo: Persistencia nocturna tras lluvia (${precip24h} mm/24h)"
-            )
+        val motivo = when {
+            isCondensing -> "Condensación/Niebla"
+            isStillWetFromPastRain -> "Persistencia de lluvia previa (${precip24h}mm en 24h)"
+            hasRecentPrecipitation -> "Lluvia reciente (${recentPrecipitation3h}mm)"
+            isExtremelyHumid -> "Humedad extrema ($humidity%)"
+            hasSnowOrSleet -> "Nieve/Aguanieve"
+            else -> "Desconocido"
         }
-
+        Log.d("WeatherAdvisor", "Calzada MOJADA. Motivo: $motivo")
     }
 
     return isWet

@@ -6,7 +6,6 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
-import kotlinx.coroutines.delay
 import android.location.Location
 import android.os.IBinder
 import android.os.Looper
@@ -32,6 +31,7 @@ import com.zipstats.app.tracking.LocationTracker
 import com.zipstats.app.utils.LocationUtils
 import com.zipstats.app.utils.PreferencesManager
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -1883,12 +1883,14 @@ class TrackingViewModel @Inject constructor(
                         }
                         weatherMaxPrecipitation = maxOf(weatherMaxPrecipitation, weather.precipitation)
                     }
-                    
+
                     _startWeatherTemperature = weather.temperature
                     _startWeatherEmoji = weatherEmoji
                     _startWeatherDescription = weatherDescription
                     _startWeatherIsDay = weather.isDay
                     _startWeatherFeelsLike = weather.feelsLike
+                    _startWeatherWindChill = weather.windChill
+                    _startWeatherHeatIndex = weather.heatIndex
                     _startWeatherHumidity = weather.humidity
                     _startWeatherWindSpeed = weather.windSpeed
                     _startWeatherUvIndex = weather.uvIndex
@@ -2429,18 +2431,35 @@ class TrackingViewModel @Inject constructor(
         try {
             val result = weatherRepository.getCurrentWeather(lastPoint.latitude, lastPoint.longitude)
             result.onSuccess { weather ->
-                // Actualizamos las variables del ViewModel con los datos finales
-                _startWeatherTemperature = weather.temperature
+                // --- BLOQUE VISUAL (El que corrige tu bug del icono) ---
                 _startWeatherEmoji = weather.weatherEmoji
                 _startWeatherDescription = weather.description
+                _startWeatherCondition = weather.icon
+                _startWeatherCode = weather.weatherCode
+                _startWeatherIsDay = weather.isDay
+
+                // --- BLOQUE TÉRMICO ---
+                _startWeatherTemperature = weather.temperature
+                _startWeatherFeelsLike = weather.feelsLike
+                _startWeatherWindChill = weather.windChill
+                _startWeatherHeatIndex = weather.heatIndex
+                _startWeatherDewPoint = weather.dewPoint
+
+                // --- BLOQUE ATMOSFÉRICO ---
                 _startWeatherWindSpeed = weather.windSpeed
                 _startWeatherWindGusts = weather.windGusts
+                _startWeatherWindDirection = weather.windDirection
                 _startWeatherHumidity = weather.humidity
-                // ... (puedes añadir más si los necesitas en el resumen final)
-                Log.d(TAG, "✅ Snapshot final capturado correctamente")
+                _startWeatherRainProbability = weather.rainProbability
+
+                // --- BLOQUE ÍNDICES ---
+                _startWeatherUvIndex = weather.uvIndex
+                _startWeatherVisibility = weather.visibility
+
+                Log.d(TAG, "✅ Snapshot final capturado y sincronizado en variables de inicio")
             }
         } catch (e: Exception) {
-            Log.w(TAG, "⚠️ No se pudo obtener el snapshot final, se usarán datos iniciales")
+            Log.e(TAG, "⚠️ Error en snapshot final: ${e.message}. Se mantienen datos de monitoreo.")
         }
     }
 

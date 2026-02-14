@@ -78,14 +78,12 @@ fun checkWetRoadConditions(
     // 1. CORTE RÁPIDO
     if (hasActiveRain) return false
 
-    // 2. FILTRO DE AUTOSECADO (Solo si hay sol y viento suficiente)
-    val canAutoDry = isDay &&
-            humidity < 65 &&
-            windSpeedKmh > 15.0 &&
-            (dewSpread ?: 0.0) > 5.0
+    // 2. FILTRO DE AUTOSECADO MEJORADO
+// El viento seca aunque sea de noche, especialmente con humedad baja.
+    val canAutoDry = (isDay && humidity < 65) || (humidity < 50 && windSpeedKmh > 20.0)
 
     if (canAutoDry && recentPrecipitation3h < 0.1) {
-        Log.d("WeatherAdvisor", "Autosecado detectado: Sol, viento y baja humedad.")
+        Log.d("WeatherAdvisor", "Autosecado detectado: Viento o baja humedad evaporando agua.")
         return false
     }
 
@@ -95,8 +93,7 @@ fun checkWetRoadConditions(
 
     // 3. PERSISTENCIA TRAS LLUVIA DIURNA/NOCTURNA (24h)
     // Si llovió > 1mm y la humedad es > 70%, el suelo no se seca rápido, menos con poco viento.
-    val isStillWetFromPastRain = precip24h >= 1.0 && (humidity > 70 || windSpeedKmh < 12)
-
+    val isStillWetFromPastRain = precip24h >= 2.0 && humidity > 75 && !isDay
     // 4. LLUVIA RECIENTE (3h)
     // Umbrales más sensibles si la humedad es alta.
     val hasRecentPrecipitation = (recentPrecipitation3h >= 0.4 && humidity > 70) ||

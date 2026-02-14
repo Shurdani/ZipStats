@@ -255,7 +255,7 @@ class StatisticsViewModel @Inject constructor(
     val weatherStats: StateFlow<WeatherStats> = _weatherStats.asStateFlow()
     
     init {
-        loadStatistics()
+        loadStatistics(0)
         loadScooters()
         loadUserName()
     }
@@ -268,7 +268,8 @@ class StatisticsViewModel @Inject constructor(
         }
     }
 
-    private fun loadStatistics() {
+    // Agregamos el parámetro currentTab (0 = Mes, 1 = Año)
+    fun loadStatistics(currentTab: Int = 0) {
         viewModelScope.launch {
             _statistics.value = StatisticsUiState.Loading
             try {
@@ -276,6 +277,8 @@ class StatisticsViewModel @Inject constructor(
                 val routesResult = routeRepository.getUserRoutes()
                 val allRoutes = routesResult.getOrNull() ?: emptyList()
 
+                // Usamos collectLatest o combinamos los flows para evitar anidamientos excesivos si es necesario,
+                // pero mantenemos tu estructura funcional:
                 scooterRepository.getScooters().collect { scooters ->
                     recordRepository.getRecords().collect { records ->
 
@@ -291,6 +294,9 @@ class StatisticsViewModel @Inject constructor(
 
                         // --- CONTEXTO TEMPORAL ---
                         val today = LocalDate.now()
+
+                        // Si hay filtro manual, mandan los valores seleccionados.
+                        // Si no, mandan los valores actuales (today).
                         val currentMonth = _selectedMonth.value ?: today.monthValue
                         val currentYear = _selectedYear.value ?: today.year
 
@@ -322,28 +328,33 @@ class StatisticsViewModel @Inject constructor(
                                     .atZone(java.time.ZoneId.systemDefault()).toLocalDate()
 
                                 when {
-                                    // 1. Si hay mes seleccionado: Filtrar por ese mes y año
-                                    _selectedMonth.value != null -> {
-                                        routeDate.monthValue == _selectedMonth.value && routeDate.year == currentYear
+                                    // 1. Filtro manual de Mes + Año activo (Prioridad máxima)
+                                    _selectedMonth.value != null && _selectedYear.value != null -> {
+                                        routeDate.monthValue == _selectedMonth.value && routeDate.year == _selectedYear.value
                                     }
-                                    // 2. Si solo hay año seleccionado: Filtrar por todo ese año
+                                    // 2. Filtro manual de solo Año activo
                                     _selectedYear.value != null -> {
                                         routeDate.year == _selectedYear.value
                                     }
-                                    // 3. VISTA POR DEFECTO (Entrada a la App): Forzar mes y año actual
-                                    // 🔥 Esto evita que 'weatherStats' use los totales históricos
+                                    // 3. SIN FILTRO MANUAL: Usamos el periodo de la pestaña activa
                                     else -> {
-                                        routeDate.monthValue == today.monthValue && routeDate.year == today.year
+                                        if (currentTab == 1) { // Pestaña "Este Año"
+                                            routeDate.year == today.year
+                                        } else { // Pestaña "Este Mes" (currentTab == 0)
+                                            routeDate.monthValue == today.monthValue && routeDate.year == today.year
+                                        }
                                     }
                                 }
                             } catch (e: Exception) { false }
                         }
 
-                        // Actualizar métricas de clima para la UI y la Tarjeta Dinámica
+                        // --- DISTANCIA PARA LA TARJETA DINÁMICA ---
+                        // Determinamos qué distancia mostrar en la tarjeta de clima basándonos en la vista actual
                         val manualDist = when {
                             _selectedMonth.value != null -> monthlyDistance
                             _selectedYear.value != null -> yearlyDistance
-                            else -> monthlyDistance // Por defecto mostramos el contexto del mes actual
+                            currentTab == 1 -> yearlyDistance // Pestaña Anual sin filtro manual
+                            else -> monthlyDistance           // Pestaña Mensual sin filtro manual
                         }
 
                         _weatherStats.value = calculateWeatherStats(manualDist, filteredGpsRoutes)

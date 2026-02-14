@@ -3,6 +3,7 @@ package com.zipstats.app.ui.statistics
 import android.content.Intent
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,7 +20,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ListAlt
@@ -132,8 +132,6 @@ fun StatisticsScreen(
     viewModel: StatisticsViewModel = hiltViewModel()
 ) {
     val statistics by viewModel.statistics.collectAsState()
-    val selectedMonth by viewModel.selectedMonth.collectAsState()
-    val selectedYear by viewModel.selectedYear.collectAsState()
     val availableMonthYears by viewModel.availableMonthYears.collectAsState()
     val periodTitle by viewModel.selectedPeriodTitle.collectAsState()
     // Recoge las distancias con condiciones climáticas
@@ -141,6 +139,9 @@ fun StatisticsScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var selectedPeriod by remember { mutableIntStateOf(0) }
+    val selectedMonth by viewModel.selectedMonth.collectAsState()
+    val selectedYear by viewModel.selectedYear.collectAsState()
+    val scrollState = rememberScrollState()
     var showMonthYearPicker by remember { mutableStateOf(false) }
 
     // Diálogo de selección de mes/año
@@ -163,6 +164,10 @@ fun StatisticsScreen(
                 showMonthYearPicker = false
             }
         )
+    }
+
+    LaunchedEffect(selectedPeriod, selectedMonth, selectedYear) {
+        viewModel.loadStatistics(selectedPeriod)
     }
 
     Scaffold(

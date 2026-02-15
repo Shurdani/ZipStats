@@ -52,152 +52,164 @@ class AchievementsViewModel @Inject constructor(
     // Obtener la lista de logros del servicio centralizado
     private val allAchievements get() = achievementsService.allAchievements
 
+    // 🛡️ REFACTORIZACIÓN REACTIVA:
+    // En lugar de cargar manualmente con loadAchievements(), observamos los registros.
+    // Cuando los registros cambian (repo.getRecords()), recalculamos los logros automáticamente.
     init {
-        loadAchievements()
+        viewModelScope.launch {
+            recordRepository.getRecords().collect { _ ->
+                // Cuando cambian los registros, recalculamos.
+                // Podríamos optimizar más pasando la lista de registros a calculateAchievements
+                // pero getAchievementStats() dentro hace su lógica, así que está bien llamar a loadAchievements()
+                // o mejor aún, extraer la lógica a una función pura y usar map/combine.
+                // Por ahora, para mantener la lógica de negocio intacta, llamamos a la función de carga
+                // pero ahora reacciona a cambios en la DB.
+                updateAchievementsState()
+            }
+        }
     }
 
+    // Renombramos para indicar que es una actualización interna, no una carga inicial manual
+    private suspend fun updateAchievementsState() {
+        try {
+            // Nota: getAchievementStats() podría ser costoso si hay miles de registros.
+            // Idealmente debería ser reactivo también, pero por ahora esto asegura que la UI se actualice sola.
+            val stats = recordRepository.getAchievementStats()
+            
+            val unlockedAchievements = withContext(Dispatchers.Default) {
+                allAchievements.map { achievement ->
+                    calculateAchievementState(achievement, stats)
+                }
+            }
+            _achievements.value = AchievementsUiState.Success(unlockedAchievements)
+        } catch (e: Exception) {
+            _achievements.value = AchievementsUiState.Error("Error al cargar los logros: ${e.message}")
+        }
+    }
+    
+    // Función pública por compatibilidad, pero ahora solo refresca el flujo si es necesario
     fun loadAchievements() {
         viewModelScope.launch {
-            try {
-                val stats = recordRepository.getAchievementStats()
-                
-                val unlockedAchievements = allAchievements.map { achievement ->
-                    val isUnlocked = when (achievement.requirementType) {
-                        AchievementRequirementType.DISTANCE -> 
-                            stats.totalDistance >= (achievement.requiredDistance ?: 0.0)
-                        AchievementRequirementType.TRIPS -> 
-                            stats.totalTrips >= (achievement.requiredTrips ?: 0)
-                        AchievementRequirementType.CONSECUTIVE_DAYS -> 
-                            stats.consecutiveDays >= (achievement.requiredConsecutiveDays ?: 0)
-                        AchievementRequirementType.UNIQUE_SCOOTERS -> 
-                            stats.uniqueScooters >= (achievement.requiredUniqueScooters ?: 0)
-                        AchievementRequirementType.LONGEST_TRIP -> 
-                            stats.longestTrip >= (achievement.requiredLongestTrip ?: 0.0)
-                        AchievementRequirementType.UNIQUE_WEEKS -> 
-                            stats.uniqueWeeks >= (achievement.requiredUniqueWeeks ?: 0)
-                        AchievementRequirementType.MAINTENANCE_COUNT -> 
-                            stats.maintenanceCount >= (achievement.requiredMaintenanceCount ?: 0)
-                        AchievementRequirementType.CO2_SAVED -> 
-                            stats.co2Saved >= (achievement.requiredCO2Saved ?: 0.0)
-                        AchievementRequirementType.UNIQUE_MONTHS -> 
-                            stats.uniqueMonths >= (achievement.requiredUniqueMonths ?: 0)
-                        AchievementRequirementType.CONSECUTIVE_MONTHS -> 
-                            stats.consecutiveMonths >= (achievement.requiredConsecutiveMonths ?: 0)
-                        AchievementRequirementType.ALL_OTHERS -> {
-                            // Verificar si todos los demás logros están desbloqueados
-                            val otherAchievements = allAchievements.filter { it.id != achievement.id }
-                            otherAchievements.all { other ->
-                                when (other.requirementType) {
-                                    AchievementRequirementType.DISTANCE -> 
-                                        stats.totalDistance >= (other.requiredDistance ?: 0.0)
-                                    AchievementRequirementType.TRIPS -> 
-                                        stats.totalTrips >= (other.requiredTrips ?: 0)
-                                    AchievementRequirementType.CONSECUTIVE_DAYS -> 
-                                        stats.consecutiveDays >= (other.requiredConsecutiveDays ?: 0)
-                                    AchievementRequirementType.UNIQUE_SCOOTERS -> 
-                                        stats.uniqueScooters >= (other.requiredUniqueScooters ?: 0)
-                                    AchievementRequirementType.LONGEST_TRIP -> 
-                                        stats.longestTrip >= (other.requiredLongestTrip ?: 0.0)
-                                    AchievementRequirementType.UNIQUE_WEEKS -> 
-                                        stats.uniqueWeeks >= (other.requiredUniqueWeeks ?: 0)
-                                    AchievementRequirementType.MAINTENANCE_COUNT -> 
-                                        stats.maintenanceCount >= (other.requiredMaintenanceCount ?: 0)
-                                    AchievementRequirementType.CO2_SAVED -> 
-                                        stats.co2Saved >= (other.requiredCO2Saved ?: 0.0)
-                                    AchievementRequirementType.UNIQUE_MONTHS -> 
-                                        stats.uniqueMonths >= (other.requiredUniqueMonths ?: 0)
-                                    AchievementRequirementType.CONSECUTIVE_MONTHS -> 
-                                        stats.consecutiveMonths >= (other.requiredConsecutiveMonths ?: 0)
-                                    else -> false
-                                }
-                            }
-                        }
-                        AchievementRequirementType.MULTIPLE -> false // Por ahora no implementado
-                    }
-                    
-                    val progress = when (achievement.requirementType) {
-                        AchievementRequirementType.DISTANCE -> {
-                            val required = achievement.requiredDistance ?: 1.0
-                            (stats.totalDistance / required * 100).coerceIn(0.0, 100.0)
-                        }
-                        AchievementRequirementType.TRIPS -> {
-                            val required = achievement.requiredTrips ?: 1
-                            (stats.totalTrips.toDouble() / required * 100).coerceIn(0.0, 100.0)
-                        }
-                        AchievementRequirementType.CONSECUTIVE_DAYS -> {
-                            val required = achievement.requiredConsecutiveDays ?: 1
-                            (stats.consecutiveDays.toDouble() / required * 100).coerceIn(0.0, 100.0)
-                        }
-                        AchievementRequirementType.UNIQUE_SCOOTERS -> {
-                            val required = achievement.requiredUniqueScooters ?: 1
-                            (stats.uniqueScooters.toDouble() / required * 100).coerceIn(0.0, 100.0)
-                        }
-                        AchievementRequirementType.LONGEST_TRIP -> {
-                            val required = achievement.requiredLongestTrip ?: 1.0
-                            (stats.longestTrip / required * 100).coerceIn(0.0, 100.0)
-                        }
-                        AchievementRequirementType.UNIQUE_WEEKS -> {
-                            val required = achievement.requiredUniqueWeeks ?: 1
-                            (stats.uniqueWeeks.toDouble() / required * 100).coerceIn(0.0, 100.0)
-                        }
-                        AchievementRequirementType.MAINTENANCE_COUNT -> {
-                            val required = achievement.requiredMaintenanceCount ?: 1
-                            (stats.maintenanceCount.toDouble() / required * 100).coerceIn(0.0, 100.0)
-                        }
-                        AchievementRequirementType.CO2_SAVED -> {
-                            val required = achievement.requiredCO2Saved ?: 1.0
-                            (stats.co2Saved / required * 100).coerceIn(0.0, 100.0)
-                        }
-                        AchievementRequirementType.UNIQUE_MONTHS -> {
-                            val required = achievement.requiredUniqueMonths ?: 1
-                            (stats.uniqueMonths.toDouble() / required * 100).coerceIn(0.0, 100.0)
-                        }
-                        AchievementRequirementType.CONSECUTIVE_MONTHS -> {
-                            val required = achievement.requiredConsecutiveMonths ?: 1
-                            (stats.consecutiveMonths.toDouble() / required * 100).coerceIn(0.0, 100.0)
-                        }
-                        AchievementRequirementType.ALL_OTHERS -> {
-                            // Calcular porcentaje de logros desbloqueados
-                            val otherAchievements = allAchievements.filter { it.id != achievement.id }
-                            val unlockedCount = otherAchievements.count { other ->
-                                when (other.requirementType) {
-                                    AchievementRequirementType.DISTANCE -> 
-                                        stats.totalDistance >= (other.requiredDistance ?: 0.0)
-                                    AchievementRequirementType.TRIPS -> 
-                                        stats.totalTrips >= (other.requiredTrips ?: 0)
-                                    AchievementRequirementType.CONSECUTIVE_DAYS -> 
-                                        stats.consecutiveDays >= (other.requiredConsecutiveDays ?: 0)
-                                    AchievementRequirementType.UNIQUE_SCOOTERS -> 
-                                        stats.uniqueScooters >= (other.requiredUniqueScooters ?: 0)
-                                    AchievementRequirementType.LONGEST_TRIP -> 
-                                        stats.longestTrip >= (other.requiredLongestTrip ?: 0.0)
-                                    AchievementRequirementType.UNIQUE_WEEKS -> 
-                                        stats.uniqueWeeks >= (other.requiredUniqueWeeks ?: 0)
-                                    AchievementRequirementType.MAINTENANCE_COUNT -> 
-                                        stats.maintenanceCount >= (other.requiredMaintenanceCount ?: 0)
-                                    AchievementRequirementType.CO2_SAVED -> 
-                                        stats.co2Saved >= (other.requiredCO2Saved ?: 0.0)
-                                    AchievementRequirementType.UNIQUE_MONTHS -> 
-                                        stats.uniqueMonths >= (other.requiredUniqueMonths ?: 0)
-                                    AchievementRequirementType.CONSECUTIVE_MONTHS -> 
-                                        stats.consecutiveMonths >= (other.requiredConsecutiveMonths ?: 0)
-                                    else -> false
-                                }
-                            }
-                            (unlockedCount.toDouble() / otherAchievements.size * 100).coerceIn(0.0, 100.0)
-                        }
-                        AchievementRequirementType.MULTIPLE -> 0.0
-                    }
-                    
-                    achievement.copy(
-                        isUnlocked = isUnlocked,
-                        progress = if (isUnlocked) 100.0 else progress
-                    )
+            updateAchievementsState()
+        }
+    }
+
+    private fun calculateAchievementState(
+        achievement: Achievement,
+        stats: RecordRepository.AchievementStats
+    ): Achievement {
+        val isUnlocked = when (achievement.requirementType) {
+            AchievementRequirementType.DISTANCE ->
+                stats.totalDistance >= (achievement.requiredDistance ?: 0.0)
+            AchievementRequirementType.TRIPS ->
+                stats.totalTrips >= (achievement.requiredTrips ?: 0)
+            AchievementRequirementType.CONSECUTIVE_DAYS ->
+                stats.consecutiveDays >= (achievement.requiredConsecutiveDays ?: 0)
+            AchievementRequirementType.UNIQUE_SCOOTERS ->
+                stats.uniqueScooters >= (achievement.requiredUniqueScooters ?: 0)
+            AchievementRequirementType.LONGEST_TRIP ->
+                stats.longestTrip >= (achievement.requiredLongestTrip ?: 0.0)
+            AchievementRequirementType.UNIQUE_WEEKS ->
+                stats.uniqueWeeks >= (achievement.requiredUniqueWeeks ?: 0)
+            AchievementRequirementType.MAINTENANCE_COUNT ->
+                stats.maintenanceCount >= (achievement.requiredMaintenanceCount ?: 0)
+            AchievementRequirementType.CO2_SAVED ->
+                stats.co2Saved >= (achievement.requiredCO2Saved ?: 0.0)
+            AchievementRequirementType.UNIQUE_MONTHS ->
+                stats.uniqueMonths >= (achievement.requiredUniqueMonths ?: 0)
+            AchievementRequirementType.CONSECUTIVE_MONTHS ->
+                stats.consecutiveMonths >= (achievement.requiredConsecutiveMonths ?: 0)
+            AchievementRequirementType.ALL_OTHERS -> {
+                // Verificar si todos los demás logros están desbloqueados
+                val otherAchievements = allAchievements.filter { it.id != achievement.id }
+                otherAchievements.all { other ->
+                    checkRequirementMet(other, stats)
                 }
-                _achievements.value = AchievementsUiState.Success(unlockedAchievements)
-            } catch (e: Exception) {
-                _achievements.value = AchievementsUiState.Error("Error al cargar los logros: ${e.message}")
             }
+            AchievementRequirementType.MULTIPLE -> false
+        }
+        
+        val progress = when (achievement.requirementType) {
+            AchievementRequirementType.DISTANCE -> {
+                val required = achievement.requiredDistance ?: 1.0
+                (stats.totalDistance / required * 100).coerceIn(0.0, 100.0)
+            }
+            AchievementRequirementType.TRIPS -> {
+                val required = achievement.requiredTrips ?: 1
+                (stats.totalTrips.toDouble() / required * 100).coerceIn(0.0, 100.0)
+            }
+            AchievementRequirementType.CONSECUTIVE_DAYS -> {
+                val required = achievement.requiredConsecutiveDays ?: 1
+                (stats.consecutiveDays.toDouble() / required * 100).coerceIn(0.0, 100.0)
+            }
+            AchievementRequirementType.UNIQUE_SCOOTERS -> {
+                val required = achievement.requiredUniqueScooters ?: 1
+                (stats.uniqueScooters.toDouble() / required * 100).coerceIn(0.0, 100.0)
+            }
+            AchievementRequirementType.LONGEST_TRIP -> {
+                val required = achievement.requiredLongestTrip ?: 1.0
+                (stats.longestTrip / required * 100).coerceIn(0.0, 100.0)
+            }
+            AchievementRequirementType.UNIQUE_WEEKS -> {
+                val required = achievement.requiredUniqueWeeks ?: 1
+                (stats.uniqueWeeks.toDouble() / required * 100).coerceIn(0.0, 100.0)
+            }
+            AchievementRequirementType.MAINTENANCE_COUNT -> {
+                val required = achievement.requiredMaintenanceCount ?: 1
+                (stats.maintenanceCount.toDouble() / required * 100).coerceIn(0.0, 100.0)
+            }
+            AchievementRequirementType.CO2_SAVED -> {
+                val required = achievement.requiredCO2Saved ?: 1.0
+                (stats.co2Saved / required * 100).coerceIn(0.0, 100.0)
+            }
+            AchievementRequirementType.UNIQUE_MONTHS -> {
+                val required = achievement.requiredUniqueMonths ?: 1
+                (stats.uniqueMonths.toDouble() / required * 100).coerceIn(0.0, 100.0)
+            }
+            AchievementRequirementType.CONSECUTIVE_MONTHS -> {
+                val required = achievement.requiredConsecutiveMonths ?: 1
+                (stats.consecutiveMonths.toDouble() / required * 100).coerceIn(0.0, 100.0)
+            }
+            AchievementRequirementType.ALL_OTHERS -> {
+                val otherAchievements = allAchievements.filter { it.id != achievement.id }
+                val unlockedCount = otherAchievements.count { other ->
+                    checkRequirementMet(other, stats)
+                }
+                (unlockedCount.toDouble() / otherAchievements.size * 100).coerceIn(0.0, 100.0)
+            }
+            AchievementRequirementType.MULTIPLE -> 0.0
+        }
+        
+        return achievement.copy(
+            isUnlocked = isUnlocked,
+            progress = if (isUnlocked) 100.0 else progress
+        )
+    }
+
+    // Helper para verificar requisitos de forma limpia (reutilizado en ALL_OTHERS)
+    private fun checkRequirementMet(achievement: Achievement, stats: RecordRepository.AchievementStats): Boolean {
+        return when (achievement.requirementType) {
+            AchievementRequirementType.DISTANCE ->
+                stats.totalDistance >= (achievement.requiredDistance ?: 0.0)
+            AchievementRequirementType.TRIPS ->
+                stats.totalTrips >= (achievement.requiredTrips ?: 0)
+            AchievementRequirementType.CONSECUTIVE_DAYS ->
+                stats.consecutiveDays >= (achievement.requiredConsecutiveDays ?: 0)
+            AchievementRequirementType.UNIQUE_SCOOTERS ->
+                stats.uniqueScooters >= (achievement.requiredUniqueScooters ?: 0)
+            AchievementRequirementType.LONGEST_TRIP ->
+                stats.longestTrip >= (achievement.requiredLongestTrip ?: 0.0)
+            AchievementRequirementType.UNIQUE_WEEKS ->
+                stats.uniqueWeeks >= (achievement.requiredUniqueWeeks ?: 0)
+            AchievementRequirementType.MAINTENANCE_COUNT ->
+                stats.maintenanceCount >= (achievement.requiredMaintenanceCount ?: 0)
+            AchievementRequirementType.CO2_SAVED ->
+                stats.co2Saved >= (achievement.requiredCO2Saved ?: 0.0)
+            AchievementRequirementType.UNIQUE_MONTHS ->
+                stats.uniqueMonths >= (achievement.requiredUniqueMonths ?: 0)
+            AchievementRequirementType.CONSECUTIVE_MONTHS ->
+                stats.consecutiveMonths >= (achievement.requiredConsecutiveMonths ?: 0)
+            else -> false
         }
     }
 

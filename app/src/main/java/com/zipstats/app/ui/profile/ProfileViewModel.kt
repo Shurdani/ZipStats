@@ -183,11 +183,17 @@ class ProfileViewModel @Inject constructor(
             // Combinar los Flows de vehículos y registros para actualizar automáticamente
             combine(
                 vehicleRepository.getScooters(),
-                recordRepository.getRecords()
-            ) { scooters, records ->
+                recordRepository.getRecords(),
+                _user
+            ) { scooters, records, user ->
+                if (user == null) {
+                    _uiState.value = ProfileUiState.Loading
+                    return@combine
+                }
+
                 // Calcular kilometraje total para cada patinete (usar scooterId cuando esté disponible)
                 val scootersWithKm = scooters.map { scooter ->
-                    val scooterRecords = records.filter { 
+                    val scooterRecords = records.filter {
                         // Buscar por scooterId (preferido) o por nombre (compatibilidad)
                         it.scooterId == scooter.id || (it.scooterId.isEmpty() && it.vehicleName == scooter.nombre)
                     }
@@ -196,20 +202,21 @@ class ProfileViewModel @Inject constructor(
                 }
                 
                 // Calcular logros desbloqueados
+                // OPTIMIZACIÓN: Solo recalculamos logros si records cambia, pero aquí estamos en un combine
+                // general. Para ser más eficientes podríamos separar flujos, pero para esta app es aceptable.
                 val stats = recordRepository.getAchievementStats()
                 val unlockedAchievements = calculateUnlockedAchievements(stats)
                 
-                // Actualizar el estado
-                val currentUser = _user.value
-                if (currentUser != null) {
-                    val currentState = _uiState.value
-                    if (currentState is ProfileUiState.Success) {
-                        _uiState.value = currentState.copy(
-                            scooters = scootersWithKm,
-                            unlockedAchievements = unlockedAchievements
-                        )
-                    }
-                }
+                // Actualizar el estado con el nuevo usuario y datos calculados
+                val biometricEnabled = prefs.getBoolean("biometric_enabled", false)
+                
+                _uiState.value = ProfileUiState.Success(
+                    user = user,
+                    scooters = scootersWithKm,
+                    biometricEnabled = biometricEnabled,
+                    unlockedAchievements = unlockedAchievements,
+                    totalAchievements = totalAchievementsCount
+                )
             }.collect { }
         }
     }
@@ -268,39 +275,13 @@ class ProfileViewModel @Inject constructor(
     private fun loadUserProfile() {
         viewModelScope.launch {
             try {
-                _uiState.value = ProfileUiState.Loading
+                // Solo cargamos el usuario. El combine en observeVehicles se encarga del resto.
                 val userId = auth.currentUser?.uid ?: throw Exception("Usuario no autenticado")
                 
+                // OPTIMIZACIÓN: Usar snapshot listener si userRepository lo soportara, pero por ahora fetch one-shot
+                // es correcto para el perfil de usuario que cambia poco.
                 val user = userRepository.getUser(userId) ?: throw Exception("Usuario no encontrado")
-                
-                // Cargar scooters con sus kilometrajes totales
-                val scooters = vehicleRepository.getScooters().first()
-                val records = recordRepository.getRecords().first()
-                
-                // Calcular kilometraje total para cada patinete (usar scooterId cuando esté disponible)
-                val scootersWithKm = scooters.map { scooter ->
-                    val scooterRecords = records.filter { 
-                        // Buscar por scooterId (preferido) o por nombre (compatibilidad)
-                        it.scooterId == scooter.id || (it.scooterId.isEmpty() && it.vehicleName == scooter.nombre)
-                    }
-                    val totalKm = scooterRecords.sumOf { it.diferencia }
-                    scooter.copy(kilometrajeActual = totalKm)
-                }
-                
-                // Calcular logros desbloqueados usando el nuevo sistema
-                val stats = recordRepository.getAchievementStats()
-                val unlockedAchievements = calculateUnlockedAchievements(stats)
-                
-                val biometricEnabled = prefs.getBoolean("biometric_enabled", false)
-                
                 _user.value = user
-                _uiState.value = ProfileUiState.Success(
-                    user = user,
-                    scooters = scootersWithKm,
-                    biometricEnabled = biometricEnabled,
-                    unlockedAchievements = unlockedAchievements,
-                    totalAchievements = totalAchievementsCount
-                )
             } catch (e: Exception) {
                 _uiState.value = ProfileUiState.Error(e.message ?: "Error al cargar el perfil")
             }
@@ -558,34 +539,8 @@ class ProfileViewModel @Inject constructor(
         }
     }
 
-    private fun loadUserScooters() {
-        viewModelScope.launch {
-            try {
-                // Usar el Flow para obtener la lista más actualizada
-                val scooters = vehicleRepository.getScooters().first()
-                val records = recordRepository.getRecords().first()
-                
-                // Calcular kilometraje total para cada patinete
-                val scootersWithKm = scooters.map { scooter ->
-                    val scooterRecords = records.filter { it.patinete == scooter.nombre }
-                    val totalKm = scooterRecords.sumOf { it.diferencia }
-                    scooter.copy(kilometrajeActual = totalKm)
-                }
-                
-                _uiState.update { currentState ->
-                    when (currentState) {
-                        is ProfileUiState.Success -> {
-                            val currentUser = _user.value ?: return@update currentState
-                            currentState.copy(user = currentUser, scooters = scootersWithKm)
-                        }
-                        else -> currentState
-                    }
-                }
-            } catch (e: Exception) {
-                Log.e("ProfileViewModel", "Error loading scooters", e)
-            }
-        }
-    }
+    // loadUserScooters ya no es necesaria porque observeVehicles maneja la carga automática
+    // Se elimina para evitar código muerto y confusión.
 
     fun addScooter(nombre: String, marca: String, modelo: String, fechaCompra: String?, vehicleType: com.zipstats.app.model.VehicleType = com.zipstats.app.model.VehicleType.PATINETE) {
         viewModelScope.launch {

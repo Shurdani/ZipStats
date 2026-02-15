@@ -253,11 +253,42 @@ class StatisticsViewModel @Inject constructor(
     // --- Estado de estadísticas climáticas completas (nuevo sistema) ---
     private val _weatherStats = MutableStateFlow<WeatherStats>(WeatherStats(0.0, 0.0, 0.0))
     val weatherStats: StateFlow<WeatherStats> = _weatherStats.asStateFlow()
+
+    // --- CACHÉ DE DATOS (Internal State) ---
+    private val _cachedRecords = MutableStateFlow<List<com.zipstats.app.model.Record>>(emptyList())
+    private val _cachedRoutes = MutableStateFlow<List<com.zipstats.app.model.Route>>(emptyList())
+    // _scooters ya existe y se usa correctamente
     
+    // Estado para saber qué pestaña está activa y recalcular solo la vista
+    private val _currentTab = MutableStateFlow(0)
+
     init {
-        loadStatistics(0)
-        loadScooters()
+        loadData() // Carga inicial única de datos
         loadUserName()
+        
+        // Observar cambios en datos o filtros para recalcular la UI automáticamente
+        viewModelScope.launch {
+            combine(
+                _cachedRecords,
+                _cachedRoutes,
+                _scooters,
+                _currentTab,
+                _selectedMonth,
+                _selectedYear
+            ) { args: Array<Any?> ->
+                @Suppress("UNCHECKED_CAST")
+                val records = args[0] as List<com.zipstats.app.model.Record>
+                @Suppress("UNCHECKED_CAST")
+                val routes = args[1] as List<com.zipstats.app.model.Route>
+                @Suppress("UNCHECKED_CAST")
+                val scooters = args[2] as List<Scooter>
+                val tab = args[3] as Int
+                val month = args[4] as? Int
+                val year = args[5] as? Int
+                
+                recalculateStatistics(records, routes, scooters, tab, month, year)
+            }.collect {}
+        }
     }
 
     private fun loadUserName() {
@@ -267,158 +298,190 @@ class StatisticsViewModel @Inject constructor(
             }
         }
     }
-
-    // Agregamos el parámetro currentTab (0 = Mes, 1 = Año)
-    fun loadStatistics(currentTab: Int = 0) {
+    
+    /**
+     * Carga los datos de los repositorios y mantiene el estado interno actualizado.
+     * Solo se llama una vez al iniciar o cuando se fuerza una recarga total.
+     */
+    private fun loadData() {
         viewModelScope.launch {
             _statistics.value = StatisticsUiState.Loading
             try {
-                // 1. Obtener rutas GPS y registros manuales
+                // 1. Rutas GPS (One-shot o Flow si el repo lo soporta, aquí asumimos one-shot por getUserRoutes)
+                // Si routeRepository tuviera un Flow, sería mejor collectarlo.
                 val routesResult = routeRepository.getUserRoutes()
-                val allRoutes = routesResult.getOrNull() ?: emptyList()
+                _cachedRoutes.value = routesResult.getOrNull() ?: emptyList()
 
-                // Usamos collectLatest o combinamos los flows para evitar anidamientos excesivos si es necesario,
-                // pero mantenemos tu estructura funcional:
-                scooterRepository.getScooters().collect { scooters ->
-                    recordRepository.getRecords().collect { records ->
-
-                        // --- REGENERAR LISTA DE MESES PARA EL FILTRO ---
-                        val monthYears = records.mapNotNull { record ->
-                            try {
-                                val date = LocalDate.parse(record.fecha)
-                                Pair(date.monthValue, date.year)
-                            } catch (e: Exception) { null }
-                        }.distinct().sortedWith(compareByDescending<Pair<Int, Int>> { it.second }.thenByDescending { it.first })
-
-                        _availableMonthYears.value = monthYears
-
-                        // --- CONTEXTO TEMPORAL ---
-                        val today = LocalDate.now()
-
-                        // Si hay filtro manual, mandan los valores seleccionados.
-                        // Si no, mandan los valores actuales (today).
-                        val currentMonth = _selectedMonth.value ?: today.monthValue
-                        val currentYear = _selectedYear.value ?: today.year
-
-                        // --- CÁLCULOS DE DISTANCIA ---
-                        val totalDistance = records.sumOf { it.diferencia }.roundToOneDecimal()
-
-                        // Estadísticas mensuales (Mes seleccionado o actual)
-                        val monthlyRecords = records.filter {
-                            try {
-                                val recordDate = LocalDate.parse(it.fecha)
-                                recordDate.monthValue == currentMonth && recordDate.year == currentYear
-                            } catch (e: Exception) { false }
-                        }
-                        val monthlyDistance = monthlyRecords.sumOf { it.diferencia }.roundToOneDecimal()
-
-                        // Estadísticas anuales (Año seleccionado o actual)
-                        val yearlyRecords = records.filter {
-                            try {
-                                val recordDate = LocalDate.parse(it.fecha)
-                                recordDate.year == currentYear
-                            } catch (e: Exception) { false }
-                        }
-                        val yearlyDistance = yearlyRecords.sumOf { it.diferencia }.roundToOneDecimal()
-
-                        // --- FILTRADO DE CLIMA CORREGIDO ---
-                        val filteredGpsRoutes = allRoutes.filter { route ->
-                            try {
-                                val routeDate = java.time.Instant.ofEpochMilli(route.startTime)
-                                    .atZone(java.time.ZoneId.systemDefault()).toLocalDate()
-
-                                when {
-                                    // 1. Filtro manual de Mes + Año activo (Prioridad máxima)
-                                    _selectedMonth.value != null && _selectedYear.value != null -> {
-                                        routeDate.monthValue == _selectedMonth.value && routeDate.year == _selectedYear.value
-                                    }
-                                    // 2. Filtro manual de solo Año activo
-                                    _selectedYear.value != null -> {
-                                        routeDate.year == _selectedYear.value
-                                    }
-                                    // 3. SIN FILTRO MANUAL: Usamos el periodo de la pestaña activa
-                                    else -> {
-                                        if (currentTab == 1) { // Pestaña "Este Año"
-                                            routeDate.year == today.year
-                                        } else { // Pestaña "Este Mes" (currentTab == 0)
-                                            routeDate.monthValue == today.monthValue && routeDate.year == today.year
-                                        }
-                                    }
-                                }
-                            } catch (e: Exception) { false }
-                        }
-
-                        // --- DISTANCIA PARA LA TARJETA DINÁMICA ---
-                        // Determinamos qué distancia mostrar en la tarjeta de clima basándonos en la vista actual
-                        val manualDist = when {
-                            _selectedMonth.value != null -> monthlyDistance
-                            _selectedYear.value != null -> yearlyDistance
-                            currentTab == 1 -> yearlyDistance // Pestaña Anual sin filtro manual
-                            else -> monthlyDistance           // Pestaña Mensual sin filtro manual
-                        }
-
-                        _weatherStats.value = calculateWeatherStats(manualDist, filteredGpsRoutes)
-
-                        // --- EMITIR RESULTADOS ---
-                        _statistics.value = StatisticsUiState.Success(
-                            totalDistance = totalDistance,
-                            monthlyDistance = monthlyDistance,
-                            yearlyDistance = yearlyDistance,
-                            scooterStats = scooters.map { scooter ->
-                                val sRecords = records.filter { it.patinete == scooter.nombre }
-                                ScooterStats(scooter.modelo, sRecords.sumOf { it.diferencia }.roundToOneDecimal())
-                            },
-                            maxDistance = records.maxOfOrNull { it.diferencia }?.roundToOneDecimal() ?: 0.0,
-                            averageDistance = if (records.isNotEmpty()) (records.sumOf { it.diferencia } / records.size).roundToOneDecimal() else 0.0,
-                            totalRecords = records.size,
-                            lastRecordDate = records.maxByOrNull { it.fecha }?.fecha ?: "No hay registros",
-                            lastRecordDistance = records.maxByOrNull { it.fecha }?.diferencia?.roundToOneDecimal() ?: 0.0,
-                            monthlyMaxDistance = monthlyRecords.maxOfOrNull { it.diferencia }?.roundToOneDecimal() ?: 0.0,
-                            monthlyAverageDistance = if (monthlyRecords.isNotEmpty()) (monthlyRecords.sumOf { it.diferencia } / monthlyRecords.size).roundToOneDecimal() else 0.0,
-                            monthlyRecords = monthlyRecords.size,
-                            yearlyMaxDistance = yearlyRecords.maxOfOrNull { it.diferencia }?.roundToOneDecimal() ?: 0.0,
-                            yearlyAverageDistance = if (yearlyRecords.isNotEmpty()) (yearlyRecords.sumOf { it.diferencia } / yearlyRecords.size).roundToOneDecimal() else 0.0,
-                            yearlyRecords = yearlyRecords.size,
-                            monthlyChartData = calculateMonthlyChartData(records),
-                            yearlyChartData = calculateYearlyChartData(records, currentYear),
-                            allTimeChartData = calculateAllTimeChartData(records),
-                            monthlyComparison = calculateMonthlyComparison(records, allRoutes, currentMonth, currentYear),
-                            yearlyComparison = calculateYearlyComparison(records, allRoutes, currentYear),
-                            nextAchievement = try { calculateNextAchievement() } catch (e: Exception) { null }
-                        )
+                // 2. Patinetes (Flow)
+                launch {
+                    scooterRepository.getScooters().collect {
+                        _scooters.value = it
                     }
                 }
+                
+                // 3. Registros (Flow)
+                launch {
+                    recordRepository.getRecords().collect {
+                        _cachedRecords.value = it
+                    }
+                }
+                
             } catch (e: Exception) {
                 _statistics.value = StatisticsUiState.Error(e.message ?: "Error al cargar datos")
             }
         }
     }
-    private fun loadScooters() {
-        viewModelScope.launch {
-            try {
-                scooterRepository.getScooters().collect { scooters ->
-                    _scooters.value = scooters
-                }
-            } catch (e: Exception) {
-                // Manejar error si es necesario
+
+    // Método público para cambiar de pestaña (simplemente actualiza el estado)
+    fun loadStatistics(currentTab: Int = 0) {
+        _currentTab.value = currentTab
+    }
+    
+    /**
+     * Recalcula el estado de la UI usando los datos en caché.
+     * NO hace peticiones a base de datos.
+     */
+    private suspend fun recalculateStatistics(
+        records: List<com.zipstats.app.model.Record>,
+        allRoutes: List<com.zipstats.app.model.Route>,
+        scooters: List<Scooter>,
+        currentTab: Int,
+        selectedMonth: Int?,
+        selectedYear: Int?
+    ) {
+        if (records.isEmpty() && scooters.isEmpty()) {
+             // Si no hay datos aún, mantenemos loading o mostramos vacío
+             return
+        }
+        
+        try {
+            // --- REGENERAR LISTA DE MESES PARA EL FILTRO ---
+            val monthYears = records.mapNotNull { record ->
+                try {
+                    val date = LocalDate.parse(record.fecha)
+                    Pair(date.monthValue, date.year)
+                } catch (e: Exception) { null }
+            }.distinct().sortedWith(compareByDescending<Pair<Int, Int>> { it.second }.thenByDescending { it.first })
+
+            _availableMonthYears.value = monthYears
+
+            // --- CONTEXTO TEMPORAL ---
+            val today = LocalDate.now()
+
+            // Si hay filtro manual, mandan los valores seleccionados.
+            // Si no, mandan los valores actuales (today).
+            val currentMonth = selectedMonth ?: today.monthValue
+            val currentYear = selectedYear ?: today.year
+
+            // --- CÁLCULOS DE DISTANCIA ---
+            val totalDistance = records.sumOf { it.diferencia }.roundToOneDecimal()
+
+            // Estadísticas mensuales (Mes seleccionado o actual)
+            val monthlyRecords = records.filter {
+                try {
+                    val recordDate = LocalDate.parse(it.fecha)
+                    recordDate.monthValue == currentMonth && recordDate.year == currentYear
+                } catch (e: Exception) { false }
             }
+            val monthlyDistance = monthlyRecords.sumOf { it.diferencia }.roundToOneDecimal()
+
+            // Estadísticas anuales (Año seleccionado o actual)
+            val yearlyRecords = records.filter {
+                try {
+                    val recordDate = LocalDate.parse(it.fecha)
+                    recordDate.year == currentYear
+                } catch (e: Exception) { false }
+            }
+            val yearlyDistance = yearlyRecords.sumOf { it.diferencia }.roundToOneDecimal()
+
+            // --- FILTRADO DE CLIMA CORREGIDO ---
+            val filteredGpsRoutes = allRoutes.filter { route ->
+                try {
+                    val routeDate = java.time.Instant.ofEpochMilli(route.startTime)
+                        .atZone(java.time.ZoneId.systemDefault()).toLocalDate()
+
+                    when {
+                        // 1. Filtro manual de Mes + Año activo (Prioridad máxima)
+                        selectedMonth != null && selectedYear != null -> {
+                            routeDate.monthValue == selectedMonth && routeDate.year == selectedYear
+                        }
+                        // 2. Filtro manual de solo Año activo
+                        selectedYear != null -> {
+                            routeDate.year == selectedYear
+                        }
+                        // 3. SIN FILTRO MANUAL: Usamos el periodo de la pestaña activa
+                        else -> {
+                            if (currentTab == 1) { // Pestaña "Este Año"
+                                routeDate.year == today.year
+                            } else { // Pestaña "Este Mes" (currentTab == 0)
+                                routeDate.monthValue == today.monthValue && routeDate.year == today.year
+                            }
+                        }
+                    }
+                } catch (e: Exception) { false }
+            }
+
+            // --- DISTANCIA PARA LA TARJETA DINÁMICA ---
+            // Determinamos qué distancia mostrar en la tarjeta de clima basándonos en la vista actual
+            val manualDist = when {
+                selectedMonth != null -> monthlyDistance
+                selectedYear != null -> yearlyDistance
+                currentTab == 1 -> yearlyDistance // Pestaña Anual sin filtro manual
+                else -> monthlyDistance           // Pestaña Mensual sin filtro manual
+            }
+
+            _weatherStats.value = calculateWeatherStats(manualDist, filteredGpsRoutes)
+
+            // --- EMITIR RESULTADOS ---
+            _statistics.value = StatisticsUiState.Success(
+                totalDistance = totalDistance,
+                monthlyDistance = monthlyDistance,
+                yearlyDistance = yearlyDistance,
+                scooterStats = scooters.map { scooter ->
+                    val sRecords = records.filter { it.patinete == scooter.nombre }
+                    ScooterStats(scooter.modelo, sRecords.sumOf { it.diferencia }.roundToOneDecimal())
+                },
+                maxDistance = records.maxOfOrNull { it.diferencia }?.roundToOneDecimal() ?: 0.0,
+                averageDistance = if (records.isNotEmpty()) (records.sumOf { it.diferencia } / records.size).roundToOneDecimal() else 0.0,
+                totalRecords = records.size,
+                lastRecordDate = records.maxByOrNull { it.fecha }?.fecha ?: "No hay registros",
+                lastRecordDistance = records.maxByOrNull { it.fecha }?.diferencia?.roundToOneDecimal() ?: 0.0,
+                monthlyMaxDistance = monthlyRecords.maxOfOrNull { it.diferencia }?.roundToOneDecimal() ?: 0.0,
+                monthlyAverageDistance = if (monthlyRecords.isNotEmpty()) (monthlyRecords.sumOf { it.diferencia } / monthlyRecords.size).roundToOneDecimal() else 0.0,
+                monthlyRecords = monthlyRecords.size,
+                yearlyMaxDistance = yearlyRecords.maxOfOrNull { it.diferencia }?.roundToOneDecimal() ?: 0.0,
+                yearlyAverageDistance = if (yearlyRecords.isNotEmpty()) (yearlyRecords.sumOf { it.diferencia } / yearlyRecords.size).roundToOneDecimal() else 0.0,
+                yearlyRecords = yearlyRecords.size,
+                monthlyChartData = calculateMonthlyChartData(records),
+                yearlyChartData = calculateYearlyChartData(records, currentYear),
+                allTimeChartData = calculateAllTimeChartData(records),
+                monthlyComparison = calculateMonthlyComparison(records, allRoutes, currentMonth, currentYear),
+                yearlyComparison = calculateYearlyComparison(records, allRoutes, currentYear),
+                nextAchievement = try { calculateNextAchievement() } catch (e: Exception) { null }
+            )
+        } catch (e: Exception) {
+            _statistics.value = StatisticsUiState.Error(e.message ?: "Error al recalcular datos")
         }
     }
 
+    // loadScooters() ya no es necesaria como función pública o privada separada,
+    // se maneja en loadData(), pero la mantenemos vacía o la eliminamos.
+    // Para minimizar cambios, la eliminamos ya que loadData hace su trabajo.
+
     fun refreshStatistics() {
-        loadStatistics()
+        loadData() // Fuerza recarga de datos
     }
     
     fun setSelectedPeriod(month: Int?, year: Int?) {
         _selectedMonth.value = month
         _selectedYear.value = year
-        loadStatistics()
+        // No llamamos a loadStatistics(), el combine lo hará solo
     }
     
     fun clearSelectedPeriod() {
         _selectedMonth.value = null
         _selectedYear.value = null
-        loadStatistics()
+        // No llamamos a loadStatistics(), el combine lo hará solo
     }
 
     suspend fun getShareText(stats: StatisticsUiState.Success): String {

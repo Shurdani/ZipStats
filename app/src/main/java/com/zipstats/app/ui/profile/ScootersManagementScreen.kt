@@ -339,6 +339,7 @@ fun AddScooterBottomSheet(
             value = matricula,
             onValueChange = { matricula = it },
             label = { ZipStatsText("Matrícula") },
+            placeholder = { ZipStatsText(text = "Opcional")},
             singleLine = true
         )
 

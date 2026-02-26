@@ -617,7 +617,13 @@ fun VehicleSpecsSection(scooter: Scooter) {
                 VerticalDivider()
                 SpecItem(Icons.Default.Info, "Modelo", scooter.modelo)
                 VerticalDivider()
-                SpecItem(Icons.Default.CalendarMonth, "Adquirido", scooter.fechaCompra ?: "-")
+
+                // --- CAMBIO AQUÍ: Formateamos la fecha antes de mostrarla ---
+                SpecItem(
+                    Icons.Default.CalendarMonth,
+                    "Adquirido",
+                    DateUtils.formatFullDisplayDate(scooter.fechaCompra)
+                )
             }
         }
     }
@@ -796,13 +802,18 @@ fun EditScooterBottomSheet(
     var showDatePicker by remember { mutableStateOf(false) }
 
     LaunchedEffect(selectedDate) {
-        fechaTexto = DateUtils.formatForDisplay(selectedDate)
+        // Cambiamos formatForDisplay por formatFullDisplayDate
+        fechaTexto = DateUtils.formatFullDisplayDate(selectedDate)
     }
 
     if (showDatePicker) {
         StandardDatePickerDialogWithValidation(
             selectedDate = selectedDate,
-            onDateSelected = { selectedDate = it },
+            onDateSelected = {
+                selectedDate = it
+                // Al seleccionar, se cerrará el diálogo y el LaunchedEffect
+                // actualizará fechaTexto automáticamente
+            },
             onDismiss = { showDatePicker = false },
             title = "Fecha de compra",
             maxDate = LocalDate.now(),

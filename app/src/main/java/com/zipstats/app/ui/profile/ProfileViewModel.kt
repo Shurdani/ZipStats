@@ -546,7 +546,10 @@ class ProfileViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 // Convertir la fecha del formato de visualización (DD/MM/YYYY) al formato de API (YYYY-MM-DD)
-                val fechaFormateada = fechaCompra?.let { DateUtils.formatForApi(DateUtils.parseDisplayDate(it)) }
+                val fechaFormateada = fechaCompra?.let {
+                    if (it.isBlank()) null
+                    else DateUtils.formatForApi(DateUtils.parseFullDisplayDate(it))
+                }
                 
                 vehicleRepository.addVehicle(
                     nombre = nombre,
@@ -583,7 +586,10 @@ class ProfileViewModel @Inject constructor(
                     ?: throw Exception("Vehículo no encontrado")
                 
                 // Convertir la fecha del formato de visualización (DD/MM/YYYY) al formato de API (YYYY-MM-DD)
-                val fechaFormateada = fechaCompra?.let { DateUtils.formatForApi(DateUtils.parseDisplayDate(it)) }
+                val fechaFormateada = fechaCompra?.let {
+                    if (it.isBlank()) null
+                    else DateUtils.formatForApi(DateUtils.parseFullDisplayDate(it))
+                }
                 
                 // Si el nombre cambió, actualizar todos los registros relacionados
                 // Ahora usamos scooterId para encontrar los registros, así que solo necesitamos actualizar el nombre

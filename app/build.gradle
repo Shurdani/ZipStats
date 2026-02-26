@@ -23,8 +23,8 @@ android {
         applicationId "com.zipstats.app"
         minSdk 31
         targetSdk 34
-        versionCode 77
-        versionName "6.2.0"
+        versionCode 78
+        versionName "6.3.0"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -142,6 +142,7 @@ dependencies {
 
     // --- Hilt (actualizado y compatible con Kotlin 2.2.20) ---
     implementation "com.google.dagger:hilt-android:${libs.versions.hilt.get()}"
+    implementation libs.androidx.compose.material3
     ksp "com.google.dagger:hilt-compiler:${libs.versions.hilt.get()}"
     implementation libs.androidx.hilt.navigation.compose
 

@@ -25,7 +25,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import com.zipstats.app.ui.components.ZipStatsText
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -49,6 +48,7 @@ import com.zipstats.app.navigation.Screen
 import com.zipstats.app.ui.components.AnimatedFloatingActionButton
 import com.zipstats.app.ui.components.ExpandableCard
 import com.zipstats.app.ui.components.StandardDatePickerDialogWithValidation
+import com.zipstats.app.ui.components.ZipStatsText
 import com.zipstats.app.utils.DateUtils
 import kotlinx.coroutines.launch
 import java.time.LocalDate
@@ -82,6 +82,7 @@ fun ScootersManagementScreen(
                     )
                 }
             }
+
             else -> emptyList()
         }
     }
@@ -114,13 +115,13 @@ fun ScootersManagementScreen(
         modifier = Modifier.fillMaxSize(),
         topBar = {
             TopAppBar(
-                title = { 
+                title = {
                     ZipStatsText(
                         text = "Mis Vehículos",
                         style = MaterialTheme.typography.headlineSmall,
                         fontWeight = FontWeight.Bold,
                         maxLines = 1
-                    ) 
+                    )
                 },
                 navigationIcon = {
                     IconButton(onClick = { navController.navigateUp() }) {
@@ -235,7 +236,7 @@ fun ScooterManagementItem(
                         style = MaterialTheme.typography.headlineLarge
                     )
                 }
-                
+
                 Column(
                     verticalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
@@ -250,14 +251,18 @@ fun ScooterManagementItem(
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                     )
                     ZipStatsText(
-                        text = "${com.zipstats.app.utils.LocationUtils.formatNumberSpanish(scooterWithStats.totalKm)} km",
+                        text = "${
+                            com.zipstats.app.utils.LocationUtils.formatNumberSpanish(
+                                scooterWithStats.totalKm
+                            )
+                        } km",
                         style = MaterialTheme.typography.bodyLarge,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.primary
                     )
                 }
             }
-            
+
             Icon(
                 imageVector = Icons.Default.ChevronRight,
                 contentDescription = "Ver detalles",
@@ -279,6 +284,8 @@ fun AddScooterBottomSheet(
     var showDatePicker by remember { mutableStateOf(false) }
     var selectedDate by remember { mutableStateOf(LocalDate.now()) }
     var showError by remember { mutableStateOf(false) }
+    var matricula by remember { mutableStateOf("") }
+
 
     if (showDatePicker) {
         StandardDatePickerDialogWithValidation(
@@ -326,6 +333,13 @@ fun AddScooterBottomSheet(
             label = { ZipStatsText("Modelo") },
             singleLine = true,
             modifier = Modifier.fillMaxWidth()
+        )
+
+        OutlinedTextField(
+            value = matricula,
+            onValueChange = { matricula = it },
+            label = { ZipStatsText("Matrícula") },
+            singleLine = true
         )
 
         OutlinedTextField(
@@ -378,7 +392,10 @@ fun AddScooterBottomSheet(
                     contentColor = androidx.compose.material3.MaterialTheme.colorScheme.onPrimary
                 )
             ) {
-                ZipStatsText("Guardar", color = androidx.compose.material3.MaterialTheme.colorScheme.onPrimary)
+                ZipStatsText(
+                    "Guardar",
+                    color = androidx.compose.material3.MaterialTheme.colorScheme.onPrimary
+                )
             }
         }
     }

@@ -1,14 +1,14 @@
 package com.zipstats.app.repository
 
-import com.zipstats.app.model.Record
-import com.zipstats.app.model.Vehicle
-import com.zipstats.app.model.Scooter
-import com.zipstats.app.model.VehicleType
-import com.zipstats.app.utils.DateUtils
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreException
 import com.google.firebase.firestore.Query
+import com.zipstats.app.model.Record
+import com.zipstats.app.model.Scooter
+import com.zipstats.app.model.Vehicle
+import com.zipstats.app.model.VehicleType
+import com.zipstats.app.utils.DateUtils
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
@@ -83,7 +83,9 @@ class VehicleRepository @Inject constructor(
                             fechaCompra = data["fechaCompra"] as? String ?: "",
                             userId = data["userId"] as? String ?: "",
                             velocidadMaxima = (data["velocidadMaxima"] as? Number)?.toDouble() ?: 0.0,
-                            vehicleType = vehicleType
+                            vehicleType = vehicleType,
+                            matricula = data["matricula"] as? String // o ?: "" si quieres valor por defecto
+
                         )
                     } ?: emptyList()
 
@@ -218,7 +220,8 @@ class VehicleRepository @Inject constructor(
         marca: String, 
         modelo: String, 
         fechaCompra: String?,
-        vehicleType: VehicleType = VehicleType.PATINETE
+        vehicleType: VehicleType = VehicleType.PATINETE,
+        matricula: String?
     ) {
         val userId = auth.currentUser?.uid ?: throw Exception("Usuario no autenticado")
         
@@ -231,7 +234,8 @@ class VehicleRepository @Inject constructor(
             "modelo" to modelo,
             "fechaCompra" to fechaFinal,
             "userId" to userId,
-            "vehicleType" to vehicleType.name
+            "vehicleType" to vehicleType.name,
+            "matricula" to matricula // <- aquí añadimos la matrícula
         )
 
         // Crear el vehículo
@@ -260,35 +264,31 @@ class VehicleRepository @Inject constructor(
     }
     
     // Alias para compatibilidad
-    suspend fun addScooter(nombre: String, marca: String, modelo: String, fechaCompra: String?) {
-        addVehicle(nombre, marca, modelo, fechaCompra, VehicleType.PATINETE)
+    suspend fun addScooter(nombre: String, marca: String, modelo: String, fechaCompra: String?, matricula: String?) {
+        addVehicle(nombre, marca, modelo, fechaCompra, matricula = matricula, vehicleType = VehicleType.PATINETE)
     }
 
     suspend fun updateVehicle(vehicle: Vehicle): Result<Unit> {
         return try {
             val userId = auth.currentUser?.uid ?: throw Exception("Usuario no autenticado")
-            
+
             val existingVehicle = vehiclesCollection.document(vehicle.id).get().await()
             if (existingVehicle.getString("userId") != userId) {
                 throw Exception("No tienes permiso para actualizar este vehículo")
             }
-            
-            val vehicleData = hashMapOf(
-                "nombre" to vehicle.nombre,
-                "marca" to vehicle.marca,
-                "modelo" to vehicle.modelo,
-                "fechaCompra" to vehicle.fechaCompra,
-                "userId" to userId,
-                "vehicleType" to vehicle.vehicleType.name
-            )
-            
-            vehiclesCollection.document(vehicle.id).set(vehicleData).await()
+
+            // Guardamos el objeto completo usando merge(), así no se crean duplicados
+            vehiclesCollection
+                .document(vehicle.id)
+                .set(vehicle, com.google.firebase.firestore.SetOptions.merge())
+                .await()
+
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
         }
     }
-    
+
     // Alias para compatibilidad
     suspend fun updateScooter(scooter: Scooter): Result<Unit> = updateVehicle(scooter)
 
@@ -354,7 +354,8 @@ class VehicleRepository @Inject constructor(
                     fechaCompra = data["fechaCompra"] as? String ?: "",
                     userId = data["userId"] as? String ?: "",
                     velocidadMaxima = (data["velocidadMaxima"] as? Number)?.toDouble() ?: 0.0,
-                    vehicleType = vehicleType
+                    vehicleType = vehicleType,
+                    matricula = data["matricula"] as? String ?: ""
                 )
             }
     }

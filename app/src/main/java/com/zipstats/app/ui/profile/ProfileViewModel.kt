@@ -542,7 +542,14 @@ class ProfileViewModel @Inject constructor(
     // loadUserScooters ya no es necesaria porque observeVehicles maneja la carga automática
     // Se elimina para evitar código muerto y confusión.
 
-    fun addScooter(nombre: String, marca: String, modelo: String, fechaCompra: String?, vehicleType: com.zipstats.app.model.VehicleType = com.zipstats.app.model.VehicleType.PATINETE) {
+    fun addScooter(
+        nombre: String,
+        marca: String,
+        modelo: String,
+        fechaCompra: String?,
+        vehicleType: com.zipstats.app.model.VehicleType = com.zipstats.app.model.VehicleType.PATINETE,
+        matricula: String? = null
+    ) {
         viewModelScope.launch {
             try {
                 // Convertir la fecha del formato de visualización (DD/MM/YYYY) al formato de API (YYYY-MM-DD)
@@ -556,7 +563,8 @@ class ProfileViewModel @Inject constructor(
                     marca = marca,
                     modelo = modelo,
                     fechaCompra = fechaFormateada,
-                    vehicleType = vehicleType
+                    vehicleType = vehicleType,
+                    matricula = matricula
                 )
                 
                 // No necesitamos llamar a loadUserScooters() porque el Flow
@@ -578,7 +586,7 @@ class ProfileViewModel @Inject constructor(
         }
     }
 
-    fun updateScooter(scooterId: String, nombre: String, marca: String, modelo: String, fechaCompra: String?) {
+    fun updateScooter(scooterId: String, nombre: String, marca: String, modelo: String, fechaCompra: String?,  matricula: String?) {
         viewModelScope.launch {
             try {
                 // Obtener el scooter actual
@@ -632,7 +640,8 @@ class ProfileViewModel @Inject constructor(
                     nombre = nombre,
                     marca = marca,
                     modelo = modelo,
-                    fechaCompra = fechaFormateada ?: currentScooter.fechaCompra
+                    fechaCompra = fechaFormateada ?: currentScooter.fechaCompra,
+                    matricula = matricula ?: currentScooter.matricula
                 )
                 
                 vehicleRepository.updateScooter(updatedScooter)

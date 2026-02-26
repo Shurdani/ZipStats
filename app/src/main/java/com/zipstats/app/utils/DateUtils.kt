@@ -50,7 +50,7 @@ object DateUtils {
     fun parseApiDate(dateStr: String): LocalDate = LocalDate.parse(dateStr, apiDateFormatter)
     // Funciones para el formato de visualización
     fun formatForDisplay(date: LocalDate): String = date.format(dateFormatter)
-    
+
     fun formatForDisplayWithTime(timestampMs: Long): String {
         val dateTime = java.time.Instant.ofEpochMilli(timestampMs)
             .atZone(ZoneId.systemDefault())
@@ -74,6 +74,17 @@ object DateUtils {
             date == today -> "Hoy, $time"
             date == today.minusDays(1) -> "Ayer, $time"
             else -> dateTime.format(dateTimeFormatter)
+        }
+    }
+
+    fun formatYear(dateStr: String?): String {
+        if (dateStr.isNullOrBlank()) return "-"
+        return try {
+            // Reutilizamos el parseo que ya tienes definido
+            val date = LocalDate.parse(dateStr, apiDateFormatter)
+            date.year.toString()
+        } catch (e: Exception) {
+            "-"
         }
     }
     

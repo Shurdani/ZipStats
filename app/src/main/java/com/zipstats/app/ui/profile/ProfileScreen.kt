@@ -8,7 +8,6 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -59,10 +58,10 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
-import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -70,10 +69,9 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
-import androidx.compose.material3.rememberModalBottomSheetState
-import com.zipstats.app.ui.components.ZipStatsText
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -92,8 +90,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import java.util.Locale
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
@@ -105,10 +101,9 @@ import com.zipstats.app.navigation.Screen
 import com.zipstats.app.ui.components.AnimatedFloatingActionButton
 import com.zipstats.app.ui.components.AnimatedIconButton
 import com.zipstats.app.ui.components.DialogCancelButton
-import com.zipstats.app.ui.components.DialogConfirmButton
 import com.zipstats.app.ui.components.DialogOptionButton
-import com.zipstats.app.ui.components.ExpandableCard
 import com.zipstats.app.ui.components.StandardDatePickerDialogWithValidation
+import com.zipstats.app.ui.components.ZipStatsText
 import com.zipstats.app.ui.profile.components.AvatarSelectionDialog
 import com.zipstats.app.ui.theme.DialogShape
 import com.zipstats.app.ui.theme.ThemeMode
@@ -286,8 +281,15 @@ fun ProfileScreen(
                         showAddScooterDialog = false
                     }
                 },
-                onConfirm = { nombre, marca, modelo, fechaCompra, vehicleType ->
-                    viewModel.addScooter(nombre, marca, modelo, fechaCompra, vehicleType)
+                onConfirm = { nombre, marca, modelo, fechaCompra, vehicleType, matricula ->
+                    viewModel.addScooter(
+                        nombre = nombre,
+                        marca = marca,
+                        modelo = modelo,
+                        fechaCompra = fechaCompra,
+                        vehicleType = vehicleType,
+                        matricula = matricula
+                    )
                     scope.launch {
                         addScooterSheetState.hide()
                         showAddScooterDialog = false
@@ -796,7 +798,7 @@ fun AvatarSelectionDialog(
 @Composable
 fun AddScooterBottomSheet(
     onDismiss: () -> Unit,
-    onConfirm: (String, String, String, String, VehicleType) -> Unit
+    onConfirm: (String, String, String, String, VehicleType, String?) -> Unit
 ) {
     var nombre by remember { mutableStateOf("") }
     var marca by remember { mutableStateOf("") }
@@ -807,6 +809,8 @@ fun AddScooterBottomSheet(
     var selectedDate by remember { mutableStateOf(LocalDate.now()) }
     var fechaTexto by remember { mutableStateOf(DateUtils.formatForDisplay(selectedDate)) }
     var fechaError by remember { mutableStateOf<String?>(null) }
+    var matricula by remember { mutableStateOf("") }
+
 
     LaunchedEffect(selectedDate) {
         fechaTexto = DateUtils.formatForDisplay(selectedDate)
@@ -910,6 +914,13 @@ fun AddScooterBottomSheet(
             modifier = Modifier.fillMaxWidth()
         )
         OutlinedTextField(
+            value = matricula,
+            onValueChange = { matricula = it },
+            label = { ZipStatsText("Matrícula") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth()
+        )
+        OutlinedTextField(
             value = fechaTexto,
             onValueChange = { },
             label = { ZipStatsText("Fecha de compra") },
@@ -943,7 +954,14 @@ fun AddScooterBottomSheet(
             val isEnabled = nombre.isNotBlank() && marca.isNotBlank() && modelo.isNotBlank()
             Button(
                 onClick = {
-                    onConfirm(nombre, marca, modelo, fechaTexto, selectedVehicleType)
+                    onConfirm(
+                        nombre,
+                        marca,
+                        modelo,
+                        fechaTexto,
+                        selectedVehicleType,
+                        matricula.ifBlank { null }
+                    )
                 },
                 modifier = Modifier.weight(1f),
                 enabled = isEnabled,

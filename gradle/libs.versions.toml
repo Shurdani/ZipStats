@@ -37,6 +37,7 @@ playServicesLocation = "21.3.0"
 playServicesAuth = "21.3.0"
 mapboxMaps = "11.8.0"
 mapboxSdk = "7.9.0"
+material3 = "1.4.0"
 
 [libraries]
 androidx-activity-ktx = { module = "androidx.activity:activity-ktx", version.ref = "activityKtx" }
@@ -85,6 +86,7 @@ mapbox-sdk-services = { module = "com.mapbox.mapboxsdk:mapbox-sdk-services", ver
 mapbox-sdk-turf = { module = "com.mapbox.mapboxsdk:mapbox-sdk-turf", version.ref = "mapboxSdk" }
 mapbox-sdk-core = { module = "com.mapbox.mapboxsdk:mapbox-sdk-core", version.ref = "mapboxSdk" }
 firebase-bom = { module = "com.google.firebase:firebase-bom", version.ref = "firebaseBom" }
+androidx-compose-material3 = { group = "androidx.compose.material3", name = "material3", version.ref = "material3" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

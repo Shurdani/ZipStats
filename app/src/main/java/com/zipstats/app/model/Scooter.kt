@@ -14,7 +14,8 @@ data class Vehicle(
     val userId: String = "",
     val velocidadMaxima: Double = 0.0,
     val vehicleType: VehicleType = VehicleType.PATINETE, // Tipo de vehículo
-    val kilometrajeActual: Double? = null // Campo calculado, no se guarda en Firestore
+    val kilometrajeActual: Double? = null, // Campo calculado, no se guarda en Firestore
+    val matricula: String? = null
 )
 
 // Alias para mantener compatibilidad con código existente

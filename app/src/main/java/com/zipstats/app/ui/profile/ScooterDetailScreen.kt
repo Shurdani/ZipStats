@@ -1,5 +1,6 @@
 package com.zipstats.app.ui.profile
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -21,6 +22,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Label
+import androidx.compose.material.icons.filled.Badge
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Delete
@@ -38,6 +40,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -48,6 +51,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.VerticalDivider
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -239,12 +243,19 @@ fun ScooterDetailScreen(
                         showEditDialog = false
                     }
                 },
-                onConfirm = { nombre, marca, modelo, fecha ->
+                onConfirm = { nombre, marca, modelo, fechaCompra, matricula ->
                     scope.launch {
-                        viewModel.updateScooter(scooter.id, nombre, marca, modelo, fecha)
+                        viewModel.updateScooter(
+                            scooter.id,
+                            nombre,
+                            marca,
+                            modelo,
+                            fechaCompra,
+                            matricula
+                        )
                         // Esperar un momento para que se actualice el estado
                         kotlinx.coroutines.delay(300)
-                        // Recargar los datos usando scooterId (permanente, no cambia con el nombre)
+                        // Recargar datos si es necesario
                         lastRepair = viewModel.getLastRepair(scooterId)
                         lastRecord = viewModel.getLastRecord(scooterId = scooterId, vehicleName = nombre)
                         usagePercentage = viewModel.getVehicleUsagePercentage(scooterId = scooterId, vehicleName = nombre)
@@ -597,33 +608,70 @@ fun VehicleSpecsSection(scooter: Scooter) {
             text = "Información Técnica",
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.padding(start = 4.dp, bottom = 12.dp)
         )
 
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            shape = RoundedCornerShape(16.dp),
-            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+            shape = RoundedCornerShape(20.dp), // Esquinas ligeramente más orgánicas
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
         ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                SpecItem(Icons.AutoMirrored.Filled.Label, "Marca", scooter.marca)
-                VerticalDivider()
-                SpecItem(Icons.Default.Info, "Modelo", scooter.modelo)
-                VerticalDivider()
+            Column(modifier = Modifier.padding(vertical = 16.dp)) {
+                // Fila Superior: Los 3 datos fijos
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    SpecItem(Icons.AutoMirrored.Filled.Label, "Marca", scooter.marca, Modifier.weight(1f))
+                    VerticalDivider(modifier = Modifier.height(30.dp), thickness = 1.dp, color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                    SpecItem(Icons.Default.Info, "Modelo", scooter.modelo, Modifier.weight(1f))
+                    VerticalDivider(modifier = Modifier.height(30.dp), thickness = 1.dp, color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                    SpecItem(Icons.Default.CalendarMonth, "Año", DateUtils.formatYear(scooter.fechaCompra), Modifier.weight(1f))
+                }
 
-                // --- CAMBIO AQUÍ: Formateamos la fecha antes de mostrarla ---
-                SpecItem(
-                    Icons.Default.CalendarMonth,
-                    "Adquirido",
-                    DateUtils.formatFullDisplayDate(scooter.fechaCompra)
-                )
+                // Sección Matrícula: Solo si existe
+                if (!scooter.matricula.isNullOrBlank()) {
+                    HorizontalDivider(
+                        modifier = Modifier.padding(top = 16.dp, bottom = 12.dp).padding(horizontal = 24.dp),
+                        thickness = 0.5.dp,
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                    )
+
+                    // Aquí le damos un diseño más de "Identificación"
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp)
+                            .background(
+                                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                                RoundedCornerShape(12.dp)
+                            )
+                            .padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        Icon(
+                            Icons.Default.Badge,
+                            contentDescription = null,
+                            modifier = Modifier.size(20.dp),
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            text = "MATRÍCULA: ",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = scooter.matricula!!.uppercase(),
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                }
             }
         }
     }
@@ -640,8 +688,16 @@ fun VerticalDivider() {
 }
 
 @Composable
-fun SpecItem(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, value: String) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+fun SpecItem(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    value: String,
+    modifier: Modifier = Modifier // <--- Añadimos esto
+) {
+    Column(
+        modifier = modifier, // <--- Lo aplicamos aquí
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
         Box(
             modifier = Modifier
                 .size(40.dp)
@@ -780,11 +836,12 @@ fun MaintenanceSection(
 fun EditScooterBottomSheet(
     scooter: Scooter,
     onDismiss: () -> Unit,
-    onConfirm: (String, String, String, String) -> Unit
+    onConfirm: (String, String, String, String, String) -> Unit
 ) {
     var nombre by remember { mutableStateOf(scooter.nombre) }
     var marca by remember { mutableStateOf(scooter.marca) }
     var modelo by remember { mutableStateOf(scooter.modelo) }
+    var matricula by remember { mutableStateOf(scooter.matricula ?: "") }
 
     // Parsear fecha para el picker
     var selectedDate by remember {
@@ -855,6 +912,15 @@ fun EditScooterBottomSheet(
             singleLine = true,
             modifier = Modifier.fillMaxWidth()
         )
+
+        OutlinedTextField(
+            value = matricula,
+            onValueChange = { matricula = it },
+            label = { ZipStatsText("Matrícula") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth()
+        )
+
         OutlinedTextField(
             value = fechaTexto,
             onValueChange = { },
@@ -889,7 +955,8 @@ fun EditScooterBottomSheet(
             val isEnabled = nombre.isNotBlank() && marca.isNotBlank() && modelo.isNotBlank()
             Button(
                 onClick = {
-                    onConfirm(nombre, marca, modelo, fechaTexto)
+                    onConfirm(nombre, marca, modelo, fechaTexto, matricula)
+
                 },
                 modifier = Modifier.weight(1f),
                 enabled = isEnabled,

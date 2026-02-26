@@ -419,9 +419,7 @@ fun AccountSettingsScreen(
 
             // 4. ZONA DE PELIGRO (Acciones destructivas separadas)
             SettingsGroup(
-                title = "Zona de peligro",
-                containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.1f)
-            ) {
+                title = "Zona de peligro") {
                 SettingsNavigationRow(
                     title = "Cerrar sesión",
                     icon = Icons.AutoMirrored.Filled.Logout,

@@ -843,33 +843,38 @@ fun EditScooterBottomSheet(
     var modelo by remember { mutableStateOf(scooter.modelo) }
     var matricula by remember { mutableStateOf(scooter.matricula ?: "") }
 
-    // Parsear fecha para el picker
+    // 1. Mejoramos el parseo inicial
     var selectedDate by remember {
         mutableStateOf(
             try {
-                if (!scooter.fechaCompra.isNullOrBlank()) DateUtils.parseDisplayDate(scooter.fechaCompra)
-                else LocalDate.now()
+                if (!scooter.fechaCompra.isNullOrBlank()) {
+                    // Intenta parsear el formato que viene de la base de datos (API)
+                    DateUtils.parseApiDate(scooter.fechaCompra)
+                } else {
+                    LocalDate.now()
+                }
             } catch (e: Exception) {
-                LocalDate.now()
+                // Si falla, intenta el de display por si acaso
+                try { DateUtils.parseFullDisplayDate(scooter.fechaCompra!!) }
+                catch (e2: Exception) { LocalDate.now() }
             }
         )
     }
 
-    var fechaTexto by remember { mutableStateOf(scooter.fechaCompra ?: "") }
+    var fechaTexto by remember {
+        mutableStateOf(DateUtils.formatFullDisplayDate(scooter.fechaCompra))
+    }
     var showDatePicker by remember { mutableStateOf(false) }
 
-    LaunchedEffect(selectedDate) {
-        // Cambiamos formatForDisplay por formatFullDisplayDate
-        fechaTexto = DateUtils.formatFullDisplayDate(selectedDate)
-    }
 
     if (showDatePicker) {
         StandardDatePickerDialogWithValidation(
             selectedDate = selectedDate,
-            onDateSelected = {
-                selectedDate = it
-                // Al seleccionar, se cerrará el diálogo y el LaunchedEffect
-                // actualizará fechaTexto automáticamente
+            onDateSelected = { date ->
+                selectedDate = date
+                // ACTUALIZACIÓN MANUAL: Solo ocurre cuando el usuario toca el calendario
+                fechaTexto = DateUtils.formatFullDisplayDate(date)
+                showDatePicker = false
             },
             onDismiss = { showDatePicker = false },
             title = "Fecha de compra",

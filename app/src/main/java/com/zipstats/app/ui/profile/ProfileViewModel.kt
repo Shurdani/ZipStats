@@ -636,11 +636,20 @@ class ProfileViewModel @Inject constructor(
                 }
                 
                 // Crear el scooter actualizado manteniendo los campos que no se editan
+
+                Log.d("ScooterDebug", "Fecha UI: $fechaCompra")
+                Log.d("ScooterDebug", "Fecha actual DB: ${currentScooter.fechaCompra}")
+                Log.d("ScooterDebug", "Fecha formateada: $fechaFormateada")
+
                 val updatedScooter = currentScooter.copy(
                     nombre = nombre,
                     marca = marca,
                     modelo = modelo,
-                    fechaCompra = fechaFormateada ?: currentScooter.fechaCompra,
+                    fechaCompra = if (fechaFormateada != null && fechaFormateada != currentScooter.fechaCompra) {
+                        fechaFormateada
+                    } else {
+                        currentScooter.fechaCompra
+                    },
                     matricula = matricula ?: currentScooter.matricula
                 )
                 

@@ -576,7 +576,7 @@ class StatisticsViewModel @Inject constructor(
         }
 
         lines.add("")
-        lines.add("#ZipStats 🛴")
+        lines.add("#ZipStats")
 
         return lines.joinToString("\n")
     }
@@ -631,7 +631,7 @@ class StatisticsViewModel @Inject constructor(
         }
 
         lines.add("")
-        lines.add("#ZipStats 🛴")
+        lines.add("#ZipStats")
 
         return lines.joinToString("\n")
     }

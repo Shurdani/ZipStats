@@ -1,6 +1,5 @@
 package com.zipstats.app.ui.routes
 
-import androidx.annotation.DrawableRes
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Image
@@ -787,7 +786,7 @@ fun SafetyBadgesSection(route: Route) {
                 ) {
                     val badges = remember(hadRain, hasWetRoad, extremeBadgeText) {
                         mutableListOf<String>().apply {
-                            if (hadRain) add("🔵 Trayecto con lluvia")
+                            if (hadRain) add("🔵 Llovio durante la ruta")
                             if (hasWetRoad) add("🟡 Calzada húmeda")
                             if (extremeBadgeText != null) add(extremeBadgeText)
                         }
@@ -813,7 +812,7 @@ fun SafetyBadgesSection(route: Route) {
         } else {
             // Si hay solo 1 badge, mostrar tarjeta individual
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (hadRain) SafetyBadge("🔵 Trayecto con lluvia")
+                if (hadRain) SafetyBadge("🔵 Llovio durante la ruta")
                 if (hasWetRoad) SafetyBadge("🟡 Calzada húmeda")
                 if (extremeBadgeText != null) SafetyBadge(extremeBadgeText)
             }
@@ -1371,7 +1370,7 @@ private fun WeatherInfoDialog(route: Route, onDismiss: () -> Unit) {
                                 ) {
                                     val badges = remember(hadRain, hasWetRoad, extremeBadgeText) {
                                         mutableListOf<String>().apply {
-                                            if (hadRain) add("🔵 Trayecto con lluvia")
+                                            if (hadRain) add("🔵 Llovio durante la ruta")
                                             if (hasWetRoad) add("🟡 Calzada húmeda")
                                             if (extremeBadgeText != null) add(extremeBadgeText)
                                         }
@@ -1398,7 +1397,7 @@ private fun WeatherInfoDialog(route: Route, onDismiss: () -> Unit) {
                             // Si hay solo 1 badge, mostrar tarjeta individual
                             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                 if (hadRain) {
-                                    SafetyBadge(text = "🔵 Trayecto con lluvia")
+                                    SafetyBadge(text = "🔵 Llovio durante la ruta")
                                 }
                                 if (hasWetRoad) {
                                     SafetyBadge(text = "🟡 Calzada húmeda")

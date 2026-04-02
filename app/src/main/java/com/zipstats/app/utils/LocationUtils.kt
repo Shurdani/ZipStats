@@ -303,6 +303,54 @@ object LocationUtils {
             }
         }
     }
+
+    /**
+     * Convierte un número con formato "es-ES" a Double.
+     * Soporta:
+     * - "1.234,5"  -> 1234.5
+     * - "1250.5"   -> 1250.5
+     * - "1.234"     -> 1234
+     */
+    fun parseNumberSpanish(input: String): Double? {
+        val raw = input.trim()
+        if (raw.isEmpty()) return null
+
+        // Quitar espacios (por si el IME añade separadores raros)
+        val s = raw.replace("\\s".toRegex(), "")
+
+        val lastComma = s.lastIndexOf(',')
+        val lastDot = s.lastIndexOf('.')
+        val dotCount = s.count { it == '.' }
+
+        val normalized = when {
+            lastComma != -1 && lastDot != -1 -> {
+                if (lastComma > lastDot) {
+                    // "1.234,5" (decimal coma)
+                    s.replace(".", "").replace(',', '.')
+                } else {
+                    // "1,234.5" (decimal punto)
+                    s.replace(",", "")
+                }
+            }
+            lastComma != -1 -> {
+                // Decimal coma, quitar miles si hubiera
+                s.replace(".", "").replace(',', '.')
+            }
+            lastDot != -1 -> {
+                // Si solo hay un punto y justo hay 3 dígitos al final, interpretarlo como miles ("1.234")
+                val digitsAfterLastDot = s.length - lastDot - 1
+                if (dotCount == 1 && digitsAfterLastDot == 3) {
+                    s.replace(".", "")
+                } else {
+                    // Decimal punto ("1250.5") -> dejar tal cual
+                    s
+                }
+            }
+            else -> s
+        }
+
+        return normalized.toDoubleOrNull()
+    }
     
     /**
      * Crea un RoutePoint desde un Location de Android

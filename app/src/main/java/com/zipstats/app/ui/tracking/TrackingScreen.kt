@@ -500,7 +500,9 @@ fun PreRideSmartWarning(
         enter = fadeIn() + expandVertically(),
         exit = fadeOut() + shrinkVertically()
     ) {
-        Column(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)) {
+        Column(modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 16.dp)) {
             if (badgeCount >= 2) {
                 // Si hay 2 o más badges, agruparlos en una sola tarjeta
                 Surface(
@@ -591,7 +593,9 @@ fun getVehicleIcon(vehicleType: VehicleType): Painter {
 @Composable
 fun PermissionRequestCard(onRequestPermissions: () -> Unit) {
     Card(
-        modifier = Modifier.fillMaxWidth().padding(16.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
     ) {
         Column(
@@ -649,7 +653,9 @@ fun IdleStateContent(
     onFetchWeather: () -> Unit
 ) {
     Column(
-        modifier = Modifier.fillMaxWidth().padding(top = 32.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 32.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         // Icono GPS con pulso sutil si está listo
@@ -970,9 +976,9 @@ fun TrackingActiveContent(
         // 4. CONTROLES INTEGRADOS
         if (isSaving) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                CircularProgressIndicator()
+                CircularProgressIndicator(color = Color.Black)
                 Spacer(modifier = Modifier.height(16.dp))
-                ZipStatsText("Guardando ruta...", style = MaterialTheme.typography.bodyMedium)
+                ZipStatsText("Guardando ruta...", style = MaterialTheme.typography.bodyMedium, color = Color.Black)
             }
         } else {
             AnimatedContent(
@@ -982,7 +988,9 @@ fun TrackingActiveContent(
                 if (paused) {
                     // --- MODO PAUSADO (Gestión) ---
                     Row(
-                        modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 24.dp),
                         horizontalArrangement = Arrangement.SpaceEvenly,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -1185,16 +1193,20 @@ fun TrackingWeatherCard(
         exit = fadeOut() + shrinkVertically()
     ) {
         Card(
-            modifier = Modifier.fillMaxWidth().clickable(
-                interactionSource = weatherClickInteractionSource,
-                indication = null,
-                onClick = onFetchWeatherClick
-            ),
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(
+                    interactionSource = weatherClickInteractionSource,
+                    indication = null,
+                    onClick = onFetchWeatherClick
+                ),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
             shape = RoundedCornerShape(16.dp)
         ) {
             Row(
-                modifier = Modifier.padding(12.dp).fillMaxWidth(),
+                modifier = Modifier
+                    .padding(12.dp)
+                    .fillMaxWidth(),
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically
             ) {

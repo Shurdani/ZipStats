@@ -16,6 +16,7 @@ import com.zipstats.app.model.Scooter
 import com.zipstats.app.repository.RecordRepository
 import com.zipstats.app.repository.VehicleRepository
 import com.zipstats.app.utils.ExcelExporter
+import com.zipstats.app.utils.LocationUtils
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
@@ -221,8 +222,8 @@ class RecordsViewModel @Inject constructor(
     fun addRecord(patinete: String, kilometraje: String, fecha: String) {
         viewModelScope.launch {
             try {
-                val kmString = kilometraje.replace(",", ".").trim()
-                val kmDouble = kmString.toDoubleOrNull() ?: throw Exception("El kilometraje debe ser un número válido")
+                val kmDouble = LocationUtils.parseNumberSpanish(kilometraje)
+                    ?: throw Exception("El kilometraje debe ser un número válido")
 
                 recordRepository.addRecord(
                     vehiculo = patinete,
@@ -255,6 +256,9 @@ class RecordsViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 recordRepository.updateRecord(record)
+                    .onFailure { e ->
+                        _errorMessage.value = e.message ?: "Error al actualizar el registro"
+                    }
             } catch (e: Exception) {
                 _errorMessage.value = e.message
             }
@@ -264,8 +268,8 @@ class RecordsViewModel @Inject constructor(
     fun updateRecord(recordId: String, patinete: String, kilometraje: String, fecha: String) {
         viewModelScope.launch {
             try {
-                val kmString = kilometraje.replace(",", ".").trim()
-                val kmDouble = kmString.toDoubleOrNull() ?: throw Exception("Kilometraje inválido")
+                val kmDouble = LocationUtils.parseNumberSpanish(kilometraje)
+                    ?: throw Exception("Kilometraje inválido")
 
                 val diferencia = calculateDifference(patinete, kmDouble, fecha)
 
@@ -284,7 +288,12 @@ class RecordsViewModel @Inject constructor(
                 )
 
                 recordRepository.updateRecord(updatedRecord)
-                achievementsService.checkAndNotifyNewAchievements()
+                    .onSuccess {
+                        achievementsService.checkAndNotifyNewAchievements()
+                    }
+                    .onFailure { e ->
+                        _errorMessage.value = e.message ?: "Error al actualizar el registro"
+                    }
 
             } catch (e: Exception) {
                 _errorMessage.value = e.message

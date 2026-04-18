@@ -38,6 +38,7 @@ fun PermissionsDialog(
         onDismissRequest = onDismiss,
         title = {
             Row(
+                modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
@@ -50,7 +51,9 @@ fun PermissionsDialog(
                 ZipStatsText(
                     text = "Permisos necesarios",
                     style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.weight(1f),
+                    maxLines = Int.MAX_VALUE
                 )
             }
         },
@@ -63,7 +66,8 @@ fun PermissionsDialog(
                 ZipStatsText(
                     text = "Para que la app funcione correctamente, necesitamos los siguientes permisos:",
                     style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.padding(bottom = 8.dp)
+                    modifier = Modifier.padding(bottom = 8.dp),
+                    maxLines = Int.MAX_VALUE
                 )
                 
                 // Mostrar nota sobre permisos opcionales
@@ -73,7 +77,8 @@ fun PermissionsDialog(
                         text = "Nota: Los permisos marcados como opcionales se solicitarán cuando los necesites (por ejemplo, al guardar un vídeo de ruta).",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-                        modifier = Modifier.padding(bottom = 16.dp)
+                        modifier = Modifier.padding(bottom = 16.dp),
+                        maxLines = Int.MAX_VALUE
                     )
                 }
 
@@ -92,27 +97,20 @@ fun PermissionsDialog(
                             modifier = Modifier.size(24.dp)
                         )
                         Column(modifier = Modifier.weight(1f)) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
-                            ) {
-                                ZipStatsText(
-                                    text = getPermissionShortName(permission.permission),
-                                    style = MaterialTheme.typography.titleSmall,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                if (!permission.isRequired) {
-                                    ZipStatsText(
-                                        text = "(Opcional)",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                                    )
-                                }
-                            }
+                            ZipStatsText(
+                                text = buildPermissionTitleLine(
+                                    permission.permission,
+                                    permission.isRequired
+                                ),
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = Int.MAX_VALUE
+                            )
                             ZipStatsText(
                                 text = permission.description,
                                 style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                                maxLines = Int.MAX_VALUE
                             )
                             // Nota especial para MediaProjection
                             if (permission.permission.contains("MEDIA_PROJECTION")) {
@@ -120,7 +118,8 @@ fun PermissionsDialog(
                                     text = "Este permiso se solicitará cuando pulses el botón 'Descargar' en una animación de ruta.",
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f),
-                                    modifier = Modifier.padding(top = 4.dp)
+                                    modifier = Modifier.padding(top = 4.dp),
+                                    maxLines = Int.MAX_VALUE
                                 )
                             }
                         }
@@ -174,4 +173,9 @@ private fun getPermissionShortName(permission: String): String {
         permission.contains("MEDIA_PROJECTION") -> "Grabación de pantalla"
         else -> "Permiso"
     }
+}
+
+private fun buildPermissionTitleLine(permission: String, isRequired: Boolean): String {
+    val name = getPermissionShortName(permission)
+    return if (!isRequired) "$name (Opcional)" else name
 }

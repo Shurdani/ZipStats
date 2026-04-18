@@ -204,14 +204,10 @@ fun TrackingScreen(
     // Este flag manda más que cualquier estado del ViewModel
     var isClosing by rememberSaveable { mutableStateOf(false) }
     
-    // Flag para garantizar que el pre-GPS solo se inicia una vez al entrar a la pantalla
-    var hasStartedPreGps by rememberSaveable { mutableStateOf(false) }
-
-    // Pre-GPS solo se inicia una vez al entrar a la pantalla
-    // Patrón determinista: efecto de entrada, no de estado
-    LaunchedEffect(hasAllRequiredPermissions) {
-        if (hasAllRequiredPermissions && !hasStartedPreGps) {
-            hasStartedPreGps = true
+    // Reiniciar pre-GPS al entrar/reentrar si estamos en precarga (Idle).
+    // `startPreLocationTracking()` ya es idempotente y evita dobles inicios.
+    LaunchedEffect(hasAllRequiredPermissions, trackingState) {
+        if (hasAllRequiredPermissions && trackingState is TrackingState.Idle) {
             viewModel.startPreLocationTracking()
         }
     }
@@ -1874,14 +1870,23 @@ private fun getHumorousGpsTitle(
             phrases.random()
         }
 
-        is TrackingViewModel.GpsPreLocationState.Found,
-        is TrackingViewModel.GpsPreLocationState.Ready -> {
-            // Frase de éxito específica
+        is TrackingViewModel.GpsPreLocationState.Found -> {
+            // Estado intermedio: hay señal, pero aún no está fina o no se ha iniciado.
             when {
-                isBike -> "¡Cadena lista! A pedalear"
-                isScooter -> "¡Batería lista! A volar"
-                isUnicycle -> "¡Equilibrio OK! A rodar"
-                else -> "¡GPS fijado! Vamos allá"
+                isBike -> "Señal detectada. Ajustando ruta para tu bici..."
+                isScooter -> "Señal detectada. Preparando despegue..."
+                isUnicycle -> "Señal detectada. Afinando el equilibrio..."
+                else -> "Señal detectada. Ajustando precisión..."
+            }
+        }
+
+        is TrackingViewModel.GpsPreLocationState.Ready -> {
+            // Importante: no mostrar mensaje de éxito final aquí; aún no se ha pulsado iniciar.
+            when {
+                isBike -> "GPS listo. Pulsa \"Iniciar seguimiento\" para pedalear"
+                isScooter -> "GPS listo. Pulsa \"Iniciar seguimiento\" para arrancar"
+                isUnicycle -> "GPS listo. Pulsa \"Iniciar seguimiento\" para rodar"
+                else -> "GPS listo. Pulsa \"Iniciar seguimiento\""
             }
         }
     }

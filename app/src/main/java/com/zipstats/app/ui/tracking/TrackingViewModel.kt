@@ -478,18 +478,19 @@ class TrackingViewModel @Inject constructor(
         viewModelScope.launch {
             scooterRepository.getScooters().collect { scootersList ->
                 _scooters.value = scootersList
-                
-                // Auto-seleccionar vehículo
-                if (_selectedScooter.value == null && scootersList.isNotEmpty()) {
-                    // Intentar cargar el último vehículo usado
+
+                val currentSelectedId = _selectedScooter.value?.id
+                val selectedStillExists = currentSelectedId != null &&
+                        scootersList.any { it.id == currentSelectedId }
+
+                // Si no hay selección o quedó inválida tras recargar datos, reconciliar selección.
+                if (!selectedStillExists) {
                     val lastUsedScooterId = loadLastUsedScooter()
                     val scooterToSelect = if (lastUsedScooterId != null) {
                         scootersList.find { it.id == lastUsedScooterId }
                     } else {
                         null
                     }
-                    
-                    // Si no hay último usado o no existe, seleccionar el primero
                     _selectedScooter.value = scooterToSelect ?: scootersList.firstOrNull()
                 }
             }

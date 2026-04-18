@@ -105,6 +105,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.zipstats.app.R
 import com.zipstats.app.di.AppOverlayRepositoryEntryPoint
 import com.zipstats.app.model.Scooter
@@ -119,6 +122,7 @@ import com.zipstats.app.ui.shared.AppOverlayState
 import com.zipstats.app.ui.theme.DialogShape
 import com.zipstats.app.utils.LocationUtils
 import dagger.hilt.android.EntryPointAccessors
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
@@ -204,13 +208,41 @@ fun TrackingScreen(
     // Este flag manda más que cualquier estado del ViewModel
     var isClosing by rememberSaveable { mutableStateOf(false) }
     
-    // Reiniciar pre-GPS al entrar/reentrar si estamos en precarga (Idle).
-    // `startPreLocationTracking()` ya es idempotente y evita dobles inicios.
+    // Mantener pre-GPS idempotente; evitamos reiniciar hardware GPS innecesariamente.
     LaunchedEffect(hasAllRequiredPermissions, trackingState) {
         if (hasAllRequiredPermissions && trackingState is TrackingState.Idle) {
             viewModel.startPreLocationTracking()
         }
     }
+
+    // Al volver a la pantalla, mostramos unos instantes el estado de "búsqueda"
+    // para que el texto no reaparezca directamente en "GPS listo".
+    val lifecycleOwner = LocalLifecycleOwner.current
+    var showPreGpsIntroText by rememberSaveable { mutableStateOf(true) }
+    DisposableEffect(lifecycleOwner, trackingState) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME && trackingState is TrackingState.Idle) {
+                showPreGpsIntroText = true
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
+    LaunchedEffect(showPreGpsIntroText, trackingState) {
+        if (showPreGpsIntroText && trackingState is TrackingState.Idle) {
+            delay(1200)
+            showPreGpsIntroText = false
+        }
+    }
+
+    val effectiveGpsPreLocationState =
+        if (showPreGpsIntroText && trackingState is TrackingState.Idle) {
+            TrackingViewModel.GpsPreLocationState.Searching
+        } else {
+            gpsPreLocationState
+        }
 
     // Detener pre-GPS cuando empieza el tracking activo
     LaunchedEffect(trackingState) {
@@ -306,7 +338,7 @@ fun TrackingScreen(
                     IdleStateContent(
                         selectedScooter = selectedScooter,
                         scooters = scooters,
-                        gpsPreLocationState = gpsPreLocationState,
+                        gpsPreLocationState = effectiveGpsPreLocationState,
                         hasValidGpsSignal = hasValidGpsSignal,
                         weatherStatus = weatherStatus,
                         shouldShowRainWarning = shouldShowRainWarning,

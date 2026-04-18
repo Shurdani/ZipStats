@@ -880,6 +880,15 @@ class TrackingViewModel @Inject constructor(
         _gpsPreLocationState.value = GpsPreLocationState.Searching
         _preLocation.value = null
     }
+
+    /**
+     * Reinicia la escucha pre-GPS desde cero para evitar estados "pegados"
+     * al volver a la pantalla de tracking.
+     */
+    fun restartPreLocationTracking() {
+        stopPreLocationTracking()
+        startPreLocationTracking()
+    }
     
     /**
      * Verifica si hay señal GPS válida para iniciar

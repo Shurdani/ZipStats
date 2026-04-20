@@ -180,8 +180,8 @@ fun checkWetRoadConditions(
         }
     }
 
-    // Índice UV muy alto (>8) - solo de día
-    if (isDay && uvIndex != null && uvIndex > 8) {
+    // Índice UV muy alto (>=8) - solo de día
+    if (isDay && uvIndex != null && uvIndex >= 8) {
         return true
     }
 
@@ -305,8 +305,8 @@ fun checkWetRoadConditions(
         }
     }
 
-    // 6. Índice UV muy alto (>8) - solo de día (se considera como calor)
-    if (isDay && uvIndex != null && uvIndex > 8) {
+    // 6. Índice UV muy alto (>=8) - solo de día (se considera como calor)
+    if (isDay && uvIndex != null && uvIndex >= 8) {
         return "HEAT"
     }
 

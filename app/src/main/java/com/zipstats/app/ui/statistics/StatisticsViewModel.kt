@@ -1168,7 +1168,7 @@ class StatisticsViewModel @Inject constructor(
             val hasExtreme = (route.weatherWindSpeed != null && route.weatherWindSpeed > 40) ||
                             (route.weatherWindGusts != null && route.weatherWindGusts > 60) ||
                             (route.weatherTemperature != null && (route.weatherTemperature < 0 || route.weatherTemperature > 35)) ||
-                            (route.weatherIsDay == true && route.weatherUvIndex != null && route.weatherUvIndex > 8) ||
+                            (route.weatherIsDay == true && route.weatherUvIndex != null && route.weatherUvIndex >= 8) ||
                             // Tormenta/Granizo: priorizar `weatherCondition` (Google)
                             (cond.contains("THUNDER") || cond.contains("HAIL")) ||
                             // Fallback legacy: emoji o descripción
@@ -1263,8 +1263,8 @@ class StatisticsViewModel @Inject constructor(
             }
         }
         
-        // 6. Índice UV muy alto (>8) - solo de día (se considera como calor)
-        if (route.weatherIsDay == true && route.weatherUvIndex != null && route.weatherUvIndex > 8) {
+        // 6. Índice UV muy alto (>=8) - solo de día (se considera como calor)
+        if (route.weatherIsDay == true && route.weatherUvIndex != null && route.weatherUvIndex >= 8) {
             return ExtremeCause.HEAT
         }
         

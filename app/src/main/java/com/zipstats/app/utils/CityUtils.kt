@@ -339,15 +339,172 @@ object CityUtils {
         CityArea("Maracena", 37.20, 37.22, -3.64, -3.62),
 
         // ─────────────────────────────────────────────────────────────────────
-        // ZONAS TURÍSTICAS (ISLAS)
+        // ILLES BALEARS - MALLORCA
         // ─────────────────────────────────────────────────────────────────────
+        CityArea("Palma", 39.55, 39.60, 2.62, 2.70),
+        CityArea("Calvià", 39.52, 39.58, 2.48, 2.54),
+        CityArea("Llucmajor", 39.47, 39.50, 2.87, 2.91),
+        CityArea("Manacor", 39.56, 39.59, 3.20, 3.24),
+        CityArea("Inca", 39.71, 39.73, 2.90, 2.93),
+        CityArea("Marratxí", 39.62, 39.64, 2.73, 2.76),
+        CityArea("Alcúdia", 39.85, 39.87, 3.11, 3.14),
+        CityArea("Pollença", 39.87, 39.89, 3.01, 3.04),
+        CityArea("Sa Pobla", 39.76, 39.78, 3.01, 3.04),
+        CityArea("Sóller", 39.76, 39.78, 2.70, 2.73),
+        CityArea("Felanitx", 39.46, 39.48, 3.14, 3.17),
+        CityArea("Campos", 39.42, 39.44, 2.98, 3.01),
+        CityArea("Santanyí", 39.35, 39.37, 3.12, 3.15),
+        CityArea("Andratx", 39.56, 39.58, 2.41, 2.44),
+        CityArea("Muro", 39.73, 39.75, 3.03, 3.06),
+        CityArea("Petra", 39.60, 39.62, 3.10, 3.13),
+        CityArea("Artà", 39.69, 39.71, 3.34, 3.37),
+        CityArea("Capdepera", 39.70, 39.72, 3.42, 3.45),
+        CityArea("Son Servera", 39.62, 39.64, 3.36, 3.39),
+        CityArea("Sant Llorenç des Cardassar", 39.61, 39.63, 3.28, 3.31),
+        CityArea("Binissalem", 39.68, 39.70, 2.84, 2.87),
+        CityArea("Consell", 39.66, 39.68, 2.83, 2.86),
+        CityArea("Bunyola", 39.68, 39.70, 2.70, 2.73),
+        CityArea("Esporles", 39.65, 39.67, 2.61, 2.64),
+        CityArea("Establiments", 39.63, 39.65, 2.67, 2.70),
+        CityArea("Lloseta", 39.71, 39.73, 2.87, 2.90),
+        CityArea("Selva", 39.74, 39.76, 2.90, 2.93),
+        CityArea("Campanet", 39.77, 39.79, 2.95, 2.98),
+        CityArea("Búger", 39.76, 39.78, 2.97, 3.00),
+
+        // ─────────────────────────────────────────────────────────────────────
+        // ILLES BALEARS - MENORCA
+        // ─────────────────────────────────────────────────────────────────────
+        CityArea("Maó", 39.88, 39.90, 4.26, 4.29),
+        CityArea("Ciutadella de Menorca", 39.99, 40.01, 3.82, 3.85),
+        CityArea("Alaior", 39.92, 39.94, 4.13, 4.16),
+        CityArea("Es Mercadal", 39.98, 40.00, 4.06, 4.09),
+        CityArea("Ferreries", 39.98, 40.00, 3.97, 4.00),
+        CityArea("Es Castell", 39.86, 39.88, 4.27, 4.30),
+        CityArea("Sant Lluís", 39.84, 39.86, 4.24, 4.27),
+
+        // ─────────────────────────────────────────────────────────────────────
+        // ILLES BALEARS - EIVISSA (IBIZA)
+        // ─────────────────────────────────────────────────────────────────────
+        CityArea("Eivissa", 38.90, 38.92, 1.41, 1.44),
+        CityArea("Sant Antoni de Portmany", 38.97, 38.99, 1.29, 1.32),
+        CityArea("Santa Eulària des Riu", 38.98, 39.00, 1.52, 1.55),
+        CityArea("Sant Josep de sa Talaia", 38.91, 38.93, 1.34, 1.37),
+        CityArea("Sant Joan de Labritja", 39.07, 39.09, 1.49, 1.52),
+
+        // ─────────────────────────────────────────────────────────────────────
+        // ILLES BALEARS - FORMENTERA
+        // ─────────────────────────────────────────────────────────────────────
+        CityArea("Formentera", 38.69, 38.73, 1.40, 1.49),
+
+        // ─────────────────────────────────────────────────────────────────────
+        // CANARIAS - TENERIFE
+        // ─────────────────────────────────────────────────────────────────────
+        CityArea("Santa Cruz de Tenerife", 28.45, 28.50, -16.30, -16.20),
+        CityArea("San Cristóbal de La Laguna", 28.47, 28.50, -16.34, -16.28),
         CityArea("Adeje", 28.09, 28.13, -16.75, -16.71),
         CityArea("Arona", 28.05, 28.11, -16.70, -16.66),
-        CityArea("Calvià", 39.52, 39.58, 2.48, 2.54),
-        CityArea("Ibiza", 38.90, 38.92, 1.41, 1.44),
+        CityArea("Granadilla de Abona", 28.10, 28.13, -16.60, -16.56),
+        CityArea("San Miguel de Abona", 28.04, 28.07, -16.64, -16.60),
+        CityArea("Güímar", 28.30, 28.33, -16.43, -16.39),
+        CityArea("Candelaria", 28.35, 28.38, -16.38, -16.34),
+        CityArea("El Rosario", 28.44, 28.47, -16.31, -16.27),
+        CityArea("Tegueste", 28.51, 28.53, -16.33, -16.29),
+        CityArea("Tacoronte", 28.47, 28.50, -16.41, -16.37),
+        CityArea("El Sauzal", 28.47, 28.50, -16.44, -16.40),
+        CityArea("La Matanza de Acentejo", 28.47, 28.49, -16.46, -16.42),
+        CityArea("La Victoria de Acentejo", 28.45, 28.47, -16.48, -16.44),
+        CityArea("Santa Úrsula", 28.43, 28.46, -16.50, -16.46),
+        CityArea("La Orotava", 28.38, 28.41, -16.55, -16.51),
+        CityArea("Puerto de la Cruz", 28.40, 28.43, -16.57, -16.53),
+        CityArea("Los Realejos", 28.37, 28.40, -16.60, -16.56),
+        CityArea("Icod de los Vinos", 28.36, 28.39, -16.73, -16.69),
+        CityArea("Garachico", 28.36, 28.38, -16.77, -16.73),
+        CityArea("Buenavista del Norte", 28.37, 28.39, -16.88, -16.84),
+        CityArea("Los Silos", 28.36, 28.38, -16.83, -16.79),
+        CityArea("Santiago del Teide", 28.28, 28.31, -16.84, -16.80),
+        CityArea("Guía de Isora", 28.18, 28.22, -16.80, -16.76),
+        CityArea("Vilaflor", 28.15, 28.18, -16.65, -16.61),
+        CityArea("Arico", 28.16, 28.20, -16.51, -16.47),
+        CityArea("Fasnia", 28.22, 28.25, -16.46, -16.42),
+        CityArea("Arafo", 28.30, 28.33, -16.45, -16.41),
+
+        // ─────────────────────────────────────────────────────────────────────
+        // CANARIAS - GRAN CANARIA
+        // ─────────────────────────────────────────────────────────────────────
         CityArea("Las Palmas de Gran Canaria", 28.10, 28.20, -15.50, -15.40),
+        CityArea("Telde", 27.99, 28.03, -15.44, -15.40),
+        CityArea("Santa Lucía de Tirajana", 27.90, 27.94, -15.55, -15.51),
         CityArea("San Bartolomé de Tirajana", 27.85, 27.95, -15.60, -15.54),
-        CityArea("Santa Cruz de Tenerife", 28.45, 28.50, -16.30, -16.20),
+        CityArea("Mogán", 27.88, 27.92, -15.74, -15.70),
+        CityArea("La Aldea de San Nicolás", 27.99, 28.03, -15.80, -15.76),
+        CityArea("Agaete", 28.09, 28.12, -15.72, -15.68),
+        CityArea("Gáldar", 28.13, 28.16, -15.67, -15.63),
+        CityArea("Guía de Gran Canaria", 28.12, 28.15, -15.64, -15.60),
+        CityArea("Moya", 28.10, 28.13, -15.60, -15.56),
+        CityArea("Teror", 28.05, 28.08, -15.56, -15.52),
+        CityArea("Valleseco", 28.04, 28.07, -15.59, -15.55),
+        CityArea("Vega de San Mateo", 28.00, 28.03, -15.57, -15.53),
+        CityArea("Tejeda", 27.98, 28.01, -15.65, -15.61),
+        CityArea("Artenara", 28.00, 28.03, -15.68, -15.64),
+        CityArea("San Bartolomé de Fontanales", 28.06, 28.09, -15.63, -15.59),
+        CityArea("Arucas", 28.11, 28.14, -15.53, -15.49),
+        CityArea("Firgas", 28.07, 28.10, -15.57, -15.53),
+        CityArea("Las Palmas Norte (Arucas)", 28.11, 28.13, -15.52, -15.49),
+        CityArea("Ingenio", 27.92, 27.95, -15.44, -15.40),
+        CityArea("Agüimes", 27.90, 27.93, -15.46, -15.42),
+        CityArea("Vecindario", 27.85, 27.88, -15.44, -15.40),
+        CityArea("San Fernando de Maspalomas", 27.87, 27.91, -15.58, -15.54),
+
+        // ─────────────────────────────────────────────────────────────────────
+        // CANARIAS - LANZAROTE
+        // ─────────────────────────────────────────────────────────────────────
+        CityArea("Arrecife", 28.96, 28.99, -13.56, -13.52),
+        CityArea("San Bartolomé", 28.99, 29.02, -13.63, -13.59),
+        CityArea("Tías", 28.94, 28.97, -13.67, -13.63),
+        CityArea("Yaiza", 28.94, 28.97, -13.78, -13.74),
+        CityArea("Tinajo", 29.06, 29.09, -13.72, -13.68),
+        CityArea("Haría", 29.14, 29.17, -13.53, -13.49),
+        CityArea("Teguise", 29.05, 29.08, -13.57, -13.53),
+
+        // ─────────────────────────────────────────────────────────────────────
+        // CANARIAS - FUERTEVENTURA
+        // ─────────────────────────────────────────────────────────────────────
+        CityArea("Puerto del Rosario", 28.49, 28.52, -13.87, -13.83),
+        CityArea("Pájara", 28.32, 28.36, -14.12, -14.08),
+        CityArea("La Oliva", 28.60, 28.63, -13.93, -13.89),
+        CityArea("Corralejo", 28.72, 28.75, -13.88, -13.84),
+        CityArea("Antigua", 28.42, 28.45, -14.00, -13.96),
+        CityArea("Tuineje", 28.31, 28.34, -14.04, -14.00),
+        CityArea("Betancuria", 28.42, 28.45, -14.07, -14.03),
+
+        // ─────────────────────────────────────────────────────────────────────
+        // CANARIAS - LA PALMA
+        // ─────────────────────────────────────────────────────────────────────
+        CityArea("Santa Cruz de La Palma", 28.67, 28.70, -17.77, -17.74),
+        CityArea("Los Llanos de Aridane", 28.65, 28.68, -17.92, -17.88),
+        CityArea("El Paso", 28.64, 28.67, -17.88, -17.84),
+        CityArea("Breña Alta", 28.65, 28.68, -17.80, -17.76),
+        CityArea("Tazacorte", 28.63, 28.66, -17.94, -17.90),
+        CityArea("Tijarafe", 28.69, 28.72, -17.97, -17.93),
+        CityArea("Puntagorda", 28.76, 28.79, -17.99, -17.95),
+        CityArea("Garafía", 28.84, 28.87, -17.96, -17.92),
+        CityArea("Barlovento", 28.82, 28.85, -17.82, -17.78),
+        CityArea("San Andrés y Sauces", 28.78, 28.81, -17.78, -17.74),
+
+        // ─────────────────────────────────────────────────────────────────────
+        // CANARIAS - LA GOMERA
+        // ─────────────────────────────────────────────────────────────────────
+        CityArea("San Sebastián de La Gomera", 28.09, 28.12, -17.12, -17.08),
+        CityArea("Hermigua", 28.16, 28.19, -17.20, -17.16),
+        CityArea("Agulo", 28.18, 28.21, -17.22, -17.18),
+        CityArea("Valle Gran Rey", 28.07, 28.10, -17.33, -17.29),
+        CityArea("Vallehermoso", 28.16, 28.19, -17.27, -17.23),
+
+        // ─────────────────────────────────────────────────────────────────────
+        // CANARIAS - EL HIERRO
+        // ─────────────────────────────────────────────────────────────────────
+        CityArea("Valverde", 27.80, 27.83, -17.91, -17.88),
+        CityArea("La Frontera", 27.76, 27.79, -18.02, -17.98),
 
         // ─────────────────────────────────────────────────────────────────────
         // PAÍS VASCO - GIPUZKOA
@@ -693,7 +850,7 @@ object CityUtils {
 
         val matchingCities = cityAreas.filter { city ->
             latitude  >= (city.latMin - padding) && latitude  <= (city.latMax + padding) &&
-            longitude >= (city.lonMin - padding) && longitude <= (city.lonMax + padding)
+                    longitude >= (city.lonMin - padding) && longitude <= (city.lonMax + padding)
         }
         if (matchingCities.isEmpty()) return null
         return matchingCities.minByOrNull { city ->

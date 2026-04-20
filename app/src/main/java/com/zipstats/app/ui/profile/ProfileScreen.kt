@@ -885,6 +885,9 @@ fun AddScooterBottomSheet(
                         },
                         onClick = {
                             selectedVehicleType = type
+                            if (type != VehicleType.PATINETE) {
+                                matricula = ""
+                            }
                             vehicleTypeExpanded = false
                         }
                     )
@@ -913,14 +916,16 @@ fun AddScooterBottomSheet(
             singleLine = true,
             modifier = Modifier.fillMaxWidth()
         )
-        OutlinedTextField(
-            value = matricula,
-            onValueChange = { matricula = it },
-            label = { ZipStatsText("Matrícula") },
-            placeholder = { ZipStatsText(text = "Opcional")},
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth()
-        )
+        if (selectedVehicleType == VehicleType.PATINETE) {
+            OutlinedTextField(
+                value = matricula,
+                onValueChange = { matricula = it },
+                label = { ZipStatsText("Matrícula") },
+                placeholder = { ZipStatsText(text = "Opcional") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
         OutlinedTextField(
             value = fechaTexto,
             onValueChange = { },
@@ -961,7 +966,7 @@ fun AddScooterBottomSheet(
                         modelo,
                         fechaTexto,
                         selectedVehicleType,
-                        matricula.ifBlank { null }
+                        matricula.takeIf { selectedVehicleType == VehicleType.PATINETE }?.ifBlank { null }
                     )
                 },
                 modifier = Modifier.weight(1f),

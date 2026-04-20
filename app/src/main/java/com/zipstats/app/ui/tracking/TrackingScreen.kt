@@ -464,7 +464,7 @@ fun PreRideSmartWarning(
             if (windGustsKmh > 60) factors.add("Ráfagas")
             if (temperature < 0) factors.add("Helada")
             if (temperature > 35) factors.add("Calor intenso")
-            if (isDay && uvIndex != null && uvIndex > 8) factors.add("Radiación UV alta")
+            if (isDay && uvIndex != null && uvIndex >= 8) factors.add("Radiación UV alta")
             
             val isStorm = weatherStatus.weatherEmoji?.let { emoji ->
                 emoji.contains("⛈") || emoji.contains("⚡")

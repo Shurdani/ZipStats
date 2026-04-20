@@ -499,11 +499,16 @@ class WeatherRepository @Inject constructor(
         // relativeHumidity contiene la humedad (número entero)
         val humidity = json.optInt("relativeHumidity", 50)
         
-        // isDaytime indica si es de día
-        val isDay = json.optBoolean("isDaytime", true)
-        
         // uvIndex contiene el índice UV
         val uvIndex = json.optInt("uvIndex", 0).takeIf { it > 0 }?.toDouble()
+        
+        // isDaytime indica si es de día. Si viene inconsistente con UV/condición, aplicamos fallback defensivo.
+        val isDayFromApi = json.optBoolean("isDaytime", true)
+        val isDay = normalizeIsDaytime(
+            isDayFromApi = isDayFromApi,
+            uvIndex = uvIndex,
+            condition = condition
+        )
         
         // precipitation.qpf.quantity contiene la cantidad de precipitación
         val precipitationObj = json.optJSONObject("precipitation")
@@ -672,5 +677,31 @@ class WeatherRepository @Inject constructor(
         }
 
         return totalMm
+    }
+
+    /**
+     * Normaliza `isDaytime` para evitar casos puntuales incoherentes de la API.
+     * Regla defensiva: si viene "noche" pero hay UV > 0 o condición SUNNY, tratamos como día.
+     */
+    private fun normalizeIsDaytime(
+        isDayFromApi: Boolean,
+        uvIndex: Double?,
+        condition: String
+    ): Boolean {
+        if (isDayFromApi) return true
+
+        val normalizedCondition = condition.uppercase()
+        val indicatesDayByUv = (uvIndex ?: 0.0) > 0.0
+        val indicatesDayByCondition = normalizedCondition == "SUNNY"
+
+        if (indicatesDayByUv || indicatesDayByCondition) {
+            Log.w(
+                TAG,
+                "⚠️ isDaytime inconsistente detectado. API=false, condition=$normalizedCondition, uvIndex=$uvIndex. Se fuerza modo día."
+            )
+            return true
+        }
+
+        return false
     }
 }

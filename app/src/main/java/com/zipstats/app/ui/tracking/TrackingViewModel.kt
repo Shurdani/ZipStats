@@ -256,7 +256,7 @@ class TrackingViewModel @Inject constructor(
     // Prioridad: Condiciones extremas > Lluvia > Calzada humeda
     private var weatherHadWetRoad = false // Calzada húmeda detectada (sin lluvia activa)
     private var weatherHadExtremeConditions = false // Condiciones extremas detectadas
-    private var weatherExtremeReason: String? = null // Razón de condiciones extremas (WIND, GUSTS, STORM, SNOW, COLD, HEAT)
+    private var weatherExtremeReason: String? = null // Razón de condiciones extremas (WIND, GUSTS, STORM, SNOW, COLD, HEAT, UV, VISIBILITY)
 
     // Precipitación acumulada reciente (últimas 3h) basada en histórico de Google
     private var recentPrecipitation3h: Double = 0.0

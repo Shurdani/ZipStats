@@ -53,7 +53,7 @@ data class Route(
     val weatherHadWetRoad: Boolean? = null,
     // Detección de condiciones extremas durante la ruta
     val weatherHadExtremeConditions: Boolean? = null,
-    val weatherExtremeReason: String? = null // Razón de condiciones extremas (WIND, GUSTS, STORM, SNOW, COLD, HEAT, VISIBILITY)
+    val weatherExtremeReason: String? = null // Razón de condiciones extremas (WIND, GUSTS, STORM, SNOW, COLD, HEAT, UV, VISIBILITY)
 
 ) {
     /**

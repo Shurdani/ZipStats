@@ -69,6 +69,7 @@ enum class ExtremeCause(val label: String, val emoji: String) {
     SNOW("Nieve", "❄️"),
     COLD("Helada", "🥶"),
     HEAT("Calor intenso", "🔥"),
+    UV("Radiación UV alta", "🌞"),
     VISIBILITY("Visibilidad reducida", "🌫️")
 }
 
@@ -1202,6 +1203,7 @@ class StatisticsViewModel @Inject constructor(
                 "SNOW", "NIEVE" -> ExtremeCause.SNOW
                 "COLD", "FRÍO", "HELADA" -> ExtremeCause.COLD
                 "HEAT", "CALOR" -> ExtremeCause.HEAT
+                "UV" -> ExtremeCause.UV
                 "VISIBILITY", "VISIBILIDAD" -> ExtremeCause.VISIBILITY
                 else -> ExtremeCause.NONE
             }
@@ -1263,9 +1265,9 @@ class StatisticsViewModel @Inject constructor(
             }
         }
         
-        // 6. Índice UV muy alto (>=8) - solo de día (se considera como calor)
+        // 6. Índice UV muy alto (>=8) - solo de día
         if (route.weatherIsDay == true && route.weatherUvIndex != null && route.weatherUvIndex >= 8) {
-            return ExtremeCause.HEAT
+            return ExtremeCause.UV
         }
         
         // 7. Visibilidad reducida (crítico para Barcelona - niebla/talaia)

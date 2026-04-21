@@ -233,7 +233,7 @@ fun checkWetRoadConditions(
 
 /**
  * Detecta la causa específica de condiciones extremas (misma lógica que StatisticsViewModel)
- * Retorna: "STORM", "SNOW", "GUSTS", "WIND", "COLD", "HEAT", "VISIBILITY" o null
+ * Retorna: "STORM", "SNOW", "GUSTS", "WIND", "COLD", "HEAT", "UV", "VISIBILITY" o null
  */
  fun detectExtremeCause(
     windSpeed: Double?,
@@ -305,9 +305,9 @@ fun checkWetRoadConditions(
         }
     }
 
-    // 6. Índice UV muy alto (>=8) - solo de día (se considera como calor)
+    // 6. Índice UV muy alto (>=8) - solo de día
     if (isDay && uvIndex != null && uvIndex >= 8) {
-        return "HEAT"
+        return "UV"
     }
 
     // 7. Visibilidad reducida (crítico para Barcelona - niebla/talaia)

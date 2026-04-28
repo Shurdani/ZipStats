@@ -3,6 +3,9 @@ package com.zipstats.app
 import android.Manifest
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
 import android.app.PendingIntent
 import android.content.ContentValues
 import android.content.Context
@@ -35,7 +38,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
@@ -327,6 +329,7 @@ class MainActivity : ComponentActivity() {
         ) {
             val navBackStackEntry by navController.currentBackStackEntryAsState()
             val currentRoute = navBackStackEntry?.destination?.route
+            val isSplashScreen = currentRoute == Screen.Splash.route || currentRoute == null
 
             // Diálogo de permisos al inicio
             if (showPermissionsDialog) {
@@ -373,8 +376,8 @@ class MainActivity : ComponentActivity() {
                     Surface(
                         modifier = Modifier
                             .fillMaxSize()
-                            .padding(paddingValues),
-                        color = MaterialTheme.colorScheme.background
+                            .padding(if (isSplashScreen) PaddingValues(0.dp) else paddingValues), // 👈
+                        color = if (isSplashScreen) Color.White else MaterialTheme.colorScheme.background // 👈
                     ) {
                         NavGraph(
                             navController = navController,

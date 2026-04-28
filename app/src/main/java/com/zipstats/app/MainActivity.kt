@@ -41,6 +41,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
+import androidx.core.view.WindowCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
@@ -155,6 +156,15 @@ class MainActivity : ComponentActivity() {
         if (savedInstanceState == null) {
             processIntent(intent)
         }
+        // 🔥 EDGE TO EDGE
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+
+// 🔥 TRANSPARENTE (clave para quitar la franja)
+        window.statusBarColor = android.graphics.Color.TRANSPARENT
+
+// 🔥 ICONOS OSCUROS (porque tu splash es blanco)
+        WindowCompat.getInsetsController(window, window.decorView)
+            .isAppearanceLightStatusBars = true
 
         setContent {
             // Pasamos el estado reactivo a MainContent

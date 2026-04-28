@@ -1,7 +1,6 @@
 package com.zipstats.app.ui.theme
 
 import android.app.Activity
-import android.os.Build
 import android.view.WindowManager
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.ColorScheme
@@ -488,6 +487,7 @@ fun PatinetatrackTheme(
     colorTheme: ColorTheme = ColorTheme.RIDE_BLUE,
     dynamicColor: Boolean = true,
     pureBlackOled: Boolean = false,
+    isSplash: Boolean = false,   // 👈 AÑADE ESTO
     content: @Composable () -> Unit
 ) {
     val context = LocalContext.current
@@ -498,7 +498,7 @@ fun PatinetatrackTheme(
     // 3. Modo OLED si está activo y es tema oscuro
     val colorScheme = when {
         // Colores dinámicos tienen prioridad si están disponibles y activados
-        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
+        dynamicColor -> {
             val dynamic = if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
             if (darkTheme) {
                 if (pureBlackOled) {
@@ -528,6 +528,16 @@ fun PatinetatrackTheme(
         SideEffect {
             val window = (view.context as Activity).window
 
+            if (isSplash) {
+                // Forzar todo blanco, ignorar cualquier color dinámico
+                @Suppress("DEPRECATION")
+                window.statusBarColor = android.graphics.Color.WHITE
+                @Suppress("DEPRECATION")
+                window.navigationBarColor = android.graphics.Color.WHITE
+                WindowInsetsControllerCompat(window, view).isAppearanceLightStatusBars = true
+                return@SideEffect  // 👈 salir aquí, no ejecutar nada más
+            }
+
             // MODIFICACIÓN CLAVE: Usamos 'surface' para la barra de estado
             // en lugar de 'primary' para que coincida con la TopAppBar moderna
             @Suppress("DEPRECATION")
@@ -538,12 +548,10 @@ fun PatinetatrackTheme(
             window.navigationBarColor = colorScheme.surface.toArgb()
 
             // Configurar el sistema de barras para Android 10+
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                @Suppress("DEPRECATION")
-                window.isStatusBarContrastEnforced = false
-                @Suppress("DEPRECATION")
-                window.isNavigationBarContrastEnforced = false
-            }
+            @Suppress("DEPRECATION")
+            window.isStatusBarContrastEnforced = false
+            @Suppress("DEPRECATION")
+            window.isNavigationBarContrastEnforced = false
 
             // Configurar el sistema para pantalla completa y edge-to-edge
             WindowCompat.setDecorFitsSystemWindows(window, true)

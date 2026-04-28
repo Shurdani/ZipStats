@@ -3,9 +3,6 @@ package com.zipstats.app
 import android.Manifest
 import android.app.NotificationChannel
 import android.app.NotificationManager
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.unit.dp
 import android.app.PendingIntent
 import android.content.ContentValues
 import android.content.Context
@@ -24,6 +21,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.AlertDialog
@@ -39,6 +37,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
@@ -316,7 +316,10 @@ class MainActivity : ComponentActivity() {
                 showPermissionsDialog = true
             }
         }
-        
+
+        val navBackStackEntry by navController.currentBackStackEntryAsState()
+        val currentRoute = navBackStackEntry?.destination?.route
+
         PatinetatrackTheme(
             darkTheme = when (currentThemeMode) {
                 ThemeMode.LIGHT -> false
@@ -325,10 +328,11 @@ class MainActivity : ComponentActivity() {
             },
             colorTheme = currentColorTheme,
             dynamicColor = dynamicColorEnabled,
-            pureBlackOled = pureBlackOledEnabled
+            pureBlackOled = pureBlackOledEnabled,
+            isSplash = currentRoute == Screen.Splash.route || currentRoute == null  // 👈 AÑADE ESTO
+
         ) {
-            val navBackStackEntry by navController.currentBackStackEntryAsState()
-            val currentRoute = navBackStackEntry?.destination?.route
+
             val isSplashScreen = currentRoute == Screen.Splash.route || currentRoute == null
 
             // Diálogo de permisos al inicio

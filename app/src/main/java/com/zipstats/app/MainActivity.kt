@@ -17,6 +17,7 @@ import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.compose.ui.graphics.Color
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -159,10 +160,11 @@ class MainActivity : ComponentActivity() {
         // 🔥 EDGE TO EDGE
         WindowCompat.setDecorFitsSystemWindows(window, false)
 
-// 🔥 TRANSPARENTE (clave para quitar la franja)
-        window.statusBarColor = android.graphics.Color.TRANSPARENT
-
-// 🔥 ICONOS OSCUROS (porque tu splash es blanco)
+        // 🔥 TRANSPARENTE (clave para quitar la franja)
+        WindowCompat.getInsetsController(window, window.decorView)?.apply {
+            isAppearanceLightStatusBars = true // iconos oscuros
+        }
+        // 🔥 ICONOS OSCUROS (porque tu splash es blanco)
         WindowCompat.getInsetsController(window, window.decorView)
             .isAppearanceLightStatusBars = true
 
@@ -387,7 +389,7 @@ class MainActivity : ComponentActivity() {
                         modifier = Modifier
                             .fillMaxSize()
                             .padding(if (isSplash) PaddingValues(0.dp) else paddingValues),
-                        color = MaterialTheme.colorScheme.background
+                        color = if (isSplash) Color.Transparent else MaterialTheme.colorScheme.background
                     ) {
                         NavGraph(
                             navController = navController,

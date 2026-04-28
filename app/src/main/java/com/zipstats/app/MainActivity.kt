@@ -17,12 +17,10 @@ import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.compose.ui.graphics.Color
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.AlertDialog
@@ -37,12 +35,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
-import androidx.core.view.WindowCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
@@ -157,16 +154,6 @@ class MainActivity : ComponentActivity() {
         if (savedInstanceState == null) {
             processIntent(intent)
         }
-        // 🔥 EDGE TO EDGE
-        WindowCompat.setDecorFitsSystemWindows(window, false)
-
-        // 🔥 TRANSPARENTE (clave para quitar la franja)
-        WindowCompat.getInsetsController(window, window.decorView)?.apply {
-            isAppearanceLightStatusBars = true // iconos oscuros
-        }
-        // 🔥 ICONOS OSCUROS (porque tu splash es blanco)
-        WindowCompat.getInsetsController(window, window.decorView)
-            .isAppearanceLightStatusBars = true
 
         setContent {
             // Pasamos el estado reactivo a MainContent
@@ -375,8 +362,6 @@ class MainActivity : ComponentActivity() {
             }
 
             Box(modifier = Modifier.fillMaxSize()) {
-                val isSplash = currentRoute == Screen.Splash.route
-
                 Scaffold(
                     modifier = Modifier.fillMaxSize(),
                     bottomBar = {
@@ -388,8 +373,8 @@ class MainActivity : ComponentActivity() {
                     Surface(
                         modifier = Modifier
                             .fillMaxSize()
-                            .padding(if (isSplash) PaddingValues(0.dp) else paddingValues),
-                        color = if (isSplash) Color.Transparent else MaterialTheme.colorScheme.background
+                            .padding(paddingValues),
+                        color = MaterialTheme.colorScheme.background
                     ) {
                         NavGraph(
                             navController = navController,

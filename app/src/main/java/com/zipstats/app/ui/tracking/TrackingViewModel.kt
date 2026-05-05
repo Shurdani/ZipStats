@@ -207,6 +207,25 @@ class TrackingViewModel @Inject constructor(
     private var _startWeatherRainProbability: Int? = null
     private var _startWeatherVisibility: Double? = null
     private var _startWeatherDewPoint: Double? = null
+
+    // Clima al FINAL (nuevas, solo se rellenan si hay badges)
+    private var _finalWeatherTemperature: Double? = null
+    private var _finalWeatherEmoji: String? = null
+    private var _finalWeatherCode: Int? = null
+    private var _finalWeatherCondition: String? = null
+    private var _finalWeatherDescription: String? = null
+    private var _finalWeatherIsDay: Boolean? = null
+    private var _finalWeatherFeelsLike: Double? = null
+    private var _finalWeatherWindChill: Double? = null
+    private var _finalWeatherHeatIndex: Double? = null
+    private var _finalWeatherDewPoint: Double? = null
+    private var _finalWeatherWindSpeed: Double? = null
+    private var _finalWeatherWindGusts: Double? = null
+    private var _finalWeatherWindDirection: Int? = null
+    private var _finalWeatherHumidity: Int? = null
+    private var _finalWeatherRainProbability: Int? = null
+    private var _finalWeatherUvIndex: Double? = null
+    private var _finalWeatherVisibility: Double? = null
     
     // Estado para aviso preventivo de lluvia
     private val _shouldShowRainWarning = MutableStateFlow(false)
@@ -1112,7 +1131,7 @@ class TrackingViewModel @Inject constructor(
                             )
 
                         recentPrecipitation3h =
-                            maxOf(recentPrecipitation3h, localRecentPrecip3h)
+                            0.7 * recentPrecipitation3h + 0.3 * localRecentPrecip3h
 
                         weatherMaxPrecipitation =
                             maxOf(weatherMaxPrecipitation, weather.precipitation, localRecentPrecip3h)
@@ -1140,7 +1159,12 @@ class TrackingViewModel @Inject constructor(
                             TAG,
                             "🛣️ [Monitoreo continuo] Calzada húmeda: isWetRoad=$isWetRoad"
                         )
-
+                        if (isWetRoad) {
+                            weatherHadWetRoad = true
+                            _shouldShowRainWarning.value = true
+                            _isActiveRainWarning.value = false
+                            Log.d(TAG, "🛣️ [Monitoreo] Calzada húmeda confirmada")
+                        }
                         // 🌫️ Visibilidad reducida
                         val (isLowVisibility, visReason) =
                             weatherAdvisor.checkLowVisibility(weather.visibility)
@@ -1171,6 +1195,13 @@ class TrackingViewModel @Inject constructor(
                             "⚠️ [Monitoreo continuo] Condiciones extremas: $hasExtremeConditions"
                         )
 
+                        // Siempre acumular, independientemente de si hay condiciones extremas
+                        maxWindSpeed = maxOf(maxWindSpeed, weather.windSpeed ?: 0.0)
+                        maxWindGusts = maxOf(maxWindGusts, weather.windGusts ?: 0.0)
+                        if (weather.uvIndex != null && weather.isDay) {
+                            maxUvIndex = maxOf(maxUvIndex, weather.uvIndex)
+                        }
+
                         if (hasExtremeConditions) {
                             weatherHadExtremeConditions = true
 
@@ -1190,17 +1221,10 @@ class TrackingViewModel @Inject constructor(
                                 weatherExtremeReason = cause
                             }
 
-                            val windSpeedKmh = (weather.windSpeed ?: 0.0) * 3.6
-                            val windGustsKmh = (weather.windGusts ?: 0.0) * 3.6
 
-                            maxWindSpeed = maxOf(maxWindSpeed, windSpeedKmh)
-                            maxWindGusts = maxOf(maxWindGusts, windGustsKmh)
                             minTemperature = minOf(minTemperature, weather.temperature)
                             maxTemperature = maxOf(maxTemperature, weather.temperature)
 
-                            if (weather.uvIndex != null && weather.isDay) {
-                                maxUvIndex = maxOf(maxUvIndex, weather.uvIndex)
-                            }
                         }
 
                         // 🌧️ JERARQUÍA DE LLUVIA
@@ -1665,7 +1689,7 @@ class TrackingViewModel @Inject constructor(
                             latitude = firstPoint.latitude,
                             longitude = firstPoint.longitude
                         )
-                        recentPrecipitation3h = maxOf(recentPrecipitation3h, localRecentPrecip3h)
+                        recentPrecipitation3h = 0.7 * recentPrecipitation3h + 0.3 * localRecentPrecip3h
                         weatherMaxPrecipitation = maxOf(weatherMaxPrecipitation, weather.precipitation, localRecentPrecip3h)
 
                         // Calzada húmeda: Solo si NO hay lluvia activa
@@ -2334,37 +2358,60 @@ class TrackingViewModel @Inject constructor(
         }
     }
 
-     fun captureRouteWeatherSnapshot(): RouteWeatherSnapshot {
+    fun captureRouteWeatherSnapshot(): RouteWeatherSnapshot {
         return RouteWeatherSnapshot(
-            // 1. Datos iniciales (El clima que hacía al arrancar)
-            initialTemp = _startWeatherTemperature,
-            initialEmoji = _startWeatherEmoji,
-            initialCode = _startWeatherCode, // Añadido
-            initialCondition = _startWeatherCondition,
-            initialDescription = _startWeatherDescription,
-            initialIsDay = _startWeatherIsDay ?: true, // Añadido
-            initialFeelsLike = _startWeatherFeelsLike, // Añadido
-            initialHumidity = _startWeatherHumidity?.toDouble(),
-            initialWindSpeed = _startWeatherWindSpeed, // IMPORTANTE: Viento inicial
-            initialWindGusts = _startWeatherWindGusts, // Añadido
-            initialUvIndex = _startWeatherUvIndex, // Añadido
-            initialVisibility = _startWeatherVisibility, // Añadido
-            initialDewPoint = _startWeatherDewPoint, // Añadido
+            // 1. Datos del INICIO (siempre presentes, nunca tocados)
+            initialTemp            = _startWeatherTemperature,
+            initialEmoji           = _startWeatherEmoji,
+            initialCode            = _startWeatherCode,
+            initialCondition       = _startWeatherCondition,
+            initialDescription     = _startWeatherDescription,
+            initialIsDay           = _startWeatherIsDay ?: true,
+            initialFeelsLike       = _startWeatherFeelsLike,
+            initialWindChill       = _startWeatherWindChill,
+            initialHeatIndex       = _startWeatherHeatIndex,
+            initialHumidity        = _startWeatherHumidity?.toDouble(),
+            initialWindSpeed       = _startWeatherWindSpeed,
+            initialWindGusts       = _startWeatherWindGusts,
+            initialUvIndex         = _startWeatherUvIndex,
+            initialVisibility      = _startWeatherVisibility,
+            initialDewPoint        = _startWeatherDewPoint,
             initialRainProbability = _startWeatherRainProbability?.toDouble(),
-            // 2. Estadísticas de la ruta (Lo que detectó el monitoreo continuo)
-            maxWindSpeed = this.maxWindSpeed,
-            maxWindGusts = this.maxWindGusts,
-            minTemp = this.minTemperature,
-            maxTemp = this.maxTemperature,
-            maxUvIndex = this.maxUvIndex,
+            initialWindDirection   = _startWeatherWindDirection,
+
+            // 2. Datos del FINAL (null si ruta tranquila, sin badges)
+            finalTemp            = _finalWeatherTemperature,
+            finalEmoji           = _finalWeatherEmoji,
+            finalCode            = _finalWeatherCode,
+            finalCondition       = _finalWeatherCondition,
+            finalDescription     = _finalWeatherDescription,
+            finalIsDay           = _finalWeatherIsDay,
+            finalFeelsLike       = _finalWeatherFeelsLike,
+            finalWindChill       = _finalWeatherWindChill,
+            finalHeatIndex       = _finalWeatherHeatIndex,
+            finalDewPoint        = _finalWeatherDewPoint,
+            finalWindSpeed       = _finalWeatherWindSpeed,
+            finalWindGusts       = _finalWeatherWindGusts,
+            finalWindDirection   = _finalWeatherWindDirection,
+            finalHumidity        = _finalWeatherHumidity?.toDouble(),
+            finalRainProbability = _finalWeatherRainProbability?.toDouble(),
+            finalUvIndex         = _finalWeatherUvIndex,
+            finalVisibility      = _finalWeatherVisibility,
+
+            // 3. Extremos del monitoreo continuo (sin cambios)
+            maxWindSpeed    = this.maxWindSpeed,
+            maxWindGusts    = this.maxWindGusts,
+            minTemp         = this.minTemperature,
+            maxTemp         = this.maxTemperature,
+            maxUvIndex      = this.maxUvIndex,
             maxPrecipitation = this.weatherMaxPrecipitation,
 
-            // 3. Badges y estados
-            hadRain = this.weatherHadRain || (_shouldShowRainWarning.value && _isActiveRainWarning.value),
-            hadWetRoad = this.weatherHadWetRoad || (_shouldShowRainWarning.value && !_isActiveRainWarning.value),
-            hadExtreme = this.weatherHadExtremeConditions || _shouldShowExtremeWarning.value,
-            extremeReason = this.weatherExtremeReason,
-            rainReason = this.weatherRainReason,
+            // 4. Badges (sin cambios)
+            hadRain        = this.weatherHadRain || (_shouldShowRainWarning.value && _isActiveRainWarning.value),
+            hadWetRoad     = this.weatherHadWetRoad || (_shouldShowRainWarning.value && !_isActiveRainWarning.value),
+            hadExtreme     = this.weatherHadExtremeConditions || _shouldShowExtremeWarning.value,
+            extremeReason  = this.weatherExtremeReason,
+            rainReason     = this.weatherRainReason,
             rainStartMinute = this.weatherRainStartMinute
         )
     }
@@ -2397,6 +2444,24 @@ class TrackingViewModel @Inject constructor(
         _startWeatherRainProbability = null
         _startWeatherVisibility = null
         _startWeatherDewPoint = null
+
+         _finalWeatherTemperature = null
+         _finalWeatherEmoji = null
+         _finalWeatherCode = null
+         _finalWeatherCondition = null
+         _finalWeatherDescription = null
+         _finalWeatherIsDay = null
+         _finalWeatherFeelsLike = null
+         _finalWeatherWindChill = null
+         _finalWeatherHeatIndex = null
+         _finalWeatherHumidity = null
+         _finalWeatherWindSpeed = null
+         _finalWeatherUvIndex = null
+         _finalWeatherWindDirection = null
+         _finalWeatherWindGusts = null
+         _finalWeatherRainProbability = null
+         _finalWeatherVisibility = null
+         _finalWeatherDewPoint = null
 
         // 2. Acumulados y detección de la ruta
         weatherHadRain = false
@@ -2441,35 +2506,29 @@ class TrackingViewModel @Inject constructor(
         try {
             val result = weatherRepository.getCurrentWeather(lastPoint.latitude, lastPoint.longitude)
             result.onSuccess { weather ->
-                // --- BLOQUE VISUAL (El que corrige tu bug del icono) ---
-                _startWeatherEmoji = weather.weatherEmoji
-                _startWeatherDescription = weather.description
-                _startWeatherCondition = weather.icon
-                _startWeatherCode = weather.weatherCode
-                _startWeatherIsDay = weather.isDay
+                // ✅ Ahora escribe en _final*, sin tocar _start*
+                _finalWeatherEmoji        = weather.weatherEmoji
+                _finalWeatherDescription  = weather.description
+                _finalWeatherCondition    = weather.icon
+                _finalWeatherCode         = weather.weatherCode
+                _finalWeatherIsDay        = weather.isDay
+                _finalWeatherTemperature  = weather.temperature
+                _finalWeatherFeelsLike    = weather.feelsLike
+                _finalWeatherWindChill    = weather.windChill
+                _finalWeatherHeatIndex    = weather.heatIndex
+                _finalWeatherDewPoint     = weather.dewPoint
+                _finalWeatherWindSpeed    = weather.windSpeed
+                _finalWeatherWindGusts    = weather.windGusts
+                _finalWeatherWindDirection = weather.windDirection
+                _finalWeatherHumidity     = weather.humidity
+                _finalWeatherRainProbability = weather.rainProbability
+                _finalWeatherUvIndex      = weather.uvIndex
+                _finalWeatherVisibility   = weather.visibility
 
-                // --- BLOQUE TÉRMICO ---
-                _startWeatherTemperature = weather.temperature
-                _startWeatherFeelsLike = weather.feelsLike
-                _startWeatherWindChill = weather.windChill
-                _startWeatherHeatIndex = weather.heatIndex
-                _startWeatherDewPoint = weather.dewPoint
-
-                // --- BLOQUE ATMOSFÉRICO ---
-                _startWeatherWindSpeed = weather.windSpeed
-                _startWeatherWindGusts = weather.windGusts
-                _startWeatherWindDirection = weather.windDirection
-                _startWeatherHumidity = weather.humidity
-                _startWeatherRainProbability = weather.rainProbability
-
-                // --- BLOQUE ÍNDICES ---
-                _startWeatherUvIndex = weather.uvIndex
-                _startWeatherVisibility = weather.visibility
-
-                Log.d(TAG, "✅ Snapshot final capturado y sincronizado en variables de inicio")
+                Log.d(TAG, "✅ Snapshot final capturado. Inicio preservado intacto.")
             }
         } catch (e: Exception) {
-            Log.e(TAG, "⚠️ Error en snapshot final: ${e.message}. Se mantienen datos de monitoreo.")
+            Log.e(TAG, "⚠️ Error en snapshot final: ${e.message}. Se usarán datos de inicio.")
         }
     }
 

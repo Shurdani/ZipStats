@@ -525,10 +525,11 @@ class WeatherRepository @Inject constructor(
         val windSpeedValue = windSpeedObj?.optDouble("value", 0.0) ?: 0.0
         val windSpeedUnit = windSpeedObj?.optString("unit", "KILOMETERS_PER_HOUR")
         // Convertir a m/s (si está en km/h, dividir por 3.6; si está en m/s, usar directamente)
+// WeatherRepository: devolver km/h directamente
         val windSpeed = when (windSpeedUnit) {
-            "KILOMETERS_PER_HOUR" -> windSpeedValue / 3.6
-            "METERS_PER_SECOND" -> windSpeedValue
-            else -> windSpeedValue / 3.6 // Default asumir km/h
+            "KILOMETERS_PER_HOUR" -> windSpeedValue
+            "METERS_PER_SECOND" -> windSpeedValue * 3.6
+            else -> windSpeedValue // ya en km/h
         }
         
         // wind.gust.value contiene las ráfagas

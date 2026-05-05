@@ -5,6 +5,10 @@ package com.zipstats.app.model
  * capturadas y detectadas durante una ruta.
  */
 data class RouteWeatherSnapshot(
+
+    // ─────────────────────────────────────────────
+    // INICIO DE LA RUTA (siempre presentes)
+    // ─────────────────────────────────────────────
     val initialTemp: Double?,
     val initialEmoji: String?,
     val initialCode: Int?,
@@ -17,13 +21,36 @@ data class RouteWeatherSnapshot(
     val initialHumidity: Double? = null,
     val initialWindSpeed: Double? = null,
     val initialUvIndex: Double? = null,
-    val initialWindDirection: String? = null,
+    val initialWindDirection: Int? = null,
     val initialWindGusts: Double? = null,
     val initialRainProbability: Double? = null,
     val initialVisibility: Double? = null,
     val initialDewPoint: Double? = null,
 
-    // Estadísticas acumuladas (Cálculos del monitoreo continuo)
+    // ─────────────────────────────────────────────
+    // FINAL DE LA RUTA (null si ruta sin badges)
+    // ─────────────────────────────────────────────
+    val finalTemp: Double? = null,
+    val finalEmoji: String? = null,
+    val finalCode: Int? = null,
+    val finalCondition: String? = null,
+    val finalDescription: String? = null,
+    val finalIsDay: Boolean? = null,
+    val finalFeelsLike: Double? = null,
+    val finalWindChill: Double? = null,
+    val finalHeatIndex: Double? = null,
+    val finalHumidity: Double? = null,
+    val finalWindSpeed: Double? = null,
+    val finalUvIndex: Double? = null,
+    val finalWindDirection: Int? = null,
+    val finalWindGusts: Double? = null,
+    val finalRainProbability: Double? = null,
+    val finalVisibility: Double? = null,
+    val finalDewPoint: Double? = null,
+
+    // ─────────────────────────────────────────────
+    // EXTREMOS DEL MONITOREO CONTINUO
+    // ─────────────────────────────────────────────
     val maxWindSpeed: Double = 0.0,
     val maxWindGusts: Double = 0.0,
     val minTemp: Double = Double.MAX_VALUE,
@@ -31,7 +58,9 @@ data class RouteWeatherSnapshot(
     val maxUvIndex: Double = 0.0,
     val maxPrecipitation: Double = 0.0,
 
-    // Badges y lógica de estado
+    // ─────────────────────────────────────────────
+    // BADGES Y LÓGICA DE ESTADO
+    // ─────────────────────────────────────────────
     val hadRain: Boolean = false,
     val hadWetRoad: Boolean = false,
     val hadExtreme: Boolean = false,

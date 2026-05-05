@@ -35,10 +35,10 @@ data class Route(
     val weatherIsDay: Boolean = true, // <-- NUEVO CAMPO (Por defecto 'true' para rutas antiguas)
     val weatherFeelsLike: Double? = null, // Sensación térmica general en °C
     val weatherWindChill: Double? = null, // Wind Chill en °C (solo relevante <15°C) - viene directamente de Google API
-    val weatherHeatIndex: Double? = null, // Índice de calor en °C (Heat Index - solo relevante >26°C)
+    val weatherHeatIndex: Double? = null, // Índice de calor en °C (Heat Index - solo relevante >26 °C)
     val weatherHumidity: Int? = null, // Humedad en %
     val weatherWindSpeed: Double? = null, // Velocidad del viento en km/h,
-    val weatherWindDirection: String? = null, // Antes era Int? // Dirección del viento en grados (0-360),
+    val weatherWindDirection: Int? = null, // ¿Antes era Int? // Dirección del viento en grados (0-360),
     val weatherRainProbability: Int? = null, // Probabilidad de lluvia en %
     val weatherUvIndex: Double? = null,// Índice UV
     val weatherWindGusts: Double? = null, // La velocidad del viento en km/h
@@ -175,8 +175,11 @@ data class Route(
                 weatherHeatIndex = (map["weatherHeatIndex"] as? Number)?.toDouble(),
                 weatherHumidity = (map["weatherHumidity"] as? Number)?.toInt(),
                 weatherWindSpeed = (map["weatherWindSpeed"] as? Number)?.toDouble(),
-                weatherWindDirection = map["weatherWindDirection"] as? String,
-                weatherRainProbability = (map["weatherRainProbability"] as? Number)?.toInt(),
+                weatherWindDirection = when (val raw = map["weatherWindDirection"]) {
+                    is Number -> raw.toInt()           // rutas nuevas: Long de Firestore
+                    is String -> raw.toIntOrNull()     // rutas antiguas: "180" guardado como string
+                    else -> null
+                },                weatherRainProbability = (map["weatherRainProbability"] as? Number)?.toInt(),
                 weatherUvIndex = (map["weatherUvIndex"] as? Number)?.toDouble(),
                 weatherWindGusts = (map["weatherWindGusts"] as? Number)?.toDouble(),
                 weatherVisibility = (map["weatherVisibility"] as? Number)?.toDouble(),

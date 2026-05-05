@@ -3,9 +3,7 @@ package com.zipstats.app.ui.routes
 // Eliminado snapshot en tiempo real; usaremos Static Maps HTTP para evitar cierres
 import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
@@ -37,8 +35,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
-import java.net.HttpURLConnection
-import java.net.URL
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -52,6 +48,7 @@ class RoutesViewModel @Inject constructor(
     private val appOverlayRepository: AppOverlayRepository,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
+    private val pageSize = 20
 
     // 1. INPUTS (Lo que el usuario o la red cambian)
     private val _selectedScooter = MutableStateFlow<String?>(null)
@@ -65,11 +62,22 @@ class RoutesViewModel @Inject constructor(
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
 
+    private val _firstPageRoutes = MutableStateFlow<List<Route>>(emptyList())
+    private val _extraRoutes = MutableStateFlow<List<Route>>(emptyList())
+    private val _allRoutes: StateFlow<List<Route>> = combine(
+        _firstPageRoutes, _extraRoutes
+    ) { first, extra -> first + extra }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+    private val _isLoadingMore = MutableStateFlow(false)
+    val isLoadingMore: StateFlow<Boolean> = _isLoadingMore.asStateFlow()
+    private val _hasMorePages = MutableStateFlow(true)
+    val hasMorePages: StateFlow<Boolean> = _hasMorePages.asStateFlow()
+
     // 2. LÓGICA REACTIVA (El corazón de la optimización)
 
     // Obtenemos el flujo "Maestro" del repositorio.
     // Suponemos que getUserRoutesFlow() retorna un Flow<List<Route>> que se mantiene actualizado.
-    private val allRoutesFlow = routeRepository.getUserRoutesFlow()
+    private val allRoutesFlow = routeRepository.getUserRoutesFlow(pageSize = pageSize)
         .catch { e ->
             _errorMessage.value = e.message
             emit(emptyList())
@@ -79,7 +87,7 @@ class RoutesViewModel @Inject constructor(
     // 3. OUTPUTS (Lo que ve la UI)
 
     val uiState: StateFlow<RoutesUiState> = combine(
-        allRoutesFlow,
+        _allRoutes,
         _selectedScooter
     ) { allRoutes: List<Route>, selectedId: String? ->
 
@@ -107,7 +115,7 @@ class RoutesViewModel @Inject constructor(
 
     // Esta es la lista que tu UI (RecyclerView) debe observar
     val routes: StateFlow<List<Route>> = combine(
-        allRoutesFlow,
+        _allRoutes,
         _selectedScooter
     ) { allRoutes, selectedId ->
         if (selectedId == null) allRoutes
@@ -122,8 +130,18 @@ class RoutesViewModel @Inject constructor(
 
     init {
         loadUserScooters()
+        observeInitialRoutes()
         // Ya no hace falta llamar a loadRoutes() explícitamente porque
         // 'val routes' usa stateIn, lo que inicia la suscripción automáticamente.
+    }
+
+    private fun observeInitialRoutes() {
+        viewModelScope.launch {
+            allRoutesFlow.collect { firstPage ->
+                _firstPageRoutes.value = firstPage
+                _hasMorePages.value = firstPage.size >= pageSize
+            }
+        }
     }
 
     // --- ACCIONES DEL USUARIO ---
@@ -148,24 +166,70 @@ class RoutesViewModel @Inject constructor(
         }
     }
 
+    // DESPUÉS:
     fun deleteRoute(routeId: String) {
         viewModelScope.launch {
-            try {
-                // Al borrar en el repositorio, si Firebase emite cambios,
-                // 'allRoutesFlow' se actualizará solo, y 'routes' se recalculará solo.
-                val result = routeRepository.deleteRoute(routeId)
-                if (!result.isSuccess) {
-                    _errorMessage.value = result.exceptionOrNull()?.message
-                }
-            } catch (e: Exception) {
-                _errorMessage.value = e.message
+            val result = routeRepository.deleteRoute(routeId)
+            if (result.isSuccess) {
+                _extraRoutes.value = _extraRoutes.value.filter { it.id != routeId }
+            } else {
+                _errorMessage.value = result.exceptionOrNull()?.message
             }
         }
     }
 
+    fun loadNextPage() {
+        if (_isLoadingMore.value || !_hasMorePages.value) return
+        val lastRoute = _allRoutes.value.lastOrNull() ?: return
+
+        viewModelScope.launch {
+            _isLoadingMore.value = true
+            routeRepository.getNextPage(lastStartTime = lastRoute.startTime, pageSize = pageSize)
+                .onSuccess { newRoutes ->
+                    if (newRoutes.isEmpty()) {
+                        _hasMorePages.value = false
+                    } else {
+                        _extraRoutes.value = _extraRoutes.value + newRoutes
+                    }
+                }
+                .onFailure { _errorMessage.value = it.message }
+            _isLoadingMore.value = false
+        }
+    }
+
+
+
+    // ── NUEVO: selección de ruta con carga lazy de points ──────────────
+    private val _selectedRoute = MutableStateFlow<Route?>(null)
+    val selectedRoute: StateFlow<Route?> = _selectedRoute.asStateFlow()
+
+    private val _isLoadingRoute = MutableStateFlow(false)
+    val isLoadingRoute: StateFlow<Boolean> = _isLoadingRoute.asStateFlow()
+
+    fun selectRoute(route: Route) {
+        if (route.points.isNotEmpty()) {
+            _selectedRoute.value = route
+            return
+        }
+        viewModelScope.launch {
+            _isLoadingRoute.value = true
+            routeRepository.getRouteWithPoints(route.id)
+                .onSuccess { fullRoute -> _selectedRoute.value = fullRoute }
+                .onFailure { _errorMessage.value = it.message }
+            _isLoadingRoute.value = false
+        }
+    }
+
+    fun clearSelectedRoute() {
+        _selectedRoute.value = null
+    }
+    // ───────────────────────────────────────────────────────────────────
+
     fun clearError() {
         _errorMessage.value = null
     }
+
+
 
     /**
      * Verifica si una ruta ya fue añadida a los registros

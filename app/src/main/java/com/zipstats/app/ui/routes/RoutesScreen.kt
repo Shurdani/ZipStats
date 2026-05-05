@@ -1,5 +1,7 @@
 package com.zipstats.app.ui.routes
 
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -15,8 +17,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.GpsFixed
@@ -33,7 +33,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.PrimaryScrollableTabRow
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Tab
-import com.zipstats.app.ui.components.ZipStatsText
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -43,6 +42,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -50,29 +50,29 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
+import com.zipstats.app.R
+import com.zipstats.app.di.AppOverlayRepositoryEntryPoint
 import com.zipstats.app.model.Route
 import com.zipstats.app.model.VehicleType
 import com.zipstats.app.navigation.Screen
-import com.zipstats.app.R
+import com.zipstats.app.repository.AppOverlayRepository
 import com.zipstats.app.ui.components.AnimatedFloatingActionButton
 import com.zipstats.app.ui.components.DialogCancelButton
 import com.zipstats.app.ui.components.DialogConfirmButton
 import com.zipstats.app.ui.components.EmptyStateRoutes
-import com.zipstats.app.di.AppOverlayRepositoryEntryPoint
-import com.zipstats.app.repository.AppOverlayRepository
+import com.zipstats.app.ui.components.ZipStatsText
 import com.zipstats.app.ui.onboarding.OnboardingDialog
 import com.zipstats.app.ui.records.OnboardingViewModel
 import com.zipstats.app.ui.theme.DialogShape
 import com.zipstats.app.utils.DateUtils
 import com.zipstats.app.utils.LocationUtils
 import dagger.hilt.android.EntryPointAccessors
-import java.time.Instant
-import java.time.ZoneId
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filter
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -96,12 +96,15 @@ fun RoutesScreen(
     val errorMessage by viewModel.errorMessage.collectAsState()
     val uiState by viewModel.uiState.collectAsState()
     val isLoading = uiState is RoutesUiState.Loading
+    val isLoadingMore by viewModel.isLoadingMore.collectAsState()
+    val hasMorePages by viewModel.hasMorePages.collectAsState()
+// ── AÑADIR ──
+    val selectedRoute by viewModel.selectedRoute.collectAsState()
+    val isLoadingRoute by viewModel.isLoadingRoute.collectAsState()
 
     var routeToDelete by remember { mutableStateOf<Route?>(null) }
-    var routeToView by remember { mutableStateOf<Route?>(null) }
     var routeAddedToRecords by remember { mutableStateOf<Map<String, Boolean>>(emptyMap()) }
     var showOnboardingDialog by remember { mutableStateOf(false) }
-
     // Estado de scroll único
     val listState = rememberLazyListState()
 
@@ -142,6 +145,37 @@ fun RoutesScreen(
             listState.animateScrollToItem(0)
         }
         previousRoutesSize = routes.size
+    }
+
+    // Cargar más al acercarse al final de la lista
+    LaunchedEffect(listState, filteredRoutes.size, hasMorePages, isLoadingMore) {
+        snapshotFlow {
+            val lastVisible = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
+            val total = listState.layoutInfo.totalItemsCount
+            total > 0 && hasMorePages && !isLoadingMore && lastVisible >= total - 3
+        }
+            .distinctUntilChanged()
+            .filter { it }
+            .collect { viewModel.loadNextPage() }
+    }
+
+    // Con filtro activo, pedir más páginas para rellenar la lista filtrada
+    LaunchedEffect(selectedScooter, filteredRoutes.size, hasMorePages, isLoadingMore) {
+        if (
+            selectedScooter != null &&
+            filteredRoutes.size < 3 &&
+            hasMorePages &&
+            !isLoadingMore
+        ) {
+            viewModel.loadNextPage()
+        }
+    }
+
+    // Mostrar onboarding solo cuando los vehículos han cargado y no hay ninguno
+    LaunchedEffect(vehiclesReady, userScooters) {
+        if (vehiclesReady && userScooters.isEmpty()) {
+            showOnboardingDialog = true
+        }
     }
 
     // Verificar si las rutas ya fueron añadidas a registros
@@ -205,34 +239,40 @@ fun RoutesScreen(
         )
     }
 
-    routeToView?.let { clickedRoute ->
-        // Buscar la ruta actual en filteredRoutes primero, luego en routes como fallback
+    // Loading overlay mientras carga los points
+    if (isLoadingRoute) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            CircularProgressIndicator()
+        }
+    }
+
+// Dialog solo cuando ya tiene points
+    selectedRoute?.let { route ->
         val sortedFilteredRoutes = filteredRoutes.sortedByDescending { it.startTime }
-        val currentRoute = sortedFilteredRoutes.find { it.id == clickedRoute.id } 
-            ?: routes.find { it.id == clickedRoute.id } 
-            ?: clickedRoute
-        val isAddedToRecords = routeAddedToRecords[currentRoute.id] ?: false
+        val isAddedToRecords = routeAddedToRecords[route.id] ?: false
         RouteDetailDialog(
-            route = currentRoute,
-            allRoutes = sortedFilteredRoutes, // Ordenar por fecha descendente
+            route = route,
+            allRoutes = sortedFilteredRoutes,
             onRouteChange = { newRoute ->
-                // Actualizar routeToView con la nueva ruta
-                routeToView = newRoute
+                viewModel.selectRoute(newRoute)
             },
-            onDismiss = { routeToView = null },
+            onDismiss = { viewModel.clearSelectedRoute() },
             onDelete = {
-                routeToDelete = currentRoute
-                routeToView = null
+                routeToDelete = route
+                viewModel.clearSelectedRoute()
             },
             onAddToRecords = if (!isAddedToRecords) {
                 {
-                    viewModel.addRouteToRecords(currentRoute)
-                    routeAddedToRecords = routeAddedToRecords + (currentRoute.id to true)
+                    viewModel.addRouteToRecords(route)
+                    routeAddedToRecords = routeAddedToRecords + (route.id to true)
                 }
             } else null,
             onShare = {
-                viewModel.shareRouteWithMap(currentRoute)
-                routeToView = null
+                viewModel.shareRouteWithMap(route)
+                viewModel.clearSelectedRoute()
             }
         )
     }
@@ -262,7 +302,7 @@ fun RoutesScreen(
                     )
                 },
                 // Estilo moderno 'Surface' igual que Historial de Registros
-                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface,
                     titleContentColor = MaterialTheme.colorScheme.onSurface,
                     actionIconContentColor = MaterialTheme.colorScheme.onSurface,
@@ -273,13 +313,10 @@ fun RoutesScreen(
         floatingActionButton = {
             AnimatedFloatingActionButton(
                 onClick = {
-                    // Verificar si hay vehículos antes de permitir iniciar ruta
-                    if (userScooters.isEmpty()) {
+                    if (vehiclesReady && userScooters.isEmpty()) {
                         showOnboardingDialog = true
-                    } else {
+                    } else if (vehiclesReady) {
                         navController.navigate(Screen.Tracking.route) {
-                            // No necesitamos hacer popUpTo aquí porque queremos mantener RoutesScreen
-                            // en la pila para poder volver si el usuario cancela
                             launchSingleTop = true
                         }
                     }
@@ -390,7 +427,7 @@ fun RoutesScreen(
                                 .clickable(
                                     interactionSource = interactionSource,
                                     indication = null,
-                                    onClick = { routeToView = route }
+                                    onClick = { viewModel.selectRoute(route) }
                                 )
                         ) {
                             ListItem(
@@ -507,6 +544,19 @@ fun RoutesScreen(
                                 thickness = 0.5.dp,
                                 color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
                             )
+                        }
+                    }
+
+                    if (isLoadingMore) {
+                        item {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                            }
                         }
                     }
                 }

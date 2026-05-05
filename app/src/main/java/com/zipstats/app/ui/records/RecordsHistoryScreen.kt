@@ -2,7 +2,6 @@ package com.zipstats.app.ui.records
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -27,9 +26,9 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
-import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -53,6 +52,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -70,7 +70,6 @@ import com.zipstats.app.repository.AppOverlayRepository
 import com.zipstats.app.ui.components.AnimatedFloatingActionButton
 import com.zipstats.app.ui.components.DialogCancelButton
 import com.zipstats.app.ui.components.DialogDeleteButton
-import com.zipstats.app.ui.components.DialogSaveButton
 import com.zipstats.app.ui.components.EmptyStateRecords
 import com.zipstats.app.ui.components.StandardDatePickerDialogWithValidation
 import com.zipstats.app.ui.components.ZipStatsText
@@ -79,6 +78,8 @@ import com.zipstats.app.ui.theme.DialogShape
 import com.zipstats.app.utils.DateUtils
 import com.zipstats.app.utils.LocationUtils
 import dagger.hilt.android.EntryPointAccessors
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.ZoneId
@@ -105,12 +106,13 @@ fun RecordsHistoryScreen(
     val selectedModel by viewModel.selectedModel.collectAsState()
     val uiState by viewModel.uiState.collectAsState()
     val isLoading = uiState is RecordsUiState.Loading
+    val isLoadingMore by viewModel.isLoadingMore.collectAsState()
+    val hasMorePages by viewModel.hasMorePages.collectAsState()
 
     var recordToDelete by remember { mutableStateOf<Record?>(null) }
     var recordToEdit by remember { mutableStateOf<Record?>(null) }
     var showBottomSheet by remember { mutableStateOf(false) }
     var showOnboardingDialog by remember { mutableStateOf(false) }
-    var hasCheckedVehicles by remember { mutableStateOf(false) }
 
     val onboardingDismissedInSession by viewModel.onboardingDismissedInSession.collectAsState()
 
@@ -122,18 +124,9 @@ fun RecordsHistoryScreen(
     var isFilterChanging by remember { mutableStateOf(false) }
 
     // Verificar si se debe mostrar el onboarding
-    LaunchedEffect(userScooters.size, uiState, onboardingDismissedInSession) {
-        val isLoading = uiState is RecordsUiState.Loading
-
-        if (!isLoading && !hasCheckedVehicles && !onboardingDismissedInSession) {
-            hasCheckedVehicles = true
-            if (userScooters.isEmpty()) {
-                showOnboardingDialog = true
-            } else {
-                showOnboardingDialog = false
-            }
-        } else {
-            showOnboardingDialog = false
+    LaunchedEffect(vehiclesReady, userScooters, onboardingDismissedInSession) {
+        if (vehiclesReady && !onboardingDismissedInSession) {
+            showOnboardingDialog = userScooters.isEmpty()
         }
     }
 
@@ -164,6 +157,25 @@ fun RecordsHistoryScreen(
             listState.animateScrollToItem(0)
         }
         previousRecordsSize = records.size
+    }
+
+    // Infinite scroll: cargar más al acercarse al final
+    LaunchedEffect(listState, filteredRecords.size, hasMorePages, isLoadingMore) {
+        snapshotFlow {
+            val lastVisible = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
+            val total = listState.layoutInfo.totalItemsCount
+            total > 0 && hasMorePages && !isLoadingMore && lastVisible >= total - 3
+        }
+            .distinctUntilChanged()
+            .filter { it }
+            .collect { viewModel.loadNextPage() }
+    }
+
+    // Con filtro activo, seguir cargando para completar resultados visibles
+    LaunchedEffect(selectedModel, filteredRecords.size, hasMorePages, isLoadingMore) {
+        if (selectedModel != null && filteredRecords.size < 3 && hasMorePages && !isLoadingMore) {
+            viewModel.loadNextPage()
+        }
     }
 
     // Lógica para determinar el patinete por defecto (el último usado)
@@ -271,7 +283,7 @@ fun RecordsHistoryScreen(
                         maxLines = 1
                     )
                 },
-                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface,
                     titleContentColor = MaterialTheme.colorScheme.onSurface,
                     actionIconContentColor = MaterialTheme.colorScheme.onSurface,
@@ -282,10 +294,9 @@ fun RecordsHistoryScreen(
         floatingActionButton = {
             AnimatedFloatingActionButton(
                 onClick = {
-                    // Verificar si hay vehículos antes de permitir añadir registro
-                    if (userScooters.isEmpty()) {
+                    if (vehiclesReady && userScooters.isEmpty()) {
                         showOnboardingDialog = true
-                    } else {
+                    } else if (vehiclesReady) {
                         showBottomSheet = true
                     }
                 },
@@ -438,6 +449,19 @@ fun RecordsHistoryScreen(
                             )
                         }
                     }
+
+                    if (isLoadingMore) {
+                        item {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                CircularProgressIndicator()
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -535,7 +559,7 @@ fun NewRecordBottomSheet(
                     modifier = Modifier
                         .fillMaxWidth()
                         .menuAnchor(
-                            type = MenuAnchorType.PrimaryNotEditable,
+                            type = ExposedDropdownMenuAnchorType.PrimaryNotEditable,
                             enabled = true
                         ), // Importante para anclar el menú
                     shape = MaterialTheme.shapes.medium
@@ -725,7 +749,7 @@ fun EditRecordBottomSheet(
                 modifier = Modifier
                     .fillMaxWidth()
                     .menuAnchor(
-                        type = MenuAnchorType.PrimaryNotEditable,
+                        type = ExposedDropdownMenuAnchorType.PrimaryNotEditable,
                         enabled = true
                     )
             )

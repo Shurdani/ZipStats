@@ -309,7 +309,7 @@ fun TrackingScreen(
                     }
                 },
                 // Estilo moderno 'Surface' unificado con el resto de la app
-                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface,
                     titleContentColor = MaterialTheme.colorScheme.onSurface,
                     actionIconContentColor = MaterialTheme.colorScheme.onSurface

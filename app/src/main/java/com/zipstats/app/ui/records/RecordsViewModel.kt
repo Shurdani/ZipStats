@@ -50,6 +50,7 @@ class RecordsViewModel @Inject constructor(
     private val auth: FirebaseAuth,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
+    private val pageSize = 20
 
     // 1. INPUTS (Filtros modificables por el usuario)
     private val _selectedModel = MutableStateFlow<String?>(null)
@@ -70,6 +71,11 @@ class RecordsViewModel @Inject constructor(
 
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
+    private val _allRecords = MutableStateFlow<List<Record>>(emptyList())
+    private val _isLoadingMore = MutableStateFlow(false)
+    val isLoadingMore: StateFlow<Boolean> = _isLoadingMore.asStateFlow()
+    private val _hasMorePages = MutableStateFlow(true)
+    val hasMorePages: StateFlow<Boolean> = _hasMorePages.asStateFlow()
 
     // 2. FUENTES DE DATOS (Sources of Truth)
 
@@ -99,7 +105,7 @@ class RecordsViewModel @Inject constructor(
         )
 
     // B. Flujo Maestro de Registros (TODOS los registros, sin filtrar)
-    private val allRecordsFlow = recordRepository.getRecords()
+    private val allRecordsFlow = recordRepository.getRecordsFlow(pageSize = pageSize)
         .catch { e ->
             // 🛡️ ESCUDO ANTI-CRASH 🛡️
             // Verificamos si es un error de permisos (típico al cerrar sesión)
@@ -119,19 +125,11 @@ class RecordsViewModel @Inject constructor(
         }
         .flowOn(Dispatchers.IO)
 
-    // StateFlow interno para cálculos síncronos (como calculateDifference)
-    private val allRecordsState = allRecordsFlow
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.Eagerly,
-            initialValue = emptyList()
-        )
-
     // 3. LÓGICA REACTIVA (Combinación y Filtrado)
 
     // Flujo combinado que aplica todos los filtros automáticamente.
     private val filteredRecordsFlow = combine(
-        allRecordsFlow,
+        _allRecords,
         userScooters,
         _selectedModel,
         _startDate,
@@ -175,7 +173,7 @@ class RecordsViewModel @Inject constructor(
 
     // UI State global
     val uiState: StateFlow<RecordsUiState> = combine(
-        allRecordsFlow,
+        _allRecords,
         filteredRecordsFlow
     ) { all: List<Record>, _: List<Record> ->
         if (all.isEmpty()) {
@@ -190,6 +188,19 @@ class RecordsViewModel @Inject constructor(
         started = SharingStarted.WhileSubscribed(5000),
         initialValue = RecordsUiState.Loading
     )
+
+    init {
+        observeInitialRecords()
+    }
+
+    private fun observeInitialRecords() {
+        viewModelScope.launch {
+            allRecordsFlow.collect { firstPage ->
+                _allRecords.value = firstPage
+                _hasMorePages.value = firstPage.size >= pageSize
+            }
+        }
+    }
 
     // --- FUNCIONES Y ACCIONES ---
 
@@ -271,10 +282,17 @@ class RecordsViewModel @Inject constructor(
                 val kmDouble = LocationUtils.parseNumberSpanish(kilometraje)
                     ?: throw Exception("Kilometraje inválido")
 
-                val diferencia = calculateDifference(patinete, kmDouble, fecha)
+                val allRecords = recordRepository.getAllRecords()
+                val registroAnterior = allRecords
+                    .filter { it.patinete == patinete && it.fecha < fecha && it.id != recordId }
+                    .maxByOrNull { it.fecha }
+                val diferencia = if (registroAnterior != null) {
+                    kmDouble - registroAnterior.kilometraje
+                } else {
+                    0.0
+                }
 
-                // Usamos allRecordsState.value para tener el histórico completo
-                val originalRecord = allRecordsState.value.find { it.id == recordId }
+                val originalRecord = _allRecords.value.find { it.id == recordId }
                 val isInitial = originalRecord?.isInitialRecord ?: false
 
                 val updatedRecord = Record(
@@ -305,17 +323,22 @@ class RecordsViewModel @Inject constructor(
         _errorMessage.value = null
     }
 
-    // Lógica de negocio compleja: Diferencia de Km
-    private fun calculateDifference(patinete: String, newKilometraje: Double, fecha: String): Double {
-        // IMPORTANTE: Usamos allRecordsState.value (TODOS los registros)
-        val registrosAnteriores = allRecordsState.value
-            .filter { it.patinete == patinete && it.fecha < fecha }
-            .maxByOrNull { it.fecha }
+    fun loadNextPage() {
+        if (_isLoadingMore.value || !_hasMorePages.value) return
+        val lastRecord = _allRecords.value.lastOrNull() ?: return
 
-        return if (registrosAnteriores != null) {
-            newKilometraje - registrosAnteriores.kilometraje
-        } else {
-            0.0
+        viewModelScope.launch {
+            _isLoadingMore.value = true
+            recordRepository.getNextPage(lastDate = lastRecord.fecha, pageSize = pageSize)
+                .onSuccess { newRecords ->
+                    if (newRecords.isEmpty()) {
+                        _hasMorePages.value = false
+                    } else {
+                        _allRecords.value = _allRecords.value + newRecords
+                    }
+                }
+                .onFailure { _errorMessage.value = it.message }
+            _isLoadingMore.value = false
         }
     }
 
@@ -325,7 +348,8 @@ class RecordsViewModel @Inject constructor(
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 // Reutilizamos la lógica de filtrado sobre la lista maestra para la exportación
-                val recordsToExport = allRecordsState.value.filter { record ->
+                val allRecords = recordRepository.getAllRecords()
+                val recordsToExport = allRecords.filter { record ->
                     val matchesScooter = _selectedScooterForExport.value?.let { scooter ->
                         record.patinete == scooter
                     } ?: true

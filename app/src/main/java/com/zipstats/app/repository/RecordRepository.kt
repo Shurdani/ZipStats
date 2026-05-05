@@ -114,6 +114,71 @@ class RecordRepository @Inject constructor(
         }
     }
 
+    fun getRecordsFlow(pageSize: Int = 20): Flow<List<Record>> = callbackFlow {
+        try {
+            val userId = auth.currentUser?.uid ?: throw Exception("Usuario no autenticado")
+
+            val subscription = recordsCollection
+                .whereEqualTo("userId", userId)
+                .orderBy("fecha", Query.Direction.DESCENDING)
+                .limit(pageSize.toLong())
+                .addSnapshotListener { snapshot, error ->
+                    val currentUser = auth.currentUser
+                    if (currentUser == null) {
+                        trySend(emptyList())
+                        close()
+                        return@addSnapshotListener
+                    }
+
+                    if (error != null) {
+                        val isPermissionError = error.code == FirebaseFirestoreException.Code.PERMISSION_DENIED
+                        if (isPermissionError || auth.currentUser == null) {
+                            android.util.Log.w("RecordRepository", "Permiso denegado o usuario no autenticado durante paginación de registros")
+                            trySend(emptyList())
+                            close()
+                        } else {
+                            close(error)
+                        }
+                        return@addSnapshotListener
+                    }
+
+                    val records = snapshot?.documents?.mapNotNull { doc ->
+                        mapDocumentToRecord(doc.id, doc.data)
+                    } ?: emptyList()
+
+                    trySend(records)
+                }
+
+            awaitClose { subscription.remove() }
+        } catch (e: Exception) {
+            close(e)
+        }
+    }
+
+    suspend fun getNextPage(lastDate: String, pageSize: Int = 20): Result<List<Record>> {
+        return try {
+            val userId = auth.currentUser?.uid ?: return Result.failure(
+                Exception("Usuario no autenticado")
+            )
+
+            val snapshot = recordsCollection
+                .whereEqualTo("userId", userId)
+                .orderBy("fecha", Query.Direction.DESCENDING)
+                .startAfter(lastDate)
+                .limit(pageSize.toLong())
+                .get()
+                .await()
+
+            val records = snapshot.documents.mapNotNull { doc ->
+                mapDocumentToRecord(doc.id, doc.data)
+            }
+
+            Result.success(records)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     suspend fun getTotalDistance(): Double {
         val userId = auth.currentUser?.uid ?: throw Exception("Usuario no autenticado")
         
@@ -125,6 +190,26 @@ class RecordRepository @Inject constructor(
             .mapNotNull { it.toObject(Record::class.java) }
         
         return records.sumOf<Record> { it.diferencia }
+    }
+
+    private fun mapDocumentToRecord(id: String, data: Map<String, Any>?): Record? {
+        return try {
+            if (data == null) return null
+            Record(
+                id = id,
+                vehiculo = data["vehiculo"] as? String ?: "",
+                patinete = data["patinete"] as? String ?: "",
+                scooterId = data["scooterId"] as? String ?: "",
+                fecha = data["fecha"] as? String ?: "",
+                kilometraje = (data["kilometraje"] as? Number)?.toDouble() ?: 0.0,
+                diferencia = (data["diferencia"] as? Number)?.toDouble() ?: 0.0,
+                userId = data["userId"] as? String ?: "",
+                isInitialRecord = data["isInitialRecord"] as? Boolean ?: false
+            )
+        } catch (e: Exception) {
+            android.util.Log.e("RecordRepository", "Error al convertir documento $id: ${e.message}", e)
+            null
+        }
     }
 
     suspend fun addRecord(vehiculo: String, kilometraje: Double, fecha: String, scooterId: String? = null): Result<Unit> {

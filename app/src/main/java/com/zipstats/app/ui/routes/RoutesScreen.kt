@@ -42,6 +42,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -73,6 +74,8 @@ import com.zipstats.app.utils.LocationUtils
 import dagger.hilt.android.EntryPointAccessors
 import java.time.Instant
 import java.time.ZoneId
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filter
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -96,6 +99,8 @@ fun RoutesScreen(
     val errorMessage by viewModel.errorMessage.collectAsState()
     val uiState by viewModel.uiState.collectAsState()
     val isLoading = uiState is RoutesUiState.Loading
+    val isLoadingMore by viewModel.isLoadingMore.collectAsState()
+    val hasMorePages by viewModel.hasMorePages.collectAsState()
 
     var routeToDelete by remember { mutableStateOf<Route?>(null) }
     var routeToView by remember { mutableStateOf<Route?>(null) }
@@ -142,6 +147,30 @@ fun RoutesScreen(
             listState.animateScrollToItem(0)
         }
         previousRoutesSize = routes.size
+    }
+
+    // Cargar más al acercarse al final de la lista
+    LaunchedEffect(listState, filteredRoutes.size, hasMorePages, isLoadingMore) {
+        snapshotFlow {
+            val lastVisible = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
+            val total = listState.layoutInfo.totalItemsCount
+            total > 0 && hasMorePages && !isLoadingMore && lastVisible >= total - 3
+        }
+            .distinctUntilChanged()
+            .filter { it }
+            .collect { viewModel.loadNextPage() }
+    }
+
+    // Con filtro activo, pedir más páginas para rellenar la lista filtrada
+    LaunchedEffect(selectedScooter, filteredRoutes.size, hasMorePages, isLoadingMore) {
+        if (
+            selectedScooter != null &&
+            filteredRoutes.size < 3 &&
+            hasMorePages &&
+            !isLoadingMore
+        ) {
+            viewModel.loadNextPage()
+        }
     }
 
     // Verificar si las rutas ya fueron añadidas a registros
@@ -211,6 +240,11 @@ fun RoutesScreen(
         val currentRoute = sortedFilteredRoutes.find { it.id == clickedRoute.id } 
             ?: routes.find { it.id == clickedRoute.id } 
             ?: clickedRoute
+        LaunchedEffect(currentRoute.id, currentRoute.points.isEmpty()) {
+            if (currentRoute.points.isEmpty()) {
+                viewModel.loadRoutePoints(currentRoute.id)
+            }
+        }
         val isAddedToRecords = routeAddedToRecords[currentRoute.id] ?: false
         RouteDetailDialog(
             route = currentRoute,
@@ -262,7 +296,7 @@ fun RoutesScreen(
                     )
                 },
                 // Estilo moderno 'Surface' igual que Historial de Registros
-                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface,
                     titleContentColor = MaterialTheme.colorScheme.onSurface,
                     actionIconContentColor = MaterialTheme.colorScheme.onSurface,
@@ -507,6 +541,19 @@ fun RoutesScreen(
                                 thickness = 0.5.dp,
                                 color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
                             )
+                        }
+                    }
+
+                    if (isLoadingMore) {
+                        item {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                            }
                         }
                     }
                 }

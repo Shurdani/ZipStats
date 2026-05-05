@@ -982,18 +982,17 @@ private fun StatsChips(route: Route, onWeatherClick: () -> Unit) {
                     weatherIconRes = when {
                         !weather.icon.isNullOrBlank() ->
                             WeatherRepository.getIconResIdForCondition(weather.icon, weather.isDay)
+                        weather.weatherCode != null ->
+                            WeatherRepository.getIconResIdForWeather(weather.weatherCode, if (weather.isDay) 1 else 0)
                         !weather.weatherEmoji.isNullOrBlank() -> {
                             val inferredCode = inferWeatherCodeFromEmoji(weather.weatherEmoji)
                             if (inferredCode != null) {
                                 WeatherRepository.getIconResIdForWeather(inferredCode, if (weather.isDay) 1 else 0)
                             } else {
-                                // Fallback consistente: el weatherCode siempre existe (tipo WeatherData.weatherCode)
-                                WeatherRepository.getIconResIdForWeather(weather.weatherCode, if (weather.isDay) 1 else 0)
+                                R.drawable.help_outline
                             }
                         }
-                        else ->
-                            // Fallback final usando el código WMO numérico (no nullable)
-                            WeatherRepository.getIconResIdForWeather(weather.weatherCode, if (weather.isDay) 1 else 0)
+                        else -> R.drawable.help_outline
                     }
                     weatherTemp = "${formatTemperature(weather.temperature, decimals = 0)}°C"
                 }

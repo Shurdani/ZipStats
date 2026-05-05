@@ -52,7 +52,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ExposedDropdownMenuAnchorType
+import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.PrimaryTabRow
@@ -1518,7 +1518,7 @@ fun MonthYearPickerDialog(
                     modifier = Modifier
                         .fillMaxWidth()
                         .menuAnchor(
-                            type = ExposedDropdownMenuAnchorType.PrimaryNotEditable,
+                            type = MenuAnchorType.PrimaryNotEditable,
                             enabled = true
                         ),
                     shape = MaterialTheme.shapes.medium
@@ -1560,7 +1560,7 @@ fun MonthYearPickerDialog(
                     modifier = Modifier
                         .fillMaxWidth()
                         .menuAnchor(
-                            type = ExposedDropdownMenuAnchorType.PrimaryNotEditable,
+                            type = MenuAnchorType.PrimaryNotEditable,
                             enabled = true
                         ),
                     shape = MaterialTheme.shapes.medium
@@ -1598,7 +1598,7 @@ fun MonthYearPickerDialog(
                         modifier = Modifier
                             .fillMaxWidth()
                             .menuAnchor(
-                                type = ExposedDropdownMenuAnchorType.PrimaryNotEditable,
+                                type = MenuAnchorType.PrimaryNotEditable,
                                 enabled = true
                             ),
                         shape = MaterialTheme.shapes.medium

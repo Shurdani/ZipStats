@@ -52,7 +52,6 @@ class RoutesViewModel @Inject constructor(
     private val appOverlayRepository: AppOverlayRepository,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
-    private val pageSize = 20
 
     // 1. INPUTS (Lo que el usuario o la red cambian)
     private val _selectedScooter = MutableStateFlow<String?>(null)
@@ -66,17 +65,11 @@ class RoutesViewModel @Inject constructor(
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
 
-    private val _allRoutes = MutableStateFlow<List<Route>>(emptyList())
-    private val _isLoadingMore = MutableStateFlow(false)
-    val isLoadingMore: StateFlow<Boolean> = _isLoadingMore.asStateFlow()
-    private val _hasMorePages = MutableStateFlow(true)
-    val hasMorePages: StateFlow<Boolean> = _hasMorePages.asStateFlow()
-
     // 2. LÓGICA REACTIVA (El corazón de la optimización)
 
     // Obtenemos el flujo "Maestro" del repositorio.
     // Suponemos que getUserRoutesFlow() retorna un Flow<List<Route>> que se mantiene actualizado.
-    private val allRoutesFlow = routeRepository.getUserRoutesFlow(pageSize = pageSize)
+    private val allRoutesFlow = routeRepository.getUserRoutesFlow()
         .catch { e ->
             _errorMessage.value = e.message
             emit(emptyList())
@@ -86,7 +79,7 @@ class RoutesViewModel @Inject constructor(
     // 3. OUTPUTS (Lo que ve la UI)
 
     val uiState: StateFlow<RoutesUiState> = combine(
-        _allRoutes,
+        allRoutesFlow,
         _selectedScooter
     ) { allRoutes: List<Route>, selectedId: String? ->
 
@@ -114,7 +107,7 @@ class RoutesViewModel @Inject constructor(
 
     // Esta es la lista que tu UI (RecyclerView) debe observar
     val routes: StateFlow<List<Route>> = combine(
-        _allRoutes,
+        allRoutesFlow,
         _selectedScooter
     ) { allRoutes, selectedId ->
         if (selectedId == null) allRoutes
@@ -129,18 +122,8 @@ class RoutesViewModel @Inject constructor(
 
     init {
         loadUserScooters()
-        observeInitialRoutes()
         // Ya no hace falta llamar a loadRoutes() explícitamente porque
         // 'val routes' usa stateIn, lo que inicia la suscripción automáticamente.
-    }
-
-    private fun observeInitialRoutes() {
-        viewModelScope.launch {
-            allRoutesFlow.collect { firstPage ->
-                _allRoutes.value = firstPage
-                _hasMorePages.value = firstPage.size >= pageSize
-            }
-        }
     }
 
     // --- ACCIONES DEL USUARIO ---
@@ -177,39 +160,6 @@ class RoutesViewModel @Inject constructor(
             } catch (e: Exception) {
                 _errorMessage.value = e.message
             }
-        }
-    }
-
-    fun loadNextPage() {
-        if (_isLoadingMore.value || !_hasMorePages.value) return
-        val lastRoute = _allRoutes.value.lastOrNull() ?: return
-
-        viewModelScope.launch {
-            _isLoadingMore.value = true
-            routeRepository.getNextPage(lastStartTime = lastRoute.startTime, pageSize = pageSize)
-                .onSuccess { newRoutes ->
-                    if (newRoutes.isEmpty()) {
-                        _hasMorePages.value = false
-                    } else {
-                        _allRoutes.value = _allRoutes.value + newRoutes
-                    }
-                }
-                .onFailure { _errorMessage.value = it.message }
-            _isLoadingMore.value = false
-        }
-    }
-
-    fun loadRoutePoints(routeId: String) {
-        viewModelScope.launch {
-            routeRepository.getRouteWithPoints(routeId)
-                .onSuccess { fullRoute ->
-                    _allRoutes.value = _allRoutes.value.map { route ->
-                        if (route.id == routeId) fullRoute else route
-                    }
-                }
-                .onFailure {
-                    _errorMessage.value = it.message
-                }
         }
     }
 

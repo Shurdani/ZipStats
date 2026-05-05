@@ -29,7 +29,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
-import androidx.compose.material3.ExposedDropdownMenuAnchorType
+import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -51,7 +51,6 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -80,8 +79,6 @@ import com.zipstats.app.ui.theme.DialogShape
 import com.zipstats.app.utils.DateUtils
 import com.zipstats.app.utils.LocationUtils
 import dagger.hilt.android.EntryPointAccessors
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.ZoneId
@@ -108,8 +105,6 @@ fun RecordsHistoryScreen(
     val selectedModel by viewModel.selectedModel.collectAsState()
     val uiState by viewModel.uiState.collectAsState()
     val isLoading = uiState is RecordsUiState.Loading
-    val isLoadingMore by viewModel.isLoadingMore.collectAsState()
-    val hasMorePages by viewModel.hasMorePages.collectAsState()
 
     var recordToDelete by remember { mutableStateOf<Record?>(null) }
     var recordToEdit by remember { mutableStateOf<Record?>(null) }
@@ -169,25 +164,6 @@ fun RecordsHistoryScreen(
             listState.animateScrollToItem(0)
         }
         previousRecordsSize = records.size
-    }
-
-    // Infinite scroll: cargar más al acercarse al final
-    LaunchedEffect(listState, filteredRecords.size, hasMorePages, isLoadingMore) {
-        snapshotFlow {
-            val lastVisible = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
-            val total = listState.layoutInfo.totalItemsCount
-            total > 0 && hasMorePages && !isLoadingMore && lastVisible >= total - 3
-        }
-            .distinctUntilChanged()
-            .filter { it }
-            .collect { viewModel.loadNextPage() }
-    }
-
-    // Con filtro activo, seguir cargando para completar resultados visibles
-    LaunchedEffect(selectedModel, filteredRecords.size, hasMorePages, isLoadingMore) {
-        if (selectedModel != null && filteredRecords.size < 3 && hasMorePages && !isLoadingMore) {
-            viewModel.loadNextPage()
-        }
     }
 
     // Lógica para determinar el patinete por defecto (el último usado)
@@ -295,7 +271,7 @@ fun RecordsHistoryScreen(
                         maxLines = 1
                     )
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface,
                     titleContentColor = MaterialTheme.colorScheme.onSurface,
                     actionIconContentColor = MaterialTheme.colorScheme.onSurface,
@@ -462,19 +438,6 @@ fun RecordsHistoryScreen(
                             )
                         }
                     }
-
-                    if (isLoadingMore) {
-                        item {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(16.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                CircularProgressIndicator()
-                            }
-                        }
-                    }
                 }
             }
         }
@@ -572,7 +535,7 @@ fun NewRecordBottomSheet(
                     modifier = Modifier
                         .fillMaxWidth()
                         .menuAnchor(
-                            type = ExposedDropdownMenuAnchorType.PrimaryNotEditable,
+                            type = MenuAnchorType.PrimaryNotEditable,
                             enabled = true
                         ), // Importante para anclar el menú
                     shape = MaterialTheme.shapes.medium
@@ -762,7 +725,7 @@ fun EditRecordBottomSheet(
                 modifier = Modifier
                     .fillMaxWidth()
                     .menuAnchor(
-                        type = ExposedDropdownMenuAnchorType.PrimaryNotEditable,
+                        type = MenuAnchorType.PrimaryNotEditable,
                         enabled = true
                     )
             )

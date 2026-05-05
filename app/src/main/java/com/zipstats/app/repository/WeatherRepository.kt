@@ -25,13 +25,13 @@ data class WeatherData(
     val description: String,       // Descripción del clima
     val icon: String,              // Código (ahora será la condición de Google, ej: "RAIN")
     val humidity: Int,             // Humedad %
-    val windSpeed: Double,         // Velocidad del viento m/s
+    val windSpeed: Double,          // Velocidad del viento en km/h
     val weatherEmoji: String,      // Emoji representativo
     val weatherCode: Int,           // Código mapeado para compatibilidad (WMO)
     val isDay: Boolean,
     val uvIndex: Double?,
     val windDirection: Int?,
-    val windGusts: Double?,
+    val windGusts: Double?,         // Ráfagas de viento en km/h
     val rainProbability: Int?,
     val precipitation: Double,     // mm reales
     val rain: Double?,             // mm
@@ -533,15 +533,16 @@ class WeatherRepository @Inject constructor(
         }
         
         // wind.gust.value contiene las ráfagas
+        // wind.gust.value contiene las ráfagas
         val windGustObj = windObj?.optJSONObject("gust")
         val windGustValue = windGustObj?.optDouble("value", 0.0) ?: 0.0
-        val windGustUnit = windGustObj?.optString("unit", "KILOMETERS_PER_HOUR")
-        val windGustsKph = when (windGustUnit) {
-            "KILOMETERS_PER_HOUR" -> windGustValue
-            "METERS_PER_SECOND" -> windGustValue * 3.6
-            else -> windGustValue
-        }
-        val windGusts = if (windGustsKph > 0) windGustsKph / 3.6 else null
+        val windGusts = if (windGustValue > 0) {
+            when (windGustObj?.optString("unit", "KILOMETERS_PER_HOUR")) {
+                "KILOMETERS_PER_HOUR" -> windGustValue
+                "METERS_PER_SECOND" -> windGustValue * 3.6
+                else -> windGustValue
+            }
+        } else null
         
         // wind.direction.degrees contiene la dirección del viento
         val windDirectionObj = windObj?.optJSONObject("direction")

@@ -57,7 +57,7 @@ Aplicación Android para registrar rutas GPS de patinetes, bicicletas y otros ve
 ### Android
 - `compileSdk 35`
 - `targetSdk 34`
-- `minSdk 31` (Android 12+)
+- `minSdk 33` (Android 14+)
 - Java/Kotlin JVM target `17`
 
 ### Servicios y librerías
@@ -78,7 +78,7 @@ Aplicación Android para registrar rutas GPS de patinetes, bicicletas y otros ve
 
 ## Requisitos
 
-- Android 12 (API 31) o superior.
+- Android 14 (API 33) o superior.
 - GPS habilitado.
 - Google Play Services.
 - Conexión a Internet para mapas/sincronización/clima.

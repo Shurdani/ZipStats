@@ -19,6 +19,28 @@ Aplicación Android para registrar rutas GPS de patinetes, bicicletas y otros ve
 - Gestión de vehículos (kilometraje, imagen y estadísticas por vehículo).
 - Historial de rutas y exportación a Excel.
 - Sistema meteorológico con Google Weather API (alertas y detección de condiciones adversas).
+- Sistema de logros y progreso de objetivos.
+- Personalización visual (tema, colores dinámicos, negro puro y ajustes de interfaz).
+
+---
+
+## Capturas de pantalla
+
+> Capturas completas en [`.github/assets/screenshots`](https://github.com/Shurdani/ZipStats/tree/main/.github/assets/screenshots).
+
+### Vistas principales
+
+| Registros | Estadísticas | Vehículo |
+| --- | --- | --- |
+| ![Tus Viajes](https://raw.githubusercontent.com/Shurdani/ZipStats/main/.github/assets/screenshots/screenshot1.png) | ![Tus Datos](https://raw.githubusercontent.com/Shurdani/ZipStats/main/.github/assets/screenshots/screenshot2.png) | ![Tu Vehículo](https://raw.githubusercontent.com/Shurdani/ZipStats/main/.github/assets/screenshots/screenshot3.png) |
+
+| Logros | Rutas | Tracking |
+| --- | --- | --- |
+| ![Tus Logros](https://raw.githubusercontent.com/Shurdani/ZipStats/main/.github/assets/screenshots/screenshot4.png) | ![Tus Rutas](https://raw.githubusercontent.com/Shurdani/ZipStats/main/.github/assets/screenshots/screenshot5.png) | ![En Ruta](https://raw.githubusercontent.com/Shurdani/ZipStats/main/.github/assets/screenshots/screenshot6.png) |
+
+| Personalización | Perfil | Clima detallado |
+| --- | --- | --- |
+| ![Personalizable](https://raw.githubusercontent.com/Shurdani/ZipStats/main/.github/assets/screenshots/screenshot7.png) | ![Tu Perfil](https://raw.githubusercontent.com/Shurdani/ZipStats/main/.github/assets/screenshots/screenshot8.png) | ![Clima de tus rutas detallado](https://raw.githubusercontent.com/Shurdani/ZipStats/main/.github/assets/screenshots/screenshot9.png) |
 
 ---
 

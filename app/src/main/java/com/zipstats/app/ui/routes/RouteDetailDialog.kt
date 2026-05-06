@@ -59,6 +59,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -106,10 +107,7 @@ fun RouteDetailDialog(
     route: Route,
     onDismiss: () -> Unit,
     onDelete: () -> Unit,
-    onAddToRecords: (() -> Unit)? = null,
-    onShare: () -> Unit,
-    allRoutes: List<Route> = emptyList(),
-    onRouteChange: ((Route) -> Unit)? = null
+    onAddToRecords: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
     
@@ -125,7 +123,7 @@ fun RouteDetailDialog(
     var showFullscreenMap by remember { mutableStateOf(false) }
     var isCapturingForShare by remember { mutableStateOf(false) }
     var showAnimationDialog by remember { mutableStateOf(false) }
-    var vehicleIconRes by remember { mutableStateOf(R.drawable.ic_electric_scooter_adaptive) }
+    var vehicleIconRes by remember { mutableIntStateOf(R.drawable.ic_electric_scooter_adaptive) }
     var vehicleModel by remember { mutableStateOf(route.scooterName) }
     var vehicleType by remember { mutableStateOf<com.zipstats.app.model.VehicleType?>(null) }
     var showWeatherDialog by remember(route.id) { mutableStateOf(false) }
@@ -138,7 +136,7 @@ fun RouteDetailDialog(
         if (isCapturingForShare && mapSnapshotTrigger != null) {
             android.util.Log.d("RouteDetailDialog", "=== INICIANDO PROCESO DE COMPARTIR ===")
             android.util.Log.d("RouteDetailDialog", "Esperando a que el mapa esté completamente renderizado...")
-            kotlinx.coroutines.delay(2000) 
+            kotlinx.coroutines.delay(2000)
             android.util.Log.d("RouteDetailDialog", "Delay completado, llamando a ShareUtils...")
             try {
                 ShareUtils.shareRouteImage(
@@ -171,12 +169,12 @@ fun RouteDetailDialog(
             vehicleIconRes = getVehicleIconResource(vehicle?.vehicleType)
             vehicleType = vehicle?.vehicleType
 
-            if (vehicle != null && vehicle.modelo.isNotBlank()) {
-                vehicleModel = vehicle.modelo
+            vehicleModel = if (vehicle != null && vehicle.modelo.isNotBlank()) {
+                vehicle.modelo
             } else {
-                vehicleModel = route.scooterName
+                route.scooterName
             }
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             vehicleIconRes = R.drawable.ic_electric_scooter_adaptive
             vehicleModel = route.scooterName
             vehicleType = null
@@ -926,8 +924,8 @@ private fun RouteTitle(route: Route) {
 @Composable
 private fun StatsChips(route: Route, onWeatherClick: () -> Unit) {
     val context = LocalContext.current
-    var weatherIconRes by remember(route.id) { 
-        mutableStateOf(
+    var weatherIconRes by remember(route.id) {
+        mutableIntStateOf(
             when {
                 !route.weatherCondition.isNullOrBlank() ->
                     WeatherRepository.getIconResIdForCondition(route.weatherCondition, route.weatherIsDay ?: true)
@@ -982,7 +980,7 @@ private fun StatsChips(route: Route, onWeatherClick: () -> Unit) {
                     weatherIconRes = when {
                         !weather.icon.isNullOrBlank() ->
                             WeatherRepository.getIconResIdForCondition(weather.icon, weather.isDay)
-                        weather.weatherCode != null ->
+                        true ->
                             WeatherRepository.getIconResIdForWeather(weather.weatherCode, if (weather.isDay) 1 else 0)
                         !weather.weatherEmoji.isNullOrBlank() -> {
                             val inferredCode = inferWeatherCodeFromEmoji(weather.weatherEmoji)
@@ -1576,9 +1574,3 @@ private fun formatTemperature(temperature: Double, decimals: Int = 1): String {
     }
 }
 
-private fun convertWindDirectionToText(degrees: Int?): String {
-    if (degrees == null) return "-"
-    val directions = listOf("N", "NE", "E", "SE", "S", "SO", "O", "NO")
-    val index = ((degrees.toFloat() + 22.5f) % 360 / 45.0f).toInt()
-    return directions[index]
-}

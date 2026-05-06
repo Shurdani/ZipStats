@@ -71,6 +71,7 @@ import com.zipstats.app.ui.theme.DialogShape
 import com.zipstats.app.utils.DateUtils
 import com.zipstats.app.utils.LocationUtils
 import dagger.hilt.android.EntryPointAccessors
+import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
 
@@ -108,8 +109,8 @@ fun RoutesScreen(
     // Estado de scroll único
     val listState = rememberLazyListState()
 
-    // Variable para detectar nuevos registros y hacer scroll
-    var previousRoutesSize by remember { mutableStateOf(routes.size) }
+    // Guardamos el primer elemento para distinguir "nuevo arriba" vs "paginación abajo"
+    var previousTopRouteId by remember { mutableStateOf(routes.firstOrNull()?.id) }
     var isFilterChanging by remember { mutableStateOf(false) }
     var isInitialLoad by remember { mutableStateOf(true) }
 
@@ -139,12 +140,18 @@ fun RoutesScreen(
         }
     }
 
-    // Scroll automático al añadir
-    LaunchedEffect(routes.size) {
-        if (routes.size > previousRoutesSize && filteredRoutes.isNotEmpty()) {
+    // Scroll automático solo cuando aparece una nueva ruta en la parte superior
+    LaunchedEffect(routes) {
+        val currentTopRouteId = routes.firstOrNull()?.id
+        if (
+            previousTopRouteId != null &&
+            currentTopRouteId != null &&
+            currentTopRouteId != previousTopRouteId &&
+            filteredRoutes.isNotEmpty()
+        ) {
             listState.animateScrollToItem(0)
         }
-        previousRoutesSize = routes.size
+        previousTopRouteId = currentTopRouteId
     }
 
     // Cargar más al acercarse al final de la lista
@@ -155,6 +162,7 @@ fun RoutesScreen(
             total > 0 && hasMorePages && !isLoadingMore && lastVisible >= total - 3
         }
             .distinctUntilChanged()
+            .debounce(250)
             .filter { it }
             .collect { viewModel.loadNextPage() }
     }
@@ -255,10 +263,6 @@ fun RoutesScreen(
         val isAddedToRecords = routeAddedToRecords[route.id] ?: false
         RouteDetailDialog(
             route = route,
-            allRoutes = sortedFilteredRoutes,
-            onRouteChange = { newRoute ->
-                viewModel.selectRoute(newRoute)
-            },
             onDismiss = { viewModel.clearSelectedRoute() },
             onDelete = {
                 routeToDelete = route
@@ -269,11 +273,7 @@ fun RoutesScreen(
                     viewModel.addRouteToRecords(route)
                     routeAddedToRecords = routeAddedToRecords + (route.id to true)
                 }
-            } else null,
-            onShare = {
-                viewModel.shareRouteWithMap(route)
-                viewModel.clearSelectedRoute()
-            }
+            } else null
         )
     }
 

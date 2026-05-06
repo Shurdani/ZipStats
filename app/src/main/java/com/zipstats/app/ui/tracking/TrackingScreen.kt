@@ -174,6 +174,7 @@ fun TrackingScreen(
 
     val selectedScooter by viewModel.selectedScooter.collectAsState()
     val scooters by viewModel.scooters.collectAsState()
+    val vehiclesLoaded by viewModel.vehiclesLoaded.collectAsState()
     val currentDistance by viewModel.currentDistance.collectAsState()
     val currentSpeed by viewModel.currentSpeed.collectAsState()
     val duration by viewModel.duration.collectAsState()
@@ -309,7 +310,7 @@ fun TrackingScreen(
                     }
                 },
                 // Estilo moderno 'Surface' unificado con el resto de la app
-                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface,
                     titleContentColor = MaterialTheme.colorScheme.onSurface,
                     actionIconContentColor = MaterialTheme.colorScheme.onSurface
@@ -334,6 +335,14 @@ fun TrackingScreen(
                     // Mostrar contenido vacío mientras navegamos
                     Box(modifier = Modifier.fillMaxSize())
                 }
+                trackingState is TrackingState.Idle && !vehiclesLoaded -> {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator()
+                    }
+                }
                 trackingState is TrackingState.Idle && hasAllRequiredPermissions -> {
                     IdleStateContent(
                         selectedScooter = selectedScooter,
@@ -345,7 +354,11 @@ fun TrackingScreen(
                         isActiveRainWarning = isActiveRainWarning,
                         shouldShowExtremeWarning = shouldShowExtremeWarning,
                         isTracking = isTracking,
-                        onScooterClick = { showScooterPicker = true },
+                        onScooterClick = {
+                            if (vehiclesLoaded && scooters.isNotEmpty()) {
+                                showScooterPicker = true
+                            }
+                        },
                         onStartTracking = { viewModel.startTracking() },
                         onDismissRainWarning = { viewModel.dismissRainWarning() },
                         onDismissExtremeWarning = { viewModel.dismissExtremeWarning() },
@@ -375,7 +388,7 @@ fun TrackingScreen(
         }
     }
 
-    if (showScooterPicker) {
+    if (showScooterPicker && scooters.isNotEmpty()) {
         ScooterPickerDialog(
             scooters = scooters,
             selectedScooter = selectedScooter,
@@ -454,8 +467,8 @@ fun PreRideSmartWarning(
             emptyList()
         } else {
             val factors = mutableListOf<String>()
-            val windSpeedKmh = (weatherStatus.windSpeed ?: 0.0) * 3.6
-            val windGustsKmh = (weatherStatus.windGusts ?: 0.0) * 3.6
+            val windSpeedKmh = weatherStatus.windSpeed ?: 0.0
+            val windGustsKmh = weatherStatus.windGusts ?: 0.0
             val temperature = weatherStatus.temperature
             val uvIndex = weatherStatus.uvIndex
             val isDay = weatherStatus.isDay
@@ -1281,8 +1294,8 @@ fun TrackingWeatherCard(
                         Spacer(modifier = Modifier.width(4.dp))
 
                         val direction = convertWindDirectionToText(weatherStatus.windDirection)
-                        // Convertir viento de m/s a km/h (weatherStatus.windSpeed está en m/s)
-                        val windSpeedKmh = (weatherStatus.windSpeed ?: 0.0) * 3.6
+                        // WeatherRepository ya entrega el viento en km/h
+                        val windSpeedKmh = weatherStatus.windSpeed ?: 0.0
 
                         ZipStatsText(
                             text = "${com.zipstats.app.utils.LocationUtils.formatNumberSpanish(windSpeedKmh, 0)} km/h ($direction)",

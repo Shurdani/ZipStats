@@ -160,10 +160,12 @@ class RoutesViewModel @Inject constructor(
             try {
                 val scooters = scooterRepository.getUserScooters()
                 _userScooters.value = scooters
-                _vehiclesLoaded.value = true  // ← después de actualizar userScooters
+                _vehiclesLoaded.value = true
+                appOverlayRepository.setVehiclesLoaded()  // ← añadir
                 appOverlayRepository.setVehiclesReady(true)
             } catch (e: Exception) {
                 _vehiclesLoaded.value = true
+                appOverlayRepository.setVehiclesLoaded()  // ← añadir
                 appOverlayRepository.setVehiclesReady(true)
             }
         }

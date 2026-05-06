@@ -28,6 +28,7 @@ import com.zipstats.app.model.Repair
 import com.zipstats.app.model.Scooter
 import com.zipstats.app.model.User
 import com.zipstats.app.repository.AuthRepository
+import com.zipstats.app.repository.AppOverlayRepository
 import com.zipstats.app.repository.RecordRepository
 import com.zipstats.app.repository.RepairRepository
 import com.zipstats.app.repository.UserRepository
@@ -104,6 +105,7 @@ class ProfileViewModel @Inject constructor(
     private val cloudinaryService: CloudinaryService,
     private val auth: FirebaseAuth,
     private val authRepository: AuthRepository,
+    private val appOverlayRepository: AppOverlayRepository,
     private val storage: FirebaseStorage,
     private val firestore: FirebaseFirestore,
     @ApplicationContext private val context: Context
@@ -906,6 +908,7 @@ class ProfileViewModel @Inject constructor(
                 // Usar authRepository.logout() que limpia las credenciales guardadas
                 // ANTES de hacer signOut() para evitar autologin inmediato
                 authRepository.logout()
+                appOverlayRepository.resetSessionState()
 
                 // Ejecutamos el callback (si venía de handleEvent, no hará nada extra aquí,
                 // pero cerrará sesión en Firebase que es lo importante).
@@ -918,6 +921,7 @@ class ProfileViewModel @Inject constructor(
                 // Intentar limpiar credenciales aunque haya un error
                 try {
                     authRepository.logout()
+                    appOverlayRepository.resetSessionState()
                 } catch (e2: Exception) {
                     Log.e("ProfileVM", "Error al limpiar credenciales", e2)
                 }

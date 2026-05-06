@@ -76,13 +76,13 @@ sealed class WeatherStatus {
         val description: String,       // Descripción del clima
         val icon: String,              // Código (ahora será el numérico, ej: "3")
         val humidity: Int,             // Humedad %
-        val windSpeed: Double,         // Velocidad del viento m/s
+        val windSpeed: Double,         // Velocidad del viento en km/h
         val weatherEmoji: String,      // Emoji representativo (¡ARREGLADO!)
         val weatherCode: Int,
         val isDay: Boolean,
         val uvIndex: Double?,
         val windDirection: Int?,
-        val windGusts: Double?,
+        val windGusts: Double?,        // Ráfagas en km/h
         val rainProbability: Int?,
         val precipitation: Double,     // mm reales
         val rain: Double?,             // mm
@@ -303,6 +303,7 @@ class TrackingViewModel @Inject constructor(
     // Lista de patinetes disponibles
     private val _scooters = MutableStateFlow<List<Scooter>>(emptyList())
     val scooters: StateFlow<List<Scooter>> = _scooters.asStateFlow()
+    val vehiclesLoaded: StateFlow<Boolean> = appOverlayRepository.vehiclesLoaded
     
     // Mensaje de resultado
     private val _message = MutableStateFlow<String?>(null)
@@ -497,6 +498,7 @@ class TrackingViewModel @Inject constructor(
         viewModelScope.launch {
             scooterRepository.getScooters().collect { scootersList ->
                 _scooters.value = scootersList
+                appOverlayRepository.setVehiclesLoaded()
 
                 val currentSelectedId = _selectedScooter.value?.id
                 val selectedStillExists = currentSelectedId != null &&

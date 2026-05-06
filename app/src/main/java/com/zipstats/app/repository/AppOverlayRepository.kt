@@ -19,6 +19,27 @@ class AppOverlayRepository @Inject constructor() {
     private val _vehiclesReady = MutableStateFlow<Boolean>(false)
     val vehiclesReady: StateFlow<Boolean> = _vehiclesReady.asStateFlow()
 
+    private val _recordsLoaded = MutableStateFlow(false)
+    val recordsLoaded: StateFlow<Boolean> = _recordsLoaded.asStateFlow()
+
+    private val _vehiclesLoaded = MutableStateFlow(false)
+    val vehiclesLoaded: StateFlow<Boolean> = _vehiclesLoaded.asStateFlow()
+
+    private val _onboardingDismissedInSession = MutableStateFlow(false)
+    val onboardingDismissedInSession: StateFlow<Boolean> = _onboardingDismissedInSession.asStateFlow()
+
+    fun dismissOnboarding() {
+        _onboardingDismissedInSession.value = true
+    }
+
+    fun setVehiclesLoaded() {
+        _vehiclesLoaded.value = true
+    }
+
+    fun setRecordsLoaded() {
+        _recordsLoaded.value = true
+    }
+
     fun showSplashOverlay(message: String) {
         _overlay.value = AppOverlayState.Splash(message)
     }
@@ -29,6 +50,14 @@ class AppOverlayRepository @Inject constructor() {
 
     fun setVehiclesReady(ready: Boolean) {
         _vehiclesReady.value = ready
+    }
+
+    fun resetSessionState() {
+        _overlay.value = AppOverlayState.None
+        _vehiclesReady.value = false
+        _recordsLoaded.value = false
+        _vehiclesLoaded.value = false
+        _onboardingDismissedInSession.value = false
     }
 }
 

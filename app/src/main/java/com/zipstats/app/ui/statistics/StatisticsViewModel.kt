@@ -522,7 +522,6 @@ class StatisticsViewModel @Inject constructor(
     suspend fun getMonthlyShareText(stats: StatisticsUiState.Success, month: Int? = null, year: Int? = null): String {
         // 1. Cálculos base
         val co2Saved = (stats.monthlyDistance * 0.15).toInt()
-        val treesEquivalent = (stats.monthlyDistance * 0.005).toInt()
         val gasSaved = (stats.monthlyDistance * 0.07).toInt()
 
         // 2. Determinar mes y año exactos
@@ -558,17 +557,17 @@ class StatisticsViewModel @Inject constructor(
 
         // 4. Preparar líneas de clima
         val weatherLines = buildList {
-            if (rainKm > 0.0) add("🌧️ Con lluvia: $rainKm km")
-            if (wetRoadKm > 0.0) add("💧 Calzada húmeda: $wetRoadKm km")
-            if (extremeKm > 0.0) add("⚠️ Extremo: $extremeKm km")
+            if (rainKm > 0.0) add("🌧️ ${rainKm} km bajo la lluvia")
+            if (wetRoadKm > 0.0) add("💧 ${wetRoadKm} km con calzada mojada")
+            if (extremeKm > 0.0) add("⚡ ${extremeKm} km en condiciones extremas")
         }
 
-        // 5. Construcción del mensaje final (Limpio y sin redundancias)
+        // 5. Construcción del mensaje final para compartir
         val lines = mutableListOf(
-            "Estadísticas $monthName $selectedYear de ${userName.value}",
+            "🛴 ${userName.value} — ${monthName.replaceFirstChar { it.uppercase() }} $selectedYear",
             "",
-            "📊 Total: ${stats.monthlyDistance.roundToOneDecimal()} km | 🌱 CO₂: -$co2Saved kg",
-            "🌳 Árboles: $treesEquivalent | ⛽ Gasolina: $gasSaved L"
+            "📍 ${stats.monthlyDistance.roundToOneDecimal()} km recorridos",
+            "🌱 ${co2Saved} kg de CO₂ ahorrados · ${gasSaved} L de gasolina"
         )
 
         if (weatherLines.isNotEmpty()) {

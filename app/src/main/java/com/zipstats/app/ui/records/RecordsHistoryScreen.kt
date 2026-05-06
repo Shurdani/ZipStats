@@ -77,13 +77,15 @@ import com.zipstats.app.ui.theme.DialogShape
 import com.zipstats.app.utils.DateUtils
 import com.zipstats.app.utils.LocationUtils
 import dagger.hilt.android.EntryPointAccessors
+import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.ZoneId
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, FlowPreview::class)
 @Composable
 fun RecordsHistoryScreen(
     navController: NavController,
@@ -98,7 +100,7 @@ fun RecordsHistoryScreen(
         ).appOverlayRepository()
     }
     val vehiclesLoaded by viewModel.vehiclesLoaded.collectAsState()
-    val recordsLoaded by viewModel.recordsLoaded.collectAsState()
+    val initialDataResolved by viewModel.initialDataResolved.collectAsState()
     onboardingViewModel.onboardingManager
     val records by viewModel.records.collectAsState()
     val userScooters by viewModel.userScooters.collectAsState()
@@ -118,16 +120,9 @@ fun RecordsHistoryScreen(
     // Estado para controlar el scroll de la lista (Definido UNA sola vez)
     val listState = rememberLazyListState()
 
-    // Variable para detectar cuando se añade un registro
-    var previousRecordsSize by remember { mutableStateOf(records.size) }
-    var isFilterChanging by remember { mutableStateOf(false) }
+    // Guardamos el primer elemento visible para distinguir "nuevo arriba" vs "paginación abajo"
+    var previousTopRecordId by remember { mutableStateOf(records.firstOrNull()?.id) }
 
-    // Verificar si se debe mostrar el onboarding
-    LaunchedEffect(vehiclesLoaded , userScooters, onboardingDismissedInSession) {
-        if (vehiclesLoaded  && !onboardingDismissedInSession) {
-            showOnboardingDialog = userScooters.isEmpty()
-        }
-    }
 
     // Filtrar registros según el patinete seleccionado
     val filteredRecords = remember(records, selectedModel, userScooters) {
@@ -140,22 +135,25 @@ fun RecordsHistoryScreen(
         }
     }
 
-    // Detectar cambio de filtro para evitar flash del EmptyStateView
+    // Al cambiar de filtro, volvemos al inicio si hay resultados visibles
     LaunchedEffect(selectedModel) {
-        isFilterChanging = true
-        kotlinx.coroutines.delay(150) // Pequeño delay para evitar el flash
-        isFilterChanging = false
         if (filteredRecords.isNotEmpty()) {
             listState.scrollToItem(0)
         }
     }
 
-    // Scroll automático al principio cuando se añade un nuevo registro
-    LaunchedEffect(records.size) {
-        if (records.size > previousRecordsSize && filteredRecords.isNotEmpty()) {
+    // Scroll automático solo cuando aparece un nuevo registro en la parte superior
+    LaunchedEffect(records) {
+        val currentTopRecordId = records.firstOrNull()?.id
+        if (
+            previousTopRecordId != null &&
+            currentTopRecordId != null &&
+            currentTopRecordId != previousTopRecordId &&
+            filteredRecords.isNotEmpty()
+        ) {
             listState.animateScrollToItem(0)
         }
-        previousRecordsSize = records.size
+        previousTopRecordId = currentTopRecordId
     }
 
     // Infinite scroll: cargar más al acercarse al final
@@ -166,6 +164,7 @@ fun RecordsHistoryScreen(
             total > 0 && hasMorePages && !isLoadingMore && lastVisible >= total - 3
         }
             .distinctUntilChanged()
+            .debounce(250)
             .filter { it }
             .collect { viewModel.loadNextPage() }
     }
@@ -206,11 +205,22 @@ fun RecordsHistoryScreen(
         )
     }
 
-    if (showOnboardingDialog) {
+    val isWaitingInitialPage =
+        !initialDataResolved
+    val isWaitingFilteredResults =
+        selectedModel != null &&
+            filteredRecords.isEmpty() &&
+            hasMorePages
+    val shouldShowOnboarding =
+        initialDataResolved &&
+            !isWaitingInitialPage &&
+            !onboardingDismissedInSession &&
+            records.isEmpty() &&
+            userScooters.isEmpty()
+
+    if (shouldShowOnboarding) {
         OnboardingDialog(
-            onDismiss = {
-                viewModel.markOnboardingDismissed()
-            },
+            onDismiss = { viewModel.markOnboardingDismissed() },
             onRegisterVehicle = {
                 viewModel.markOnboardingDismissed()
                 navController.navigate("${Screen.Profile.route}?openAddVehicle=true")
@@ -350,26 +360,31 @@ fun RecordsHistoryScreen(
             Spacer(modifier = Modifier.height(8.dp))
 
             // Lista de registros con nuevo diseño de tarjeta
-            if (isLoading) {
+            if (isLoading || isWaitingInitialPage) {
                 Box(
                     modifier = Modifier.fillMaxWidth().weight(1f),
                     contentAlignment = Alignment.Center
                 ) {
                     CircularProgressIndicator()
                 }
-            } else if (!recordsLoaded || (filteredRecords.isEmpty() && (records.isEmpty() || !isFilterChanging))) {
-                // Estado vacío
-                EmptyStateRecords(
-                    onAddRecord = {
-                        if (userScooters.isEmpty()) {
-                            showOnboardingDialog = true
-                        } else {
-                            showBottomSheet = true
-                        }
-                    },
-                    modifier = Modifier.weight(1f)
-                )
+            } else if (filteredRecords.isEmpty() && !isWaitingFilteredResults && !isWaitingInitialPage) {
+                if (initialDataResolved && !shouldShowOnboarding) {
+                    EmptyStateRecords(
+                        onAddRecord = {
+                            if (userScooters.isEmpty()) {
+                                showOnboardingDialog = true
+                            } else {
+                                showBottomSheet = true
+                            }
+                        },
+                        modifier = Modifier.weight(1f)
+                    )
+                } else {
+                    Box(modifier = Modifier.fillMaxWidth().weight(1f))
+                }
+
             } else {
+
                 LazyColumn(
                     state = listState,
                     modifier = Modifier

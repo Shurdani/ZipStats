@@ -13,6 +13,7 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestoreException
 import com.zipstats.app.model.Record
 import com.zipstats.app.model.Scooter
+import com.zipstats.app.repository.AppOverlayRepository
 import com.zipstats.app.repository.RecordRepository
 import com.zipstats.app.repository.VehicleRepository
 import com.zipstats.app.utils.ExcelExporter
@@ -48,6 +49,7 @@ class RecordsViewModel @Inject constructor(
     private val recordRepository: RecordRepository,
     private val scooterRepository: VehicleRepository,
     private val achievementsService: com.zipstats.app.service.AchievementsService,
+    private val appOverlayRepository: AppOverlayRepository,
     private val auth: FirebaseAuth,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
@@ -67,8 +69,8 @@ class RecordsViewModel @Inject constructor(
     val selectedScooterForExport: StateFlow<String?> = _selectedScooterForExport.asStateFlow()
 
     // Estado UI simple
-    private val _onboardingDismissedInSession = MutableStateFlow(false)
-    val onboardingDismissedInSession: StateFlow<Boolean> = _onboardingDismissedInSession.asStateFlow()
+    val onboardingDismissedInSession: StateFlow<Boolean> = appOverlayRepository.onboardingDismissedInSession
+
 
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
@@ -82,9 +84,25 @@ class RecordsViewModel @Inject constructor(
     val isLoadingMore: StateFlow<Boolean> = _isLoadingMore.asStateFlow()
     private val _hasMorePages = MutableStateFlow(true)
     val hasMorePages: StateFlow<Boolean> = _hasMorePages.asStateFlow()
+    private val _initialRecordsResolved = MutableStateFlow(false)
+    val initialRecordsResolved: StateFlow<Boolean> = _initialRecordsResolved.asStateFlow()
+    private val _initialScootersResolved = MutableStateFlow(false)
+    val initialScootersResolved: StateFlow<Boolean> = _initialScootersResolved.asStateFlow()
 
-    private val _vehiclesLoaded = MutableStateFlow(false)
-    val vehiclesLoaded: StateFlow<Boolean> = _vehiclesLoaded.asStateFlow()
+    val vehiclesLoaded: StateFlow<Boolean> = appOverlayRepository.vehiclesLoaded
+
+    val recordsLoaded: StateFlow<Boolean> = appOverlayRepository.recordsLoaded
+    val initialDataResolved: StateFlow<Boolean> = combine(
+        _initialRecordsResolved,
+        _initialScootersResolved
+    ) { recordsResolved, scootersResolved ->
+        recordsResolved && scootersResolved
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.Eagerly,
+        initialValue = false
+    )
+
 
     // 2. FUENTES DE DATOS (Sources of Truth)
 
@@ -109,7 +127,7 @@ class RecordsViewModel @Inject constructor(
         .flowOn(Dispatchers.IO)
         .stateIn(
             scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5000),
+            started = SharingStarted.Eagerly,
             initialValue = emptyList()
         )
 
@@ -176,7 +194,7 @@ class RecordsViewModel @Inject constructor(
     val records: StateFlow<List<Record>> = filteredRecordsFlow
         .stateIn(
             scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5000),
+            started = SharingStarted.Eagerly,
             initialValue = emptyList()
         )
 
@@ -202,31 +220,29 @@ class RecordsViewModel @Inject constructor(
         observeInitialRecords()
         viewModelScope.launch {
             userScooters
-                .drop(1)  // ← ignora el emptyList() inicial del stateIn
+                .drop(1)
                 .collect { _ ->
-                    if (!_vehiclesLoaded.value) {
-                        _vehiclesLoaded.value = true
-                    }
+                    _initialScootersResolved.value = true
+                    appOverlayRepository.setVehiclesLoaded()
                 }
         }
     }
 
-    private val _recordsLoaded = MutableStateFlow(false)
-    val recordsLoaded: StateFlow<Boolean> = _recordsLoaded.asStateFlow()
 
     private fun observeInitialRecords() {
         viewModelScope.launch {
             allRecordsFlow.collect { firstPage ->
                 _firstPageRecords.value = firstPage
                 _hasMorePages.value = firstPage.size >= pageSize
-                _recordsLoaded.value = true  // ← primera respuesta de Firestore recibida
+                _initialRecordsResolved.value = true
+                appOverlayRepository.setRecordsLoaded()
             }
         }
     }
     // --- FUNCIONES Y ACCIONES ---
 
     fun markOnboardingDismissed() {
-        _onboardingDismissedInSession.value = true
+        appOverlayRepository.dismissOnboarding()
     }
 
     fun setSelectedModel(model: String?) {

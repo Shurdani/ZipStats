@@ -203,16 +203,17 @@ class RouteRepository @Inject constructor(
     /**
      * Obtiene todas las rutas del usuario actual como Flow (reactivo)
      */
-    fun getUserRoutesFlow(): Flow<List<Route>> = callbackFlow {
+    fun getUserRoutesFlow(pageSize: Int = 20): Flow<List<Route>> = callbackFlow {
         val userId = auth.currentUser?.uid
         if (userId == null) {
             close(Exception("Usuario no autenticado"))
             return@callbackFlow
         }
-        
+
         val listener = firestore.collection(ROUTES_COLLECTION)
             .whereEqualTo("userId", userId)
             .orderBy("startTime", Query.Direction.DESCENDING)
+            .limit(pageSize.toLong())
             .addSnapshotListener { snapshot, error ->
                 // Verificar primero si el usuario sigue autenticado
                 val currentUser = auth.currentUser
@@ -257,8 +258,7 @@ class RouteRepository @Inject constructor(
                     val routes = snapshot.documents.mapNotNull { doc ->
                         try {
                             val data = doc.data ?: return@mapNotNull null
-                            Route.fromMap(doc.id, data)
-                        } catch (e: Exception) {
+                            Route.fromMap(doc.id, data - "points")                        } catch (e: Exception) {
                             Log.e(TAG, "Error al parsear ruta ${doc.id}", e)
                             null
                         }
@@ -393,6 +393,51 @@ class RouteRepository @Inject constructor(
             Result.failure(e)
         } catch (e: Exception) {
             Log.e(TAG, "Error al eliminar rutas del vehículo", e)
+            Result.failure(e)
+        }
+    }
+
+    // Carga de páginas adicionales (cursor por startTime)
+    suspend fun getNextPage(lastStartTime: Long, pageSize: Int = 20): Result<List<Route>> {
+        return try {
+            val userId = auth.currentUser?.uid
+                ?: return Result.failure(Exception("Usuario no autenticado"))
+            val snapshot = firestore.collection(ROUTES_COLLECTION)
+                .whereEqualTo("userId", userId)
+                .orderBy("startTime", Query.Direction.DESCENDING)
+                .startAfter(lastStartTime)
+                .limit(pageSize.toLong())
+                .get()
+                .await()
+
+            val routes = snapshot.documents.mapNotNull { doc ->
+                try {
+                    val data = doc.data ?: return@mapNotNull null
+                    Route.fromMap(doc.id, data - "points")
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error al parsear ruta ${doc.id}", e)
+                    null
+                }
+            }
+            Result.success(routes)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error al cargar siguiente página", e)
+            Result.failure(e)
+        }
+    }
+
+    // Ruta completa con points (solo para el detalle)
+    suspend fun getRouteWithPoints(routeId: String): Result<Route> {
+        return try {
+            val doc = firestore.collection(ROUTES_COLLECTION)
+                .document(routeId)
+                .get()
+                .await()
+            val data = doc.data
+                ?: return Result.failure(Exception("Ruta no encontrada"))
+            Result.success(Route.fromMap(doc.id, data))
+        } catch (e: Exception) {
+            Log.e(TAG, "Error al obtener ruta con points $routeId", e)
             Result.failure(e)
         }
     }

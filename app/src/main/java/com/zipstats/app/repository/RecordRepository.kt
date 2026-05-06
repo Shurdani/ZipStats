@@ -1,16 +1,15 @@
 package com.zipstats.app.repository
 
-import com.zipstats.app.model.Record
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreException
 import com.google.firebase.firestore.Query
+import com.zipstats.app.model.Record
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.tasks.await
-import java.time.LocalDate
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -111,6 +110,80 @@ class RecordRepository @Inject constructor(
             awaitClose { subscription.remove() }
         } catch (e: Exception) {
             close(e)
+        }
+    }
+
+    // Versión paginada para la UI (primera página con listener reactivo)
+    fun getRecordsFlow(pageSize: Int = 20): Flow<List<Record>> = callbackFlow {
+        val userId = auth.currentUser?.uid ?: run { close(Exception("Usuario no autenticado")); return@callbackFlow }
+
+        val subscription = recordsCollection
+            .whereEqualTo("userId", userId)
+            .orderBy("fecha", Query.Direction.DESCENDING)
+            .limit(pageSize.toLong())
+            .addSnapshotListener { snapshot, error ->
+                if (auth.currentUser == null) { trySend(emptyList()); close(); return@addSnapshotListener }
+                if (error != null) {
+                    val isPermissionError = error.code == FirebaseFirestoreException.Code.PERMISSION_DENIED
+                    if (isPermissionError || auth.currentUser == null) {
+                        trySend(emptyList()); close()
+                    } else {
+                        close(error)
+                    }
+                    return@addSnapshotListener
+                }
+                val records = snapshot?.documents?.mapNotNull { doc ->
+                    try {
+                        val data = doc.data ?: return@mapNotNull null
+                        Record(
+                            id = doc.id,
+                            vehiculo = data["vehiculo"] as? String ?: "",
+                            patinete = data["patinete"] as? String ?: "",
+                            scooterId = data["scooterId"] as? String ?: "",
+                            fecha = data["fecha"] as? String ?: "",
+                            kilometraje = (data["kilometraje"] as? Number)?.toDouble() ?: 0.0,
+                            diferencia = (data["diferencia"] as? Number)?.toDouble() ?: 0.0,
+                            userId = data["userId"] as? String ?: "",
+                            isInitialRecord = data["isInitialRecord"] as? Boolean ?: false
+                        )
+                    } catch (e: Exception) { null }
+                } ?: emptyList()
+                if (auth.currentUser != null) trySend(records)
+            }
+        awaitClose { subscription.remove() }
+    }
+
+    // Carga de páginas adicionales (cursor por fecha)
+    suspend fun getNextPage(lastFecha: String, pageSize: Int = 20): Result<List<Record>> {
+        return try {
+            val userId = auth.currentUser?.uid ?: return Result.failure(Exception("Usuario no autenticado"))
+            val snapshot = recordsCollection
+                .whereEqualTo("userId", userId)
+                .orderBy("fecha", Query.Direction.DESCENDING)
+                .startAfter(lastFecha)
+                .limit(pageSize.toLong())
+                .get()
+                .await()
+
+            val records = snapshot.documents.mapNotNull { doc ->
+                try {
+                    val data = doc.data ?: return@mapNotNull null
+                    Record(
+                        id = doc.id,
+                        vehiculo = data["vehiculo"] as? String ?: "",
+                        patinete = data["patinete"] as? String ?: "",
+                        scooterId = data["scooterId"] as? String ?: "",
+                        fecha = data["fecha"] as? String ?: "",
+                        kilometraje = (data["kilometraje"] as? Number)?.toDouble() ?: 0.0,
+                        diferencia = (data["diferencia"] as? Number)?.toDouble() ?: 0.0,
+                        userId = data["userId"] as? String ?: "",
+                        isInitialRecord = data["isInitialRecord"] as? Boolean ?: false
+                    )
+                } catch (e: Exception) { null }
+            }
+            Result.success(records)
+        } catch (e: Exception) {
+            Result.failure(e)
         }
     }
 

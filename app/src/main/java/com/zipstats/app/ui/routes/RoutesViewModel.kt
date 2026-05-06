@@ -152,15 +152,18 @@ class RoutesViewModel @Inject constructor(
         _selectedScooter.value = scooterId
     }
 
+    private val _vehiclesLoaded = MutableStateFlow(false)
+    val vehiclesLoaded: StateFlow<Boolean> = _vehiclesLoaded.asStateFlow()
+
     fun loadUserScooters() {
         viewModelScope.launch {
             try {
                 val scooters = scooterRepository.getUserScooters()
                 _userScooters.value = scooters
-                // Marcar vehículos como listos después de cargarlos
+                _vehiclesLoaded.value = true  // ← después de actualizar userScooters
                 appOverlayRepository.setVehiclesReady(true)
             } catch (e: Exception) {
-                // Error silencioso, pero aún marcamos como ready para no bloquear la app
+                _vehiclesLoaded.value = true
                 appOverlayRepository.setVehiclesReady(true)
             }
         }

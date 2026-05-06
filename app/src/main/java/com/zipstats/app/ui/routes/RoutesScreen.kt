@@ -88,7 +88,7 @@ fun RoutesScreen(
             AppOverlayRepositoryEntryPoint::class.java
         ).appOverlayRepository()
     }
-    val vehiclesReady by appOverlayRepository.vehiclesReady.collectAsState()
+    val vehiclesLoaded by viewModel.vehiclesLoaded.collectAsState()
     
     val routes by viewModel.routes.collectAsState()
     val userScooters by viewModel.userScooters.collectAsState()
@@ -172,8 +172,8 @@ fun RoutesScreen(
     }
 
     // Mostrar onboarding solo cuando los vehículos han cargado y no hay ninguno
-    LaunchedEffect(vehiclesReady, userScooters) {
-        if (vehiclesReady && userScooters.isEmpty()) {
+    LaunchedEffect(vehiclesLoaded, userScooters) {
+        if (vehiclesLoaded && userScooters.isEmpty()) {
             showOnboardingDialog = true
         }
     }
@@ -313,15 +313,15 @@ fun RoutesScreen(
         floatingActionButton = {
             AnimatedFloatingActionButton(
                 onClick = {
-                    if (vehiclesReady && userScooters.isEmpty()) {
+                    if (vehiclesLoaded  && userScooters.isEmpty()) {
                         showOnboardingDialog = true
-                    } else if (vehiclesReady) {
+                    } else if (vehiclesLoaded ) {
                         navController.navigate(Screen.Tracking.route) {
                             launchSingleTop = true
                         }
                     }
                 },
-                enabled = vehiclesReady, // Deshabilitar hasta que los vehículos estén cargados
+                enabled = vehiclesLoaded , // Deshabilitar hasta que los vehículos estén cargados
                 containerColor = MaterialTheme.colorScheme.tertiary
             ) {
                 Icon(
@@ -392,7 +392,7 @@ fun RoutesScreen(
                 EmptyStateRoutes(
                     onStartRoute = {
                         // Verificar si hay vehículos antes de permitir iniciar ruta
-                        if (!vehiclesReady) {
+                        if (!vehiclesLoaded ) {
                             // Esperar a que los vehículos estén cargados
                             return@EmptyStateRoutes
                         }

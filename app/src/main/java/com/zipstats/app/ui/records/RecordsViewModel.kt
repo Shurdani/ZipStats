@@ -26,6 +26,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -81,6 +82,9 @@ class RecordsViewModel @Inject constructor(
     val isLoadingMore: StateFlow<Boolean> = _isLoadingMore.asStateFlow()
     private val _hasMorePages = MutableStateFlow(true)
     val hasMorePages: StateFlow<Boolean> = _hasMorePages.asStateFlow()
+
+    private val _vehiclesLoaded = MutableStateFlow(false)
+    val vehiclesLoaded: StateFlow<Boolean> = _vehiclesLoaded.asStateFlow()
 
     // 2. FUENTES DE DATOS (Sources of Truth)
 
@@ -196,13 +200,26 @@ class RecordsViewModel @Inject constructor(
 
     init {
         observeInitialRecords()
+        viewModelScope.launch {
+            userScooters
+                .drop(1)  // ← ignora el emptyList() inicial del stateIn
+                .collect { _ ->
+                    if (!_vehiclesLoaded.value) {
+                        _vehiclesLoaded.value = true
+                    }
+                }
+        }
     }
+
+    private val _recordsLoaded = MutableStateFlow(false)
+    val recordsLoaded: StateFlow<Boolean> = _recordsLoaded.asStateFlow()
 
     private fun observeInitialRecords() {
         viewModelScope.launch {
             allRecordsFlow.collect { firstPage ->
                 _firstPageRecords.value = firstPage
                 _hasMorePages.value = firstPage.size >= pageSize
+                _recordsLoaded.value = true  // ← primera respuesta de Firestore recibida
             }
         }
     }
@@ -268,18 +285,6 @@ class RecordsViewModel @Inject constructor(
         }
     }
 
-    fun updateRecord(record: Record) {
-        viewModelScope.launch {
-            try {
-                recordRepository.updateRecord(record)
-                    .onFailure { e ->
-                        _errorMessage.value = e.message ?: "Error al actualizar el registro"
-                    }
-            } catch (e: Exception) {
-                _errorMessage.value = e.message
-            }
-        }
-    }
 
     fun updateRecord(recordId: String, patinete: String, kilometraje: String, fecha: String) {
         viewModelScope.launch {
@@ -334,12 +339,12 @@ class RecordsViewModel @Inject constructor(
 
         viewModelScope.launch {
             _isLoadingMore.value = true
-            recordRepository.getNextPage(lastDate = lastRecord.fecha, pageSize = pageSize)
+            recordRepository.getNextPage(lastFecha = lastRecord.fecha, pageSize = pageSize)
                 .onSuccess { newRecords ->
                     if (newRecords.isEmpty()) {
                         _hasMorePages.value = false
                     } else {
-                        _extraRecords.value = _extraRecords.value + newRecords
+                        _extraRecords.value += newRecords
                     }
                 }
                 .onFailure { _errorMessage.value = it.message }

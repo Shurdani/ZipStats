@@ -66,7 +66,6 @@ import androidx.navigation.NavController
 import com.zipstats.app.di.AppOverlayRepositoryEntryPoint
 import com.zipstats.app.model.Record
 import com.zipstats.app.navigation.Screen
-import com.zipstats.app.repository.AppOverlayRepository
 import com.zipstats.app.ui.components.AnimatedFloatingActionButton
 import com.zipstats.app.ui.components.DialogCancelButton
 import com.zipstats.app.ui.components.DialogDeleteButton
@@ -92,15 +91,15 @@ fun RecordsHistoryScreen(
     onboardingViewModel: OnboardingViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
-    val appOverlayRepository: AppOverlayRepository = remember {
+    remember {
         EntryPointAccessors.fromApplication(
             context.applicationContext,
             AppOverlayRepositoryEntryPoint::class.java
         ).appOverlayRepository()
     }
-    val vehiclesReady by appOverlayRepository.vehiclesReady.collectAsState()
-    
-    val onboardingManager = onboardingViewModel.onboardingManager
+    val vehiclesLoaded by viewModel.vehiclesLoaded.collectAsState()
+    val recordsLoaded by viewModel.recordsLoaded.collectAsState()
+    onboardingViewModel.onboardingManager
     val records by viewModel.records.collectAsState()
     val userScooters by viewModel.userScooters.collectAsState()
     val selectedModel by viewModel.selectedModel.collectAsState()
@@ -124,8 +123,8 @@ fun RecordsHistoryScreen(
     var isFilterChanging by remember { mutableStateOf(false) }
 
     // Verificar si se debe mostrar el onboarding
-    LaunchedEffect(vehiclesReady, userScooters, onboardingDismissedInSession) {
-        if (vehiclesReady && !onboardingDismissedInSession) {
+    LaunchedEffect(vehiclesLoaded , userScooters, onboardingDismissedInSession) {
+        if (vehiclesLoaded  && !onboardingDismissedInSession) {
             showOnboardingDialog = userScooters.isEmpty()
         }
     }
@@ -186,7 +185,7 @@ fun RecordsHistoryScreen(
     // Diálogos
     recordToDelete?.let { record ->
         AlertDialog(
-            onDismissRequest = { recordToDelete = null },
+            onDismissRequest = { },
             title = { ZipStatsText("Confirmar eliminación") },
             text = { ZipStatsText("¿Estás seguro de que quieres eliminar este registro?") },
             confirmButton = {
@@ -194,14 +193,13 @@ fun RecordsHistoryScreen(
                     text = "Eliminar",
                     onClick = {
                         viewModel.deleteRecord(record.id)
-                        recordToDelete = null
                     }
                 )
             },
             dismissButton = {
                 DialogCancelButton(
                     text = "Cancelar",
-                    onClick = { recordToDelete = null }
+                    onClick = { }
                 )
             },
             shape = DialogShape
@@ -211,11 +209,9 @@ fun RecordsHistoryScreen(
     if (showOnboardingDialog) {
         OnboardingDialog(
             onDismiss = {
-                showOnboardingDialog = false
                 viewModel.markOnboardingDismissed()
             },
             onRegisterVehicle = {
-                showOnboardingDialog = false
                 viewModel.markOnboardingDismissed()
                 navController.navigate("${Screen.Profile.route}?openAddVehicle=true")
             }
@@ -227,10 +223,9 @@ fun RecordsHistoryScreen(
             userScooters = userScooters,
             records = records,
             defaultScooter = lastUsedScooterName,
-            onDismiss = { showBottomSheet = false },
+            onDismiss = { },
             onConfirm = { patinete, kilometraje, fecha ->
                 viewModel.addRecord(patinete, kilometraje, fecha)
-                showBottomSheet = false
             }
         )
     }
@@ -240,7 +235,7 @@ fun RecordsHistoryScreen(
     
     if (recordToEdit != null) {
         ModalBottomSheet(
-            onDismissRequest = { recordToEdit = null },
+            onDismissRequest = { },
             sheetState = editRecordSheetState,
             dragHandle = { BottomSheetDefaults.DragHandle() }
         ) {
@@ -264,7 +259,6 @@ fun RecordsHistoryScreen(
                     scope.launch {
                         editRecordSheetState.hide()
                     }
-                    recordToDelete = recordToEdit
                     recordToEdit = null
                 }
             )
@@ -294,13 +288,11 @@ fun RecordsHistoryScreen(
         floatingActionButton = {
             AnimatedFloatingActionButton(
                 onClick = {
-                    if (vehiclesReady && userScooters.isEmpty()) {
-                        showOnboardingDialog = true
-                    } else if (vehiclesReady) {
-                        showBottomSheet = true
+                    if (vehiclesLoaded  && userScooters.isEmpty()) {
+                    } else if (vehiclesLoaded ) {
                     }
                 },
-                enabled = vehiclesReady, // Deshabilitar hasta que los vehículos estén cargados
+                enabled = vehiclesLoaded , // Deshabilitar hasta que los vehículos estén cargados
                 containerColor = MaterialTheme.colorScheme.primary
             ) {
                 Icon(
@@ -365,7 +357,7 @@ fun RecordsHistoryScreen(
                 ) {
                     CircularProgressIndicator()
                 }
-            } else if (filteredRecords.isEmpty() && (records.isEmpty() || !isFilterChanging)) {
+            } else if (!recordsLoaded || (filteredRecords.isEmpty() && (records.isEmpty() || !isFilterChanging))) {
                 // Estado vacío
                 EmptyStateRecords(
                     onAddRecord = {

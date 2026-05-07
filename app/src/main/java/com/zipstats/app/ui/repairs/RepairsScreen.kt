@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -129,6 +130,27 @@ fun RepairsScreen(
         }
     }
 
+    // Lista ordenada (por fecha desc) calculada a partir del uiState
+    val repairs = remember(uiState) {
+        (uiState as? RepairsUiState.Success)?.repairs?.sortedByDescending { it.date } ?: emptyList()
+    }
+
+    // Estado del scroll y detección de nueva reparación añadida arriba
+    val listState = rememberLazyListState()
+    var previousTopRepairId by remember { mutableStateOf(repairs.firstOrNull()?.id) }
+
+    LaunchedEffect(repairs) {
+        val currentTopId = repairs.firstOrNull()?.id
+        if (
+            previousTopRepairId != null &&
+            currentTopId != null &&
+            currentTopId != previousTopRepairId
+        ) {
+            listState.animateScrollToItem(0)
+        }
+        previousTopRepairId = currentTopId
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -197,8 +219,6 @@ fun RepairsScreen(
                 }
 
                 is RepairsUiState.Success -> {
-                    val repairs = (uiState as RepairsUiState.Success).repairs.sortedByDescending { it.date }
-
                     if (repairs.isEmpty()) {
                         EmptyStateRepairs(
                             onAddRepair = {
@@ -211,6 +231,7 @@ fun RepairsScreen(
                         )
                     } else {
                         LazyColumn(
+                            state = listState,
                             contentPadding = PaddingValues(16.dp),
                             verticalArrangement = Arrangement.spacedBy(12.dp),
                             modifier = Modifier.fillMaxSize()

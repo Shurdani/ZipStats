@@ -228,14 +228,25 @@ fun RecordsHistoryScreen(
         )
     }
 
+    if (showOnboardingDialog) {
+        OnboardingDialog(
+            onDismiss = { showOnboardingDialog = false },
+            onRegisterVehicle = {
+                showOnboardingDialog = false
+                navController.navigate("${Screen.Profile.route}?openAddVehicle=true")
+            }
+        )
+    }
+
     if (showBottomSheet) {
         NewRecordBottomSheet(
             userScooters = userScooters,
             records = records,
             defaultScooter = lastUsedScooterName,
-            onDismiss = { },
+            onDismiss = { showBottomSheet = false },
             onConfirm = { patinete, kilometraje, fecha ->
                 viewModel.addRecord(patinete, kilometraje, fecha)
+                showBottomSheet = false
             }
         )
     }
@@ -298,11 +309,13 @@ fun RecordsHistoryScreen(
         floatingActionButton = {
             AnimatedFloatingActionButton(
                 onClick = {
-                    if (vehiclesLoaded  && userScooters.isEmpty()) {
-                    } else if (vehiclesLoaded ) {
+                    if (userScooters.isEmpty()) {
+                        showOnboardingDialog = true
+                    } else {
+                        showBottomSheet = true
                     }
                 },
-                enabled = vehiclesLoaded , // Deshabilitar hasta que los vehículos estén cargados
+                enabled = vehiclesLoaded, // Deshabilitar hasta que los vehículos estén cargados
                 containerColor = MaterialTheme.colorScheme.primary
             ) {
                 Icon(

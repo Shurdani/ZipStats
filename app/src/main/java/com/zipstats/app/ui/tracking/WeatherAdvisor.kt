@@ -1,9 +1,23 @@
 package com.zipstats.app.ui.tracking
 
 import android.util.Log
+import java.time.LocalDate
 
 
 class WeatherAdvisor {
+    private enum class SeasonalProfile {
+        MEDITERRANEAN_WINTER,
+        MEDITERRANEAN_SUMMER,
+        MEDITERRANEAN_SHOULDER
+    }
+
+    private fun currentSeasonalProfile(month: Int = LocalDate.now().monthValue): SeasonalProfile {
+        return when (month) {
+            12, 1, 2 -> SeasonalProfile.MEDITERRANEAN_WINTER
+            6, 7, 8 -> SeasonalProfile.MEDITERRANEAN_SUMMER
+            else -> SeasonalProfile.MEDITERRANEAN_SHOULDER
+        }
+    }
 
     /**
      * Determina si hay lluvia activa confiando completamente en Google Weather.
@@ -56,11 +70,10 @@ class WeatherAdvisor {
     /**
      * Verifica si hay calzada húmeda cuando NO hay lluvia activa.
      *
-     * Se activa por señales físicas basadas en datos de Google:
-     * - Lluvia reciente (histórico últimas 3h con precipitación acumulada > 0)
-     * - Alta humedad + cielo nublado/niebla (condensación)
-     * - Persistencia por temporal: humedad >= 80% + precipitación 24h > 0 + noche o nublado
-     * - Humedad extrema
+     * Perfil ajustado para clima mediterráneo (Barcelona):
+     * - Prioriza lluvia reciente (3h) y señales claras de condensación real.
+     * - Reduce falsos positivos por lluvia antigua (24h) si hay condiciones de secado.
+     * - Aplica autosecado más agresivo en horas diurnas con humedad moderada y/o viento.
      * - Nieve / aguanieve
      *
      * IMPORTANTE: Si hay lluvia activa (detectada por checkActiveRain), siempre retorna false.
@@ -83,13 +96,44 @@ class WeatherAdvisor {
         val desc = weatherDescription?.uppercase().orEmpty()
         val windSpeedKmh = windSpeed ?: 0.0
         val dewSpread = if (temperature != null && dewPoint != null) temperature - dewPoint else null
+        val profile = currentSeasonalProfile()
+
+        val (humidityDryThreshold, windDryThreshold) = when (profile) {
+            SeasonalProfile.MEDITERRANEAN_SUMMER -> 78 to 12.0
+            SeasonalProfile.MEDITERRANEAN_WINTER -> 66 to 17.0
+            SeasonalProfile.MEDITERRANEAN_SHOULDER -> 72 to 14.0
+        }
+        val (persist24hMm, persistHumidity, persistSpreadMax) = when (profile) {
+            SeasonalProfile.MEDITERRANEAN_SUMMER -> Triple(8.0, 90, 2.4)
+            SeasonalProfile.MEDITERRANEAN_WINTER -> Triple(4.5, 84, 3.2)
+            SeasonalProfile.MEDITERRANEAN_SHOULDER -> Triple(6.0, 88, 3.0)
+        }
+        val (recentPrecipMainMm, recentPrecipHighHumidityMm, highHumidityThreshold) = when (profile) {
+            SeasonalProfile.MEDITERRANEAN_SUMMER -> Triple(1.0, 0.5, 94)
+            SeasonalProfile.MEDITERRANEAN_WINTER -> Triple(0.55, 0.25, 90)
+            SeasonalProfile.MEDITERRANEAN_SHOULDER -> Triple(0.8, 0.35, 92)
+        }
+        val (condenseHumidity, condenseSpreadMax) = when (profile) {
+            SeasonalProfile.MEDITERRANEAN_SUMMER -> 95 to 1.4
+            SeasonalProfile.MEDITERRANEAN_WINTER -> 91 to 2.2
+            SeasonalProfile.MEDITERRANEAN_SHOULDER -> 93 to 1.8
+        }
+        val (extremeHumidityThreshold, extremeHumiditySpreadMax) = when (profile) {
+            SeasonalProfile.MEDITERRANEAN_SUMMER -> 99 to 1.7
+            SeasonalProfile.MEDITERRANEAN_WINTER -> 96 to 2.4
+            SeasonalProfile.MEDITERRANEAN_SHOULDER -> 98 to 2.0
+        }
 
         // 1. CORTE RÁPIDO
         if (hasActiveRain) return false
 
-        // 2. FILTRO DE AUTOSECADO
-        // El viento seca aunque sea de noche, especialmente con humedad baja.
-        val canAutoDry = (isDay && humidity < 65) || (humidity < 45 && windSpeedKmh > 25.0)
+        // 2. FILTRO DE AUTOSECADO (mediterráneo)
+        // Con sol y brisa moderada, el asfalto suele secar relativamente rápido.
+        val canAutoDry = (
+            (isDay && humidity <= humidityDryThreshold && recentPrecipitation3h < 0.3) ||
+            (isDay && humidity < (humidityDryThreshold + 8) && windSpeedKmh >= windDryThreshold && recentPrecipitation3h < 0.5) ||
+            (!isDay && humidity < 60 && windSpeedKmh > 20.0)
+        )
         if (canAutoDry && recentPrecipitation3h < 0.1) {
             Log.d("WeatherAdvisor", "Autosecado detectado: viento o baja humedad evaporando agua.")
             return false
@@ -100,27 +144,43 @@ class WeatherAdvisor {
         // ──────────────────────────────────────────────────────────
 
         // 3. PERSISTENCIA TRAS LLUVIA (24h)
-        // De noche seca más lento. De día con cielo cubierto también puede persistir.
+        // Más estricta para evitar arrastrar "mojado" toda la tarde tras lluvia matinal.
         val isCloudy = cond.contains("CLOUD") || cond.contains("OVERCAST") ||
                 cond == "FOG" || cond == "HAZE"
-        val isStillWetFromPastRain = precip24h >= 2.0 && humidity > 75 && (!isDay || isCloudy)
+        val spread = dewSpread ?: 10.0
+        val isStillWetFromPastRain =
+            (
+                precip24h >= persist24hMm &&
+                    humidity >= persistHumidity &&
+                    (!isDay || isCloudy) &&
+                    spread <= persistSpreadMax &&
+                    windSpeedKmh < 18.0
+                ) ||
+            (
+                precip24h >= 10.0 &&
+                    !isDay &&
+                    humidity >= 82 &&
+                    windSpeedKmh < 22.0
+                )
 
         // 4. LLUVIA RECIENTE (3h)
-        // Umbrales más sensibles si la humedad es alta.
-        val hasRecentPrecipitation = (recentPrecipitation3h >= 0.5 && humidity > 70) ||
-                (recentPrecipitation3h >= 0.25 && humidity > 88)
+        // Umbrales menos sensibles para reducir falsos positivos.
+        val hasRecentPrecipitation =
+            (recentPrecipitation3h >= recentPrecipMainMm && humidity >= 75) ||
+                (recentPrecipitation3h >= recentPrecipHighHumidityMm && humidity >= highHumidityThreshold)
 
         // 5. CONDENSACIÓN Y ROCÍO
-        val isCondensing = humidity >= 90 && (
+        val isCondensing = humidity >= condenseHumidity && (
                 (cond == "FOG" || cond == "HAZE") ||
-                        (!isDay && (dewSpread ?: 10.0) <= 2.0)
+                        (!isDay && spread <= condenseSpreadMax)
                 )
 
         // 6. HUMEDAD EXTREMA (saturación del ambiente)
         val isExtremelyHumid =
-            humidity >= 97 &&
+            humidity >= extremeHumidityThreshold &&
                     !isDay &&
-                    (dewSpread ?: 10.0) <= 2.5
+                    spread <= extremeHumiditySpreadMax &&
+                    windSpeedKmh < 15.0
 
         // 7. NIEVE / AGUANIEVE
         val hasSnowOrSleet = cond.contains("SNOW") || cond.contains("SLEET") ||

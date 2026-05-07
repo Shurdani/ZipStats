@@ -62,6 +62,12 @@ enum class WeatherBadgeState {
     EXTREMO           // Condiciones extremas (⚠️)
 }
 
+enum class SurfaceConditionType {
+    NONE,
+    RAIN,
+    WET_ROAD
+}
+
 /**
  * Estado de la captura del clima
  */
@@ -678,7 +684,8 @@ class TrackingViewModel @Inject constructor(
                             temperature = weather.temperature,
                             dewPoint = weather.dewPoint,
                             weatherEmoji = weatherEmoji,
-                            weatherDescription = weatherDescription
+                            weatherDescription = weatherDescription,
+                            windSpeed = weather.windSpeed
                         )
                     }
 
@@ -1019,13 +1026,16 @@ class TrackingViewModel @Inject constructor(
         pendingRainMinute = null
         pendingRainReason = null
 
+        val firstCheckDelayMs = 60_000L
+        val regularCheckDelayMs = 5 * 60 * 1000L
+
         continuousWeatherJob = viewModelScope.launch {
 
             Log.d(
                 TAG,
-                "⏱️ [Monitoreo continuo] Esperando 5 min para la primera actualización (usando precarga)..."
+                "⏱️ [Monitoreo continuo] Esperando 1 min para primera verificación temprana..."
             )
-            delay(5 * 60 * 1000)
+            delay(firstCheckDelayMs)
 
             while (
                 _trackingState.value is TrackingState.Tracking ||
@@ -1153,7 +1163,8 @@ class TrackingViewModel @Inject constructor(
                                     temperature = weather.temperature,
                                     dewPoint = weather.dewPoint,
                                     weatherEmoji = weatherEmoji,
-                                    weatherDescription = weather.description
+                                    weatherDescription = weather.description,
+                                    windSpeed = weather.windSpeed
                                 )
                             }
 
@@ -1206,6 +1217,7 @@ class TrackingViewModel @Inject constructor(
 
                         if (hasExtremeConditions) {
                             weatherHadExtremeConditions = true
+                            _shouldShowExtremeWarning.value = true
 
                             val cause =
                                 weatherAdvisor.detectExtremeCause(
@@ -1299,7 +1311,7 @@ class TrackingViewModel @Inject constructor(
                         e
                     )
                 }
-                delay(5 * 60 * 1000)
+                delay(regularCheckDelayMs)
             }
 
             // Limpieza final al detener tracking
@@ -1460,7 +1472,8 @@ class TrackingViewModel @Inject constructor(
                     temperature = snapshot.temperature,
                     dewPoint = snapshot.dewPoint,
                     weatherEmoji = weatherEmoji,
-                    weatherDescription = weatherDescription
+                    weatherDescription = weatherDescription,
+                    windSpeed = snapshot.windSpeed
                 )
             }
             
@@ -1708,7 +1721,8 @@ class TrackingViewModel @Inject constructor(
                                 temperature = weather.temperature,
                                 dewPoint = weather.dewPoint,
                                 weatherEmoji = weatherEmoji,
-                                weatherDescription = weatherDescription
+                                weatherDescription = weatherDescription,
+                                windSpeed = weather.windSpeed
                             )
                         }
                         
@@ -2004,10 +2018,26 @@ class TrackingViewModel @Inject constructor(
         }
     }
 
+    fun getSurfaceConditionTypeForConfirmation(): SurfaceConditionType {
+        val hadRainNow = weatherHadRain || (_shouldShowRainWarning.value && _isActiveRainWarning.value)
+        val hadWetRoadNow = weatherHadWetRoad || (_shouldShowRainWarning.value && !_isActiveRainWarning.value)
+
+        return when {
+            hadRainNow -> SurfaceConditionType.RAIN
+            hadWetRoadNow -> SurfaceConditionType.WET_ROAD
+            else -> SurfaceConditionType.NONE
+        }
+    }
+
     /**
      * Finaliza y guarda la ruta
      */
-    fun finishTracking(notes: String = "", addToRecords: Boolean = false) {
+    fun finishTracking(
+        notes: String = "",
+        addToRecords: Boolean = false,
+        surfaceConditionType: SurfaceConditionType = SurfaceConditionType.NONE,
+        isSurfaceConditionConfirmed: Boolean = true
+    ) {
         viewModelScope.launch {
             try {
                 // 1. 🛑 PARADA TÉCNICA Y LIMPIEZA DE UI
@@ -2052,7 +2082,52 @@ class TrackingViewModel @Inject constructor(
                 }
 
                 // Creamos el objeto con todos los datos climáticos actuales
-                val weatherSnapshot = captureRouteWeatherSnapshot()
+                var weatherSnapshot = captureRouteWeatherSnapshot()
+
+                weatherSnapshot = when (surfaceConditionType) {
+                    SurfaceConditionType.RAIN -> {
+                        if (isSurfaceConditionConfirmed) {
+                            val forceGenericRainVisuals = !weatherSnapshot.hadRain
+                            weatherSnapshot.copy(
+                                hadRain = true,
+                                hadWetRoad = false,
+                                finalCondition = if (forceGenericRainVisuals) "DRIZZLE" else weatherSnapshot.finalCondition,
+                                finalDescription = if (forceGenericRainVisuals) "Lluvia" else weatherSnapshot.finalDescription,
+                                finalCode = if (forceGenericRainVisuals) 51 else weatherSnapshot.finalCode,
+                                finalEmoji = if (forceGenericRainVisuals) {
+                                    com.zipstats.app.repository.WeatherRepository.getEmojiForCondition(
+                                        "DRIZZLE",
+                                        weatherSnapshot.finalIsDay ?: weatherSnapshot.initialIsDay
+                                    )
+                                } else {
+                                    weatherSnapshot.finalEmoji
+                                }
+                            )
+                        } else {
+                            weatherSnapshot.copy(
+                                hadRain = false,
+                                hadWetRoad = false,
+                                rainReason = null,
+                                rainStartMinute = null,
+                                maxPrecipitation = 0.0
+                            )
+                        }
+                    }
+                    SurfaceConditionType.WET_ROAD -> {
+                        if (isSurfaceConditionConfirmed) {
+                            weatherSnapshot.copy(
+                                hadRain = false,
+                                hadWetRoad = true
+                            )
+                        } else {
+                            weatherSnapshot.copy(
+                                hadRain = false,
+                                hadWetRoad = false
+                            )
+                        }
+                    }
+                    SurfaceConditionType.NONE -> weatherSnapshot
+                }
 
                 // 5. 🧹 RESET DE VARIABLES UI (Limpiamos el ViewModel)
                 resetTrackingUI()
@@ -2073,7 +2148,7 @@ class TrackingViewModel @Inject constructor(
                 val finalRoute = routeRepository.finalizeRouteWithWeather(
                     baseRoute = baseRoute,
                     snap = weatherSnapshot,
-                    hasActiveBadges = hasActiveBadges
+                    hasActiveBadges = weatherSnapshot.hadRain || weatherSnapshot.hadWetRoad || weatherSnapshot.hadExtreme
                 )
 
                 // 7. ☁️ GUARDAR EN FIREBASE

@@ -191,6 +191,7 @@ fun TrackingScreen(
     var showScooterPicker by remember { mutableStateOf(false) }
     var showFinishDialog by remember { mutableStateOf(false) }
     var showCancelDialog by remember { mutableStateOf(false) }
+    var surfaceConditionType by remember { mutableStateOf(SurfaceConditionType.NONE) }
 
     val hasLocationPermission = permissionManager.hasLocationPermissions()
     val hasNotificationPermission = permissionManager.hasNotificationPermission()
@@ -379,7 +380,10 @@ fun TrackingScreen(
                         shouldShowExtremeWarning = shouldShowExtremeWarning,
                         onPause = { viewModel.pauseTracking() },
                         onResume = { viewModel.resumeTracking() },
-                        onFinish = { showFinishDialog = true },
+                        onFinish = {
+                            surfaceConditionType = viewModel.getSurfaceConditionTypeForConfirmation()
+                            showFinishDialog = true
+                        },
                         onCancel = { showCancelDialog = true },
                         onFetchWeather = { viewModel.fetchWeatherManually() }
                     )
@@ -412,11 +416,17 @@ fun TrackingScreen(
             FinishRouteBottomSheet(
                 distance = currentDistance,
                 duration = duration,
-                onConfirm = { notes, addToRecords ->
+                surfaceConditionType = surfaceConditionType,
+                onConfirm = { notes, addToRecords, isSurfaceConditionConfirmed ->
                     // Activar flag de cierre ANTES de cualquier estado
                     // Esto congela la UI y evita cualquier flash
                     isClosing = true
-                    viewModel.finishTracking(notes, addToRecords)
+                    viewModel.finishTracking(
+                        notes = notes,
+                        addToRecords = addToRecords,
+                        surfaceConditionType = surfaceConditionType,
+                        isSurfaceConditionConfirmed = isSurfaceConditionConfirmed
+                    )
                     scope.launch {
                         finishSheetState.hide()
                         showFinishDialog = false
@@ -1384,11 +1394,16 @@ fun ScooterPickerDialog(
 fun FinishRouteBottomSheet(
     distance: Double,
     duration: Long,
-    onConfirm: (String, Boolean) -> Unit,
+    surfaceConditionType: SurfaceConditionType,
+    onConfirm: (String, Boolean, Boolean) -> Unit,
     onDismiss: () -> Unit
 ) {
     var notes by remember { mutableStateOf("") }
     var addToRecords by remember { mutableStateOf(false) }
+    val hasSurfaceConditionQuestion = surfaceConditionType != SurfaceConditionType.NONE
+    var isSurfaceConditionConfirmed by remember(surfaceConditionType) {
+        mutableStateOf(true)
+    }
 
     Column(
         modifier = Modifier
@@ -1413,6 +1428,28 @@ fun FinishRouteBottomSheet(
             text = "Duración: ${formatDuration(duration)}",
             style = MaterialTheme.typography.bodyMedium
         )
+
+        if (hasSurfaceConditionQuestion) {
+            val questionText = when (surfaceConditionType) {
+                SurfaceConditionType.RAIN -> "¿Llovió durante la ruta?"
+                SurfaceConditionType.WET_ROAD -> "¿Estaba húmedo el suelo?"
+                SurfaceConditionType.NONE -> ""
+            }
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Checkbox(
+                    checked = isSurfaceConditionConfirmed,
+                    onCheckedChange = { isSurfaceConditionConfirmed = it }
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                ZipStatsText(
+                    text = questionText,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
+        }
 
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -1456,7 +1493,7 @@ fun FinishRouteBottomSheet(
                 )
             }
             Button(
-                onClick = { onConfirm(notes, addToRecords) },
+                onClick = { onConfirm(notes, addToRecords, isSurfaceConditionConfirmed) },
                 modifier = Modifier.weight(1f),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = MaterialTheme.colorScheme.primary,

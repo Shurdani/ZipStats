@@ -277,6 +277,7 @@ class TrackingViewModel @Inject constructor(
     // Prioridad: Condiciones extremas > Lluvia > Calzada humeda
     private var weatherHadWetRoad = false // Calzada húmeda detectada (sin lluvia activa)
     private var weatherHadExtremeConditions = false // Condiciones extremas detectadas
+    private var weatherDetectedClimateProfile: String? = null // Perfil climático inferido
     private var weatherExtremeReason: String? = null // Razón de condiciones extremas (WIND, GUSTS, STORM, SNOW, COLD, HEAT, UV, VISIBILITY)
 
     // Precipitación acumulada reciente (últimas 3h) basada en histórico de Google
@@ -670,6 +671,23 @@ class TrackingViewModel @Inject constructor(
                     val isWetRoad = if (isActiveRain) {
                         false
                     } else {
+                        weatherDetectedClimateProfile = weatherAdvisor.detectClimateProfileTag(
+                            condition = condition,
+                            description = weatherDescription,
+                            humidity = weather.humidity,
+                            recentPrecipitation3h = recentPrecipitation3h,
+                            precip24h = precip24h,
+                            temperature = weather.temperature,
+                            dewPoint = weather.dewPoint,
+                            windSpeed = weather.windSpeed,
+                            weatherEmoji = weatherEmoji,
+                            uvIndex = weather.uvIndex,
+                            isDay = weather.isDay
+                        )
+                        Log.d(
+                            TAG,
+                            "🧭 [Precarga] Perfil climático detectado: $weatherDetectedClimateProfile"
+                        )
                         weatherAdvisor.checkWetRoadConditions(
                             condition = condition,
                             humidity = weather.humidity,
@@ -679,6 +697,7 @@ class TrackingViewModel @Inject constructor(
                             isDay = weather.isDay,
                             temperature = weather.temperature,
                             dewPoint = weather.dewPoint,
+                            uvIndex = weather.uvIndex,
                             weatherEmoji = weatherEmoji,
                             weatherDescription = weatherDescription,
                             windSpeed = weather.windSpeed
@@ -1149,6 +1168,23 @@ class TrackingViewModel @Inject constructor(
                             if (isActiveRain) {
                                 false
                             } else {
+                                weatherDetectedClimateProfile = weatherAdvisor.detectClimateProfileTag(
+                                    condition = condition,
+                                    description = weatherDescription,
+                                    humidity = weather.humidity,
+                                    recentPrecipitation3h = localRecentPrecip3h,
+                                    precip24h = localPrecip24h,
+                                    temperature = weather.temperature,
+                                    dewPoint = weather.dewPoint,
+                                    windSpeed = weather.windSpeed,
+                                    weatherEmoji = weatherEmoji,
+                                    uvIndex = weather.uvIndex,
+                                    isDay = weather.isDay
+                                )
+                                Log.d(
+                                    TAG,
+                                    "🧭 [Monitoreo continuo] Perfil climático detectado: $weatherDetectedClimateProfile"
+                                )
                                 weatherAdvisor.checkWetRoadConditions(
                                     condition = condition,
                                     humidity = weather.humidity,
@@ -1158,6 +1194,7 @@ class TrackingViewModel @Inject constructor(
                                     isDay = weather.isDay,
                                     temperature = weather.temperature,
                                     dewPoint = weather.dewPoint,
+                                    uvIndex = weather.uvIndex,
                                     weatherEmoji = weatherEmoji,
                                     weatherDescription = weather.description,
                                     windSpeed = weather.windSpeed
@@ -1289,12 +1326,12 @@ class TrackingViewModel @Inject constructor(
                                     "🌧️ [Monitoreo] Falso positivo de lluvia cancelado"
                                 )
                             }
-
-                            if (weatherHadRain) {
-                                _shouldShowRainWarning.value = true
+                            if (!isWetRoad) {
+                                // Si ya no hay lluvia activa NI calzada húmeda, apagamos el badge en UI.
+                                // El histórico (weatherHadRain/weatherHadWetRoad) se mantiene para persistencia.
+                                _shouldShowRainWarning.value = false
                                 _isActiveRainWarning.value = false
                             }
-
                         }
                         checkAndNotifyWeatherChange()
 
@@ -1458,6 +1495,23 @@ class TrackingViewModel @Inject constructor(
                     latitude = lat,
                     longitude = lon
                 )
+                weatherDetectedClimateProfile = weatherAdvisor.detectClimateProfileTag(
+                    condition = condition,
+                    description = weatherDescription,
+                    humidity = snapshot.humidity,
+                    recentPrecipitation3h = recentPrecipitation3h,
+                    precip24h = precip24h,
+                    temperature = snapshot.temperature,
+                    dewPoint = snapshot.dewPoint,
+                    windSpeed = snapshot.windSpeed,
+                    weatherEmoji = weatherEmoji,
+                    uvIndex = snapshot.uvIndex,
+                    isDay = snapshot.isDay
+                )
+                Log.d(
+                    TAG,
+                    "🧭 [Inicio de ruta] Perfil climático detectado: $weatherDetectedClimateProfile"
+                )
                 weatherAdvisor.checkWetRoadConditions(
                     condition = condition,
                     humidity = snapshot.humidity,
@@ -1467,6 +1521,7 @@ class TrackingViewModel @Inject constructor(
                     isDay = snapshot.isDay,
                     temperature = snapshot.temperature,
                     dewPoint = snapshot.dewPoint,
+                    uvIndex = snapshot.uvIndex,
                     weatherEmoji = weatherEmoji,
                     weatherDescription = weatherDescription,
                     windSpeed = snapshot.windSpeed
@@ -1707,6 +1762,23 @@ class TrackingViewModel @Inject constructor(
                         val isWetRoad = if (isActiveRain) {
                             false // Excluir calzada húmeda si hay lluvia activa
                         } else {
+                            weatherDetectedClimateProfile = weatherAdvisor.detectClimateProfileTag(
+                                condition = condition,
+                                description = weatherDescription,
+                                humidity = weather.humidity,
+                                recentPrecipitation3h = localRecentPrecip3h,
+                                precip24h = localPrecip24h,
+                                temperature = weather.temperature,
+                                dewPoint = weather.dewPoint,
+                                windSpeed = weather.windSpeed,
+                                weatherEmoji = weatherEmoji,
+                                uvIndex = weather.uvIndex,
+                                isDay = weather.isDay
+                            )
+                            Log.d(
+                                TAG,
+                                "🧭 [Captura manual] Perfil climático detectado: $weatherDetectedClimateProfile"
+                            )
                             weatherAdvisor.checkWetRoadConditions(
                                 condition = condition,
                                 humidity = weather.humidity,
@@ -1716,6 +1788,7 @@ class TrackingViewModel @Inject constructor(
                                 isDay = weather.isDay,
                                 temperature = weather.temperature,
                                 dewPoint = weather.dewPoint,
+                                uvIndex = weather.uvIndex,
                                 weatherEmoji = weatherEmoji,
                                 weatherDescription = weatherDescription,
                                 windSpeed = weather.windSpeed
@@ -2181,6 +2254,7 @@ class TrackingViewModel @Inject constructor(
         weatherRainReason = null
         weatherHadWetRoad = false
         weatherHadExtremeConditions = false
+        weatherDetectedClimateProfile = null
         maxWindSpeed = 0.0
         maxWindGusts = 0.0
         minTemperature = Double.MAX_VALUE
@@ -2442,6 +2516,7 @@ class TrackingViewModel @Inject constructor(
             hadRain        = this.weatherHadRain || (_shouldShowRainWarning.value && _isActiveRainWarning.value),
             hadWetRoad     = this.weatherHadWetRoad || (_shouldShowRainWarning.value && !_isActiveRainWarning.value),
             hadExtreme     = this.weatherHadExtremeConditions || _shouldShowExtremeWarning.value,
+            climateProfile = this.weatherDetectedClimateProfile,
             extremeReason  = this.weatherExtremeReason,
             rainReason     = this.weatherRainReason,
             rainStartMinute = this.weatherRainStartMinute
@@ -2499,6 +2574,7 @@ class TrackingViewModel @Inject constructor(
         weatherHadRain = false
         weatherHadWetRoad = false
         weatherHadExtremeConditions = false
+        weatherDetectedClimateProfile = null
         weatherExtremeReason = null
         weatherMaxPrecipitation = 0.0
         weatherRainStartMinute = null

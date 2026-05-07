@@ -53,6 +53,7 @@ data class Route(
     val weatherHadWetRoad: Boolean? = null,
     // Detección de condiciones extremas durante la ruta
     val weatherHadExtremeConditions: Boolean? = null,
+    val weatherClimateProfile: String? = null, // Perfil climático inferido para debug/analítica
     val weatherExtremeReason: String? = null // Razón de condiciones extremas (WIND, GUSTS, STORM, SNOW, COLD, HEAT, UV, VISIBILITY)
 
 ) {
@@ -122,6 +123,7 @@ data class Route(
         "weatherRainReason" to weatherRainReason,
         "weatherHadWetRoad" to weatherHadWetRoad,
         "weatherHadExtremeConditions" to weatherHadExtremeConditions,
+        "weatherClimateProfile" to weatherClimateProfile,
         "weatherExtremeReason" to weatherExtremeReason
     )
 
@@ -190,6 +192,7 @@ data class Route(
                 weatherRainReason = map["weatherRainReason"] as? String,
                 weatherHadWetRoad = map["weatherHadWetRoad"] as? Boolean,
                 weatherHadExtremeConditions = map["weatherHadExtremeConditions"] as? Boolean,
+                weatherClimateProfile = map["weatherClimateProfile"] as? String,
                 weatherExtremeReason = map["weatherExtremeReason"] as? String
             )
         }

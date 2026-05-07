@@ -75,6 +75,7 @@ data class RouteWeatherSnapshot(
     val hadRain: Boolean = false,
     val hadWetRoad: Boolean = false,
     val hadExtreme: Boolean = false,
+    val climateProfile: String? = null,
     val extremeReason: String? = null,
     val rainReason: String? = null,
     val rainStartMinute: Int? = null

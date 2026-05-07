@@ -1539,6 +1539,11 @@ class TrackingViewModel @Inject constructor(
                 _shouldShowRainWarning.value = true
                 _isActiveRainWarning.value = false
                 Log.d(TAG, "🛣️ [Precarga inicial] Estado actualizado: weatherHadWetRoad=true")
+            } else {
+                // Evita dejar badge amarillo/azul "pegado" si en esta lectura ya no hay riesgo.
+                _shouldShowRainWarning.value = false
+                _isActiveRainWarning.value = false
+                Log.d(TAG, "🌤️ [Precarga inicial] Sin lluvia ni calzada húmeda: badge de lluvia desactivado")
             }
             
             // Detectar condiciones extremas
@@ -1801,6 +1806,10 @@ class TrackingViewModel @Inject constructor(
                             _isActiveRainWarning.value = true
                         } else if (isWetRoad) {
                             _shouldShowRainWarning.value = true
+                            _isActiveRainWarning.value = false
+                        } else {
+                            // Si no hay lluvia ni calzada húmeda en la captura de inicio, limpiamos la UI.
+                            _shouldShowRainWarning.value = false
                             _isActiveRainWarning.value = false
                         }
                         

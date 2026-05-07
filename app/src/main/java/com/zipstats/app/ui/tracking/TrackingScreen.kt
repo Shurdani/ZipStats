@@ -111,6 +111,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.zipstats.app.R
 import com.zipstats.app.di.AppOverlayRepositoryEntryPoint
 import com.zipstats.app.model.Scooter
+import com.zipstats.app.model.SurfaceConditionType
 import com.zipstats.app.model.VehicleType
 import com.zipstats.app.permission.PermissionManager
 import com.zipstats.app.repository.AppOverlayRepository

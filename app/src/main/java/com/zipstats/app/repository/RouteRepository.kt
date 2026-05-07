@@ -7,7 +7,9 @@ import com.google.firebase.firestore.FirebaseFirestoreException
 import com.google.firebase.firestore.Query
 import com.zipstats.app.model.Route
 import com.zipstats.app.model.RoutePoint
+import com.zipstats.app.model.RouteWeatherDecision
 import com.zipstats.app.model.RouteWeatherSnapshot
+import com.zipstats.app.model.SurfaceConditionType
 import com.zipstats.app.model.VehicleType
 import com.zipstats.app.utils.LocationUtils
 import com.zipstats.app.utils.RouteAnalyzer
@@ -591,10 +593,55 @@ class RouteRepository @Inject constructor(
     fun finalizeRouteWithWeather(
         baseRoute: Route,
         snap: RouteWeatherSnapshot,
-        hasActiveBadges: Boolean
+        decision: RouteWeatherDecision = RouteWeatherDecision()
     ): Route {
+        val adjustedSnap = when (decision.surfaceConditionType) {
+            SurfaceConditionType.RAIN -> {
+                if (decision.isSurfaceConditionConfirmed) {
+                    val forceGenericRainVisuals = !snap.hadRain
+                    snap.copy(
+                        hadRain = true,
+                        hadWetRoad = false,
+                        finalCondition = if (forceGenericRainVisuals) "DRIZZLE" else snap.finalCondition,
+                        finalDescription = if (forceGenericRainVisuals) "Lluvia" else snap.finalDescription,
+                        finalCode = if (forceGenericRainVisuals) 51 else snap.finalCode,
+                        finalEmoji = if (forceGenericRainVisuals) {
+                            WeatherRepository.getEmojiForCondition(
+                                "DRIZZLE",
+                                snap.finalIsDay ?: snap.initialIsDay
+                            )
+                        } else {
+                            snap.finalEmoji
+                        }
+                    )
+                } else {
+                    snap.copy(
+                        hadRain = false,
+                        hadWetRoad = false,
+                        rainReason = null,
+                        rainStartMinute = null,
+                        maxPrecipitation = 0.0
+                    )
+                }
+            }
+            SurfaceConditionType.WET_ROAD -> {
+                if (decision.isSurfaceConditionConfirmed) {
+                    snap.copy(
+                        hadRain = false,
+                        hadWetRoad = true
+                    )
+                } else {
+                    snap.copy(
+                        hadRain = false,
+                        hadWetRoad = false
+                    )
+                }
+            }
+            SurfaceConditionType.NONE -> snap
+        }
+
         // Fuente de verdad: hay datos finales solo si se fetchearon (badges + fetch exitoso)
-        val hasFinalData = snap.finalTemp != null
+        val hasFinalData = adjustedSnap.finalTemp != null
 
         // Helper: elige final si existe, si no inicial
         fun <T> pick(final: T?, initial: T?): T? =
@@ -602,56 +649,56 @@ class RouteRepository @Inject constructor(
 
         // Viento: siempre el máximo entre inicial, final y máximo registrado
         val windSpeed = maxOf(
-            (snap.initialWindSpeed ?: 0.0),
-            (snap.finalWindSpeed   ?: 0.0),
-            snap.maxWindSpeed
+            (adjustedSnap.initialWindSpeed ?: 0.0),
+            (adjustedSnap.finalWindSpeed   ?: 0.0),
+            adjustedSnap.maxWindSpeed
         )
         val windGusts = maxOf(
-            (snap.initialWindGusts ?: 0.0),
-            (snap.finalWindGusts   ?: 0.0),
-            snap.maxWindGusts
+            (adjustedSnap.initialWindGusts ?: 0.0),
+            (adjustedSnap.finalWindGusts   ?: 0.0),
+            adjustedSnap.maxWindGusts
         )
 
         // UV: siempre el máximo entre inicial, final y máximo registrado
         val uvIndex = maxOf(
-            snap.initialUvIndex ?: 0.0,
-            snap.finalUvIndex   ?: 0.0,
-            snap.maxUvIndex
+            adjustedSnap.initialUvIndex ?: 0.0,
+            adjustedSnap.finalUvIndex   ?: 0.0,
+            adjustedSnap.maxUvIndex
         )
 
         return baseRoute.copy(
             // --- VISUALES: final si hubo badges, inicial si ruta tranquila ---
-            weatherTemperature   = pick(snap.finalTemp, snap.initialTemp),
-            weatherEmoji         = pick(snap.finalEmoji, snap.initialEmoji),
-            weatherDescription   = pick(snap.finalDescription, snap.initialDescription),
-            weatherCondition     = pick(snap.finalCondition, snap.initialCondition),
-            weatherCode          = pick(snap.finalCode, snap.initialCode),
-            weatherIsDay         = pick(snap.finalIsDay, snap.initialIsDay) ?: true,
+            weatherTemperature   = pick(adjustedSnap.finalTemp, adjustedSnap.initialTemp),
+            weatherEmoji         = pick(adjustedSnap.finalEmoji, adjustedSnap.initialEmoji),
+            weatherDescription   = pick(adjustedSnap.finalDescription, adjustedSnap.initialDescription),
+            weatherCondition     = pick(adjustedSnap.finalCondition, adjustedSnap.initialCondition),
+            weatherCode          = pick(adjustedSnap.finalCode, adjustedSnap.initialCode),
+            weatherIsDay         = pick(adjustedSnap.finalIsDay, adjustedSnap.initialIsDay) ?: true,
 
             // --- CONFORT: siempre del inicio (cómo salió el usuario) ---
-            weatherFeelsLike     = snap.initialFeelsLike,
-            weatherWindChill     = snap.initialWindChill,
-            weatherHeatIndex     = snap.initialHeatIndex,
-            weatherDewPoint      = snap.initialDewPoint,
+            weatherFeelsLike     = adjustedSnap.initialFeelsLike,
+            weatherWindChill     = adjustedSnap.initialWindChill,
+            weatherHeatIndex     = adjustedSnap.initialHeatIndex,
+            weatherDewPoint      = adjustedSnap.initialDewPoint,
 
             // --- TÉCNICOS: máximo registrado (viento) o pick (resto) ---
             weatherWindSpeed     = windSpeed,
             weatherWindGusts     = windGusts,
-            weatherWindDirection = pick(snap.finalWindDirection, snap.initialWindDirection),
-            weatherHumidity      = pick(snap.finalHumidity, snap.initialHumidity)?.toInt(),
-            weatherVisibility    = pick(snap.finalVisibility, snap.initialVisibility),
-            weatherRainProbability = pick(snap.finalRainProbability, snap.initialRainProbability)?.toInt(),
+            weatherWindDirection = pick(adjustedSnap.finalWindDirection, adjustedSnap.initialWindDirection),
+            weatherHumidity      = pick(adjustedSnap.finalHumidity, adjustedSnap.initialHumidity)?.toInt(),
+            weatherVisibility    = pick(adjustedSnap.finalVisibility, adjustedSnap.initialVisibility),
+            weatherRainProbability = pick(adjustedSnap.finalRainProbability, adjustedSnap.initialRainProbability)?.toInt(),
             weatherUvIndex       = uvIndex,
 
             // --- BADGES Y EVENTOS ---
-            weatherHadRain              = snap.hadRain,
-            weatherHadWetRoad           = !snap.hadRain && snap.hadWetRoad,
-            weatherHadExtremeConditions = snap.hadExtreme,
-            weatherExtremeReason        = snap.extremeReason.takeIf { snap.hadExtreme },
-            weatherRainReason           = snap.rainReason,
-            weatherRainStartMinute      = snap.rainStartMinute,
-            weatherMaxPrecipitation     = snap.maxPrecipitation
-                .takeIf { snap.hadRain && it > 0.0 }
+            weatherHadRain              = adjustedSnap.hadRain,
+            weatherHadWetRoad           = !adjustedSnap.hadRain && adjustedSnap.hadWetRoad,
+            weatherHadExtremeConditions = adjustedSnap.hadExtreme,
+            weatherExtremeReason        = adjustedSnap.extremeReason.takeIf { adjustedSnap.hadExtreme },
+            weatherRainReason           = adjustedSnap.rainReason,
+            weatherRainStartMinute      = adjustedSnap.rainStartMinute,
+            weatherMaxPrecipitation     = adjustedSnap.maxPrecipitation
+                .takeIf { adjustedSnap.hadRain && it > 0.0 }
         )
     }
 }

@@ -1,5 +1,16 @@
 package com.zipstats.app.model
 
+enum class SurfaceConditionType {
+    NONE,
+    RAIN,
+    WET_ROAD
+}
+
+data class RouteWeatherDecision(
+    val surfaceConditionType: SurfaceConditionType = SurfaceConditionType.NONE,
+    val isSurfaceConditionConfirmed: Boolean = true
+)
+
 /**
  * Representa una "foto fija" de todas las condiciones climáticas
  * capturadas y detectadas durante una ruta.

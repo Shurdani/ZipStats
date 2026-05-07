@@ -19,8 +19,10 @@ import com.google.android.gms.location.LocationResult
 import com.google.android.gms.location.LocationServices
 import com.zipstats.app.model.Route
 import com.zipstats.app.model.RoutePoint
+import com.zipstats.app.model.RouteWeatherDecision
 import com.zipstats.app.model.RouteWeatherSnapshot
 import com.zipstats.app.model.Scooter
+import com.zipstats.app.model.SurfaceConditionType
 import com.zipstats.app.repository.AppOverlayRepository
 import com.zipstats.app.repository.RecordRepository
 import com.zipstats.app.repository.RouteRepository
@@ -60,12 +62,6 @@ enum class WeatherBadgeState {
     CALZADA_HUMEDA,   // Calzada húmeda (🟡)
     LLUVIA,           // Lluvia activa (🔵)
     EXTREMO           // Condiciones extremas (⚠️)
-}
-
-enum class SurfaceConditionType {
-    NONE,
-    RAIN,
-    WET_ROAD
 }
 
 /**
@@ -2082,52 +2078,11 @@ class TrackingViewModel @Inject constructor(
                 }
 
                 // Creamos el objeto con todos los datos climáticos actuales
-                var weatherSnapshot = captureRouteWeatherSnapshot()
-
-                weatherSnapshot = when (surfaceConditionType) {
-                    SurfaceConditionType.RAIN -> {
-                        if (isSurfaceConditionConfirmed) {
-                            val forceGenericRainVisuals = !weatherSnapshot.hadRain
-                            weatherSnapshot.copy(
-                                hadRain = true,
-                                hadWetRoad = false,
-                                finalCondition = if (forceGenericRainVisuals) "DRIZZLE" else weatherSnapshot.finalCondition,
-                                finalDescription = if (forceGenericRainVisuals) "Lluvia" else weatherSnapshot.finalDescription,
-                                finalCode = if (forceGenericRainVisuals) 51 else weatherSnapshot.finalCode,
-                                finalEmoji = if (forceGenericRainVisuals) {
-                                    com.zipstats.app.repository.WeatherRepository.getEmojiForCondition(
-                                        "DRIZZLE",
-                                        weatherSnapshot.finalIsDay ?: weatherSnapshot.initialIsDay
-                                    )
-                                } else {
-                                    weatherSnapshot.finalEmoji
-                                }
-                            )
-                        } else {
-                            weatherSnapshot.copy(
-                                hadRain = false,
-                                hadWetRoad = false,
-                                rainReason = null,
-                                rainStartMinute = null,
-                                maxPrecipitation = 0.0
-                            )
-                        }
-                    }
-                    SurfaceConditionType.WET_ROAD -> {
-                        if (isSurfaceConditionConfirmed) {
-                            weatherSnapshot.copy(
-                                hadRain = false,
-                                hadWetRoad = true
-                            )
-                        } else {
-                            weatherSnapshot.copy(
-                                hadRain = false,
-                                hadWetRoad = false
-                            )
-                        }
-                    }
-                    SurfaceConditionType.NONE -> weatherSnapshot
-                }
+                val weatherSnapshot = captureRouteWeatherSnapshot()
+                val weatherDecision = RouteWeatherDecision(
+                    surfaceConditionType = surfaceConditionType,
+                    isSurfaceConditionConfirmed = isSurfaceConditionConfirmed
+                )
 
                 // 5. 🧹 RESET DE VARIABLES UI (Limpiamos el ViewModel)
                 resetTrackingUI()
@@ -2148,7 +2103,7 @@ class TrackingViewModel @Inject constructor(
                 val finalRoute = routeRepository.finalizeRouteWithWeather(
                     baseRoute = baseRoute,
                     snap = weatherSnapshot,
-                    hasActiveBadges = weatherSnapshot.hadRain || weatherSnapshot.hadWetRoad || weatherSnapshot.hadExtreme
+                    decision = weatherDecision
                 )
 
                 // 7. ☁️ GUARDAR EN FIREBASE

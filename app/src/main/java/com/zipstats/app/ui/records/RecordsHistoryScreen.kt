@@ -41,6 +41,7 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.PrimaryScrollableTabRow
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Tab
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -109,6 +110,7 @@ fun RecordsHistoryScreen(
     val hasMorePages by viewModel.hasMorePages.collectAsState()
 
     var recordToEdit by remember { mutableStateOf<Record?>(null) }
+    var recordIdPendingDelete by remember { mutableStateOf<String?>(null) }
     var showBottomSheet by remember { mutableStateOf(false) }
     var showOnboardingDialog by remember { mutableStateOf(false) }
 
@@ -224,6 +226,33 @@ fun RecordsHistoryScreen(
         )
     }
 
+    if (recordIdPendingDelete != null) {
+        AlertDialog(
+            onDismissRequest = { recordIdPendingDelete = null },
+            title = { ZipStatsText("Eliminar registro") },
+            text = { ZipStatsText("¿Seguro que quieres eliminar este registro? Esta acción no se puede deshacer.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        recordIdPendingDelete?.let { viewModel.deleteRecord(it) }
+                        recordIdPendingDelete = null
+                    }
+                ) {
+                    ZipStatsText(
+                        text = "Eliminar",
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { recordIdPendingDelete = null }) {
+                    ZipStatsText("Cancelar")
+                }
+            },
+            shape = DialogShape
+        )
+    }
+
     val editRecordSheetState = rememberModalBottomSheetState()
     val scope = rememberCoroutineScope()
     
@@ -250,10 +279,12 @@ fun RecordsHistoryScreen(
                     }
                 },
                 onDelete = {
+                    val recordId = recordToEdit?.id
                     scope.launch {
                         editRecordSheetState.hide()
+                        recordIdPendingDelete = recordId
+                        recordToEdit = null
                     }
-                    recordToEdit = null
                 }
             )
         }
@@ -288,7 +319,7 @@ fun RecordsHistoryScreen(
                         showBottomSheet = true
                     }
                 },
-                enabled = vehiclesLoaded, // Deshabilitar hasta que los vehículos estén cargados
+                enabled = vehiclesLoaded && initialDataResolved, // Igualar feedback de carga: semitransparente hasta tener datos iniciales
                 containerColor = MaterialTheme.colorScheme.primary
             ) {
                 Icon(

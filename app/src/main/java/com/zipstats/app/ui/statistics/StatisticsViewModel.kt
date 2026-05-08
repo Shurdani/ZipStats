@@ -156,6 +156,14 @@ data class WeatherComparisonMetrics(
     val extremeKm: Double
 )
 
+data class PeriodWeatherExtremes(
+    val minTemperature: Double?,
+    val maxTemperature: Double?,
+    val maxWindGusts: Double?,
+    val extremeFeelsLike: Double?,
+    val extremeFeelsLikeIsHot: Boolean
+)
+
 data class NextAchievementData(
     val title: String,
     val emoji: String,
@@ -198,7 +206,12 @@ sealed class StatisticsUiState {
         val allTimeChartData: List<ChartDataPoint>,
         val monthlyComparison: ComparisonData?,
         val yearlyComparison: ComparisonData?,
-        val nextAchievement: NextAchievementData?
+        val nextAchievement: NextAchievementData?,
+        val minTemperature: Double?,
+        val maxTemperature: Double?,
+        val maxWindGusts: Double?,
+        val extremeFeelsLike: Double?,
+        val extremeFeelsLikeIsHot: Boolean
     ) : StatisticsUiState()
     data class Error(val message: String) : StatisticsUiState()
 }
@@ -432,6 +445,7 @@ class StatisticsViewModel @Inject constructor(
             }
 
             _weatherStats.value = calculateWeatherStats(manualDist, filteredGpsRoutes)
+            val periodWeatherExtremes = calculatePeriodWeatherExtremes(filteredGpsRoutes)
 
             // --- EMITIR RESULTADOS ---
             _statistics.value = StatisticsUiState.Success(
@@ -458,7 +472,12 @@ class StatisticsViewModel @Inject constructor(
                 allTimeChartData = calculateAllTimeChartData(records),
                 monthlyComparison = calculateMonthlyComparison(records, allRoutes, currentMonth, currentYear),
                 yearlyComparison = calculateYearlyComparison(records, allRoutes, currentYear),
-                nextAchievement = try { calculateNextAchievement() } catch (e: Exception) { null }
+                nextAchievement = try { calculateNextAchievement() } catch (e: Exception) { null },
+                minTemperature = periodWeatherExtremes.minTemperature?.roundToOneDecimal(),
+                maxTemperature = periodWeatherExtremes.maxTemperature?.roundToOneDecimal(),
+                maxWindGusts = periodWeatherExtremes.maxWindGusts?.roundToOneDecimal(),
+                extremeFeelsLike = periodWeatherExtremes.extremeFeelsLike?.roundToOneDecimal(),
+                extremeFeelsLikeIsHot = periodWeatherExtremes.extremeFeelsLikeIsHot
             )
         } catch (e: Exception) {
             _statistics.value = StatisticsUiState.Error(e.message ?: "Error al recalcular datos")
@@ -1150,6 +1169,63 @@ class StatisticsViewModel @Inject constructor(
             extremeKm = extremeKm, // Directo de rutas GPS guardadas (suma real)
             gpsTotalDistance = gpsTotalDistance, // Distancia total de rutas GPS (para contexto)
             manualTotalDistance = manualTotalDistance // Distancia total de registros manuales (para contexto)
+        )
+    }
+
+    private fun calculatePeriodWeatherExtremes(
+        routes: List<com.zipstats.app.model.Route>
+    ): PeriodWeatherExtremes {
+        if (routes.isEmpty()) {
+            return PeriodWeatherExtremes(
+                minTemperature = null,
+                maxTemperature = null,
+                maxWindGusts = null,
+                extremeFeelsLike = null,
+                extremeFeelsLikeIsHot = false
+            )
+        }
+
+        val temperatures = routes.mapNotNull { it.weatherTemperature }
+        val gusts = routes.mapNotNull { it.weatherWindGusts }
+
+        var maxColdDelta = Double.NEGATIVE_INFINITY
+        var coldFeelsLikeValue: Double? = null
+        var maxHotDelta = Double.NEGATIVE_INFINITY
+        var hotFeelsLikeValue: Double? = null
+
+        routes.forEach { route ->
+            val realTemp = route.weatherTemperature ?: return@forEach
+            val windChill = route.weatherWindChill
+            val heatIndex = route.weatherHeatIndex
+
+            val coldDelta = realTemp - (windChill ?: realTemp)
+            if (windChill != null && coldDelta > maxColdDelta) {
+                maxColdDelta = coldDelta
+                coldFeelsLikeValue = windChill
+            }
+
+            val hotDelta = (heatIndex ?: realTemp) - realTemp
+            if (heatIndex != null && hotDelta > maxHotDelta) {
+                maxHotDelta = hotDelta
+                hotFeelsLikeValue = heatIndex
+            }
+        }
+
+        val hasColdExtreme = coldFeelsLikeValue != null && maxColdDelta > 0.0
+        val hasHotExtreme = hotFeelsLikeValue != null && maxHotDelta > 0.0
+        val isHotExtreme = hasHotExtreme && (!hasColdExtreme || maxHotDelta >= maxColdDelta)
+        val selectedFeelsLike = when {
+            isHotExtreme -> hotFeelsLikeValue
+            hasColdExtreme -> coldFeelsLikeValue
+            else -> null
+        }
+
+        return PeriodWeatherExtremes(
+            minTemperature = temperatures.minOrNull(),
+            maxTemperature = temperatures.maxOrNull(),
+            maxWindGusts = gusts.maxOrNull(),
+            extremeFeelsLike = selectedFeelsLike,
+            extremeFeelsLikeIsHot = isHotExtreme
         )
     }
     

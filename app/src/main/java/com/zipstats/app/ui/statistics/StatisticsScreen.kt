@@ -3,6 +3,7 @@ package com.zipstats.app.ui.statistics
 import android.content.Intent
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -25,11 +26,16 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ListAlt
 import androidx.compose.material.icons.automirrored.filled.TrendingDown
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
-import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.filled.Air
+import androidx.compose.material.icons.filled.AcUnit
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Thermostat
+import androidx.compose.material.icons.filled.Water
+import androidx.compose.material.icons.filled.WaterDrop
+import androidx.compose.material.icons.filled.Whatshot
 import androidx.compose.material.icons.outlined.Cloud
 import androidx.compose.material.icons.outlined.Eco
 import androidx.compose.material.icons.outlined.EmojiEvents
@@ -49,6 +55,7 @@ import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -93,27 +100,13 @@ import com.zipstats.app.ui.components.DialogConfirmButton
 import com.zipstats.app.ui.components.ZipStatsText
 import com.zipstats.app.ui.theme.DialogShape
 import com.zipstats.app.utils.LocationUtils
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.time.LocalDate
-import kotlin.math.abs
 import kotlin.math.roundToInt
 
 // Extensión para redondear a 1 decimal (igual que en StatisticsViewModel)
 private fun Double.roundToOneDecimal(): Double {
     return (this * 10.0).roundToInt() / 10.0
-}
-
-/**
- * Métricas disponibles para la tarjeta dinámica (en orden fijo)
- */
-enum class DynamicMetricType {
-    DISTANCE,      // Distancia
-    TREES,         // Árboles
-    CO2,           // CO2
-    WET_ROAD,      // Calzada Mojada
-    RAIN,          // Bajo la lluvia
-    EXTREME        // Cond. Extremas
 }
 
 enum class StatisticsPeriod {
@@ -133,9 +126,6 @@ fun StatisticsScreen(
 ) {
     val statistics by viewModel.statistics.collectAsState()
     val availableMonthYears by viewModel.availableMonthYears.collectAsState()
-    val periodTitle by viewModel.selectedPeriodTitle.collectAsState()
-    // Recoge las distancias con condiciones climáticas
-    val weatherDistances by viewModel.weatherDistances.collectAsState()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var selectedPeriod by remember { mutableIntStateOf(0) }
@@ -419,7 +409,6 @@ fun StatisticsScreen(
                             // 2. Tarjetas de Resumen
                             SummaryStatsCard(
                                 periodData = displayData,
-                                showMaxDistance = false,
                                 horizontalPadding = 16.dp, // Padding interno de la tarjeta
                                 onShare = {
                                     scope.launch {
@@ -443,21 +432,40 @@ fun StatisticsScreen(
                                 }
                             )
 
-                          // 3. >>> TARJETA DINÁMICA DE MÉTRICAS <<<
-                         if (selectedPeriod != 2 && displayData.totalDistance > 0) {
-                           // Usamos el operador safe call (?.) y let para asegurar que comparison no sea null
-                            displayData.comparison?.let { comparisonInfo ->
-                                DynamicMetricCard(
-                                 totalDistance = displayData.totalDistance,
-                                  weatherStats = weatherStats,
-                                  comparison = comparisonInfo,
-                                  // Extraemos dinámicamente el periodo (ej: "Enero 2025" o "2025") 
-                                 // del título que ya genera el ViewModel
-                                 periodLabel = "vs ${comparisonInfo.title.substringAfter(" vs ")}",
-                                  selectedPeriod = selectedPeriod,
-                                  horizontalPadding = 16.dp
-                                      )
-                                 } 
+                            if (selectedPeriod != 2 && displayData.totalDistance > 0) {
+                                val barChartData = when (currentPeriod) {
+                                    StatisticsPeriod.MONTHLY -> displayData.chartData
+                                    StatisticsPeriod.YEARLY -> displayData.chartData
+                                    StatisticsPeriod.ALL -> emptyList()
+                                }
+
+                                if (barChartData.isNotEmpty()) {
+                                    DistanceBarChartCard(
+                                        title = if (currentPeriod == StatisticsPeriod.YEARLY) {
+                                            "Distancia por mes"
+                                        } else {
+                                            "Distancia por semana"
+                                        },
+                                        chartData = barChartData,
+                                        isYearly = currentPeriod == StatisticsPeriod.YEARLY
+                                    )
+                                }
+
+                                val hasWeatherData = weatherStats.rainKm > 0.0 ||
+                                    weatherStats.wetRoadKm > 0.0 ||
+                                    weatherStats.extremeKm > 0.0
+
+                                if (hasWeatherData) {
+                                    WeatherConditionsCard(
+                                        weatherStats = weatherStats,
+                                        comparison = displayData.comparison,
+                                        minTemperature = stats.minTemperature,
+                                        maxTemperature = stats.maxTemperature,
+                                        maxWindGusts = stats.maxWindGusts,
+                                        extremeFeelsLike = stats.extremeFeelsLike,
+                                        extremeFeelsLikeIsHot = stats.extremeFeelsLikeIsHot
+                                    )
+                                }
                             }
                             // 4. Tarjeta "Tu Próximo Logro" (Rediseñada)
                             stats.nextAchievement?.let { nextAchievement ->
@@ -509,7 +517,7 @@ fun EcologicalImpactCardEnhanced(
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.4f)
+            containerColor = MaterialTheme.colorScheme.surface
         ),
         shape = RoundedCornerShape(24.dp)
     ) {
@@ -635,7 +643,6 @@ fun ImpactItem(
 @Composable
 fun SummaryStatsCard(
     periodData: PeriodData,
-    showMaxDistance: Boolean,
     onShare: () -> Unit,
     horizontalPadding: androidx.compose.ui.unit.Dp = 16.dp
 ) {
@@ -690,20 +697,11 @@ fun SummaryStatsCard(
                     iconPainter = painterResource(id = R.drawable.distancia),
                     modifier = Modifier.weight(1f)
                 )
-                if (showMaxDistance) {
-                    StatMetric(
-                        value = formatNumberSpanish(periodData.maxDistance),
-                        unit = "km",
-                        label = "Máximo",
-                        icon = Icons.Filled.BarChart,
-                        modifier = Modifier.weight(1f)
-                    )
-                }
                 StatMetric(
-                    value = periodData.totalRecords.toString(),
-                    unit = "",
-                    label = "Registros",
-                    icon = Icons.AutoMirrored.Filled.ListAlt,
+                    value = formatNumberSpanish(periodData.maxDistance),
+                    unit = "km",
+                    label = "Récord",
+                    icon = Icons.Outlined.EmojiEvents,
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -1056,290 +1054,357 @@ private fun ComparisonValueColumn(
 }
 
 @Composable
-fun SmartInsightCard(
-    data: RandomInsightData,
-    horizontalPadding: androidx.compose.ui.unit.Dp = 16.dp,
-    modifier: Modifier = Modifier
+fun DistanceBarChartCard(
+    title: String,
+    chartData: List<ChartDataPoint>,
+    isYearly: Boolean
 ) {
-    val themeColor = data.metric.color
-    // Fondo muy suave basado en el color de la métrica
-    val containerColor = themeColor.copy(alpha = 0.12f) 
-    
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = containerColor),
-        shape = RoundedCornerShape(16.dp),
-        elevation = CardDefaults.cardElevation(0.dp)
-    ) {
-        Column(
-            modifier = Modifier.padding(horizontal = horizontalPadding, vertical = 20.dp)
-        ) {
-            // HEADER: Icono circular y Título
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier
-                        .size(42.dp)
-                        .background(themeColor.copy(alpha = 0.2f), CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = data.metric.icon,
-                        contentDescription = null,
-                        tint = themeColor,
-                        modifier = Modifier.size(22.dp)
+    val groupedData = remember(chartData, isYearly) {
+        if (isYearly) {
+            chartData
+        } else {
+            chartData
+                .takeLast(28)
+                .chunked(7)
+                .mapIndexed { index, week ->
+                    ChartDataPoint(
+                        date = "Sem ${index + 1}",
+                        value = week.sumOf { it.value }
                     )
                 }
-                
-                Spacer(modifier = Modifier.width(12.dp))
-                
-                Column {
-                    ZipStatsText(
-                        text = data.metric.label, // Ej: "Gasolina"
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    ZipStatsText(
-                        text = data.periodLabel, // Ej: "vs Mes anterior"
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+        }
+    }
+
+    if (groupedData.isEmpty()) return
+
+    val maxValue = groupedData.maxOfOrNull { it.value } ?: 0.0
+    val minValue = groupedData.minOfOrNull { it.value } ?: 0.0
+    val roundedMax = (kotlin.math.ceil(maxValue / 5.0) * 5.0).coerceAtLeast(5.0)
+    val roundedMin = kotlin.math.floor(minValue / 5.0) * 5.0
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        shape = RoundedCornerShape(16.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            ZipStatsText(
+                text = title,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+            SimpleBarChart(groupedData = groupedData, maxValue = roundedMax)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                ZipStatsText(
+                    text = "Mín ${formatNumberSpanish(roundedMin)} km",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                ZipStatsText(
+                    text = "Máx ${formatNumberSpanish(roundedMax)} km",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SimpleBarChart(
+    groupedData: List<ChartDataPoint>,
+    maxValue: Double
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(108.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.Bottom
+    ) {
+        val maxIndex = groupedData.indices.maxByOrNull { groupedData[it].value } ?: -1
+        groupedData.forEachIndexed { index, point ->
+            val barHeightRatio = if (maxValue > 0.0) (point.value / maxValue).toFloat() else 0f
+            val barColor = if (index == maxIndex) {
+                MaterialTheme.colorScheme.primary
+            } else {
+                MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)
+            }
+            Column(
+                modifier = Modifier.weight(1f),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Bottom
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height((72.dp * barHeightRatio).coerceAtLeast(2.dp))
+                        .clip(RoundedCornerShape(topStart = 6.dp, topEnd = 6.dp))
+                        .background(barColor)
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                ZipStatsText(
+                    text = point.date,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun WeatherConditionsCard(
+    weatherStats: WeatherStats,
+    comparison: ComparisonData?,
+    minTemperature: Double?,
+    maxTemperature: Double?,
+    maxWindGusts: Double?,
+    extremeFeelsLike: Double?,
+    extremeFeelsLikeIsHot: Boolean
+) {
+    val previous = comparison?.comparisonWeatherMetrics
+    val coverage = weatherStats.coveragePercentage
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        shape = RoundedCornerShape(16.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            ZipStatsText(
+                text = "Condiciones de tus rutas",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                WeatherMetricTile(
+                    modifier = Modifier.weight(1f),
+                    title = "Lluvia",
+                    valueKm = weatherStats.rainKm,
+                    previousKm = previous?.rainKm ?: 0.0,
+                    icon = Icons.Filled.WaterDrop,
+                    containerColor = Color(0xFFE6F1FB),
+                    contentColor = Color(0xFF0C447C)
+                )
+                WeatherMetricTile(
+                    modifier = Modifier.weight(1f),
+                    title = "Húmedo",
+                    valueKm = weatherStats.wetRoadKm,
+                    previousKm = previous?.wetRoadKm ?: 0.0,
+                    icon = Icons.Filled.Water,
+                    containerColor = Color(0xFFE6F1FB),
+                    contentColor = Color(0xFF0C447C)
+                )
+                WeatherMetricTile(
+                    modifier = Modifier.weight(1f),
+                    title = "Extremo",
+                    valueKm = weatherStats.extremeKm,
+                    previousKm = previous?.extremeKm ?: 0.0,
+                    icon = Icons.Filled.Thermostat,
+                    containerColor = Color(0xFFFAEEDA),
+                    contentColor = Color(0xFF633806)
+                )
+            }
+
+            if (minTemperature != null || maxTemperature != null || maxWindGusts != null || extremeFeelsLike != null) {
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
+                ZipStatsText(
+                    text = "Récords del período",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    if (minTemperature != null || maxTemperature != null) {
+                        WeatherExtremeInlineItem(
+                            modifier = Modifier.weight(1f),
+                            icon = Icons.Filled.Thermostat,
+                            iconTint = Color(0xFF1976D2),
+                            iconBackground = Color(0xFFE3F2FD),
+                            value = "${formatNumberSpanish(minTemperature ?: 0.0)}°C · ${formatNumberSpanish(maxTemperature ?: 0.0)}°C",
+                            label = "Temp. mín / máx"
+                        )
+                    }
+                    maxWindGusts?.let {
+                        WeatherExtremeInlineItem(
+                            modifier = Modifier.weight(1f),
+                            icon = Icons.Filled.Air,
+                            iconTint = Color(0xFF9A6700),
+                            iconBackground = Color(0xFFFFF3E0),
+                            value = "${it.roundToInt()} km/h",
+                            label = "Ráfaga máxima"
+                        )
+                    }
+                }
+
+                extremeFeelsLike?.let {
+                    WeatherExtremeInlineItem(
+                        modifier = Modifier.fillMaxWidth(),
+                        icon = if (extremeFeelsLikeIsHot) Icons.Filled.Whatshot else Icons.Filled.AcUnit,
+                        iconTint = if (extremeFeelsLikeIsHot) Color(0xFFD97706) else Color(0xFFC2185B),
+                        iconBackground = if (extremeFeelsLikeIsHot) Color(0xFFFFF3E0) else Color(0xFFFCE4EC),
+                        value = "${formatNumberSpanish(it)}°C",
+                        label = if (extremeFeelsLikeIsHot) {
+                            "Sensación máx (venció el calor)"
+                        } else {
+                            "Sensación mín (venció el frío)"
+                        },
+                        centered = true
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            if (coverage in 0.1..29.9) {
+                ZipStatsText(
+                    text = "Basado en el ${coverage.roundToInt()}% de tus rutas grabadas con GPS",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
+}
 
-            // DATOS: Valor grande y Porcentaje
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.Bottom
+@Composable
+private fun WeatherMetricTile(
+    title: String,
+    valueKm: Double,
+    previousKm: Double,
+    icon: ImageVector,
+    containerColor: Color,
+    contentColor: Color,
+    modifier: Modifier = Modifier
+) {
+    val delta = valueKm - previousKm
+    val isUp = delta >= 0
+    val percentage = if (previousKm > 0.001) {
+        kotlin.math.abs((delta / previousKm) * 100.0)
+    } else if (valueKm > 0.001) {
+        100.0
+    } else {
+        0.0
+    }
+    val diffText = if (delta >= 0) {
+        "+${formatNumberSpanish(delta)} km extra"
+    } else {
+        "${formatNumberSpanish(kotlin.math.abs(delta))} km menos"
+    }
+
+    Surface(
+        modifier = modifier,
+        color = containerColor,
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(10.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Icon(icon, contentDescription = null, tint = contentColor, modifier = Modifier.size(18.dp))
+            ZipStatsText(
+                text = title,
+                style = MaterialTheme.typography.labelMedium,
+                color = contentColor
+            )
+            ZipStatsText(
+                text = "${formatNumberSpanish(valueKm)} km",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                color = contentColor
+            )
+            ZipStatsText(
+                text = diffText,
+                style = MaterialTheme.typography.labelSmall,
+                color = contentColor.copy(alpha = 0.9f)
+            )
+            Surface(
+                color = Color.White.copy(alpha = 0.72f),
+                shape = RoundedCornerShape(20.dp),
+                modifier = Modifier.border(1.dp, contentColor.copy(alpha = 0.2f), RoundedCornerShape(20.dp))
             ) {
-                // Columna Izquierda: Valor numérico grande
-                Column(modifier = Modifier.weight(1f)) {
-                    Row(verticalAlignment = Alignment.Bottom) {
-                        ZipStatsText(
-                            text = LocationUtils.formatNumberSpanish(data.currentValue, 1), 
-                            style = MaterialTheme.typography.headlineMedium,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = themeColor, // El número toma el color del tema
-                            autoResize = true // Ajusta el tamaño automáticamente para que no se corte
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        ZipStatsText(
-                            text = data.metric.unit, // Ej: "L"
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = themeColor.copy(alpha = 0.8f),
-                            modifier = Modifier.padding(bottom = 5.dp)
-                        )
-                    }
-                    
-                    // Texto diferencial (ej: "+2,4 L extra")
-                    val diff = abs(data.currentValue - data.previousValue)
-                    val diffFormatted = LocationUtils.formatNumberSpanish(diff, 1)
-                    val diffText = if (data.isPositive) 
-                        "+$diffFormatted ${data.metric.unit} extra" 
-                    else 
-                        "$diffFormatted ${data.metric.unit} menos"
-
-                    ZipStatsText(
-                        text = diffText,
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                    )
-                }
-
-                // Columna Derecha: Chip de Porcentaje
-                Surface(
-                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.6f),
-                    shape = RoundedCornerShape(12.dp)
+                Row(
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = if (data.isPositive) Icons.AutoMirrored.Filled.TrendingUp else Icons.AutoMirrored.Filled.TrendingDown,
-                            contentDescription = null,
-                            tint = if (data.isPositive) Color(0xFF4CAF50) else MaterialTheme.colorScheme.error,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        ZipStatsText(
-                            text = "${data.percentageChange.roundToInt()}%",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = if (data.isPositive) Color(0xFF4CAF50) else MaterialTheme.colorScheme.error
-                        )
-                    }
+                    Icon(
+                        imageVector = if (isUp) Icons.AutoMirrored.Filled.TrendingUp else Icons.AutoMirrored.Filled.TrendingDown,
+                        contentDescription = null,
+                        tint = contentColor,
+                        modifier = Modifier.size(14.dp)
+                    )
+                    ZipStatsText(
+                        text = "${percentage.roundToInt()}%",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = contentColor
+                    )
                 }
             }
         }
     }
 }
 
-/**
- * Tarjeta dinámica que muestra métricas en orden fijo
- * Cambia automáticamente cada 3 segundos o manualmente al pulsar
- */
 @Composable
-fun DynamicMetricCard(
-    totalDistance: Double,
-    weatherStats: WeatherStats,
-    comparison: ComparisonData?,
-    periodLabel: String,
-    selectedPeriod: Int, // Para detectar cambios de pestaña
-    horizontalPadding: androidx.compose.ui.unit.Dp = 16.dp
+private fun WeatherExtremeInlineItem(
+    icon: ImageVector,
+    iconTint: Color,
+    iconBackground: Color,
+    value: String,
+    label: String,
+    centered: Boolean = false,
+    modifier: Modifier = Modifier
 ) {
-    // Estado: índice de la métrica actual
-    var currentMetricIndex by remember { mutableIntStateOf(0) }
-    // Estado: si el cambio automático está activo
-    var isAutoMode by remember { mutableStateOf(true) }
-    
-    // Reactivar modo automático cuando cambia de pestaña
-    LaunchedEffect(selectedPeriod) {
-        isAutoMode = true
-        currentMetricIndex = 0 // Resetear al inicio
-    }
-    
-    // Lista de métricas disponibles (filtrar las que no tienen datos)
-    val availableMetrics = remember(weatherStats) {
-        val metrics = mutableListOf<DynamicMetricType>()
-        
-        // Siempre incluir Distancia, Árboles y CO2 (basadas en distancia total)
-        metrics.add(DynamicMetricType.DISTANCE)
-        metrics.add(DynamicMetricType.TREES)
-        metrics.add(DynamicMetricType.CO2)
-        
-        // Incluir métricas de clima solo si hay datos
-        if (weatherStats.wetRoadKm > 0.0) {
-            metrics.add(DynamicMetricType.WET_ROAD)
+    Row(
+        modifier = modifier.padding(vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = if (centered) Arrangement.Center else Arrangement.spacedBy(10.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(32.dp)
+                .clip(CircleShape)
+                .background(iconBackground),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(icon, contentDescription = null, tint = iconTint, modifier = Modifier.size(16.dp))
         }
-        if (weatherStats.rainKm > 0.0) {
-            metrics.add(DynamicMetricType.RAIN)
-        }
-        if (weatherStats.extremeKm > 0.0) {
-            metrics.add(DynamicMetricType.EXTREME)
-        }
-        
-        metrics
-    }
-    
-    // Si no hay métricas disponibles, no mostrar nada
-    if (availableMetrics.isEmpty()) return
-    
-    // Asegurar que el índice esté dentro del rango
-    if (currentMetricIndex >= availableMetrics.size) {
-        currentMetricIndex = 0
-    }
-    
-    val currentMetric = availableMetrics[currentMetricIndex]
-    
-    // Cambio automático cada 3 segundos (solo si está en modo automático)
-    LaunchedEffect(isAutoMode, availableMetrics.size) {
-        if (isAutoMode && availableMetrics.isNotEmpty()) {
-            while (isAutoMode) {
-                delay(3000) // 3 segundos
-                if (isAutoMode) {
-                    currentMetricIndex = (currentMetricIndex + 1) % availableMetrics.size
-                }
-            }
+        Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
+            ZipStatsText(
+                text = value,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            ZipStatsText(
+                text = label,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
-    
-    // Calcular valores según la métrica actual
-    val (currentValue, previousValue, metricInfo) = remember(currentMetric, totalDistance, weatherStats, comparison) {
-        when (currentMetric) {
-            DynamicMetricType.DISTANCE -> {
-                val prev = comparison?.previousValue ?: 0.0
-                Triple(
-                    totalDistance,
-                    prev,
-                    InsightMetric.DISTANCE
-                )
-            }
-            DynamicMetricType.TREES -> {
-                val current = totalDistance * 0.005
-                val prev = (comparison?.previousValue ?: 0.0) * 0.005
-                Triple(
-                    current,
-                    prev,
-                    InsightMetric.TREES
-                )
-            }
-            DynamicMetricType.CO2 -> {
-                val current = totalDistance * 0.15
-                val prev = (comparison?.previousValue ?: 0.0) * 0.15
-                Triple(
-                    current,
-                    prev,
-                    InsightMetric.CO2
-                )
-            }
-            DynamicMetricType.WET_ROAD -> {
-                val current = weatherStats.wetRoadKm
-                // Usar métricas reales del período comparado (sin estimaciones)
-                val prev = comparison?.comparisonWeatherMetrics?.wetRoadKm ?: 0.0
-                Triple(
-                    current,
-                    prev,
-                    InsightMetric.WET_ROAD
-                )
-            }
-            DynamicMetricType.RAIN -> {
-                val current = weatherStats.rainKm
-                // Usar métricas reales del período comparado (sin estimaciones)
-                val prev = comparison?.comparisonWeatherMetrics?.rainKm ?: 0.0
-                Triple(
-                    current,
-                    prev,
-                    InsightMetric.RAIN
-                )
-            }
-            DynamicMetricType.EXTREME -> {
-                val current = weatherStats.extremeKm
-                // Usar métricas reales del período comparado (sin estimaciones)
-                val prev = comparison?.comparisonWeatherMetrics?.extremeKm ?: 0.0
-                Triple(
-                    current,
-                    prev,
-                    InsightMetric.EXTREME
-                )
-            }
-        }
-    }
-    
-    // Calcular porcentaje de cambio
-    val diff = currentValue - previousValue
-    val percentageChange = if (previousValue > 0.001) {
-        kotlin.math.abs((diff / previousValue) * 100)
-    } else if (currentValue > 0.001) {
-        100.0
-    } else {
-        0.0
-    }
-    val isPositive = diff >= 0
-    
-    // Crear datos para mostrar (similar a RandomInsightData)
-    val insightData = RandomInsightData(
-        metric = metricInfo,
-        periodLabel = periodLabel,
-        currentValue = currentValue.roundToOneDecimal(),
-        previousValue = previousValue.roundToOneDecimal(),
-        percentageChange = percentageChange.roundToOneDecimal(),
-        isPositive = isPositive
-    )
-    
-    // Mostrar la tarjeta con click para cambiar manualmente
-    SmartInsightCard(
-        data = insightData,
-        horizontalPadding = horizontalPadding,
-        modifier = Modifier.clickable {
-            // Al pulsar, desactivar modo automático y avanzar manualmente
-            isAutoMode = false
-            currentMetricIndex = (currentMetricIndex + 1) % availableMetrics.size
-        }
-    )
 }
 
 @Composable

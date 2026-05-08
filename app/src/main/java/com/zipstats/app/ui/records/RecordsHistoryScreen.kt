@@ -41,7 +41,6 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.PrimaryScrollableTabRow
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Tab
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -68,6 +67,8 @@ import com.zipstats.app.di.AppOverlayRepositoryEntryPoint
 import com.zipstats.app.model.Record
 import com.zipstats.app.navigation.Screen
 import com.zipstats.app.ui.components.AnimatedFloatingActionButton
+import com.zipstats.app.ui.components.DialogCancelButton
+import com.zipstats.app.ui.components.DialogConfirmButton
 import com.zipstats.app.ui.components.EmptyStateRecords
 import com.zipstats.app.ui.components.StandardDatePickerDialogWithValidation
 import com.zipstats.app.ui.components.ZipStatsText
@@ -229,25 +230,22 @@ fun RecordsHistoryScreen(
     if (recordIdPendingDelete != null) {
         AlertDialog(
             onDismissRequest = { recordIdPendingDelete = null },
-            title = { ZipStatsText("Eliminar registro") },
-            text = { ZipStatsText("¿Seguro que quieres eliminar este registro? Esta acción no se puede deshacer.") },
+            title = { ZipStatsText("Confirmar eliminación") },
+            text = { ZipStatsText("¿Estás seguro de que quieres eliminar este registro?") },
             confirmButton = {
-                TextButton(
+                DialogConfirmButton(
+                    text = "Eliminar",
                     onClick = {
                         recordIdPendingDelete?.let { viewModel.deleteRecord(it) }
                         recordIdPendingDelete = null
                     }
-                ) {
-                    ZipStatsText(
-                        text = "Eliminar",
-                        color = MaterialTheme.colorScheme.error
-                    )
-                }
+                )
             },
             dismissButton = {
-                TextButton(onClick = { recordIdPendingDelete = null }) {
-                    ZipStatsText("Cancelar")
-                }
+                DialogCancelButton(
+                    text = "Cancelar",
+                    onClick = { recordIdPendingDelete = null }
+                )
             },
             shape = DialogShape
         )

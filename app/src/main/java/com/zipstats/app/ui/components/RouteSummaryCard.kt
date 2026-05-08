@@ -28,7 +28,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
@@ -51,17 +50,21 @@ fun RouteSummaryCard(
     badgeEmojiText: String? = null, // Emojis de badges (⚠️, 🔵, 🟡) para mostrar antes del icono del clima
     modifier: Modifier = Modifier
 ) {
+    val overlayContainer = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.92f)
+    val overlayOnContainer = MaterialTheme.colorScheme.onSurface
+    val overlayBorder = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f)
+    val weatherChipContainer = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.45f)
+    val weatherChipContent = MaterialTheme.colorScheme.onSecondaryContainer
+
     Card(
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp),
         shape = RoundedCornerShape(28.dp), // Más redondeado, estilo iOS/Material 3 moderno
         colors = CardDefaults.cardColors(
-            // Fondo oscuro semitransparente (Efecto Glass oscuro)
-            containerColor = Color(0xFF0F0F0F).copy(alpha = 0.9f)
+            containerColor = overlayContainer
         ),
-        // 🔥 Borde sutil para separar del mapa satélite
-        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.1f)),
+        border = BorderStroke(1.dp, overlayBorder),
         elevation = CardDefaults.cardElevation(0.dp)
     ) {
         Column(
@@ -78,7 +81,7 @@ fun RouteSummaryCard(
                         text = title,
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
-                        color = Color.White,
+                        color = overlayOnContainer,
                         maxLines = Int.MAX_VALUE
 
                     )
@@ -86,7 +89,7 @@ fun RouteSummaryCard(
                     ZipStatsText(
                         text = subtitle,
                         style = MaterialTheme.typography.bodySmall,
-                        color = Color.White.copy(alpha = 0.7f),
+                        color = overlayOnContainer.copy(alpha = 0.75f),
                         maxLines = 1
                     )
                 }
@@ -100,7 +103,7 @@ fun RouteSummaryCard(
 
                     fontWeight = FontWeight.Bold,
 
-                    color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.7f),
+                    color = overlayOnContainer.copy(alpha = 0.75f),
 
                     maxLines = 1
 
@@ -145,13 +148,13 @@ fun RouteSummaryCard(
                 Surface(
                     shape = RoundedCornerShape(16.dp),
                     // Fondo un poco más claro que la tarjeta para crear capas
-                    color = Color.White.copy(alpha = 0.08f),
+                    color = weatherChipContainer,
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Row(
                         modifier = Modifier.padding(vertical = 12.dp, horizontal = 16.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center
+                        horizontalArrangement = Arrangement.Start
                     ) {
                         // Badges de seguridad (lluvia, calzada húmeda, condiciones extremas)
                         if (badgeEmojiText != null) {
@@ -159,7 +162,7 @@ fun RouteSummaryCard(
                                 text = badgeEmojiText,
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
-                                color = Color.White,
+                                color = weatherChipContent,
                                 modifier = Modifier.padding(end = 8.dp)
                             )
                         }
@@ -167,7 +170,7 @@ fun RouteSummaryCard(
                             painter = painterResource(id = weatherIconRes),
                             contentDescription = null,
                             modifier = Modifier.size(20.dp),
-                            colorFilter = ColorFilter.tint(Color.White)
+                            colorFilter = ColorFilter.tint(weatherChipContent)
                         )
                         Spacer(modifier = Modifier.width(12.dp))
 
@@ -175,7 +178,8 @@ fun RouteSummaryCard(
                             text = "${formatTemperature(temperature, decimals = 0)}°C",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
-                            color = Color.White
+                            color = weatherChipContent,
+                            maxLines = 1
                         )
 
                         Spacer(modifier = Modifier.width(8.dp))
@@ -192,7 +196,8 @@ fun RouteSummaryCard(
                             text = weatherText,
                             style = weatherTextStyle,
                             fontWeight = FontWeight.Bold,
-                            color = Color.White.copy(alpha = 0.85f),
+                            color = weatherChipContent.copy(alpha = 0.9f),
+                            modifier = Modifier.weight(1f, fill = false),
                             maxLines = 2
                         )
                     }
@@ -319,13 +324,13 @@ private fun StatItemModern(
             // 🔥 Aumentado de bodyLarge a titleMedium/Large para legibilidad
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
-            color = Color.White,
+            color = MaterialTheme.colorScheme.onSurface,
             maxLines = 1
         )
         ZipStatsText(
             text = label,
             style = MaterialTheme.typography.labelSmall,
-            color = Color.White.copy(alpha = 0.6f),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1
         )
     }
@@ -337,7 +342,7 @@ private fun VerticalDivider() {
         modifier = Modifier
             .height(30.dp)
             .width(1.dp)
-            .background(Color.White.copy(alpha = 0.1f))
+            .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
     )
 }
 

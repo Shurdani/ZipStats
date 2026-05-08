@@ -30,6 +30,8 @@ import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.FilledTonalIconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -493,10 +495,10 @@ fun RouteAnimationDialog(
                         // ❌ Eliminado statusBarsPadding() - En modo inmersivo las barras están ocultas
                         .padding(16.dp)
                         .size(48.dp)
-                        .background(Color.Black.copy(alpha = 0.5f), CircleShape)
+                        .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.5f), CircleShape)
                         .zIndex(20f)
                 ) {
-                    Icon(Icons.Default.Close, "Cerrar", tint = Color.White)
+                    Icon(Icons.Default.Close, "Cerrar", tint = MaterialTheme.colorScheme.onPrimary)
                 }
             }
             
@@ -670,9 +672,9 @@ fun AnimationControlBar(
         modifier = modifier
             .height(72.dp) // Altura cómoda
             .padding(horizontal = 16.dp) // Margen lateral
-            .border(1.dp, Color.White.copy(alpha = 0.1f), CircleShape), // Borde sutil
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.8f), CircleShape),
         shape = CircleShape, // Bordes totalmente redondos
-        color = Color(0xFF1E1E1E).copy(alpha = 0.9f), // Fondo oscuro casi opaco
+        color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.95f),
         shadowElevation = 8.dp
     ) {
         Row(
@@ -685,39 +687,46 @@ fun AnimationControlBar(
             // 1. VELOCIDAD (Izquierda)
             TextButton(
                 onClick = onChangeSpeed,
-                colors = ButtonDefaults.textButtonColors(contentColor = Color.White)
+                colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onSurface)
             ) {
                 ZipStatsText(
                     text = "${playbackSpeed.toInt()}x",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
-                    color = Color.White,
+                    color = MaterialTheme.colorScheme.onSurface,
                     autoResize = true // 🔥 Métrica numérica, reduce si no cabe
                 )
             }
 
             // 2. PLAY/PAUSE (Centro - Destacado)
             // Usamos un Box para darle un fondo circular blanco al botón principal
-            IconButton(
+            FilledTonalIconButton(
                 onClick = onTogglePlay,
+                colors = IconButtonDefaults.filledTonalIconButtonColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                ),
                 modifier = Modifier
                     .size(56.dp)
-                    .background(Color.White, CircleShape)
             ) {
                 Icon(
                     imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
                     contentDescription = if (isPlaying) "Pausar" else "Reproducir",
-                    tint = Color.Black, // Icono negro sobre fondo blanco
                     modifier = Modifier.size(32.dp)
                 )
             }
 
             // 3. GUARDAR/DESCARGAR (Derecha)
-            IconButton(onClick = onSave) {
+            FilledTonalIconButton(
+                onClick = onSave,
+                colors = IconButtonDefaults.filledTonalIconButtonColors(
+                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                )
+            ) {
                 Icon(
                     imageVector = Icons.Default.Download,
-                    contentDescription = "Guardar video",
-                    tint = Color.White
+                    contentDescription = "Guardar video"
                 )
             }
         }

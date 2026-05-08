@@ -43,6 +43,7 @@ import androidx.compose.ui.unit.dp
 import com.zipstats.app.model.Avatar
 import com.zipstats.app.model.AvatarCategory
 import com.zipstats.app.model.Avatars
+import com.zipstats.app.ui.theme.DialogShape
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -262,7 +263,8 @@ fun AvatarSelectionDialog(
             }
         },
         confirmButton = {},
-        dismissButton = {}
+        dismissButton = {},
+        shape = DialogShape
     )
 }
 

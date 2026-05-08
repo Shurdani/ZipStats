@@ -1,6 +1,7 @@
 package com.zipstats.app.ui.achievements
 
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -124,7 +125,8 @@ fun AchievementsScreen(
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface, // Moderno (Surface)
                     titleContentColor = MaterialTheme.colorScheme.onSurface,
-                    actionIconContentColor = MaterialTheme.colorScheme.onSurface
+                    actionIconContentColor = MaterialTheme.colorScheme.onSurface,
+                    scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainer
                 )
             )
         }
@@ -335,9 +337,9 @@ private fun AchievementGridCard(
 
     // Colores según estado
     val containerColor = if (isUnlocked)
-        MaterialTheme.colorScheme.surface
+        MaterialTheme.colorScheme.surfaceContainerLow
     else
-        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
 
     val textColor = if (isUnlocked)
         MaterialTheme.colorScheme.onSurface
@@ -351,7 +353,11 @@ private fun AchievementGridCard(
             .height(240.dp), // Altura fija para uniformidad en el grid
         colors = CardDefaults.cardColors(containerColor = containerColor),
         elevation = CardDefaults.cardElevation(defaultElevation = if (isUnlocked) 2.dp else 0.dp),
-        shape = RoundedCornerShape(20.dp)
+        shape = RoundedCornerShape(20.dp),
+        border = BorderStroke(
+            1.dp,
+            MaterialTheme.colorScheme.outlineVariant.copy(alpha = if (isUnlocked) 0.8f else 0.5f)
+        )
     ) {
         Column(
             modifier = Modifier
@@ -479,7 +485,8 @@ fun AchievementDetailDialog(
     Dialog(onDismissRequest = onDismiss) {
         Card(
             shape = RoundedCornerShape(24.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
             modifier = Modifier.fillMaxWidth().padding(16.dp)
         ) {
             Column(
@@ -570,6 +577,7 @@ fun AchievementDetailDialog(
                         onClick = onShare,
                         modifier = Modifier.weight(1f),
                         enabled = achievement.isUnlocked, // Solo compartir si lo tienes
+                        shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = MaterialTheme.colorScheme.primary,
                             contentColor = MaterialTheme.colorScheme.onPrimary

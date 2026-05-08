@@ -1,6 +1,9 @@
 package com.zipstats.app.ui.records
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -12,9 +15,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -29,7 +35,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
@@ -55,20 +60,24 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.zipstats.app.di.AppOverlayRepositoryEntryPoint
+import com.zipstats.app.R
 import com.zipstats.app.model.Record
+import com.zipstats.app.model.VehicleType
 import com.zipstats.app.navigation.Screen
 import com.zipstats.app.ui.components.AnimatedFloatingActionButton
 import com.zipstats.app.ui.components.DialogCancelButton
-import com.zipstats.app.ui.components.DialogConfirmButton
+import com.zipstats.app.ui.components.DialogDeleteButton
 import com.zipstats.app.ui.components.EmptyStateRecords
 import com.zipstats.app.ui.components.StandardDatePickerDialogWithValidation
 import com.zipstats.app.ui.components.ZipStatsText
@@ -233,7 +242,7 @@ fun RecordsHistoryScreen(
             title = { ZipStatsText("Confirmar eliminación") },
             text = { ZipStatsText("¿Estás seguro de que quieres eliminar este registro?") },
             confirmButton = {
-                DialogConfirmButton(
+                DialogDeleteButton(
                     text = "Eliminar",
                     onClick = {
                         recordIdPendingDelete?.let { viewModel.deleteRecord(it) }
@@ -294,7 +303,7 @@ fun RecordsHistoryScreen(
             TopAppBar(
                 title = {
                     ZipStatsText(
-                        text = "Historial de Viajes",
+                        text = "Historial de Registros",
                         style = MaterialTheme.typography.headlineSmall,
                         fontWeight = FontWeight.Bold,
                         maxLines = 1
@@ -411,11 +420,20 @@ fun RecordsHistoryScreen(
                         key = { _, record -> record.id }
                     ) { _, record -> // Ya no necesitamos el index para el color
                         val interactionSource = remember { MutableInteractionSource() }
+                        val scooter = userScooters.find { it.nombre == record.patinete }
                         
                         // 1. Contenedor CLICKABLE limpio
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
+                                .padding(horizontal = 10.dp, vertical = 4.dp)
+                                .clip(RoundedCornerShape(16.dp))
+                                .background(MaterialTheme.colorScheme.surfaceContainerLow)
+                                .border(
+                                    width = 0.5.dp,
+                                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f),
+                                    shape = RoundedCornerShape(16.dp)
+                                )
                                 .clickable(
                                     interactionSource = interactionSource,
                                     indication = null,
@@ -423,10 +441,28 @@ fun RecordsHistoryScreen(
                                 )
                         ) {
                             ListItem(
+                                leadingContent = {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(40.dp)
+                                            .background(
+                                                MaterialTheme.colorScheme.surfaceContainerHighest,
+                                                CircleShape
+                                            ),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Image(
+                                            painter = getVehicleIcon(scooter?.vehicleType ?: VehicleType.PATINETE),
+                                            contentDescription = null,
+                                            modifier = Modifier.size(24.dp),
+                                            colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.onSurfaceVariant)
+                                        )
+                                    }
+                                },
                                 // 2. HEADLINE: El dato principal (Nombre del vehículo)
                                 headlineContent = {
                                     ZipStatsText(
-                                        text = userScooters.find { it.nombre == record.patinete }?.modelo ?: record.patinete,
+                                        text = scooter?.modelo ?: record.patinete,
                                         style = MaterialTheme.typography.titleMedium,
                                         fontWeight = FontWeight.SemiBold
                                     )
@@ -459,15 +495,8 @@ fun RecordsHistoryScreen(
                                 },
                                 // 5. COLORES: Fondo transparente para respetar el tema
                                 colors = ListItemDefaults.colors(
-                                    containerColor = Color.Transparent
+                                    containerColor = MaterialTheme.colorScheme.surfaceContainerLow
                                 )
-                            )
-
-                            // 6. DIVISOR: Sutil y elegante
-                            HorizontalDivider(
-                                modifier = Modifier.padding(horizontal = 16.dp), // Indentado para look moderno
-                                thickness = 0.5.dp,
-                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
                             )
                         }
                     }
@@ -480,13 +509,23 @@ fun RecordsHistoryScreen(
                                     .padding(16.dp),
                                 contentAlignment = Alignment.Center
                             ) {
-                                CircularProgressIndicator()
+                                CircularProgressIndicator(modifier = Modifier.size(24.dp))
                             }
                         }
                     }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun getVehicleIcon(vehicleType: VehicleType): Painter {
+    return when (vehicleType) {
+        VehicleType.PATINETE -> painterResource(id = R.drawable.ic_electric_scooter_adaptive)
+        VehicleType.BICICLETA -> painterResource(id = R.drawable.ic_ciclismo_adaptive)
+        VehicleType.E_BIKE -> painterResource(id = R.drawable.ic_bicicleta_electrica_adaptive)
+        VehicleType.MONOCICLO -> painterResource(id = R.drawable.ic_unicycle_adaptive)
     }
 }
 
@@ -705,7 +744,8 @@ fun NewRecordBottomSheet(
             ) {
                 ZipStatsText(
                     text = "Guardar Registro",
-                    fontSize = 16.sp,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onPrimary
                 )
             }
@@ -752,7 +792,7 @@ fun EditRecordBottomSheet(
     ) {
         ZipStatsText(
             text = "Editar registro",
-            style = MaterialTheme.typography.titleMedium,
+            style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.Bold
         )
 

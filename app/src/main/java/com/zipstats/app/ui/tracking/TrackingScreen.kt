@@ -29,6 +29,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -63,6 +64,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
@@ -116,6 +118,7 @@ import com.zipstats.app.model.VehicleType
 import com.zipstats.app.permission.PermissionManager
 import com.zipstats.app.repository.AppOverlayRepository
 import com.zipstats.app.repository.SettingsRepository
+import com.zipstats.app.ui.components.AnimatedFloatingActionButton
 import com.zipstats.app.ui.components.DialogCancelButton
 import com.zipstats.app.ui.components.DialogDeleteButton
 import com.zipstats.app.ui.components.ZipStatsText
@@ -315,7 +318,8 @@ fun TrackingScreen(
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface,
                     titleContentColor = MaterialTheme.colorScheme.onSurface,
-                    actionIconContentColor = MaterialTheme.colorScheme.onSurface
+                    actionIconContentColor = MaterialTheme.colorScheme.onSurface,
+                    scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainer
                 )
             )
         }
@@ -648,40 +652,51 @@ fun PermissionRequestCard(onRequestPermissions: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .padding(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
     ) {
         Column(
             modifier = Modifier.padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Icon(
-                imageVector = Icons.Default.LocationOff,
-                contentDescription = null,
-                modifier = Modifier.size(64.dp),
-                tint = MaterialTheme.colorScheme.onErrorContainer
-            )
+            Surface(
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.errorContainer,
+                modifier = Modifier.size(64.dp)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = Icons.Default.LocationOff,
+                        contentDescription = null,
+                        modifier = Modifier.size(32.dp),
+                        tint = MaterialTheme.colorScheme.onErrorContainer
+                    )
+                }
+            }
             Spacer(modifier = Modifier.height(16.dp))
             ZipStatsText(
                 text = "Permisos requeridos",
                 style = MaterialTheme.typography.titleLarge,
-                color = MaterialTheme.colorScheme.onErrorContainer
+                color = MaterialTheme.colorScheme.onSurface
             )
             Spacer(modifier = Modifier.height(8.dp))
             ZipStatsText(
                 text = "Para grabar rutas GPS, necesitamos:\n• Acceso a tu ubicación\n• Mostrar notificación persistente\n\nVe a Configuración > Aplicaciones > ZipStats > Permisos para activarlos.",
                 style = MaterialTheme.typography.bodyMedium,
                 textAlign = TextAlign.Center,
-                color = MaterialTheme.colorScheme.onErrorContainer
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Spacer(modifier = Modifier.height(24.dp))
             Button(
                 onClick = onRequestPermissions,
+                shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.error,
-                    contentColor = MaterialTheme.colorScheme.onError
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary
                 )
             ) {
-                ZipStatsText("Abrir configuración", color = MaterialTheme.colorScheme.onError)
+                ZipStatsText("Abrir configuración", color = MaterialTheme.colorScheme.onPrimary)
             }
         }
     }
@@ -743,9 +758,10 @@ fun IdleStateContent(
             modifier = Modifier.fillMaxWidth(),
             onClick = onScooterClick,
             colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f) // Más sutil
+                containerColor = MaterialTheme.colorScheme.surfaceContainerLow
             ),
-            shape = RoundedCornerShape(16.dp)
+            shape = RoundedCornerShape(16.dp),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
         ) {
             Row(
                 modifier = Modifier
@@ -1028,9 +1044,13 @@ fun TrackingActiveContent(
         // 4. CONTROLES INTEGRADOS
         if (isSaving) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                CircularProgressIndicator(color = Color.Black)
+                CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
                 Spacer(modifier = Modifier.height(16.dp))
-                ZipStatsText("Guardando ruta...", style = MaterialTheme.typography.bodyMedium, color = Color.Black)
+                ZipStatsText(
+                    "Guardando ruta...",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
             }
         } else {
             AnimatedContent(
@@ -1055,12 +1075,10 @@ fun TrackingActiveContent(
                         )
                         
                         // Botón Reanudar (Grande)
-                        FloatingActionButton(
+                        AnimatedFloatingActionButton(
                             onClick = onResume,
                             containerColor = MaterialTheme.colorScheme.primary,
-                            contentColor = MaterialTheme.colorScheme.onPrimary,
-                            modifier = Modifier.size(88.dp),
-                            shape = CircleShape
+                            modifier = Modifier.size(88.dp)
                         ) {
                             Icon(Icons.Default.PlayArrow, "Reanudar", modifier = Modifier.size(40.dp))
                         }
@@ -1336,22 +1354,36 @@ fun ScooterPickerDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { ZipStatsText("Seleccionar vehículo") },
+        title = {
+            ZipStatsText(
+                text = "Seleccionar vehículo",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold
+            )
+        },
         text = {
-            LazyColumn {
+            LazyColumn(
+                modifier = Modifier.heightIn(max = 360.dp)
+            ) {
                 items(scooters) { scooter ->
+                    val isSelected = scooter.id == selectedScooter?.id
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(vertical = 4.dp),
                         onClick = { onScooterSelected(scooter) },
                         colors = CardDefaults.cardColors(
-                            containerColor = if (scooter.id == selectedScooter?.id) {
+                            containerColor = if (isSelected) {
                                 MaterialTheme.colorScheme.primaryContainer
                             } else {
                                 MaterialTheme.colorScheme.surface
                             }
-                        )
+                        ),
+                        border = BorderStroke(
+                            1.dp,
+                            if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant
+                        ),
+                        shape = RoundedCornerShape(14.dp)
                     ) {
                         Row(
                             modifier = Modifier
@@ -1369,11 +1401,21 @@ fun ScooterPickerDialog(
                             Column {
                                 ZipStatsText(
                                     text = scooter.nombre,
-                                    style = MaterialTheme.typography.titleMedium
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.SemiBold
                                 )
                                 ZipStatsText(
                                     text = scooter.modelo,
-                                    style = MaterialTheme.typography.bodySmall
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            if (isSelected) {
+                                Spacer(modifier = Modifier.weight(1f))
+                                Icon(
+                                    imageVector = Icons.Default.Check,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary
                                 )
                             }
                         }
@@ -1475,27 +1517,29 @@ fun FinishRouteBottomSheet(
             maxLines = 3
         )
 
-        // Botones
+        // Botones de acción con jerarquía M3: secundario tonal + primario
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Button(
+            FilledTonalButton(
                 onClick = onDismiss,
                 modifier = Modifier.weight(1f),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                    contentColor = MaterialTheme.colorScheme.onSurface
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.filledTonalButtonColors(
+                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer
                 )
             ) {
                 ZipStatsText(
                     text = "Cancelar",
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = MaterialTheme.colorScheme.onSecondaryContainer
                 )
             }
             Button(
                 onClick = { onConfirm(notes, addToRecords, isSurfaceConditionConfirmed) },
                 modifier = Modifier.weight(1f),
+                shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = MaterialTheme.colorScheme.primary,
                     contentColor = MaterialTheme.colorScheme.onPrimary

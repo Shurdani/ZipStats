@@ -4,6 +4,7 @@ package com.zipstats.app.ui.auth
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -175,9 +176,13 @@ fun RegisterScreen(
                 // 1. LOGO / BRANDING
                 Surface(
                     shape = CircleShape,
-                    color = Color.White, // Fondo blanco para que el logo PNG no se corte feo
+                    color = MaterialTheme.colorScheme.surface,
                     modifier = Modifier.size(100.dp),
-                    shadowElevation = 6.dp
+                    shadowElevation = 6.dp,
+                    border = androidx.compose.foundation.BorderStroke(
+                        1.dp,
+                        MaterialTheme.colorScheme.outlineVariant
+                    )
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Image(
@@ -270,7 +275,8 @@ fun RegisterScreen(
                 if (password.isNotEmpty()) {
                     Card(
                         modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
                         shape = RoundedCornerShape(8.dp)
                     ) {
                         Column(modifier = Modifier.padding(12.dp)) {

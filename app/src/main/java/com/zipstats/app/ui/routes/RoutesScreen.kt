@@ -2,6 +2,7 @@ package com.zipstats.app.ui.routes
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -18,6 +19,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.GpsFixed
 import androidx.compose.material.icons.filled.Timer
@@ -45,6 +47,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.painter.Painter
@@ -63,6 +66,7 @@ import com.zipstats.app.repository.AppOverlayRepository
 import com.zipstats.app.ui.components.AnimatedFloatingActionButton
 import com.zipstats.app.ui.components.DialogCancelButton
 import com.zipstats.app.ui.components.DialogConfirmButton
+import com.zipstats.app.ui.components.DialogDeleteButton
 import com.zipstats.app.ui.components.EmptyStateRoutes
 import com.zipstats.app.ui.components.ZipStatsText
 import com.zipstats.app.ui.onboarding.OnboardingDialog
@@ -229,7 +233,7 @@ fun RoutesScreen(
             title = { ZipStatsText("Confirmar eliminación") },
             text = { ZipStatsText("¿Estás seguro de que quieres eliminar esta ruta?") },
             confirmButton = {
-                DialogConfirmButton(
+                DialogDeleteButton(
                     text = "Eliminar",
                     onClick = {
                         viewModel.deleteRoute(route.id)
@@ -425,6 +429,14 @@ fun RoutesScreen(
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
+                                .padding(horizontal = 10.dp, vertical = 4.dp)
+                                .clip(RoundedCornerShape(16.dp))
+                                .background(MaterialTheme.colorScheme.surfaceContainerLow)
+                                .border(
+                                    width = 0.5.dp,
+                                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f),
+                                    shape = RoundedCornerShape(16.dp)
+                                )
                                 .clickable(
                                     interactionSource = interactionSource,
                                     indication = null,
@@ -438,7 +450,7 @@ fun RoutesScreen(
                                         modifier = Modifier
                                             .size(40.dp)
                                             .background(
-                                                MaterialTheme.colorScheme.surfaceVariant,
+                                                MaterialTheme.colorScheme.surfaceContainerHighest,
                                                 CircleShape
                                             ),
                                         contentAlignment = Alignment.Center
@@ -535,15 +547,8 @@ fun RoutesScreen(
                                 },
                                 // 5. COLORES: Fondo transparente para respetar el tema
                                 colors = ListItemDefaults.colors(
-                                    containerColor = Color.Transparent
+                                    containerColor = MaterialTheme.colorScheme.surfaceContainerLow
                                 )
-                            )
-
-                            // 6. DIVISOR: Sutil y elegante
-                            HorizontalDivider(
-                                modifier = Modifier.padding(horizontal = 16.dp), // Indentado para look moderno
-                                thickness = 0.5.dp,
-                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
                             )
                         }
                     }

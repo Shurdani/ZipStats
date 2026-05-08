@@ -13,7 +13,6 @@ import com.zipstats.app.ui.components.ZipStatsText
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
@@ -29,7 +28,7 @@ fun SplashOverlay(message: String) {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.White), // Fondo blanco para que coincida con la splash nativa
+            .background(MaterialTheme.colorScheme.background),
         contentAlignment = Alignment.Center
     ) {
         Column(

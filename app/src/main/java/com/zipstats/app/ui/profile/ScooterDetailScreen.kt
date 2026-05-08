@@ -83,6 +83,7 @@ import com.zipstats.app.ui.components.DialogCancelButton
 import com.zipstats.app.ui.components.DialogDeleteButton
 import com.zipstats.app.ui.components.StandardDatePickerDialogWithValidation
 import com.zipstats.app.ui.components.ZipStatsText
+import com.zipstats.app.ui.theme.DialogShape
 import com.zipstats.app.utils.DateUtils
 import com.zipstats.app.utils.LocationUtils
 import kotlinx.coroutines.delay
@@ -182,8 +183,7 @@ fun ScooterDetailScreen(
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface,
-                    scrolledContainerColor = Color.Unspecified,
-                    navigationIconContentColor = Color.Unspecified,
+                    scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainer,
                     titleContentColor = MaterialTheme.colorScheme.onSurface,
                     actionIconContentColor = MaterialTheme.colorScheme.onSurface
                 )
@@ -320,7 +320,8 @@ fun ScooterDetailScreen(
                 if (!isDeleting) {
                     DialogCancelButton(text = "Cancelar", onClick = { showDeleteDialog = false })
                 }
-            }
+            },
+            shape = DialogShape
         )
     }
 }
@@ -580,7 +581,8 @@ fun UsageExplanationDialog(
                 text = "Entendido",
                 onClick = onDismiss
             )
-        }
+        },
+        shape = DialogShape
     )
 }
 

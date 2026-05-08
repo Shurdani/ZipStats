@@ -6,6 +6,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -34,6 +35,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -53,6 +55,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -73,7 +76,9 @@ import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.google.android.gms.common.api.ApiException
 import com.google.android.gms.tasks.Task
 import com.zipstats.app.R
+import com.zipstats.app.ui.components.DialogConfirmButton
 import com.zipstats.app.ui.components.ZipStatsText
+import com.zipstats.app.ui.theme.DialogShape
 
 // Web Client ID para Google Sign In
 private const val DEFAULT_WEB_CLIENT_ID = "811393382396-fi0s13vdo86gabespr7dmb559f202l7d.apps.googleusercontent.com"
@@ -211,10 +216,13 @@ fun LoginScreen(
                 // 1. LOGO PERSONALIZADO
                 Surface(
                     shape = CircleShape,
-                    // CAMBIO CLAVE: Usamos Color.White para que se fusione con el fondo blanco de tu logo
-                    color = Color.White,
+                    color = MaterialTheme.colorScheme.surface,
                     modifier = Modifier.size(130.dp), // Un poco más grande
-                    shadowElevation = 8.dp
+                    shadowElevation = 8.dp,
+                    border = androidx.compose.foundation.BorderStroke(
+                        1.dp,
+                        MaterialTheme.colorScheme.outlineVariant
+                    )
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Image(
@@ -413,8 +421,9 @@ fun LoginScreen(
     if (showResetDialog) {
         Dialog(onDismissRequest = { showResetDialog = false }) {
             Card(
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
             ) {
                 Column(
                     modifier = Modifier.padding(24.dp),
@@ -440,13 +449,20 @@ fun LoginScreen(
                         ZipStatsText(resetError, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                     }
                     Spacer(modifier = Modifier.height(24.dp))
-                    Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
-                        TextButton(onClick = { showResetDialog = false }) { ZipStatsText("Cancelar") }
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        FilledTonalButton(
+                            onClick = { showResetDialog = false },
+                            shape = RoundedCornerShape(12.dp)
+                        ) { ZipStatsText("Cancelar") }
                         Button(
                             onClick = {
                                 if (resetEmail.isEmpty()) resetError = "Campo obligatorio"
                                 else viewModel.resetPassword(resetEmail)
                             },
+                            shape = RoundedCornerShape(12.dp),
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = MaterialTheme.colorScheme.primary,
                                 contentColor = MaterialTheme.colorScheme.onPrimary
@@ -465,14 +481,12 @@ fun LoginScreen(
             title = { ZipStatsText("Correo Enviado") },
             text = { ZipStatsText("Revisa tu bandeja de entrada para restablecer tu contraseña.") },
             confirmButton = {
-                Button(
-                    onClick = { showResetConfirmation = false },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        contentColor = MaterialTheme.colorScheme.onPrimary
-                    )
-                ) { ZipStatsText("Entendido", color = MaterialTheme.colorScheme.onPrimary) }
-            }
+                DialogConfirmButton(
+                    text = "Entendido",
+                    onClick = { showResetConfirmation = false }
+                )
+            },
+            shape = DialogShape
         )
     }
 
@@ -480,8 +494,9 @@ fun LoginScreen(
     if (showMergeDialog) {
         Dialog(onDismissRequest = { showMergeDialog = false }) {
             Card(
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
             ) {
                 Column(
                     modifier = Modifier.padding(24.dp),
@@ -512,14 +527,21 @@ fun LoginScreen(
                         ZipStatsText(mergeError, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                     }
                     Spacer(modifier = Modifier.height(24.dp))
-                    Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
-                        TextButton(onClick = { showMergeDialog = false }) { ZipStatsText("Cancelar") }
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        FilledTonalButton(
+                            onClick = { showMergeDialog = false },
+                            shape = RoundedCornerShape(12.dp)
+                        ) { ZipStatsText("Cancelar") }
                         Button(
                             onClick = {
                                 if (mergePassword.isEmpty()) mergeError = "Ingresa tu contraseña"
                                 else if (pendingGoogleIdToken != null) viewModel.linkGoogleAccount(pendingGoogleIdToken!!, mergeEmail, mergePassword)
                             },
                             enabled = authState !is AuthState.Loading,
+                            shape = RoundedCornerShape(12.dp),
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = MaterialTheme.colorScheme.primary,
                                 contentColor = MaterialTheme.colorScheme.onPrimary

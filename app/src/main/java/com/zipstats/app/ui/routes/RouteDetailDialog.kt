@@ -4,6 +4,7 @@ import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -94,6 +95,7 @@ import com.zipstats.app.ui.components.CapturableMapView
 import com.zipstats.app.ui.components.MapSnapshotTrigger
 import com.zipstats.app.ui.components.RouteSummaryCardFromRoute
 import com.zipstats.app.ui.components.ZipStatsText
+import com.zipstats.app.ui.theme.DialogShape
 import com.zipstats.app.utils.CityUtils
 import com.zipstats.app.utils.DateUtils
 import com.zipstats.app.utils.LocationUtils
@@ -198,11 +200,13 @@ fun RouteDetailDialog(
             modifier = Modifier
                 .fillMaxWidth(0.95f) // Margen lateral del 5%
                 .heightIn(max = 780.dp) // Altura máxima controlada
-                .clip(RoundedCornerShape(28.dp)),
+                .clip(DialogShape),
             colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surface // O Color(0xFF1E1E1E) si quieres forzar oscuro
+                containerColor = MaterialTheme.colorScheme.surfaceContainerLow
             ),
-            elevation = CardDefaults.cardElevation(8.dp)
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f)),
+            elevation = CardDefaults.cardElevation(4.dp),
+            shape = DialogShape
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
                 
@@ -211,7 +215,7 @@ fun RouteDetailDialog(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(280.dp) // Mapa grande
-                        .clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)) // Clip superior para coincidir con Card
+                        .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
                 ) {
                     // El Mapa
                     CapturableMapView(
@@ -246,10 +250,10 @@ fun RouteDetailDialog(
                         modifier = Modifier
                             .align(Alignment.TopEnd)
                             .padding(12.dp)
-                            .background(Color.Black.copy(alpha=0.3f), CircleShape)
+                            .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.45f), CircleShape)
                             .size(32.dp)
                     ) {
-                        Icon(Icons.Default.Close, "Cerrar", tint = Color.White, modifier = Modifier.size(18.dp))
+                        Icon(Icons.Default.Close, "Cerrar", tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(18.dp))
                     }
 
                     // Añadir a Registros (Lista)
@@ -259,10 +263,10 @@ fun RouteDetailDialog(
                             modifier = Modifier
                                 .align(Alignment.TopStart)
                                 .padding(12.dp)
-                                .background(Color.Black.copy(alpha=0.3f), CircleShape)
+                                .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.45f), CircleShape)
                                 .size(32.dp)
                         ) {
-                            Icon(Icons.AutoMirrored.Filled.List, "Añadir", tint = Color.White, modifier = Modifier.size(18.dp))
+                            Icon(Icons.AutoMirrored.Filled.List, "Añadir", tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(18.dp))
                         }
                     }
 
@@ -272,7 +276,7 @@ fun RouteDetailDialog(
                         modifier = Modifier
                             .align(Alignment.BottomEnd)
                             .padding(12.dp)
-                            .background(MaterialTheme.colorScheme.surface, CircleShape)
+                            .background(MaterialTheme.colorScheme.surfaceContainerHigh, CircleShape)
                             .size(40.dp)
                     ) {
                         Icon(Icons.Default.Fullscreen, "Expandir", tint = MaterialTheme.colorScheme.onSurface)
@@ -284,13 +288,13 @@ fun RouteDetailDialog(
                     modifier = Modifier
                         .weight(1f) // Ocupa el espacio restante
                         .verticalScroll(rememberScrollState())
-                        .padding(horizontal = 20.dp, vertical = 20.dp)
+                        .padding(horizontal = 20.dp, vertical = 18.dp)
                 ) {
                     // Cabecera: Título y Vehículo
                     val title = CityUtils.getRouteTitleText(route, vehicleType)
                     ZipStatsText(
                         text = title,
-                        style = MaterialTheme.typography.headlineSmall,
+                        style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
                         maxLines = 2
                     )
@@ -321,8 +325,8 @@ fun RouteDetailDialog(
                     )
 
                     Spacer(modifier = Modifier.height(24.dp))
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
-                    Spacer(modifier = Modifier.height(16.dp))
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f))
+                    Spacer(modifier = Modifier.height(14.dp))
 
                     // DETALLES AVANZADOS (Acordeón)
                     if (route.movingTime > 0 || route.pauseCount > 0) {
@@ -336,14 +340,18 @@ fun RouteDetailDialog(
 
                 // 3. BARRA DE ACCIONES (Footer Fijo)
                 Surface(
-                    color = MaterialTheme.colorScheme.surface,
+                    color = MaterialTheme.colorScheme.surfaceContainerLow,
                     shadowElevation = 16.dp, // Sombra para separar del scroll
                     modifier = Modifier.fillMaxWidth().zIndex(1f)
                 ) {
+                    HorizontalDivider(
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f),
+                        thickness = 0.8.dp
+                    )
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(16.dp)
+                            .padding(horizontal = 16.dp, vertical = 14.dp)
                             .navigationBarsPadding(),
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                         verticalAlignment = Alignment.CenterVertically
@@ -355,7 +363,7 @@ fun RouteDetailDialog(
                                 containerColor = MaterialTheme.colorScheme.errorContainer,
                                 contentColor = MaterialTheme.colorScheme.onErrorContainer
                             ),
-                            modifier = Modifier.size(50.dp)
+                            modifier = Modifier.size(48.dp)
                         ) {
                             Icon(Icons.Default.Delete, "Eliminar")
                         }
@@ -365,8 +373,8 @@ fun RouteDetailDialog(
                             onClick = { showAnimationDialog = true },
                             modifier = Modifier
                                 .weight(1f)
-                                .height(50.dp),
-                            shape = RoundedCornerShape(16.dp),
+                                .height(48.dp),
+                            shape = RoundedCornerShape(14.dp),
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = MaterialTheme.colorScheme.primary,
                                 contentColor = MaterialTheme.colorScheme.onPrimary
@@ -387,7 +395,7 @@ fun RouteDetailDialog(
                                 containerColor = MaterialTheme.colorScheme.secondaryContainer,
                                 contentColor = MaterialTheme.colorScheme.onSecondaryContainer
                             ),
-                            modifier = Modifier.size(50.dp)
+                            modifier = Modifier.size(48.dp)
                         ) {
                             Icon(Icons.Default.Share, "Compartir")
                         }
@@ -784,7 +792,7 @@ fun SafetyBadgesSection(route: Route) {
                 ) {
                     val badges = remember(hadRain, hasWetRoad, extremeBadgeText) {
                         mutableListOf<String>().apply {
-                            if (hadRain) add("🔵 Llovio durante la ruta")
+                            if (hadRain) add("🔵 Llovió durante la ruta")
                             if (hasWetRoad) add("🟡 Calzada húmeda")
                             if (extremeBadgeText != null) add(extremeBadgeText)
                         }
@@ -810,7 +818,7 @@ fun SafetyBadgesSection(route: Route) {
         } else {
             // Si hay solo 1 badge, mostrar tarjeta individual
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (hadRain) SafetyBadge("🔵 Llovio durante la ruta")
+                if (hadRain) SafetyBadge("🔵 Llovió durante la ruta")
                 if (hasWetRoad) SafetyBadge("🟡 Calzada húmeda")
                 if (extremeBadgeText != null) SafetyBadge(extremeBadgeText)
             }
@@ -1368,7 +1376,7 @@ private fun WeatherInfoDialog(route: Route, onDismiss: () -> Unit) {
                                 ) {
                                     val badges = remember(hadRain, hasWetRoad, extremeBadgeText) {
                                         mutableListOf<String>().apply {
-                                            if (hadRain) add("🔵 Llovio durante la ruta")
+                                            if (hadRain) add("🔵 Llovió durante la ruta")
                                             if (hasWetRoad) add("🟡 Calzada húmeda")
                                             if (extremeBadgeText != null) add(extremeBadgeText)
                                         }
@@ -1395,7 +1403,7 @@ private fun WeatherInfoDialog(route: Route, onDismiss: () -> Unit) {
                             // Si hay solo 1 badge, mostrar tarjeta individual
                             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                 if (hadRain) {
-                                    SafetyBadge(text = "🔵 Llovio durante la ruta")
+                                    SafetyBadge(text = "🔵 Llovió durante la ruta")
                                 }
                                 if (hasWetRoad) {
                                     SafetyBadge(text = "🟡 Calzada húmeda")

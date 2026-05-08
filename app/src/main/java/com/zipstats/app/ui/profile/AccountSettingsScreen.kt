@@ -89,8 +89,8 @@ import com.zipstats.app.BuildConfig
 import com.zipstats.app.navigation.Screen
 import com.zipstats.app.permission.PermissionManager
 import com.zipstats.app.repository.SettingsRepository
+import com.zipstats.app.ui.components.DialogCancelButton
 import com.zipstats.app.ui.components.DialogDeleteButton
-import com.zipstats.app.ui.components.DialogNeutralButton
 import com.zipstats.app.ui.components.DialogSaveButton
 import com.zipstats.app.ui.components.ZipStatsText
 import kotlinx.coroutines.launch
@@ -225,7 +225,7 @@ fun AccountSettingsScreen(
                 )
             },
             dismissButton = {
-                DialogNeutralButton(
+                DialogCancelButton(
                     text = "Cancelar",
                     onClick = { showLogoutDialog = false }
                 )
@@ -256,7 +256,8 @@ fun AccountSettingsScreen(
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface,
                     titleContentColor = MaterialTheme.colorScheme.onSurface,
-                    actionIconContentColor = MaterialTheme.colorScheme.onSurface
+                    actionIconContentColor = MaterialTheme.colorScheme.onSurface,
+                    scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainer
                 )
             )
         }
@@ -478,7 +479,7 @@ fun AccountSettingsScreen(
 @Composable
 fun SettingsGroup(
     title: String,
-    containerColor: Color = MaterialTheme.colorScheme.surface,
+    containerColor: Color = MaterialTheme.colorScheme.surfaceContainerLow,
     content: @Composable ColumnScope.() -> Unit
 ) {
     Column {
@@ -492,7 +493,11 @@ fun SettingsGroup(
             colors = CardDefaults.cardColors(containerColor = containerColor),
             shape = RoundedCornerShape(20.dp),
             modifier = Modifier.fillMaxWidth(),
-            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+            border = androidx.compose.foundation.BorderStroke(
+                1.dp,
+                MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f)
+            )
         ) {
             Column(modifier = Modifier.padding(vertical = 4.dp)) {
                 content()
@@ -705,7 +710,7 @@ private fun EditNameDialog(
             )
         },
         dismissButton = {
-            DialogNeutralButton(text = "Cancelar", onClick = onDismiss)
+            DialogCancelButton(text = "Cancelar", onClick = onDismiss)
         },
         shape = com.zipstats.app.ui.theme.DialogShape
     )
@@ -758,7 +763,7 @@ private fun ChangePasswordDialog(
             )
         },
         dismissButton = {
-            DialogNeutralButton(text = "Cancelar", onClick = onDismiss)
+            DialogCancelButton(text = "Cancelar", onClick = onDismiss)
         },
         shape = com.zipstats.app.ui.theme.DialogShape
     )
@@ -777,7 +782,7 @@ fun DeleteAccountDialog(
             DialogDeleteButton(text = "Eliminar", onClick = onConfirm)
         },
         dismissButton = {
-            DialogNeutralButton(text = "Cancelar", onClick = onDismiss)
+            DialogCancelButton(text = "Cancelar", onClick = onDismiss)
         },
         shape = com.zipstats.app.ui.theme.DialogShape
     )

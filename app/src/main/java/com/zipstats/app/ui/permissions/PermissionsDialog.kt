@@ -24,8 +24,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.zipstats.app.permission.AppPermission
-import com.zipstats.app.ui.components.DialogNeutralButton
-import com.zipstats.app.ui.components.DialogSaveButton
+import com.zipstats.app.ui.components.DialogCancelButton
+import com.zipstats.app.ui.components.DialogConfirmButton
+import com.zipstats.app.ui.theme.DialogShape
 
 
 @Composable
@@ -128,17 +129,18 @@ fun PermissionsDialog(
             }
         },
         confirmButton = {
-            DialogSaveButton(
+            DialogConfirmButton(
                 text = "Entendido",
                 onClick = onConfirm
             )
         },
         dismissButton = {
-            DialogNeutralButton(
+            DialogCancelButton(
                 text = "Cancelar",
                 onClick = onDismiss
             )
-        }
+        },
+        shape = DialogShape
     )
 }
 
@@ -158,9 +160,9 @@ private fun getPermissionIcon(permission: String): androidx.compose.ui.graphics.
 private fun getPermissionIconColor(permission: String): androidx.compose.ui.graphics.Color {
     return when {
         permission.contains("LOCATION") -> MaterialTheme.colorScheme.error
-        permission.contains("NOTIFICATION") || permission.contains("POST_NOTIFICATIONS") -> androidx.compose.ui.graphics.Color(0xFFFFC107) // Amarillo/Naranja para Notificaciones
-        permission.contains("CAMERA") -> androidx.compose.ui.graphics.Color(0xFF2196F3) // Azul para Cámara
-        permission.contains("MEDIA_PROJECTION") -> androidx.compose.ui.graphics.Color(0xFF9C27B0) // Púrpura para Grabación de pantalla
+        permission.contains("NOTIFICATION") || permission.contains("POST_NOTIFICATIONS") -> MaterialTheme.colorScheme.tertiary
+        permission.contains("CAMERA") -> MaterialTheme.colorScheme.primary
+        permission.contains("MEDIA_PROJECTION") -> MaterialTheme.colorScheme.secondary
         else -> MaterialTheme.colorScheme.primary
     }
 }

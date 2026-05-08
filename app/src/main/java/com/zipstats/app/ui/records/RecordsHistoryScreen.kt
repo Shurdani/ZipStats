@@ -67,8 +67,6 @@ import com.zipstats.app.di.AppOverlayRepositoryEntryPoint
 import com.zipstats.app.model.Record
 import com.zipstats.app.navigation.Screen
 import com.zipstats.app.ui.components.AnimatedFloatingActionButton
-import com.zipstats.app.ui.components.DialogCancelButton
-import com.zipstats.app.ui.components.DialogDeleteButton
 import com.zipstats.app.ui.components.EmptyStateRecords
 import com.zipstats.app.ui.components.StandardDatePickerDialogWithValidation
 import com.zipstats.app.ui.components.ZipStatsText
@@ -110,7 +108,6 @@ fun RecordsHistoryScreen(
     val isLoadingMore by viewModel.isLoadingMore.collectAsState()
     val hasMorePages by viewModel.hasMorePages.collectAsState()
 
-    var recordToDelete by remember { mutableStateOf<Record?>(null) }
     var recordToEdit by remember { mutableStateOf<Record?>(null) }
     var showBottomSheet by remember { mutableStateOf(false) }
     var showOnboardingDialog by remember { mutableStateOf(false) }
@@ -179,30 +176,6 @@ fun RecordsHistoryScreen(
     // Lógica para determinar el patinete por defecto (el último usado)
     val lastUsedScooterName = remember(records) {
         records.maxByOrNull { it.fecha }?.patinete
-    }
-
-    // Diálogos
-    recordToDelete?.let { record ->
-        AlertDialog(
-            onDismissRequest = { },
-            title = { ZipStatsText("Confirmar eliminación") },
-            text = { ZipStatsText("¿Estás seguro de que quieres eliminar este registro?") },
-            confirmButton = {
-                DialogDeleteButton(
-                    text = "Eliminar",
-                    onClick = {
-                        viewModel.deleteRecord(record.id)
-                    }
-                )
-            },
-            dismissButton = {
-                DialogCancelButton(
-                    text = "Cancelar",
-                    onClick = { }
-                )
-            },
-            shape = DialogShape
-        )
     }
 
     val isWaitingInitialPage =

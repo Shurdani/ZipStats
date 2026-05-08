@@ -152,9 +152,11 @@ fun RouteSummaryCard(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Row(
-                        modifier = Modifier.padding(vertical = 12.dp, horizontal = 16.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 12.dp, horizontal = 16.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Start
+                        horizontalArrangement = Arrangement.Center
                     ) {
                         // Badges de seguridad (lluvia, calzada húmeda, condiciones extremas)
                         if (badgeEmojiText != null) {
@@ -197,7 +199,7 @@ fun RouteSummaryCard(
                             style = weatherTextStyle,
                             fontWeight = FontWeight.Bold,
                             color = weatherChipContent.copy(alpha = 0.9f),
-                            modifier = Modifier.weight(1f, fill = false),
+                            modifier = Modifier,
                             maxLines = 2
                         )
                     }

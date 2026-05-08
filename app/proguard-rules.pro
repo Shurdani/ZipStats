@@ -363,3 +363,8 @@
 
 # Arregla el warning de R8 para ILicensingService
 -keep public class com.google.vending.licensing.ILicensingService { void <init>(); }
+
+-dontwarn org.apache.poi.**
+-dontwarn org.apache.xmlbeans.**
+
+-dontwarn com.google.android.gms.internal.location.**

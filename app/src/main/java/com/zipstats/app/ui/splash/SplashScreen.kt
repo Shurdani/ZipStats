@@ -52,12 +52,9 @@ fun SplashScreen(navController: NavController) {
 @Composable
 private fun SplashAnimation() {
     // Diseño: Fondo blanco con el logo de la app en el centro (igual que la splash nativa)
-    Box(
-        modifier = Modifier
+    Box(modifier = Modifier
             .fillMaxSize()
-            .background(Color.White), // Fondo blanco para que coincida con la splash nativa
-        contentAlignment = Alignment.Center
-    ) {
+            .background(Color.White), contentAlignment = Alignment.Center) {
         Image(
             painter = painterResource(id = R.drawable.logo_app), // Logo de la app
             contentDescription = "Logo ZipStats",

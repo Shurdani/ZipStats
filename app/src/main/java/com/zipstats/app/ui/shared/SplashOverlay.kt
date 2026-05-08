@@ -9,15 +9,16 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.MaterialTheme
-import com.zipstats.app.ui.components.ZipStatsText
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.zipstats.app.R
+import com.zipstats.app.ui.components.ZipStatsText
 
 /**
  * Overlay de splash reutilizable que muestra un logo y mensaje
@@ -25,12 +26,9 @@ import com.zipstats.app.R
  */
 @Composable
 fun SplashOverlay(message: String) {
-    Box(
-        modifier = Modifier
+    Box(modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background),
-        contentAlignment = Alignment.Center
-    ) {
+            .background(Color.White), contentAlignment = Alignment.Center) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier.fillMaxSize()
@@ -46,12 +44,7 @@ fun SplashOverlay(message: String) {
             
             Spacer(modifier = Modifier.height(24.dp))
             
-            ZipStatsText(
-                text = message,
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurface,
-                textAlign = TextAlign.Center
-            )
+            ZipStatsText(text = message, style = MaterialTheme.typography.bodyLarge, color = Color.Black, textAlign = TextAlign.Center)
             
             Spacer(modifier = Modifier.weight(1f))
         }

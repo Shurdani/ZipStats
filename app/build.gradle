@@ -23,8 +23,8 @@ android {
         applicationId "com.zipstats.app"
         minSdk 33
         targetSdk 34
-        versionCode 98
-        versionName "7.0.1"
+        versionCode 99
+        versionName "7.0.2"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -47,30 +47,39 @@ android {
 
     signingConfigs {
         release {
-            // Leer configuración de signing desde variables de entorno o local.properties
+            // Leer configuración de signing desde variables de entorno o keystore.properties
             def keystorePropertiesFile = rootProject.file("keystore.properties")
             def keystoreProperties = new Properties()
 
-            // Intentar leer desde keystore.properties (para desarrollo local)
             if (keystorePropertiesFile.exists()) {
-                keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
-                storeFile file(keystoreProperties['storeFile'])
-                storePassword keystoreProperties['storePassword']
-                keyAlias keystoreProperties['keyAlias']
-                keyPassword keystoreProperties['keyPassword']
-            } else {
-                // Usar variables de entorno (para CI/CD)
-                storeFile file(System.getenv("KEYSTORE_FILE") ?: "keystore.jks")
-                storePassword System.getenv("KEYSTORE_PASSWORD") ?: ""
-                keyAlias System.getenv("KEY_ALIAS") ?: ""
-                keyPassword System.getenv("KEY_PASSWORD") ?: ""
+                keystorePropertiesFile.withInputStream { keystoreProperties.load(it) }
+                def ksFile = file(keystoreProperties['storeFile'])
+                if (ksFile.exists()) {
+                    storeFile ksFile
+                    storePassword keystoreProperties['storePassword']
+                    keyAlias keystoreProperties['keyAlias']
+                    keyPassword keystoreProperties['keyPassword']
+                }
+            } else if (System.getenv("KEYSTORE_FILE") != null) {
+                def ksFile = file(System.getenv("KEYSTORE_FILE"))
+                if (ksFile.exists()) {
+                    storeFile ksFile
+                    storePassword System.getenv("KEYSTORE_PASSWORD")
+                    keyAlias System.getenv("KEY_ALIAS")
+                    keyPassword System.getenv("KEY_PASSWORD")
+                }
             }
         }
     }
 
     buildTypes {
         release {
-            signingConfig signingConfigs.release
+            // Usar signing de release solo si está configurado y el archivo existe, de lo contrario usar debug
+            if (signingConfigs.release.storeFile != null && signingConfigs.release.storeFile.exists()) {
+                signingConfig signingConfigs.release
+            } else {
+                signingConfig signingConfigs.debug
+            }
             minifyEnabled true
             shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'

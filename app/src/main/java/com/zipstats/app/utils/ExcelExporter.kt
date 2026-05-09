@@ -15,6 +15,9 @@ import org.apache.poi.xssf.usermodel.XSSFWorkbook
 import java.io.File
 import java.io.FileOutputStream
 import java.text.SimpleDateFormat
+import java.time.LocalDate
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import java.util.Date
 import java.util.Locale
 
@@ -25,6 +28,7 @@ import java.util.Locale
 object ExcelExporter {
     
     private const val TAG = "ExcelExporter"
+    private val apiDateFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")
     
     /**
      * Exporta registros filtrados a Excel
@@ -124,7 +128,15 @@ object ExcelExporter {
         
         // Crear encabezados
         val headerRow = sheet.createRow(0)
-        val headers = arrayOf("Vehículo", "Fecha", "Kilometraje", "Diferencia", "Notas")
+        val headers = arrayOf(
+            "Vehículo",
+            "ID Vehículo",
+            "Fecha",
+            "Día",
+            "Kilometraje",
+            "Distancia Recorrida",
+            "Tipo de Registro"
+        )
         
         headers.forEachIndexed { index, header ->
             val cell = headerRow.createCell(index)
@@ -138,36 +150,63 @@ object ExcelExporter {
             
             // Vehículo
             val vehicleCell = row.createCell(0)
-            vehicleCell.setCellValue(record.patinete)
+            vehicleCell.setCellValue(record.vehicleName)
             vehicleCell.cellStyle = styles.textStyle
+
+            // ID vehículo
+            val vehicleIdCell = row.createCell(1)
+            vehicleIdCell.setCellValue(record.scooterId.ifBlank { "-" })
+            vehicleIdCell.cellStyle = styles.textStyle
             
             // Fecha
-            val dateCell = row.createCell(1)
-            dateCell.setCellValue(record.fecha)
-            dateCell.cellStyle = styles.dateStyle
+            val dateCell = row.createCell(2)
+            val localDate = parseApiDateToLocalDate(record.fecha)
+            val excelDate = parseApiDateToDate(record.fecha)
+            if (excelDate != null) {
+                dateCell.setCellValue(excelDate)
+                dateCell.cellStyle = styles.dateStyle
+            } else {
+                dateCell.setCellValue(record.fecha)
+                dateCell.cellStyle = styles.textStyle
+            }
+
+            // Día de la semana
+            val dayCell = row.createCell(3)
+            dayCell.setCellValue(
+                localDate?.dayOfWeek?.getDisplayName(
+                    java.time.format.TextStyle.FULL,
+                    Locale("es", "ES")
+                ) ?: "-"
+            )
+            dayCell.cellStyle = styles.textStyle
             
             // Kilometraje
-            val kmCell = row.createCell(2)
+            val kmCell = row.createCell(4)
             kmCell.setCellValue(record.kilometraje)
             kmCell.cellStyle = styles.numberStyle
             
-            // Diferencia
-            val diffCell = row.createCell(3)
+            // Distancia recorrida
+            val diffCell = row.createCell(5)
             diffCell.setCellValue(record.diferencia)
             diffCell.cellStyle = styles.numberStyle
             
-            // Notas (si las hay)
-            val notesCell = row.createCell(4)
-            notesCell.setCellValue("") // Record no tiene campo notas
-            notesCell.cellStyle = styles.textStyle
+            // Tipo de registro
+            val typeCell = row.createCell(6)
+            typeCell.setCellValue(if (record.isInitialRecord) "Inicial" else "Normal")
+            typeCell.cellStyle = styles.textStyle
         }
         
         // Ajustar anchos de columna
         sheet.setColumnWidth(0, 25 * 256) // Vehículo
-        sheet.setColumnWidth(1, 15 * 256) // Fecha
-        sheet.setColumnWidth(2, 15 * 256) // Kilometraje
-        sheet.setColumnWidth(3, 15 * 256) // Diferencia
-        sheet.setColumnWidth(4, 30 * 256) // Notas
+        sheet.setColumnWidth(1, 18 * 256) // ID Vehículo
+        sheet.setColumnWidth(2, 15 * 256) // Fecha
+        sheet.setColumnWidth(3, 16 * 256) // Día
+        sheet.setColumnWidth(4, 15 * 256) // Kilometraje
+        sheet.setColumnWidth(5, 20 * 256) // Distancia recorrida
+        sheet.setColumnWidth(6, 16 * 256) // Tipo
+
+        sheet.createFreezePane(0, 1)
+        sheet.setAutoFilter(org.apache.poi.ss.util.CellRangeAddress(0, records.size.coerceAtLeast(1), 0, headers.lastIndex))
         
         return sheet
     }
@@ -180,7 +219,7 @@ object ExcelExporter {
         val styles = createStyles(workbook)
 
         // Agrupar registros por vehículo
-        val recordsByVehicle = records.groupBy { it.patinete }
+        val recordsByVehicle = records.groupBy { it.vehicleName }
 
         // Encabezados CORREGIDOS
         val headerRow = sheet.createRow(0)
@@ -189,7 +228,10 @@ object ExcelExporter {
             "Total Viajes",
             "Distancia Recorrida (Km)", // Antes decía Kilometraje Total y confundía
             "Promedio por Viaje",       // Antes Promedio por Día (pero divides por registros)
+            "Días Activos",
+            "Km/Día Activo",
             "Odómetro Actual",          // NUEVO: Para ver cuánto marca el patinete
+            "Primera Fecha",
             "Última Fecha"
         )
 
@@ -215,15 +257,40 @@ object ExcelExporter {
             // Promedio real (Distancia total / número de viajes)
             val avgPerTrip = if (totalRecords > 0) distanceTraveled / totalRecords else 0.0
 
-            val lastDate = vehicleRecords.maxByOrNull { it.fecha }?.fecha ?: ""
+            val validDates = vehicleRecords.mapNotNull { parseApiDateToLocalDate(it.fecha) }
+            val activeDays = validDates.distinct().size
+            val avgPerActiveDay = if (activeDays > 0) distanceTraveled / activeDays else 0.0
+            val firstDate = validDates.minOrNull()
+            val lastDate = validDates.maxOrNull()
 
             // Llenamos las celdas
             row.createCell(0).setCellValue(vehicle)
             row.createCell(1).setCellValue(totalRecords.toDouble())
             row.createCell(2).setCellValue(distanceTraveled) // Ahora muestra la suma real de km recorridos
             row.createCell(3).setCellValue(avgPerTrip)
-            row.createCell(4).setCellValue(currentOdometer) // El odómetro real
-            row.createCell(5).setCellValue(lastDate)
+            row.createCell(4).setCellValue(activeDays.toDouble())
+            row.createCell(5).setCellValue(avgPerActiveDay)
+            row.createCell(6).setCellValue(currentOdometer) // El odómetro real
+
+            val firstDateCell = row.createCell(7)
+            val firstExcelDate = firstDate?.atStartOfDay(ZoneId.systemDefault())?.toInstant()?.let { Date.from(it) }
+            if (firstExcelDate != null) {
+                firstDateCell.setCellValue(firstExcelDate)
+                firstDateCell.cellStyle = styles.dateStyle
+            } else {
+                firstDateCell.setCellValue("-")
+                firstDateCell.cellStyle = styles.textStyle
+            }
+
+            val lastDateCell = row.createCell(8)
+            val excelLastDate = lastDate?.atStartOfDay(ZoneId.systemDefault())?.toInstant()?.let { Date.from(it) }
+            if (excelLastDate != null) {
+                lastDateCell.setCellValue(excelLastDate)
+                lastDateCell.cellStyle = styles.dateStyle
+            } else {
+                lastDateCell.setCellValue("-")
+                lastDateCell.cellStyle = styles.textStyle
+            }
 
             // Aplicar estilos
             row.getCell(0).cellStyle = styles.textStyle
@@ -231,17 +298,35 @@ object ExcelExporter {
             row.getCell(2).cellStyle = styles.numberStyle
             row.getCell(3).cellStyle = styles.numberStyle
             row.getCell(4).cellStyle = styles.numberStyle
-            row.getCell(5).cellStyle = styles.dateStyle
+            row.getCell(5).cellStyle = styles.numberStyle
+            row.getCell(6).cellStyle = styles.numberStyle
 
             rowIndex++
         }
 
         // Ajustar anchos
-        for (i in 0..5) {
+        for (i in 0..8) {
             sheet.setColumnWidth(i, 20 * 256)
         }
 
+        sheet.createFreezePane(0, 1)
+        sheet.setAutoFilter(org.apache.poi.ss.util.CellRangeAddress(0, recordsByVehicle.size.coerceAtLeast(1), 0, headers.lastIndex))
+
         return sheet
+    }
+
+    private fun parseApiDateToDate(dateText: String): Date? {
+        val localDate = parseApiDateToLocalDate(dateText) ?: return null
+        return runCatching {
+            localDate
+                .atStartOfDay(ZoneId.systemDefault())
+                .toInstant()
+                .let { Date.from(it) }
+        }.getOrNull()
+    }
+
+    private fun parseApiDateToLocalDate(dateText: String): LocalDate? {
+        return runCatching { LocalDate.parse(dateText, apiDateFormatter) }.getOrNull()
     }
 
     /**
@@ -269,7 +354,10 @@ object ExcelExporter {
         // Opcional: El odómetro más alto registrado entre todos los patinetes (si tiene sentido)
         // O simplemente lo quitamos para no confundir.
 
-        val uniqueVehicles = records.map { it.patinete }.distinct().size
+        val uniqueVehicles = records.map { it.vehicleName }.distinct().size
+        val activeDays = records.mapNotNull { parseApiDateToLocalDate(it.fecha) }.distinct().size
+        val avgPerTrip = if (totalRecords > 0) totalDistanciaRecorrida / totalRecords else 0.0
+        val avgPerActiveDay = if (activeDays > 0) totalDistanciaRecorrida / activeDays else 0.0
         val dateRange = if (records.isNotEmpty()) {
             val dates = records.map { it.fecha }.sorted()
             "${dates.first()} - ${dates.last()}"
@@ -279,9 +367,12 @@ object ExcelExporter {
             "Total de Viajes Registrados" to totalRecords.toString(),
             // Aquí estaba el error. Cambiamos la etiqueta y el valor:
             "Distancia Total Recorrida (Km)" to String.format("%.2f", totalDistanciaRecorrida),
+            "Promedio por Viaje (Km)" to String.format("%.2f", avgPerTrip),
+            "Días con Actividad" to activeDays.toString(),
+            "Promedio por Día Activo (Km)" to String.format("%.2f", avgPerActiveDay),
             "Vehículos Únicos" to uniqueVehicles.toString(),
             "Rango de Fechas" to dateRange,
-            "Fecha de Exportación" to SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date())
+            "Fecha de Exportación" to SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.getDefault()).format(Date())
         )
 
         stats.forEach { (label, value) ->
@@ -359,7 +450,7 @@ object ExcelExporter {
         // Estilo de fecha
         val dateStyle = workbook.createCellStyle().apply {
             alignment = HorizontalAlignment.CENTER
-            dataFormat = workbook.createDataFormat().getFormat("yyyy-mm-dd")
+            dataFormat = workbook.createDataFormat().getFormat("dd/mm/yyyy")
         }
         
         // Estilo de número

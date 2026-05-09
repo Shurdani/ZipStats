@@ -1,6 +1,19 @@
 package com.zipstats.app.ui.statistics
 
+import android.Manifest
+import android.app.PendingIntent
+import android.content.ContentValues
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.net.Uri
+import android.os.Build
+import android.os.Environment
+import android.provider.MediaStore
+import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -23,7 +36,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ListAlt
 import androidx.compose.material.icons.automirrored.filled.TrendingDown
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.Air
@@ -31,6 +43,7 @@ import androidx.compose.material.icons.filled.AcUnit
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Thermostat
 import androidx.compose.material.icons.filled.Water
@@ -64,6 +77,8 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TopAppBar
@@ -99,10 +114,16 @@ import com.zipstats.app.R
 import com.zipstats.app.ui.components.DialogConfirmButton
 import com.zipstats.app.ui.components.ZipStatsText
 import com.zipstats.app.ui.theme.DialogShape
+import com.zipstats.app.utils.ExportUiStrings
 import com.zipstats.app.utils.LocationUtils
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
 import kotlin.math.roundToInt
+import java.io.File
 
 // Extensión para redondear a 1 decimal (igual que en StatisticsViewModel)
 private fun Double.roundToOneDecimal(): Double {
@@ -131,8 +152,11 @@ fun StatisticsScreen(
     var selectedPeriod by remember { mutableIntStateOf(0) }
     val selectedMonth by viewModel.selectedMonth.collectAsState()
     val selectedYear by viewModel.selectedYear.collectAsState()
+    val weatherStats by viewModel.weatherStats.collectAsState()
     val scrollState = rememberScrollState()
     var showMonthYearPicker by remember { mutableStateOf(false) }
+    var isGeneratingReport by remember { mutableStateOf(false) }
+    val snackbarHostState = remember { SnackbarHostState() }
 
     // Diálogo de selección de mes/año
     if (showMonthYearPicker) {
@@ -162,6 +186,7 @@ fun StatisticsScreen(
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = {
@@ -244,15 +269,126 @@ fun StatisticsScreen(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // ZONA DE CHIPS DE FILTRO
-            // Solo mostramos filtros si NO estamos en la pestaña "Todo" (index 2)
-            if (selectedPeriod != 2) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp),
-                    horizontalArrangement = Arrangement.End
-                ) {
+            // ZONA DE CHIPS DE FILTRO + INFORME
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                FilterChip(
+                    selected = false,
+                    onClick = {
+                        if (isGeneratingReport) return@FilterChip
+                        val stats = statistics as? StatisticsUiState.Success
+                        if (stats == null) {
+                            scope.launch {
+                                snackbarHostState.showSnackbar("Espera a que carguen las estadísticas")
+                            }
+                            return@FilterChip
+                        }
+                        scope.launch {
+                            isGeneratingReport = true
+                            val fileName =
+                                buildStatisticsPdfFileName(selectedPeriod, selectedMonth, selectedYear)
+                            val notificationId = fileName.hashCode()
+                            showPdfProgressNotification(context, notificationId)
+                            val saveResult = withContext(Dispatchers.IO) {
+                                runCatching {
+                                    val tempFile = File(context.cacheDir, fileName)
+                                    val generator = PdfReportGenerator(context)
+                                    generator.generate(
+                                        outputFile = tempFile,
+                                        stats = stats,
+                                        weatherStats = weatherStats,
+                                        selectedPeriod = selectedPeriod,
+                                        selectedMonth = selectedMonth,
+                                        selectedYear = selectedYear
+                                    )
+
+                                    val savedUri: Uri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                                        val values = ContentValues().apply {
+                                            put(MediaStore.Downloads.DISPLAY_NAME, fileName)
+                                            put(MediaStore.Downloads.MIME_TYPE, "application/pdf")
+                                            put(MediaStore.Downloads.IS_PENDING, 1)
+                                        }
+                                        val resolver = context.contentResolver
+                                        val uri = resolver.insert(
+                                            MediaStore.Downloads.EXTERNAL_CONTENT_URI,
+                                            values
+                                        )
+                                            ?: throw IllegalStateException("No se pudo crear el archivo en Descargas")
+
+                                        resolver.openOutputStream(uri)?.use { output ->
+                                            tempFile.inputStream().use { input -> input.copyTo(output) }
+                                        }
+                                        values.clear()
+                                        values.put(MediaStore.Downloads.IS_PENDING, 0)
+                                        resolver.update(uri, values, null, null)
+                                        uri
+                                    } else {
+                                        val hasPermission = ContextCompat.checkSelfPermission(
+                                            context,
+                                            Manifest.permission.WRITE_EXTERNAL_STORAGE
+                                        ) == PackageManager.PERMISSION_GRANTED
+                                        if (!hasPermission) {
+                                            if (context is android.app.Activity) {
+                                                ActivityCompat.requestPermissions(
+                                                    context,
+                                                    arrayOf(Manifest.permission.WRITE_EXTERNAL_STORAGE),
+                                                    2002
+                                                )
+                                            }
+                                            throw SecurityException("Falta permiso de almacenamiento")
+                                        }
+                                        val downloadsDir =
+                                            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+                                        val destination = File(downloadsDir, fileName)
+                                        tempFile.inputStream().use { input ->
+                                            destination.outputStream().use { output -> input.copyTo(output) }
+                                        }
+                                        FileProvider.getUriForFile(
+                                            context,
+                                            "${context.packageName}.provider",
+                                            destination
+                                        )
+                                    }
+                                    tempFile.delete()
+                                    fileName to savedUri
+                                }
+                            }
+
+                            saveResult.onSuccess { (savedFileName, savedUri) ->
+                                showPdfSavedNotification(
+                                    context,
+                                    savedUri,
+                                    savedFileName,
+                                    notificationId
+                                )
+                                snackbarHostState.showSnackbar(
+                                    ExportUiStrings.savedToDownloadsRelative(savedFileName)
+                                )
+                            }.onFailure {
+                                cancelPdfNotification(context, notificationId)
+                                snackbarHostState.showSnackbar(ExportUiStrings.ERROR_PDF_SAVE)
+                            }
+                            isGeneratingReport = false
+                        }
+                    },
+                    enabled = !isGeneratingReport,
+                    label = { ZipStatsText("Generar informe") },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Default.PictureAsPdf,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    },
+                    shape = CircleShape
+                )
+
+                if (selectedPeriod != 2) {
                     // Texto del filtro actual
                     val monthNames = listOf("Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic")
                     val filterLabel = if (selectedMonth != null && selectedYear != null) {
@@ -382,9 +518,6 @@ fun StatisticsScreen(
                             )
                         }
 
-                        // WeatherStats para la tarjeta dinámica
-                        val weatherStats by viewModel.weatherStats.collectAsState()
-
                         Column(
                             modifier = Modifier
                                 .fillMaxSize()
@@ -492,6 +625,83 @@ fun StatisticsScreen(
             }
         }
     }
+
+}
+
+private fun buildStatisticsPdfFileName(
+    selectedPeriod: Int,
+    selectedMonth: Int?,
+    selectedYear: Int?
+): String {
+    val monthNames = listOf(
+        "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+        "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
+    )
+    val today = LocalDate.now()
+    return when (selectedPeriod) {
+        0 -> {
+            // Misma resolución que StatisticsViewModel.loadStatistics: sin filtro explícito = mes actual
+            val month = (selectedMonth ?: today.monthValue).coerceIn(1, 12)
+            val year = selectedYear ?: today.year
+            "ZipStats_${monthNames[month - 1]}_${year}.pdf"
+        }
+        1 -> "ZipStats_${selectedYear ?: today.year}.pdf"
+        else -> "ZipStats_Historial_Completo.pdf"
+    }
+}
+
+private fun showPdfProgressNotification(context: android.content.Context, notificationId: Int) {
+    if (!hasPostNotificationPermission(context)) return
+
+    val notification = NotificationCompat.Builder(context, ExportUiStrings.NOTIFICATION_CHANNEL_ID)
+        .setSmallIcon(R.drawable.ic_download)
+        .setContentTitle(ExportUiStrings.PROGRESS_TITLE_PDF)
+        .setContentText(ExportUiStrings.PROGRESS_SUBTITLE)
+        .setProgress(0, 0, true)
+        .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+        .build()
+
+    NotificationManagerCompat.from(context).notify(notificationId, notification)
+}
+
+private fun showPdfSavedNotification(context: android.content.Context, uri: Uri, fileName: String, notificationId: Int) {
+    if (!hasPostNotificationPermission(context)) return
+
+    val openIntent = Intent(Intent.ACTION_VIEW).apply {
+        setDataAndType(uri, "application/pdf")
+        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    }
+    val pendingIntent = PendingIntent.getActivity(
+        context,
+        fileName.hashCode(),
+        openIntent,
+        PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+    )
+
+    val notification = NotificationCompat.Builder(context, ExportUiStrings.NOTIFICATION_CHANNEL_ID)
+        .setSmallIcon(R.drawable.ic_download_done)
+        .setContentTitle(ExportUiStrings.COMPLETION_TITLE)
+        .setContentText(fileName)
+        .setAutoCancel(true)
+        .setContentIntent(pendingIntent)
+        .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+        .build()
+
+    NotificationManagerCompat.from(context).notify(notificationId, notification)
+}
+
+private fun cancelPdfNotification(context: android.content.Context, notificationId: Int) {
+    if (!hasPostNotificationPermission(context)) return
+    NotificationManagerCompat.from(context).cancel(notificationId)
+}
+
+private fun hasPostNotificationPermission(context: android.content.Context): Boolean {
+    val hasNotificationPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+    } else {
+        true
+    }
+    return hasNotificationPermission
 }
 
 data class PeriodData(
@@ -1078,9 +1288,7 @@ fun DistanceBarChartCard(
     if (groupedData.isEmpty()) return
 
     val maxValue = groupedData.maxOfOrNull { it.value } ?: 0.0
-    val minValue = groupedData.minOfOrNull { it.value } ?: 0.0
     val roundedMax = (kotlin.math.ceil(maxValue / 5.0) * 5.0).coerceAtLeast(5.0)
-    val roundedMin = kotlin.math.floor(minValue / 5.0) * 5.0
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -1100,40 +1308,27 @@ fun DistanceBarChartCard(
                 fontWeight = FontWeight.Bold
             )
             SimpleBarChart(groupedData = groupedData, maxValue = roundedMax)
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                ZipStatsText(
-                    text = "Mín ${formatNumberSpanish(roundedMin)} km",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                ZipStatsText(
-                    text = "Máx ${formatNumberSpanish(roundedMax)} km",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
         }
     }
 }
+
+private val DistanceBarChartBarAreaHeight = 72.dp
 
 @Composable
 private fun SimpleBarChart(
     groupedData: List<ChartDataPoint>,
     maxValue: Double
 ) {
+    val maxIndex = groupedData.indices.maxByOrNull { groupedData[it].value } ?: -1
+
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(108.dp),
+        modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.Bottom
     ) {
-        val maxIndex = groupedData.indices.maxByOrNull { groupedData[it].value } ?: -1
         groupedData.forEachIndexed { index, point ->
-            val barHeightRatio = if (maxValue > 0.0) (point.value / maxValue).toFloat() else 0f
+            val barHeightRatio =
+                if (maxValue > 0.0) (point.value / maxValue).toFloat() else 0f
             val barColor = if (index == maxIndex) {
                 MaterialTheme.colorScheme.primary
             } else {
@@ -1144,18 +1339,38 @@ private fun SimpleBarChart(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Bottom
             ) {
+                ZipStatsText(
+                    text = "${formatNumberSpanish(point.value)} km",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    textAlign = TextAlign.Center,
+                    maxLines = 1,
+                    autoResize = true
+                )
+                Spacer(modifier = Modifier.height(4.dp))
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height((72.dp * barHeightRatio).coerceAtLeast(2.dp))
-                        .clip(RoundedCornerShape(topStart = 6.dp, topEnd = 6.dp))
-                        .background(barColor)
-                )
+                        .height(DistanceBarChartBarAreaHeight),
+                    contentAlignment = Alignment.BottomCenter
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(
+                                (DistanceBarChartBarAreaHeight * barHeightRatio).coerceAtLeast(2.dp)
+                            )
+                            .clip(RoundedCornerShape(topStart = 6.dp, topEnd = 6.dp))
+                            .background(barColor)
+                    )
+                }
                 Spacer(modifier = Modifier.height(6.dp))
                 ZipStatsText(
                     text = point.date,
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
                     maxLines = 1
                 )
             }

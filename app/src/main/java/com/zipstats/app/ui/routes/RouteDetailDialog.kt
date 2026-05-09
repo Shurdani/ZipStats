@@ -1,5 +1,20 @@
 package com.zipstats.app.ui.routes
 
+import android.Manifest
+import android.app.PendingIntent
+import android.content.ContentValues
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.net.Uri
+import android.os.Build
+import android.os.Environment
+import android.provider.MediaStore
+import android.widget.Toast
+import androidx.core.app.ActivityCompat
+import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
+import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Image
@@ -36,6 +51,7 @@ import androidx.compose.material.icons.filled.Cyclone
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.Grain
 import androidx.compose.material.icons.filled.Opacity
@@ -63,6 +79,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -99,8 +116,15 @@ import com.zipstats.app.ui.theme.DialogShape
 import com.zipstats.app.utils.CityUtils
 import com.zipstats.app.utils.DateUtils
 import com.zipstats.app.utils.LocationUtils
+import com.zipstats.app.utils.ExportUiStrings
 import com.zipstats.app.utils.ShareUtils
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
+import java.time.Instant
+import java.time.format.DateTimeFormatter
+import java.io.File
 import java.util.Date
 import java.util.Locale
 
@@ -129,6 +153,7 @@ fun RouteDetailDialog(
     var vehicleModel by remember { mutableStateOf(route.scooterName) }
     var vehicleType by remember { mutableStateOf<com.zipstats.app.model.VehicleType?>(null) }
     var showWeatherDialog by remember(route.id) { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
 
     // Capturar valores de tema en contexto composable (NO dentro de LaunchedEffect)
     val sharePrimaryColorArgb = MaterialTheme.colorScheme.primary.toArgb()
@@ -281,6 +306,35 @@ fun RouteDetailDialog(
                     ) {
                         Icon(Icons.Default.Fullscreen, "Expandir", tint = MaterialTheme.colorScheme.onSurface)
                     }
+
+                    IconButton(
+                        onClick = {
+                            if (route.points.isEmpty()) {
+                                Toast.makeText(context, "No hay puntos para exportar", Toast.LENGTH_SHORT).show()
+                                return@IconButton
+                            }
+                            scope.launch {
+                                val result = exportRouteGpxToDownloads(context, route)
+                                result.onSuccess { (savedName, savedUri, notificationId) ->
+                                    showGpxSavedNotification(context, savedUri, savedName, notificationId)
+                                    Toast.makeText(context, ExportUiStrings.savedToDownloadsRelative(savedName), Toast.LENGTH_SHORT).show()
+                                }.onFailure { error ->
+                                    Toast.makeText(context, "Error al exportar GPX: ${error.message}", Toast.LENGTH_LONG).show()
+                                }
+                            }
+                        },
+                        modifier = Modifier
+                            .align(Alignment.BottomStart)
+                            .padding(12.dp)
+                            .background(MaterialTheme.colorScheme.surfaceContainerHigh, CircleShape)
+                            .size(40.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.FileDownload,
+                            contentDescription = "Exportar GPX",
+                            tint = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
                 }
 
                 // 2. CONTENIDO DE DATOS (Scrollable)
@@ -410,6 +464,21 @@ fun RouteDetailDialog(
         FullscreenMapDialog(
             route = route,
             vehicleType = vehicleType,
+            onExportGpx = {
+                if (route.points.isEmpty()) {
+                    Toast.makeText(context, "No hay puntos para exportar", Toast.LENGTH_SHORT).show()
+                } else {
+                    scope.launch {
+                        val result = exportRouteGpxToDownloads(context, route)
+                        result.onSuccess { (savedName, savedUri, notificationId) ->
+                            showGpxSavedNotification(context, savedUri, savedName, notificationId)
+                            Toast.makeText(context, ExportUiStrings.savedToDownloadsRelative(savedName), Toast.LENGTH_SHORT).show()
+                        }.onFailure { error ->
+                            Toast.makeText(context, "Error al exportar GPX: ${error.message}", Toast.LENGTH_LONG).show()
+                        }
+                    }
+                }
+            },
             onDismiss = {
                 showFullscreenMap = false
                 isCapturingForShare = false
@@ -433,6 +502,7 @@ fun RouteDetailDialog(
 private fun FullscreenMapDialog(
     route: Route,
     vehicleType: com.zipstats.app.model.VehicleType? = null,
+    onExportGpx: () -> Unit,
     onDismiss: () -> Unit,
     onMapReady: ((com.mapbox.maps.MapView?) -> Unit)? = null,
     onSnapshotHandlerReady: ((MapSnapshotTrigger) -> Unit)? = null
@@ -470,6 +540,25 @@ private fun FullscreenMapDialog(
             /* =========================
              * BOTÓN CERRAR
              * ========================= */
+            Surface(
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .statusBarsPadding()
+                    .padding(16.dp)
+                    .zIndex(20f),
+                shape = CircleShape,
+                color = androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.5f)
+            ) {
+                IconButton(onClick = onExportGpx, modifier = Modifier.size(48.dp)) {
+                    Icon(
+                        imageVector = Icons.Default.FileDownload,
+                        contentDescription = "Exportar GPX",
+                        tint = androidx.compose.ui.graphics.Color.White,
+                        modifier = Modifier.size(28.dp)
+                    )
+                }
+            }
+
             Surface(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
@@ -1528,6 +1617,183 @@ private fun getVehicleIconResource(vehicleType: VehicleType?): Int {
         VehicleType.E_BIKE -> R.drawable.ic_bicicleta_electrica_adaptive
         VehicleType.MONOCICLO -> R.drawable.ic_unicycle_adaptive
         null -> R.drawable.ic_electric_scooter_adaptive
+    }
+}
+
+private fun buildGpxFileName(route: Route): String {
+    val date = SimpleDateFormat("yyyyMMdd_HHmm", Locale.getDefault()).format(Date(route.startTime))
+    return "zipstats_ruta_${date}.gpx"
+}
+
+private suspend fun exportRouteGpxToDownloads(
+    context: android.content.Context,
+    route: Route
+): Result<Triple<String, Uri, Int>> = withContext(Dispatchers.IO) {
+    runCatching {
+        val fileName = buildGpxFileName(route)
+        val notificationId = fileName.hashCode()
+        showGpxProgressNotification(context, notificationId)
+        val gpxContent = buildRouteGpx(route)
+        val gpxBytes = gpxContent.toByteArray(Charsets.UTF_8)
+
+        val savedUri: Uri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val values = ContentValues().apply {
+                put(MediaStore.Downloads.DISPLAY_NAME, fileName)
+                put(MediaStore.Downloads.MIME_TYPE, "application/gpx+xml")
+                put(MediaStore.Downloads.IS_PENDING, 1)
+            }
+            val resolver = context.contentResolver
+            val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
+                ?: throw IllegalStateException("No se pudo crear archivo GPX en Descargas")
+            resolver.openOutputStream(uri)?.use { output -> output.write(gpxBytes) }
+                ?: throw IllegalStateException("No se pudo escribir el GPX")
+            values.clear()
+            values.put(MediaStore.Downloads.IS_PENDING, 0)
+            resolver.update(uri, values, null, null)
+            uri
+        } else {
+            val hasPermission = ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.WRITE_EXTERNAL_STORAGE
+            ) == PackageManager.PERMISSION_GRANTED
+            if (!hasPermission) {
+                if (context is android.app.Activity) {
+                    ActivityCompat.requestPermissions(
+                        context,
+                        arrayOf(Manifest.permission.WRITE_EXTERNAL_STORAGE),
+                        2003
+                    )
+                }
+                throw SecurityException("Falta permiso de almacenamiento")
+            }
+            val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+            val destination = File(downloadsDir, fileName)
+            destination.outputStream().use { it.write(gpxBytes) }
+            FileProvider.getUriForFile(
+                context,
+                "${context.packageName}.provider",
+                destination
+            )
+        }
+        Triple(fileName, savedUri, notificationId)
+    }.onFailure {
+        cancelGpxNotification(context, buildGpxFileName(route).hashCode())
+    }
+}
+
+private fun buildRouteGpx(route: Route): String {
+    val sortedPoints = route.points.sortedBy { it.timestamp }
+    val routeName = route.notes.takeIf { it.isNotBlank() }
+        ?: "Ruta ${SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(Date(route.startTime))}"
+    val gpxTime = formatGpxTimestamp(route.startTime)
+
+    val sb = StringBuilder()
+    sb.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n")
+    sb.append("<gpx version=\"1.1\" creator=\"ZipStats\" xmlns=\"http://www.topografix.com/GPX/1/1\">\n")
+    sb.append("  <metadata>\n")
+    sb.append("    <name>").append(escapeXml(routeName)).append("</name>\n")
+    if (gpxTime != null) {
+        sb.append("    <time>").append(gpxTime).append("</time>\n")
+    }
+    sb.append("  </metadata>\n")
+    sb.append("  <trk>\n")
+    sb.append("    <name>").append(escapeXml(routeName)).append("</name>\n")
+    sb.append("    <trkseg>\n")
+
+    for (point in sortedPoints) {
+        val lat = String.format(Locale.US, "%.7f", point.latitude)
+        val lon = String.format(Locale.US, "%.7f", point.longitude)
+        sb.append("      <trkpt lat=\"").append(lat).append("\" lon=\"").append(lon).append("\">\n")
+
+        point.altitude?.let { altitude ->
+            sb.append("        <ele>").append(String.format(Locale.US, "%.1f", altitude)).append("</ele>\n")
+        }
+
+        formatGpxTimestamp(point.timestamp)?.let { pointTime ->
+            sb.append("        <time>").append(pointTime).append("</time>\n")
+        }
+
+        point.speed?.let { speedMs ->
+            sb.append("        <extensions><speed>")
+                .append(String.format(Locale.US, "%.2f", speedMs))
+                .append("</speed></extensions>\n")
+        }
+
+        sb.append("      </trkpt>\n")
+    }
+
+    sb.append("    </trkseg>\n")
+    sb.append("  </trk>\n")
+    sb.append("</gpx>")
+    return sb.toString()
+}
+
+private fun formatGpxTimestamp(timestamp: Long?): String? {
+    if (timestamp == null || timestamp <= 0L) return null
+    return runCatching {
+        DateTimeFormatter.ISO_INSTANT.format(Instant.ofEpochMilli(timestamp))
+    }.getOrNull()
+}
+
+private fun escapeXml(text: String): String {
+    return text
+        .replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+        .replace("\"", "&quot;")
+        .replace("'", "&apos;")
+}
+
+private fun showGpxProgressNotification(context: android.content.Context, notificationId: Int) {
+    if (!hasNotificationPermission(context)) return
+    val notification = NotificationCompat.Builder(context, ExportUiStrings.NOTIFICATION_CHANNEL_ID)
+        .setSmallIcon(R.drawable.ic_download)
+        .setContentTitle(ExportUiStrings.PROGRESS_TITLE_GPX)
+        .setContentText(ExportUiStrings.PROGRESS_SUBTITLE)
+        .setProgress(0, 0, true)
+        .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+        .build()
+    NotificationManagerCompat.from(context).notify(notificationId, notification)
+}
+
+private fun showGpxSavedNotification(
+    context: android.content.Context,
+    uri: Uri,
+    fileName: String,
+    notificationId: Int
+) {
+    if (!hasNotificationPermission(context)) return
+    val openIntent = Intent(Intent.ACTION_VIEW).apply {
+        setDataAndType(uri, "application/gpx+xml")
+        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    }
+    val pendingIntent = PendingIntent.getActivity(
+        context,
+        fileName.hashCode(),
+        openIntent,
+        PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+    )
+    val notification = NotificationCompat.Builder(context, ExportUiStrings.NOTIFICATION_CHANNEL_ID)
+        .setSmallIcon(R.drawable.ic_download_done)
+        .setContentTitle(ExportUiStrings.COMPLETION_TITLE)
+        .setContentText(fileName)
+        .setAutoCancel(true)
+        .setContentIntent(pendingIntent)
+        .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+        .build()
+    NotificationManagerCompat.from(context).notify(notificationId, notification)
+}
+
+private fun cancelGpxNotification(context: android.content.Context, notificationId: Int) {
+    if (!hasNotificationPermission(context)) return
+    NotificationManagerCompat.from(context).cancel(notificationId)
+}
+
+private fun hasNotificationPermission(context: android.content.Context): Boolean {
+    return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+    } else {
+        true
     }
 }
 

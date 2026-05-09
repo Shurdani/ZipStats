@@ -63,6 +63,7 @@ import com.zipstats.app.ui.shared.SplashOverlay
 import com.zipstats.app.ui.theme.ColorTheme
 import com.zipstats.app.ui.theme.PatinetatrackTheme
 import com.zipstats.app.ui.theme.ThemeMode
+import com.zipstats.app.utils.ExportUiStrings
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -73,7 +74,6 @@ import java.io.IOException
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     private lateinit var notificationManager: NotificationManager
-    private val CHANNEL_ID = "export_channel"
     private val NOTIFICATION_ID = 1
     
     // --- ESTADO REACTIVO GESTIONADO POR LA ACTIVIDAD ---
@@ -91,32 +91,6 @@ class MainActivity : ComponentActivity() {
             Toast.makeText(this, "Permisos concedidos", Toast.LENGTH_SHORT).show()
         } else {
             Toast.makeText(this, "Algunos permisos fueron denegados", Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    private val exportExcelLauncher = registerForActivityResult(
-        ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        if (result.resultCode == RESULT_OK && result.data?.data != null) {
-            val uri = result.data?.data!!
-            try {
-                contentResolver.openOutputStream(uri)?.use { outputStream ->
-                    val tempFile = File(cacheDir, "registros_vehiculos_${System.currentTimeMillis()}.xls")
-                    if (tempFile.exists() && tempFile.length() > 0) {
-                        tempFile.inputStream().use { input ->
-                            input.copyTo(outputStream)
-                        }
-                        tempFile.delete()
-                        Toast.makeText(this, "Archivo exportado correctamente", Toast.LENGTH_LONG).show()
-                    } else {
-                        Toast.makeText(this, "Error: No se pudo encontrar el archivo temporal", Toast.LENGTH_LONG).show()
-                    }
-                } ?: run {
-                    Toast.makeText(this, "Error: No se pudo abrir el archivo de destino", Toast.LENGTH_LONG).show()
-                }
-            } catch (e: Exception) {
-                Toast.makeText(this, "Error al exportar: ${e.message}", Toast.LENGTH_LONG).show()
-            }
         }
     }
 
@@ -434,10 +408,10 @@ class MainActivity : ComponentActivity() {
 
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val name = "Exportación de registros"
-            val descriptionText = "Canal para notificaciones de exportación de registros"
+            val name = ExportUiStrings.NOTIFICATION_CHANNEL_NAME
+            val descriptionText = ExportUiStrings.NOTIFICATION_CHANNEL_DESCRIPTION
             val importance = NotificationManager.IMPORTANCE_DEFAULT
-            val channel = NotificationChannel(CHANNEL_ID, name, importance).apply {
+            val channel = NotificationChannel(ExportUiStrings.NOTIFICATION_CHANNEL_ID, name, importance).apply {
                 description = descriptionText
             }
             notificationManager.createNotificationChannel(channel)
@@ -489,7 +463,7 @@ class MainActivity : ComponentActivity() {
         if (!hasNotificationPermission && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             Toast.makeText(
                 this,
-                "Exportando archivo. Para ver el progreso, concede permisos de notificación.",
+                ExportUiStrings.EXPORT_WITHOUT_NOTIFICATION_PERMISSION,
                 Toast.LENGTH_LONG
             ).show()
             requestNotificationPermissionIfNeeded()
@@ -497,7 +471,7 @@ class MainActivity : ComponentActivity() {
 
         if (!file.exists() || file.length() == 0L) {
             Log.e("MainActivity", "Archivo temporal no válido: exists=${file.exists()}, length=${file.length()}")
-            Toast.makeText(this, "Error: El archivo temporal no es válido", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, ExportUiStrings.ERROR_TEMP_FILE_INVALID, Toast.LENGTH_LONG).show()
             return
         }
 
@@ -534,7 +508,7 @@ class MainActivity : ComponentActivity() {
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
                             requestStoragePermissionLauncher.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
                         } else {
-                            Toast.makeText(this@MainActivity, "Se necesita permiso de almacenamiento para exportar", Toast.LENGTH_LONG).show()
+                            Toast.makeText(this@MainActivity, ExportUiStrings.ERROR_STORAGE_PERMISSION, Toast.LENGTH_LONG).show()
                         }
                     }
                     return@launch
@@ -543,9 +517,10 @@ class MainActivity : ComponentActivity() {
                 // Mostrar notificación de progreso solo si tenemos permiso
                 if (hasNotificationPermission) {
                     withContext(Dispatchers.Main) {
-                        val builder = NotificationCompat.Builder(this@MainActivity, CHANNEL_ID)
+                        val builder = NotificationCompat.Builder(this@MainActivity, ExportUiStrings.NOTIFICATION_CHANNEL_ID)
                             .setSmallIcon(R.drawable.ic_download)
-                            .setContentTitle("Exportando registros")
+                            .setContentTitle(ExportUiStrings.PROGRESS_TITLE_EXCEL)
+                            .setContentText(ExportUiStrings.PROGRESS_SUBTITLE)
                             .setProgress(0, 0, true)
                             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
 
@@ -559,7 +534,7 @@ class MainActivity : ComponentActivity() {
                         
                         val contentValues = ContentValues().apply {
                             put(MediaStore.Downloads.DISPLAY_NAME, fileName)
-                            put(MediaStore.Downloads.MIME_TYPE, "application/vnd.ms-excel")
+                            put(MediaStore.Downloads.MIME_TYPE, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
                             put(MediaStore.Downloads.IS_PENDING, 1)
                         }
 
@@ -585,21 +560,21 @@ class MainActivity : ComponentActivity() {
 
                             withContext(Dispatchers.Main) {
                                 if (hasNotificationPermission) {
-                                    showCompletionNotification(itemUri)
+                                    showCompletionNotification(itemUri, fileName)
                                 } else {
-                                    Toast.makeText(this@MainActivity, "Archivo exportado exitosamente a Descargas", Toast.LENGTH_LONG).show()
+                                    Toast.makeText(this@MainActivity, ExportUiStrings.savedToDownloadsRelative(fileName), Toast.LENGTH_LONG).show()
                                 }
                             }
                         } else {
                             Log.e("MainActivity", "No se pudo crear URI en MediaStore")
                             withContext(Dispatchers.Main) {
-                                Toast.makeText(this@MainActivity, "Error: No se pudo crear el archivo en Descargas", Toast.LENGTH_LONG).show()
+                                Toast.makeText(this@MainActivity, ExportUiStrings.ERROR_CREATE_DOWNLOADS, Toast.LENGTH_LONG).show()
                             }
                         }
                     } catch (e: Exception) {
                         Log.e("MainActivity", "Error en MediaStore", e)
                         withContext(Dispatchers.Main) {
-                            Toast.makeText(this@MainActivity, "Error al exportar: ${e.message}", Toast.LENGTH_LONG).show()
+                            Toast.makeText(this@MainActivity, ExportUiStrings.ERROR_EXPORT_PREFIX + (e.message ?: ""), Toast.LENGTH_LONG).show()
                         }
                     }
                 } else {
@@ -619,9 +594,9 @@ class MainActivity : ComponentActivity() {
                     )
                     withContext(Dispatchers.Main) {
                         if (hasNotificationPermission) {
-                            showCompletionNotification(uri)
+                            showCompletionNotification(uri, fileName)
                         } else {
-                            Toast.makeText(this@MainActivity, "Archivo exportado exitosamente a Descargas", Toast.LENGTH_LONG).show()
+                            Toast.makeText(this@MainActivity, ExportUiStrings.savedToDownloadsRelative(fileName), Toast.LENGTH_LONG).show()
                         }
                     }
                 }
@@ -633,15 +608,15 @@ class MainActivity : ComponentActivity() {
                     if (hasNotificationPermission) {
                         notificationManager.cancel(NOTIFICATION_ID)
                     }
-                    Toast.makeText(this@MainActivity, "Error al guardar el archivo: ${e.message}", Toast.LENGTH_LONG).show()
+                    Toast.makeText(this@MainActivity, ExportUiStrings.ERROR_SAVE_PREFIX + (e.message ?: ""), Toast.LENGTH_LONG).show()
                 }
             }
         }
     }
 
-    private fun showCompletionNotification(uri: Uri) {
+    private fun showCompletionNotification(uri: Uri, fileName: String) {
         val intent = Intent(Intent.ACTION_VIEW).apply {
-            setDataAndType(uri, "application/vnd.ms-excel")
+            setDataAndType(uri, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
 
@@ -652,10 +627,10 @@ class MainActivity : ComponentActivity() {
             PendingIntent.FLAG_IMMUTABLE
         )
 
-        val builder = NotificationCompat.Builder(this, CHANNEL_ID)
+        val builder = NotificationCompat.Builder(this, ExportUiStrings.NOTIFICATION_CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_download_done)
-            .setContentTitle("Exportación completada")
-            .setContentText("Toca para abrir el archivo")
+            .setContentTitle(ExportUiStrings.COMPLETION_TITLE)
+            .setContentText(fileName)
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setAutoCancel(true)
             .setContentIntent(pendingIntent)

@@ -598,29 +598,14 @@ class RouteRepository @Inject constructor(
         val adjustedSnap = when (decision.surfaceConditionType) {
             SurfaceConditionType.RAIN -> {
                 if (decision.isSurfaceConditionConfirmed) {
-                    val forceGenericRainVisuals = !snap.hadRain
                     snap.copy(
                         hadRain = true,
-                        hadWetRoad = false,
-                        finalCondition = if (forceGenericRainVisuals) "DRIZZLE" else snap.finalCondition,
-                        finalDescription = if (forceGenericRainVisuals) "Lluvia" else snap.finalDescription,
-                        finalCode = if (forceGenericRainVisuals) 51 else snap.finalCode,
-                        finalEmoji = if (forceGenericRainVisuals) {
-                            WeatherRepository.getEmojiForCondition(
-                                "DRIZZLE",
-                                snap.finalIsDay ?: snap.initialIsDay
-                            )
-                        } else {
-                            snap.finalEmoji
-                        }
+                        hadWetRoad = false
                     )
                 } else {
                     snap.copy(
                         hadRain = false,
-                        hadWetRoad = false,
-                        rainReason = null,
-                        rainStartMinute = null,
-                        maxPrecipitation = 0.0
+                        hadWetRoad = false
                     )
                 }
             }

@@ -74,6 +74,7 @@ import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.TopAppBar
@@ -196,6 +197,7 @@ fun TrackingScreen(
     var showFinishDialog by remember { mutableStateOf(false) }
     var showCancelDialog by remember { mutableStateOf(false) }
     var surfaceConditionType by remember { mutableStateOf(SurfaceConditionType.NONE) }
+    var shouldAskSurfaceQuestions by remember { mutableStateOf(false) }
 
     val hasLocationPermission = permissionManager.hasLocationPermissions()
     val hasNotificationPermission = permissionManager.hasNotificationPermission()
@@ -387,6 +389,7 @@ fun TrackingScreen(
                         onResume = { viewModel.resumeTracking() },
                         onFinish = {
                             surfaceConditionType = viewModel.getSurfaceConditionTypeForConfirmation()
+                            shouldAskSurfaceQuestions = viewModel.shouldAskSurfaceConditionQuestionsOnFinish()
                             showFinishDialog = true
                         },
                         onCancel = { showCancelDialog = true },
@@ -422,15 +425,16 @@ fun TrackingScreen(
                 distance = currentDistance,
                 duration = duration,
                 surfaceConditionType = surfaceConditionType,
-                onConfirm = { notes, addToRecords, isSurfaceConditionConfirmed ->
+                shouldAskSurfaceQuestions = shouldAskSurfaceQuestions,
+                onConfirm = { notes, addToRecords, selectedSurfaceConditionType ->
                     // Activar flag de cierre ANTES de cualquier estado
                     // Esto congela la UI y evita cualquier flash
                     isClosing = true
                     viewModel.finishTracking(
                         notes = notes,
                         addToRecords = addToRecords,
-                        surfaceConditionType = surfaceConditionType,
-                        isSurfaceConditionConfirmed = isSurfaceConditionConfirmed
+                        surfaceConditionType = selectedSurfaceConditionType,
+                        isSurfaceConditionConfirmed = selectedSurfaceConditionType != SurfaceConditionType.NONE
                     )
                     scope.launch {
                         finishSheetState.hide()
@@ -1438,14 +1442,17 @@ fun FinishRouteBottomSheet(
     distance: Double,
     duration: Long,
     surfaceConditionType: SurfaceConditionType,
-    onConfirm: (String, Boolean, Boolean) -> Unit,
+    shouldAskSurfaceQuestions: Boolean,
+    onConfirm: (String, Boolean, SurfaceConditionType) -> Unit,
     onDismiss: () -> Unit
 ) {
     var notes by remember { mutableStateOf("") }
     var addToRecords by remember { mutableStateOf(false) }
-    val hasSurfaceConditionQuestion = surfaceConditionType != SurfaceConditionType.NONE
-    var isSurfaceConditionConfirmed by remember(surfaceConditionType) {
-        mutableStateOf(true)
+    var didRain by remember(surfaceConditionType, shouldAskSurfaceQuestions) {
+        mutableStateOf(surfaceConditionType == SurfaceConditionType.RAIN)
+    }
+    var wasWetRoad by remember(surfaceConditionType, shouldAskSurfaceQuestions) {
+        mutableStateOf(surfaceConditionType == SurfaceConditionType.WET_ROAD)
     }
 
     Column(
@@ -1472,25 +1479,96 @@ fun FinishRouteBottomSheet(
             style = MaterialTheme.typography.bodyMedium
         )
 
-        if (hasSurfaceConditionQuestion) {
-            val questionText = when (surfaceConditionType) {
-                SurfaceConditionType.RAIN -> "¿Llovió durante la ruta?"
-                SurfaceConditionType.WET_ROAD -> "¿Estaba húmedo el suelo?"
-                SurfaceConditionType.NONE -> ""
-            }
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth()
+        if (shouldAskSurfaceQuestions) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.65f)
+                ),
+                shape = RoundedCornerShape(12.dp)
             ) {
-                Checkbox(
-                    checked = isSurfaceConditionConfirmed,
-                    onCheckedChange = { isSurfaceConditionConfirmed = it }
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                ZipStatsText(
-                    text = questionText,
-                    style = MaterialTheme.typography.bodyMedium
-                )
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    ZipStatsText(
+                        text = "Condiciones del asfalto",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold
+                    )
+
+                    ZipStatsText(
+                        text = "¿Llovió durante la ruta?",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Medium
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.clickable {
+                                didRain = true
+                                wasWetRoad = false
+                            }
+                        ) {
+                            RadioButton(
+                                selected = didRain,
+                                onClick = {
+                                    didRain = true
+                                    wasWetRoad = false
+                                }
+                            )
+                            ZipStatsText("Sí")
+                        }
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.clickable { didRain = false }
+                        ) {
+                            RadioButton(
+                                selected = !didRain,
+                                onClick = { didRain = false }
+                            )
+                            ZipStatsText("No")
+                        }
+                    }
+
+                    if (!didRain) {
+                        ZipStatsText(
+                            text = "¿Estaba húmedo el suelo?",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.clickable { wasWetRoad = true }
+                            ) {
+                                RadioButton(
+                                    selected = wasWetRoad,
+                                    onClick = { wasWetRoad = true }
+                                )
+                                ZipStatsText("Sí")
+                            }
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.clickable { wasWetRoad = false }
+                            ) {
+                                RadioButton(
+                                    selected = !wasWetRoad,
+                                    onClick = { wasWetRoad = false }
+                                )
+                                ZipStatsText("No")
+                            }
+                        }
+                    }
+                }
             }
         }
 
@@ -1537,7 +1615,15 @@ fun FinishRouteBottomSheet(
                 )
             }
             Button(
-                onClick = { onConfirm(notes, addToRecords, isSurfaceConditionConfirmed) },
+                onClick = {
+                    val selectedSurfaceConditionType = when {
+                        !shouldAskSurfaceQuestions -> surfaceConditionType
+                        didRain -> SurfaceConditionType.RAIN
+                        wasWetRoad -> SurfaceConditionType.WET_ROAD
+                        else -> SurfaceConditionType.NONE
+                    }
+                    onConfirm(notes, addToRecords, selectedSurfaceConditionType)
+                },
                 modifier = Modifier.weight(1f),
                 shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.buttonColors(

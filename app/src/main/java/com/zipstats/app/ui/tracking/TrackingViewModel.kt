@@ -2107,6 +2107,63 @@ class TrackingViewModel @Inject constructor(
         }
     }
 
+    fun shouldAskSurfaceConditionQuestionsOnFinish(): Boolean {
+        val detectedSurfaceCondition = getSurfaceConditionTypeForConfirmation()
+        if (detectedSurfaceCondition != SurfaceConditionType.NONE) {
+            return true
+        }
+
+        val clearConditions = setOf("CLEAR", "SUNNY", "MOSTLY_CLEAR", "PARTLY_CLOUDY")
+        val cloudyConditions = setOf("CLOUDY", "MOSTLY_CLOUDY")
+        val foggyConditions = setOf("FOG", "HAZE", "MIST")
+
+        val startCondition = _startWeatherCondition?.uppercase()
+        val finalCondition = _finalWeatherCondition?.uppercase()
+        val primaryCondition = finalCondition ?: startCondition
+
+        // Si termina en despejado/soleado (incluyendo parcialmente nublado), evitamos preguntar.
+        if (primaryCondition in clearConditions) {
+            return false
+        }
+
+        val isCloudyByCondition = startCondition in cloudyConditions || finalCondition in cloudyConditions
+        val isCloudyByCode = _startWeatherCode == 3 || _finalWeatherCode == 3
+        val isFoggy = startCondition in foggyConditions || finalCondition in foggyConditions
+
+        val humidity = _finalWeatherHumidity ?: _startWeatherHumidity
+        val temperature = _finalWeatherTemperature ?: _startWeatherTemperature
+        val dewPoint = _finalWeatherDewPoint ?: _startWeatherDewPoint
+
+        val hasHumidityCondensationSignal = humidity != null &&
+            humidity >= 88 &&
+            temperature != null &&
+            dewPoint != null &&
+            kotlin.math.abs(temperature - dewPoint) <= 2.0
+
+        val hasRecentPrecipitationSignal =
+            recentPrecipitation3h >= 0.15 || weatherMaxPrecipitation >= 0.15
+
+        val weatherDescription = (_finalWeatherDescription ?: _startWeatherDescription).orEmpty()
+        val hasMoistureDescription = listOf(
+            "niebla",
+            "bruma",
+            "fog",
+            "mist",
+            "haze",
+            "rocío",
+            "rocio",
+            "húmed",
+            "humed"
+        ).any { weatherDescription.contains(it, ignoreCase = true) }
+
+        return isCloudyByCondition ||
+            isCloudyByCode ||
+            isFoggy ||
+            hasRecentPrecipitationSignal ||
+            hasHumidityCondensationSignal ||
+            hasMoistureDescription
+    }
+
     /**
      * Finaliza y guarda la ruta
      */

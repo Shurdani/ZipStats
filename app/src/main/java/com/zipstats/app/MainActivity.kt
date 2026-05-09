@@ -55,6 +55,8 @@ import com.zipstats.app.repository.SettingsRepository
 import com.zipstats.app.service.LocationTrackingService
 import com.zipstats.app.ui.components.BottomNavigation
 import com.zipstats.app.ui.components.DialogConfirmButton
+import com.zipstats.app.ui.components.DialogContentText
+import com.zipstats.app.ui.components.DialogTitleText
 import com.zipstats.app.ui.theme.DialogShape
 import com.zipstats.app.ui.components.ZipStatsText
 import com.zipstats.app.ui.permissions.PermissionsDialog
@@ -332,8 +334,8 @@ class MainActivity : ComponentActivity() {
             if (showErrorDialog && errorMessage != null) {
                 AlertDialog(
                     onDismissRequest = { onErrorDialogDismissed() },
-                    title = { ZipStatsText("Error en la importación") },
-                    text = { ZipStatsText(errorMessage) },
+                    title = { DialogTitleText("Error en la importación") },
+                    text = { DialogContentText(errorMessage, maxLines = 8) },
                     confirmButton = {
                         DialogConfirmButton(
                             text = "Aceptar",

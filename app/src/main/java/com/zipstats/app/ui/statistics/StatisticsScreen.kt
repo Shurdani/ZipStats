@@ -112,6 +112,8 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.zipstats.app.R
 import com.zipstats.app.ui.components.DialogConfirmButton
+import com.zipstats.app.ui.components.DialogContentText
+import com.zipstats.app.ui.components.DialogTitleText
 import com.zipstats.app.ui.components.ZipStatsText
 import com.zipstats.app.ui.theme.DialogShape
 import com.zipstats.app.utils.ExportUiStrings
@@ -1713,8 +1715,8 @@ fun MonthYearPickerDialog(
     if (availableMonthYears.isEmpty()) {
         AlertDialog(
             onDismissRequest = onDismiss,
-            title = { ZipStatsText("Sin datos") },
-            text = { ZipStatsText("No hay registros disponibles para consultar.") },
+            title = { DialogTitleText("Sin datos") },
+            text = { DialogContentText("No hay registros disponibles para consultar.") },
             confirmButton = {
                 DialogConfirmButton(
                     text = "Aceptar",
@@ -1809,14 +1811,14 @@ fun MonthYearPickerDialog(
                     onDismissRequest = { showModeDropdown = false }
                 ) {
                     DropdownMenuItem(
-                        text = { ZipStatsText("Mes") },
+                        text = { ZipStatsText("Mes", maxLines = 2) },
                         onClick = {
                             selectedMode = SelectionMode.Month
                             showModeDropdown = false
                         }
                     )
                     DropdownMenuItem(
-                        text = { ZipStatsText("Año") },
+                        text = { ZipStatsText("Año", maxLines = 2) },
                         onClick = {
                             selectedMode = SelectionMode.Year
                             showModeDropdown = false
@@ -1852,7 +1854,7 @@ fun MonthYearPickerDialog(
                 ) {
                     availableYears.forEach { year ->
                         DropdownMenuItem(
-                            text = { ZipStatsText(year.toString()) },
+                            text = { ZipStatsText(year.toString(), maxLines = 2) },
                             onClick = {
                                 selectedYear = year
                                 showYearDropdown = false
@@ -1890,7 +1892,7 @@ fun MonthYearPickerDialog(
                     ) {
                         availableMonthsForYear.forEach { monthNumber ->
                             DropdownMenuItem(
-                                text = { ZipStatsText(monthNames[monthNumber - 1]) },
+                                text = { ZipStatsText(monthNames[monthNumber - 1], maxLines = 2) },
                                 onClick = {
                                     selectedMonth = monthNumber
                                     showMonthDropdown = false

@@ -77,6 +77,8 @@ import com.google.android.gms.common.api.ApiException
 import com.google.android.gms.tasks.Task
 import com.zipstats.app.R
 import com.zipstats.app.ui.components.DialogConfirmButton
+import com.zipstats.app.ui.components.DialogContentText
+import com.zipstats.app.ui.components.DialogTitleText
 import com.zipstats.app.ui.components.ZipStatsText
 import com.zipstats.app.ui.theme.DialogShape
 
@@ -478,8 +480,8 @@ fun LoginScreen(
         AlertDialog(
             onDismissRequest = { showResetConfirmation = false },
             icon = { Icon(Icons.Default.Check, null, tint = MaterialTheme.colorScheme.primary) },
-            title = { ZipStatsText("Correo Enviado") },
-            text = { ZipStatsText("Revisa tu bandeja de entrada para restablecer tu contraseña.") },
+            title = { DialogTitleText("Correo Enviado") },
+            text = { DialogContentText("Revisa tu bandeja de entrada para restablecer tu contraseña.") },
             confirmButton = {
                 DialogConfirmButton(
                     text = "Entendido",

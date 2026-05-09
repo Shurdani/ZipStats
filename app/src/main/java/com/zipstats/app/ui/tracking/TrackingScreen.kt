@@ -121,7 +121,9 @@ import com.zipstats.app.repository.AppOverlayRepository
 import com.zipstats.app.repository.SettingsRepository
 import com.zipstats.app.ui.components.AnimatedFloatingActionButton
 import com.zipstats.app.ui.components.DialogCancelButton
+import com.zipstats.app.ui.components.DialogContentText
 import com.zipstats.app.ui.components.DialogDeleteButton
+import com.zipstats.app.ui.components.DialogTitleText
 import com.zipstats.app.ui.components.ZipStatsText
 import com.zipstats.app.ui.shared.AppOverlayState
 import com.zipstats.app.ui.theme.DialogShape
@@ -602,7 +604,7 @@ fun PreRideSmartWarning(
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     textAlign = TextAlign.Center,
-                                    maxLines = 1
+                                    maxLines = 2
                                 )
                             }
                         }
@@ -632,7 +634,7 @@ fun PreRideSmartWarning(
                             .fillMaxWidth()
                             .padding(horizontal = 16.dp, vertical = 8.dp),
                         textAlign = TextAlign.Center,
-                        maxLines = 1
+                        maxLines = 2
                     )
                 }
             }
@@ -1359,7 +1361,7 @@ fun ScooterPickerDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
-            ZipStatsText(
+            DialogTitleText(
                 text = "Seleccionar vehículo",
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold
@@ -1402,20 +1404,21 @@ fun ScooterPickerDialog(
                                 colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.onSurface)
                             )
                             Spacer(modifier = Modifier.width(16.dp))
-                            Column {
+                            Column(modifier = Modifier.weight(1f)) {
                                 ZipStatsText(
                                     text = scooter.nombre,
                                     style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.SemiBold
+                                    fontWeight = FontWeight.SemiBold,
+                                    maxLines = 2
                                 )
                                 ZipStatsText(
                                     text = scooter.modelo,
                                     style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 2
                                 )
                             }
                             if (isSelected) {
-                                Spacer(modifier = Modifier.weight(1f))
                                 Icon(
                                     imageVector = Icons.Default.Check,
                                     contentDescription = null,
@@ -1465,18 +1468,28 @@ fun FinishRouteBottomSheet(
         ZipStatsText(
             text = "Finalizar ruta",
             style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold
+            fontWeight = FontWeight.Bold,
+            maxLines = 2,
+            modifier = Modifier.fillMaxWidth()
         )
 
-        ZipStatsText("¿Deseas guardar esta ruta?")
+        ZipStatsText(
+            text = "¿Deseas guardar esta ruta?",
+            maxLines = 2,
+            modifier = Modifier.fillMaxWidth()
+        )
 
         ZipStatsText(
             text = "Distancia: ${LocationUtils.formatDistance(distance)}",
-            style = MaterialTheme.typography.bodyMedium
+            style = MaterialTheme.typography.bodyMedium,
+            maxLines = 2,
+            modifier = Modifier.fillMaxWidth()
         )
         ZipStatsText(
             text = "Duración: ${formatDuration(duration)}",
-            style = MaterialTheme.typography.bodyMedium
+            style = MaterialTheme.typography.bodyMedium,
+            maxLines = 2,
+            modifier = Modifier.fillMaxWidth()
         )
 
         if (shouldAskSurfaceQuestions) {
@@ -1496,13 +1509,17 @@ fun FinishRouteBottomSheet(
                     ZipStatsText(
                         text = "Condiciones del asfalto",
                         style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.SemiBold
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 2,
+                        modifier = Modifier.fillMaxWidth()
                     )
 
                     ZipStatsText(
                         text = "¿Llovió durante la ruta?",
                         style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Medium
+                        fontWeight = FontWeight.Medium,
+                        maxLines = 2,
+                        modifier = Modifier.fillMaxWidth()
                     )
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -1540,7 +1557,9 @@ fun FinishRouteBottomSheet(
                         ZipStatsText(
                             text = "¿Estaba húmedo el suelo?",
                             style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Medium
+                            fontWeight = FontWeight.Medium,
+                            maxLines = 2,
+                            modifier = Modifier.fillMaxWidth()
                         )
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -1583,7 +1602,9 @@ fun FinishRouteBottomSheet(
             Spacer(modifier = Modifier.width(8.dp))
             ZipStatsText(
                 text = "Añadir ${com.zipstats.app.utils.LocationUtils.formatNumberSpanish(distance)} km a registros",
-                style = MaterialTheme.typography.bodyMedium
+                style = MaterialTheme.typography.bodyMedium,
+                maxLines = 2,
+                modifier = Modifier.weight(1f)
             )
         }
 
@@ -1611,7 +1632,10 @@ fun FinishRouteBottomSheet(
             ) {
                 ZipStatsText(
                     text = "Cancelar",
-                    color = MaterialTheme.colorScheme.onSecondaryContainer
+                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                    maxLines = 2,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
                 )
             }
             Button(
@@ -1631,7 +1655,13 @@ fun FinishRouteBottomSheet(
                     contentColor = MaterialTheme.colorScheme.onPrimary
                 )
             ) {
-                ZipStatsText("Guardar", color = MaterialTheme.colorScheme.onPrimary)
+                ZipStatsText(
+                    text = "Guardar",
+                    color = MaterialTheme.colorScheme.onPrimary,
+                    maxLines = 2,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
         }
     }
@@ -1644,8 +1674,8 @@ fun CancelRouteDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { ZipStatsText("Cancelar seguimiento") },
-        text = { ZipStatsText("¿Estás seguro? Se perderán todos los datos de la ruta.") },
+        title = { DialogTitleText("Cancelar seguimiento") },
+        text = { DialogContentText("¿Estás seguro? Se perderán todos los datos de la ruta.", maxLines = 4) },
         confirmButton = {
             DialogDeleteButton(
                 text = "Cancelar ruta",

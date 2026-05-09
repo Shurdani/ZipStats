@@ -65,6 +65,8 @@ import com.zipstats.app.navigation.Screen
 import com.zipstats.app.repository.AppOverlayRepository
 import com.zipstats.app.ui.components.AnimatedFloatingActionButton
 import com.zipstats.app.ui.components.DialogCancelButton
+import com.zipstats.app.ui.components.DialogContentText
+import com.zipstats.app.ui.components.DialogTitleText
 import com.zipstats.app.ui.components.DialogConfirmButton
 import com.zipstats.app.ui.components.DialogDeleteButton
 import com.zipstats.app.ui.components.EmptyStateRoutes
@@ -215,8 +217,8 @@ fun RoutesScreen(
     errorMessage?.let { msg ->
         AlertDialog(
             onDismissRequest = { viewModel.clearError() },
-            title = { ZipStatsText("Información") },
-            text = { ZipStatsText(msg) },
+            title = { DialogTitleText("Información") },
+            text = { DialogContentText(msg) },
             confirmButton = {
                 DialogConfirmButton(
                     text = "Aceptar",
@@ -230,8 +232,8 @@ fun RoutesScreen(
     routeToDelete?.let { route ->
         AlertDialog(
             onDismissRequest = { routeToDelete = null },
-            title = { ZipStatsText("Confirmar eliminación") },
-            text = { ZipStatsText("¿Estás seguro de que quieres eliminar esta ruta?") },
+            title = { DialogTitleText("Confirmar eliminación") },
+            text = { DialogContentText("¿Estás seguro de que quieres eliminar esta ruta?") },
             confirmButton = {
                 DialogDeleteButton(
                     text = "Eliminar",

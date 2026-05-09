@@ -101,6 +101,7 @@ import com.zipstats.app.navigation.Screen
 import com.zipstats.app.ui.components.AnimatedFloatingActionButton
 import com.zipstats.app.ui.components.AnimatedIconButton
 import com.zipstats.app.ui.components.DialogCancelButton
+import com.zipstats.app.ui.components.DialogTitleText
 import com.zipstats.app.ui.components.DialogOptionButton
 import com.zipstats.app.ui.components.StandardDatePickerDialogWithValidation
 import com.zipstats.app.ui.components.ZipStatsText
@@ -195,7 +196,7 @@ fun ProfileScreen(
         val currentState = uiState as? ProfileUiState.Success
         AlertDialog(
             onDismissRequest = { showPhotoOptionsDialog = false },
-            title = { ZipStatsText("Cambiar foto de perfil") },
+            title = { DialogTitleText("Cambiar foto de perfil") },
             shape = DialogShape,
             text = {
                 Column(
@@ -754,7 +755,7 @@ fun AvatarSelectionDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { ZipStatsText("Seleccionar avatar") },
+        title = { DialogTitleText("Seleccionar avatar") },
         shape = DialogShape,
         text = {
             LazyVerticalGrid(

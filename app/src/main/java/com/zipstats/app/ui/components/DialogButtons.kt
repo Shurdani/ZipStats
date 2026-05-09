@@ -14,9 +14,58 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+
+private const val DIALOG_BUTTON_MAX_LINES = 2
+
+/**
+ * Título de [AlertDialog]: permite varias líneas (p. ej. 2) sin truncar con "..." en anchos estrechos.
+ */
+@Composable
+fun DialogTitleText(
+    text: String,
+    modifier: Modifier = Modifier,
+    style: TextStyle = MaterialTheme.typography.titleLarge,
+    fontWeight: FontWeight? = FontWeight.Bold,
+    maxLines: Int = 2,
+    color: Color = Color.Unspecified
+) {
+    ZipStatsText(
+        text = text,
+        modifier = modifier.fillMaxWidth(),
+        style = style,
+        fontWeight = fontWeight,
+        maxLines = maxLines,
+        color = color,
+        textAlign = TextAlign.Start
+    )
+}
+
+/**
+ * Texto principal del cuerpo de [AlertDialog]; por defecto hasta 6 líneas.
+ */
+@Composable
+fun DialogContentText(
+    text: String,
+    modifier: Modifier = Modifier,
+    style: TextStyle = MaterialTheme.typography.bodyMedium,
+    maxLines: Int = 6,
+    color: Color = Color.Unspecified
+) {
+    ZipStatsText(
+        text = text,
+        modifier = modifier.fillMaxWidth(),
+        style = style,
+        maxLines = maxLines,
+        color = color,
+        textAlign = TextAlign.Start
+    )
+}
 
 /**
  * Botón principal (Guardar / Aceptar / Confirmar).
@@ -41,7 +90,10 @@ fun DialogSaveButton(
         ZipStatsText(
             text,
             fontWeight = FontWeight.Bold,
-            color = if (enabled) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
+            color = if (enabled) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
+            maxLines = DIALOG_BUTTON_MAX_LINES,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth()
         )
     }
 }
@@ -63,7 +115,10 @@ fun DialogNeutralButton(
     ) {
         ZipStatsText(
             text,
-            color = MaterialTheme.colorScheme.onSurface
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = DIALOG_BUTTON_MAX_LINES,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth()
         )
     }
 }
@@ -87,7 +142,10 @@ fun DialogDeleteButton(
         ZipStatsText(
             text,
             fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onError
+            color = MaterialTheme.colorScheme.onError,
+            maxLines = DIALOG_BUTTON_MAX_LINES,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth()
         )
     }
 }
@@ -117,7 +175,10 @@ fun DialogFullWidthButton(
         ZipStatsText(
             text,
             fontWeight = FontWeight.Bold,
-            color = if (enabled) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
+            color = if (enabled) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
+            maxLines = DIALOG_BUTTON_MAX_LINES,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth()
         )
     }
 }
@@ -174,7 +235,10 @@ fun DialogApplyButton(
         ZipStatsText(
             text,
             fontWeight = FontWeight.Bold,
-            color = if (enabled) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
+            color = if (enabled) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
+            maxLines = DIALOG_BUTTON_MAX_LINES,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth()
         )
     }
 }
@@ -206,7 +270,10 @@ fun DialogOptionButton(
             Spacer(modifier = Modifier.width(10.dp))
             ZipStatsText(
                 text = text,
-                style = MaterialTheme.typography.bodyLarge
+                style = MaterialTheme.typography.bodyLarge,
+                maxLines = DIALOG_BUTTON_MAX_LINES,
+                modifier = Modifier.weight(1f),
+                textAlign = TextAlign.Start
             )
         }
     }

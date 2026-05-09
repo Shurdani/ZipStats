@@ -77,6 +77,8 @@ import com.zipstats.app.model.VehicleType
 import com.zipstats.app.navigation.Screen
 import com.zipstats.app.ui.components.AnimatedFloatingActionButton
 import com.zipstats.app.ui.components.DialogCancelButton
+import com.zipstats.app.ui.components.DialogContentText
+import com.zipstats.app.ui.components.DialogTitleText
 import com.zipstats.app.ui.components.DialogDeleteButton
 import com.zipstats.app.ui.components.EmptyStateRecords
 import com.zipstats.app.ui.components.StandardDatePickerDialogWithValidation
@@ -239,8 +241,8 @@ fun RecordsHistoryScreen(
     if (recordIdPendingDelete != null) {
         AlertDialog(
             onDismissRequest = { recordIdPendingDelete = null },
-            title = { ZipStatsText("Confirmar eliminación") },
-            text = { ZipStatsText("¿Estás seguro de que quieres eliminar este registro?") },
+            title = { DialogTitleText("Confirmar eliminación") },
+            text = { DialogContentText("¿Estás seguro de que quieres eliminar este registro?") },
             confirmButton = {
                 DialogDeleteButton(
                     text = "Eliminar",
@@ -631,7 +633,12 @@ fun NewRecordBottomSheet(
                 ) {
                     userScooters.forEach { scooter ->
                         DropdownMenuItem(
-                            text = { ZipStatsText("${scooter.modelo} (${scooter.nombre})") },
+                            text = {
+                                ZipStatsText(
+                                    "${scooter.modelo} (${scooter.nombre})",
+                                    maxLines = 2
+                                )
+                            },
                             onClick = {
                                 selectedScooter = scooter.nombre
                                 isVehicleDropdownExpanded = false
@@ -821,7 +828,12 @@ fun EditRecordBottomSheet(
             ) {
                 userScooters.forEach { scooter ->
                     DropdownMenuItem(
-                        text = { ZipStatsText("${scooter.modelo} (${scooter.nombre})") },
+                        text = {
+                            ZipStatsText(
+                                "${scooter.modelo} (${scooter.nombre})",
+                                maxLines = 2
+                            )
+                        },
                         onClick = {
                             selectedScooter = scooter.nombre
                             expanded = false

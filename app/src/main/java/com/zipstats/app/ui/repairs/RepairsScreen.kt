@@ -68,7 +68,9 @@ import androidx.navigation.NavController
 import com.zipstats.app.model.Repair
 import com.zipstats.app.model.Scooter
 import com.zipstats.app.ui.components.AnimatedFloatingActionButton
+import com.zipstats.app.ui.components.DialogContentText
 import com.zipstats.app.ui.components.DialogDeleteButton
+import com.zipstats.app.ui.components.DialogTitleText
 import com.zipstats.app.ui.components.DialogNeutralButton
 import com.zipstats.app.ui.components.EmptyStateRepairs
 import com.zipstats.app.ui.components.StandardDatePickerDialog
@@ -382,8 +384,8 @@ fun RepairsScreen(
     if (showDeleteDialog && selectedRepair != null) {
         AlertDialog(
             onDismissRequest = { showDeleteDialog = false },
-            title = { ZipStatsText("Eliminar registro") },
-            text = { ZipStatsText("¿Estás seguro de que quieres eliminar esta reparación del historial?") },
+            title = { DialogTitleText("Eliminar registro") },
+            text = { DialogContentText("¿Estás seguro de que quieres eliminar esta reparación del historial?") },
             confirmButton = {
                 DialogDeleteButton(
                     text = "Eliminar",

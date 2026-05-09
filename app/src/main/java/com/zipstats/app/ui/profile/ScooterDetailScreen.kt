@@ -80,6 +80,8 @@ import com.zipstats.app.model.Record
 import com.zipstats.app.model.Repair
 import com.zipstats.app.model.Scooter
 import com.zipstats.app.ui.components.DialogCancelButton
+import com.zipstats.app.ui.components.DialogContentText
+import com.zipstats.app.ui.components.DialogTitleText
 import com.zipstats.app.ui.components.DialogDeleteButton
 import com.zipstats.app.ui.components.StandardDatePickerDialogWithValidation
 import com.zipstats.app.ui.components.ZipStatsText
@@ -287,8 +289,13 @@ fun ScooterDetailScreen(
     if (showDeleteDialog) {
         AlertDialog(
             onDismissRequest = { if (!isDeleting) showDeleteDialog = false }, // Bloquear cierre si borra
-            title = { ZipStatsText("Eliminar vehículo") },
-            text = { ZipStatsText("¿Estás seguro? Se eliminará el vehículo y todo su historial de mantenimiento. Esta acción no se puede deshacer.") },
+            title = { DialogTitleText("Eliminar vehículo") },
+            text = {
+                DialogContentText(
+                    "¿Estás seguro? Se eliminará el vehículo y todo su historial de mantenimiento. Esta acción no se puede deshacer.",
+                    maxLines = 8
+                )
+            },
             confirmButton = {
                 DialogDeleteButton(
                     text = if (isDeleting) "Borrando..." else "Eliminar",
@@ -558,7 +565,9 @@ fun UsageExplanationDialog(
                 ZipStatsText(
                     text = "Cuota de uso",
                     fontWeight = FontWeight.Bold,
-                    style = MaterialTheme.typography.titleMedium
+                    style = MaterialTheme.typography.titleMedium,
+                    maxLines = 2,
+                    modifier = Modifier.weight(1f)
                 )
             }
         },

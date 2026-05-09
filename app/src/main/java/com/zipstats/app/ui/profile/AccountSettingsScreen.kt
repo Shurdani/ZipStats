@@ -92,6 +92,8 @@ import com.zipstats.app.repository.SettingsRepository
 import com.zipstats.app.ui.components.DialogCancelButton
 import com.zipstats.app.ui.components.DialogDeleteButton
 import com.zipstats.app.ui.components.DialogSaveButton
+import com.zipstats.app.ui.components.DialogContentText
+import com.zipstats.app.ui.components.DialogTitleText
 import com.zipstats.app.ui.components.ZipStatsText
 import kotlinx.coroutines.launch
 
@@ -210,8 +212,8 @@ fun AccountSettingsScreen(
     if (showLogoutDialog) {
         AlertDialog(
             onDismissRequest = { showLogoutDialog = false },
-            title = { ZipStatsText("Cerrar sesión") },
-            text = { ZipStatsText("¿Estás seguro de que quieres salir?") },
+            title = { DialogTitleText("Cerrar sesión") },
+            text = { DialogContentText("¿Estás seguro de que quieres salir?") },
             confirmButton = {
                 DialogDeleteButton(
                     text = "Cerrar sesión",
@@ -693,7 +695,7 @@ private fun EditNameDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { ZipStatsText("Editar nombre") },
+        title = { DialogTitleText("Editar nombre") },
         text = {
             OutlinedTextField(
                 value = name,
@@ -727,7 +729,7 @@ private fun ChangePasswordDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { ZipStatsText("Cambiar contraseña") },
+        title = { DialogTitleText("Cambiar contraseña") },
         text = {
             Column {
                 OutlinedTextField(
@@ -776,8 +778,8 @@ fun DeleteAccountDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { ZipStatsText("Eliminar cuenta") },
-        text = { ZipStatsText("¿Estás seguro de que quieres eliminar tu cuenta? Esta acción no se puede deshacer.") },
+        title = { DialogTitleText("Eliminar cuenta") },
+        text = { DialogContentText("¿Estás seguro de que quieres eliminar tu cuenta? Esta acción no se puede deshacer.", maxLines = 8) },
         confirmButton = {
             DialogDeleteButton(text = "Eliminar", onClick = onConfirm)
         },

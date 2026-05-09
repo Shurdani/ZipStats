@@ -1,24 +1,18 @@
-// En el bloque 'buildscript { dependencies { ... } }'
 buildscript {
     repositories {
-        mavenCentral()
         google()
-        // El repositorio de Mapbox solo es necesario en settings.gradle para las dependencias
+        mavenCentral()
     }
     dependencies {
-        classpath 'com.android.tools.build:gradle:8.6.0' // <-- CAMBIAR
-        classpath 'org.jetbrains.kotlin:kotlin-gradle-plugin:2.0.0' // <-- CAMBIAR
-        classpath 'com.google.dagger:hilt-android-gradle-plugin:2.57.2'
-        classpath 'com.google.gms:google-services:4.4.4'
+        classpath "com.google.gms:google-services:${libs.versions.google.services.get()}"
     }
 }
 
-// En el bloque 'plugins { ... }'
 plugins {
-    id 'com.android.application' version '8.6.0' apply false // <-- CAMBIAR
-    id 'org.jetbrains.kotlin.android' version '2.0.0' apply false // <-- CAMBIAR
+    alias(libs.plugins.android.application) apply false
+    alias(libs.plugins.kotlin.android) apply false
+    alias(libs.plugins.kotlin.compose) apply false
     alias(libs.plugins.ksp) apply false
-    id 'com.google.dagger.hilt.android' version '2.57.2' apply false
-    id 'org.jetbrains.kotlin.plugin.compose' version '2.0.0' apply false // <-- CAMBIAR
+    alias(libs.plugins.hilt) apply false
     id("io.gitlab.arturbosch.detekt") version "1.23.0"
 }

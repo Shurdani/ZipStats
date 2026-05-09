@@ -679,7 +679,6 @@ class RouteRepository @Inject constructor(
             weatherHadRain              = adjustedSnap.hadRain,
             weatherHadWetRoad           = !adjustedSnap.hadRain && adjustedSnap.hadWetRoad,
             weatherHadExtremeConditions = adjustedSnap.hadExtreme,
-            weatherClimateProfile       = adjustedSnap.climateProfile,
             weatherExtremeReason        = adjustedSnap.extremeReason.takeIf { adjustedSnap.hadExtreme },
             weatherRainReason           = adjustedSnap.rainReason,
             weatherRainStartMinute      = adjustedSnap.rainStartMinute,

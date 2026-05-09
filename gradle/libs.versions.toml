@@ -5,9 +5,9 @@ appcompat = "1.7.0"
 cardview = "1.0.0"
 constraintlayout = "2.2.0"
 kotlin = "2.0.21"
-ksp = "2.0.0-1.0.22"
+ksp = "2.0.21-1.0.26"
 hilt = "2.57.2"
-google-services = "4.4.5"
+google-services = "4.4.4"
 coreKtx = "1.13.1"
 junit = "4.13.2"
 junitVersion = "1.2.1"
@@ -94,6 +94,5 @@ android-library = { id = "com.android.library", version.ref = "agp" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
 hilt = { id = "com.google.dagger.hilt.android", version.ref = "hilt" }
-google-services = { id = "com.google.gms.google-services", version.ref = "google-services" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 

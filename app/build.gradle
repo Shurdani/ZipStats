@@ -1,11 +1,10 @@
 plugins {
-    id 'com.android.application'
-    id 'org.jetbrains.kotlin.android'
-    id 'org.jetbrains.kotlin.plugin.compose'
+    alias(libs.plugins.android.application)
+    alias(libs.plugins.kotlin.android)
+    alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
-    id 'dagger.hilt.android.plugin'
+    alias(libs.plugins.hilt)
     id 'com.google.gms.google-services'
-    
 }
 
 android {
@@ -23,8 +22,8 @@ android {
         applicationId "com.zipstats.app"
         minSdk 33
         targetSdk 34
-        versionCode 100
-        versionName "7.1.0"
+        versionCode 101
+        versionName "7.1.1"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {

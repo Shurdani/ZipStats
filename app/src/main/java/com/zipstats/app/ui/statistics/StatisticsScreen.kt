@@ -155,6 +155,7 @@ fun StatisticsScreen(
     val selectedMonth by viewModel.selectedMonth.collectAsState()
     val selectedYear by viewModel.selectedYear.collectAsState()
     val weatherStats by viewModel.weatherStats.collectAsState()
+    val reportUserName by viewModel.reportUserName.collectAsState()
     val scrollState = rememberScrollState()
     var showMonthYearPicker by remember { mutableStateOf(false) }
     var isGeneratingReport by remember { mutableStateOf(false) }
@@ -304,6 +305,7 @@ fun StatisticsScreen(
                                         outputFile = tempFile,
                                         stats = stats,
                                         weatherStats = weatherStats,
+                                        userName = reportUserName,
                                         selectedPeriod = selectedPeriod,
                                         selectedMonth = selectedMonth,
                                         selectedYear = selectedYear

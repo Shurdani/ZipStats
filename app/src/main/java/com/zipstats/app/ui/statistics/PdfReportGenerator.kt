@@ -22,6 +22,7 @@ class PdfReportGenerator(
         outputFile: File,
         stats: StatisticsUiState.Success,
         weatherStats: WeatherStats,
+        userName: String,
         selectedPeriod: Int,
         selectedMonth: Int?,
         selectedYear: Int?
@@ -79,9 +80,8 @@ class PdfReportGenerator(
         logo?.let {
             canvas.drawBitmap(it, margin + 18f, y + 18f, null)
         }
-        canvas.drawText("Informe ZipStats", margin + 84f, y + 46f, headerTitlePaint)
+        canvas.drawText("Informe ZipStats de $userName", margin + 84f, y + 46f, headerTitlePaint)
         canvas.drawText(periodName, margin + 84f, y + 70f, headerSubtitlePaint)
-        canvas.drawText("Generado el $generatedAtText", margin + 84f, y + 92f, headerSubtitlePaint)
         y += 148f
 
         y = drawSectionCard(

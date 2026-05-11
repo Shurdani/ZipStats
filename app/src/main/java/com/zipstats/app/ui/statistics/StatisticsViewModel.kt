@@ -233,6 +233,7 @@ class StatisticsViewModel @Inject constructor(
 
     private val _userName = MutableStateFlow<String>("Mi Vehículo")
     private val userName: StateFlow<String> = _userName.asStateFlow()
+    val reportUserName: StateFlow<String> = _userName.asStateFlow()
     
     private val _selectedMonth = MutableStateFlow<Int?>(null)
     val selectedMonth: StateFlow<Int?> = _selectedMonth.asStateFlow()
@@ -425,10 +426,10 @@ class StatisticsViewModel @Inject constructor(
                         }
                         // 3. SIN FILTRO MANUAL: Usamos el periodo de la pestaña activa
                         else -> {
-                            if (currentTab == 1) { // Pestaña "Este Año"
-                                routeDate.year == today.year
-                            } else { // Pestaña "Este Mes" (currentTab == 0)
-                                routeDate.monthValue == today.monthValue && routeDate.year == today.year
+                            when (currentTab) {
+                                2 -> true // Pestaña "Todo": historial completo, sin filtrar
+                                1 -> routeDate.year == today.year // Pestaña "Este Año"
+                                else -> routeDate.monthValue == today.monthValue && routeDate.year == today.year // Pestaña "Este Mes"
                             }
                         }
                     }
@@ -440,6 +441,7 @@ class StatisticsViewModel @Inject constructor(
             val manualDist = when {
                 selectedMonth != null -> monthlyDistance
                 selectedYear != null -> yearlyDistance
+                currentTab == 2 -> totalDistance // Pestaña "Todo": usar distancia total acumulada
                 currentTab == 1 -> yearlyDistance // Pestaña Anual sin filtro manual
                 else -> monthlyDistance           // Pestaña Mensual sin filtro manual
             }

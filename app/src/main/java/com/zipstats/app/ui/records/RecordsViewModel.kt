@@ -78,7 +78,11 @@ class RecordsViewModel @Inject constructor(
     private val _extraRecords = MutableStateFlow<List<Record>>(emptyList())
     private val _allRecords: StateFlow<List<Record>> = combine(
         _firstPageRecords, _extraRecords
-    ) { first, extra -> first + extra }
+    ) { first, extra ->
+        // Tras insertar en medio del historial, la 1.ª página cambia pero las páginas extra pueden
+        // quedar desalineadas o duplicar ids; priorizamos la 1.ª página y deduplicamos.
+        (first + extra).distinctBy { it.id }
+    }
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
     private val _isLoadingMore = MutableStateFlow(false)
     val isLoadingMore: StateFlow<Boolean> = _isLoadingMore.asStateFlow()
@@ -239,6 +243,17 @@ class RecordsViewModel @Inject constructor(
             }
         }
     }
+
+    /**
+     * Tras añadir/editar/borrar, las páginas cargadas con cursor por fecha quedan obsoletas.
+     * Vaciamos la cola para que la lista coincida con el listener de la 1.ª página y el usuario
+     * pueda volver a cargar más con scroll.
+     */
+    private fun resetPaginationAfterMutation() {
+        _extraRecords.value = emptyList()
+        _hasMorePages.value = _firstPageRecords.value.size >= pageSize
+    }
+
     // --- FUNCIONES Y ACCIONES ---
 
     fun markOnboardingDismissed() {
@@ -278,6 +293,7 @@ class RecordsViewModel @Inject constructor(
                     kilometraje = kmDouble,
                     fecha = fecha
                 ).onSuccess {
+                    resetPaginationAfterMutation()
                     achievementsService.checkAndNotifyNewAchievements()
                     Log.d("RecordsVM", "Registro añadido")
                 }.onFailure { e ->
@@ -293,8 +309,13 @@ class RecordsViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 recordRepository.deleteRecord(recordId)
-                _extraRecords.value = _extraRecords.value.filter { it.id != recordId }
-                achievementsService.checkAndNotifyNewAchievements()
+                    .onSuccess {
+                        resetPaginationAfterMutation()
+                        achievementsService.checkAndNotifyNewAchievements()
+                    }
+                    .onFailure { e ->
+                        _errorMessage.value = e.message ?: "Error al eliminar"
+                    }
             } catch (e: Exception) {
                 _errorMessage.value = e.message
             }
@@ -309,6 +330,7 @@ class RecordsViewModel @Inject constructor(
                     ?: throw Exception("Kilometraje inválido")
 
                 val allRecords = recordRepository.getAllRecords()
+                val originalRecord = allRecords.find { it.id == recordId }
                 val registroAnterior = allRecords
                     .filter { it.patinete == patinete && it.fecha < fecha && it.id != recordId }
                     .maxByOrNull { it.fecha }
@@ -318,13 +340,13 @@ class RecordsViewModel @Inject constructor(
                     0.0
                 }
 
-                val originalRecord = _allRecords.value.find { it.id == recordId }
-                val isInitial = originalRecord?.isInitialRecord ?: false
+                val isInitial = registroAnterior == null
 
                 val updatedRecord = Record(
                     id = recordId,
                     vehiculo = patinete,
                     patinete = patinete,
+                    scooterId = originalRecord?.scooterId ?: "",
                     kilometraje = kmDouble,
                     fecha = fecha,
                     diferencia = diferencia,
@@ -333,6 +355,7 @@ class RecordsViewModel @Inject constructor(
 
                 recordRepository.updateRecord(updatedRecord)
                     .onSuccess {
+                        resetPaginationAfterMutation()
                         achievementsService.checkAndNotifyNewAchievements()
                     }
                     .onFailure { e ->

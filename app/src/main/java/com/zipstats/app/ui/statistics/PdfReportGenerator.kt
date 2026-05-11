@@ -1,7 +1,6 @@
 package com.zipstats.app.ui.statistics
 
 import android.content.Context
-import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
@@ -76,10 +75,7 @@ class PdfReportGenerator(
         val headerRect = RectF(margin, y, margin + contentWidth, y + 132f)
         drawRoundedRect(canvas, headerRect, Color.parseColor("#1D4ED8"), 20f)
 
-        val logo = loadLogoBitmap(54)
-        logo?.let {
-            canvas.drawBitmap(it, margin + 18f, y + 18f, null)
-        }
+        drawLogo(canvas, margin + 18f, y + 18f, 54)
         canvas.drawText("Informe ZipStats de $userName", margin + 84f, y + 46f, headerTitlePaint)
         canvas.drawText(periodName, margin + 84f, y + 70f, headerSubtitlePaint)
         y += 148f
@@ -182,13 +178,15 @@ class PdfReportGenerator(
         }
     }
 
-    private fun loadLogoBitmap(size: Int): Bitmap? {
-        val drawable = AppCompatResources.getDrawable(context, R.drawable.logo_app) ?: return null
-        val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
-        val canvas = Canvas(bitmap)
-        drawable.setBounds(0, 0, size, size)
+    private fun drawLogo(canvas: Canvas, left: Float, top: Float, size: Int) {
+        val drawable = AppCompatResources.getDrawable(context, R.drawable.logo_app) ?: return
+        drawable.setBounds(
+            left.toInt(),
+            top.toInt(),
+            left.toInt() + size,
+            top.toInt() + size
+        )
         drawable.draw(canvas)
-        return bitmap
     }
 
     private fun drawSectionCard(

@@ -30,6 +30,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.time.DayOfWeek
 import java.time.LocalDate
 import java.util.Date
 import javax.inject.Inject
@@ -204,6 +205,7 @@ sealed class StatisticsUiState {
         val monthlyChartData: List<ChartDataPoint>,
         val yearlyChartData: List<ChartDataPoint>,
         val allTimeChartData: List<ChartDataPoint>,
+        val allYearsChartData: List<ChartDataPoint>,
         val monthlyComparison: ComparisonData?,
         val yearlyComparison: ComparisonData?,
         val nextAchievement: NextAchievementData?,
@@ -469,9 +471,10 @@ class StatisticsViewModel @Inject constructor(
                 yearlyMaxDistance = yearlyRecords.maxOfOrNull { it.diferencia }?.roundToOneDecimal() ?: 0.0,
                 yearlyAverageDistance = if (yearlyRecords.isNotEmpty()) (yearlyRecords.sumOf { it.diferencia } / yearlyRecords.size).roundToOneDecimal() else 0.0,
                 yearlyRecords = yearlyRecords.size,
-                monthlyChartData = calculateMonthlyChartData(records),
+                monthlyChartData = calculateMonthlyChartData(records, currentMonth, currentYear),
                 yearlyChartData = calculateYearlyChartData(records, currentYear),
                 allTimeChartData = calculateAllTimeChartData(records),
+                allYearsChartData = calculateAllYearsChartData(records),
                 monthlyComparison = calculateMonthlyComparison(records, allRoutes, currentMonth, currentYear),
                 yearlyComparison = calculateYearlyComparison(records, allRoutes, currentYear),
                 nextAchievement = try { calculateNextAchievement() } catch (e: Exception) { null },
@@ -657,25 +660,48 @@ class StatisticsViewModel @Inject constructor(
         return lines.joinToString("\n")
     }
 
-    private fun calculateMonthlyChartData(records: List<com.zipstats.app.model.Record>): List<ChartDataPoint> {
-        val now = LocalDate.now()
-        val last30Days = (0..29).map { now.minusDays(it.toLong()) }.reversed()
-        
-        return last30Days.map { date ->
-            val dailyDistance = records
-                .filter { 
+    private fun calculateMonthlyChartData(
+        records: List<com.zipstats.app.model.Record>,
+        month: Int,
+        year: Int
+    ): List<ChartDataPoint> {
+        val today = LocalDate.now()
+        val firstDayOfMonth = LocalDate.of(year, month, 1)
+        val lastDayOfMonth = if (year == today.year && month == today.monthValue) {
+            today
+        } else {
+            firstDayOfMonth.withDayOfMonth(firstDayOfMonth.lengthOfMonth())
+        }
+        val weeklyData = mutableListOf<ChartDataPoint>()
+        var weekStart = firstDayOfMonth
+        var weekIndex = 1
+
+        while (!weekStart.isAfter(lastDayOfMonth)) {
+            val daysUntilSunday = DayOfWeek.SUNDAY.value - weekStart.dayOfWeek.value
+            val weekEnd = minOf(weekStart.plusDays(daysUntilSunday.toLong()), lastDayOfMonth)
+            val weeklyDistance = records
+                .filter {
                     try {
-                        LocalDate.parse(it.fecha) == date
+                        val recordDate = LocalDate.parse(it.fecha)
+                        !recordDate.isBefore(weekStart) && !recordDate.isAfter(weekEnd)
                     } catch (e: Exception) {
                         false
                     }
                 }
                 .sumOf { it.diferencia }
-            ChartDataPoint(
-                date = "${date.dayOfMonth}/${date.monthValue}",
-                value = dailyDistance.roundToOneDecimal()
+
+            weeklyData.add(
+                ChartDataPoint(
+                    date = "Sem $weekIndex",
+                    value = weeklyDistance.roundToOneDecimal()
+                )
             )
+
+            weekStart = weekEnd.plusDays(1)
+            weekIndex++
         }
+
+        return weeklyData
     }
     
     private fun calculateYearlyChartData(records: List<com.zipstats.app.model.Record>, year: Int): List<ChartDataPoint> {
@@ -725,6 +751,29 @@ class StatisticsViewModel @Inject constructor(
                 value = monthlyDistance.roundToOneDecimal()
             )
         }
+    }
+
+    private fun calculateAllYearsChartData(records: List<com.zipstats.app.model.Record>): List<ChartDataPoint> {
+        if (records.isEmpty()) return emptyList()
+
+        val yearlyDistances = records
+            .mapNotNull { record ->
+                try {
+                    LocalDate.parse(record.fecha).year to record
+                } catch (e: Exception) {
+                    null
+                }
+            }
+            .groupBy({ it.first }, { it.second })
+
+        return yearlyDistances
+            .toSortedMap()
+            .map { (year, yearRecords) ->
+                ChartDataPoint(
+                    date = year.toString(),
+                    value = yearRecords.sumOf { it.diferencia }.roundToOneDecimal()
+                )
+            }
     }
 
     private suspend fun calculateMonthlyComparison(

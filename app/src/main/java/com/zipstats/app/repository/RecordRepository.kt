@@ -1,6 +1,7 @@
 package com.zipstats.app.repository
 
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreException
 import com.google.firebase.firestore.Query
@@ -8,7 +9,6 @@ import com.zipstats.app.model.Record
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
-import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.tasks.await
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -19,7 +19,6 @@ class RecordRepository @Inject constructor(
     private val auth: FirebaseAuth
 ) {
     private val recordsCollection = firestore.collection("registros")
-    private val usersCollection = firestore.collection("users")
 
     fun getRecords(): Flow<List<Record>> = callbackFlow {
         try {
@@ -33,12 +32,12 @@ class RecordRepository @Inject constructor(
                     if (currentUser == null) {
                         try {
                             trySend(emptyList())
-                        } catch (e: Exception) {
+                        } catch (_: Exception) {
                             // Ignorar errores al enviar datos si el canal está cerrado
                         }
                         try {
                             close()
-                        } catch (e: Exception) {
+                        } catch (_: Exception) {
                             // Ignorar errores si el canal ya está cerrado
                         }
                         return@addSnapshotListener
@@ -52,12 +51,12 @@ class RecordRepository @Inject constructor(
                             android.util.Log.w("RecordRepository", "Permiso denegado o usuario no autenticado (probablemente durante logout). Cerrando listener silenciosamente.")
                             try {
                                 trySend(emptyList())
-                            } catch (e: Exception) {
+                            } catch (_: Exception) {
                                 // Ignorar errores al enviar datos si el canal está cerrado
                             }
                             try {
                                 close()
-                            } catch (e: Exception) {
+                            } catch (_: Exception) {
                                 // Ignorar errores si el canal ya está cerrado
                             }
                         } else {
@@ -93,7 +92,7 @@ class RecordRepository @Inject constructor(
                         try {
                             trySend(emptyList())
                             close()
-                        } catch (e: Exception) {
+                        } catch (_: Exception) {
                             // Ignorar errores si el canal está cerrado
                         }
                         return@addSnapshotListener
@@ -146,7 +145,7 @@ class RecordRepository @Inject constructor(
                             userId = data["userId"] as? String ?: "",
                             isInitialRecord = data["isInitialRecord"] as? Boolean ?: false
                         )
-                    } catch (e: Exception) { null }
+                    } catch (_: Exception) { null }
                 } ?: emptyList()
                 if (auth.currentUser != null) trySend(records)
             }
@@ -179,7 +178,7 @@ class RecordRepository @Inject constructor(
                         userId = data["userId"] as? String ?: "",
                         isInitialRecord = data["isInitialRecord"] as? Boolean ?: false
                     )
-                } catch (e: Exception) { null }
+                } catch (_: Exception) { null }
             }
             Result.success(records)
         } catch (e: Exception) {
@@ -187,88 +186,85 @@ class RecordRepository @Inject constructor(
         }
     }
 
-    suspend fun getTotalDistance(): Double {
-        val userId = auth.currentUser?.uid ?: throw Exception("Usuario no autenticado")
-        
-        val records = recordsCollection
-            .whereEqualTo("userId", userId)
-            .get()
-            .await()
-            .documents
-            .mapNotNull { it.toObject(Record::class.java) }
-        
-        return records.sumOf<Record> { it.diferencia }
-    }
-
     suspend fun addRecord(vehiculo: String, kilometraje: Double, fecha: String, scooterId: String? = null): Result<Unit> {
         return try {
             val userId = auth.currentUser?.uid ?: throw Exception("Usuario no autenticado")
-            
-            // Obtener el último registro para este vehículo
-            // Buscar por scooterId si está disponible, sino por nombre (compatibilidad)
-            val lastRecord = if (scooterId != null && scooterId.isNotEmpty()) {
+
+            fun docToRecord(doc: DocumentSnapshot): Record? {
+                val data = doc.data ?: return null
+                return Record(
+                    id = doc.id,
+                    vehiculo = data["vehiculo"] as? String ?: "",
+                    patinete = data["patinete"] as? String ?: "",
+                    scooterId = data["scooterId"] as? String ?: "",
+                    fecha = data["fecha"] as? String ?: "",
+                    kilometraje = (data["kilometraje"] as? Number)?.toDouble() ?: 0.0,
+                    diferencia = (data["diferencia"] as? Number)?.toDouble() ?: 0.0,
+                    userId = data["userId"] as? String ?: "",
+                    isInitialRecord = data["isInitialRecord"] as? Boolean ?: false
+                )
+            }
+
+            val vehicleRecords = if (!scooterId.isNullOrEmpty()) {
                 recordsCollection
                     .whereEqualTo("userId", userId)
                     .whereEqualTo("scooterId", scooterId)
                     .get()
                     .await()
                     .documents
-                    .mapNotNull { doc ->
-                        val data = doc.data ?: return@mapNotNull null
-                        Record(
-                            id = doc.id,
-                            vehiculo = data["vehiculo"] as? String ?: "",
-                            patinete = data["patinete"] as? String ?: "",
-                            scooterId = data["scooterId"] as? String ?: "",
-                            fecha = data["fecha"] as? String ?: "",
-                            kilometraje = (data["kilometraje"] as? Number)?.toDouble() ?: 0.0,
-                            diferencia = (data["diferencia"] as? Number)?.toDouble() ?: 0.0,
-                            userId = data["userId"] as? String ?: "",
-                            isInitialRecord = data["isInitialRecord"] as? Boolean ?: false
-                        )
-                    }
-                    .maxByOrNull { it.fecha }
+                    .mapNotNull { docToRecord(it) }
             } else {
-                // Fallback: buscar por nombre para compatibilidad con registros antiguos
                 recordsCollection
                     .whereEqualTo("userId", userId)
                     .get()
                     .await()
                     .documents
-                    .mapNotNull { doc ->
-                        val data = doc.data ?: return@mapNotNull null
-                        Record(
-                            id = doc.id,
-                            vehiculo = data["vehiculo"] as? String ?: "",
-                            patinete = data["patinete"] as? String ?: "",
-                            scooterId = data["scooterId"] as? String ?: "",
-                            fecha = data["fecha"] as? String ?: "",
-                            kilometraje = (data["kilometraje"] as? Number)?.toDouble() ?: 0.0,
-                            diferencia = (data["diferencia"] as? Number)?.toDouble() ?: 0.0,
-                            userId = data["userId"] as? String ?: "",
-                            isInitialRecord = data["isInitialRecord"] as? Boolean ?: false
-                        )
-                    }
+                    .mapNotNull { docToRecord(it) }
                     .filter { it.vehicleName == vehiculo }
-                    .maxByOrNull { it.fecha }
             }
 
-            // Calcular la diferencia
-            val diferencia = lastRecord?.let { kilometraje - it.kilometraje } ?: 0.0
+            // Registro cronológico inmediatamente anterior (misma fecha excluida: fecha < nueva)
+            val previousRecord = vehicleRecords
+                .filter { it.fecha < fecha }
+                .maxByOrNull { it.fecha }
+            // Siguiente en el tiempo: debe recalcular su diferencia respecto al nuevo odómetro
+            val nextRecord = vehicleRecords
+                .filter { it.fecha > fecha }
+                .minByOrNull { it.fecha }
 
-            // Crear el nuevo registro
-            val record = Record(
-                vehiculo = vehiculo,
-                patinete = vehiculo, // Mantener compatibilidad
-                scooterId = scooterId ?: "",
-                fecha = fecha,
-                kilometraje = kilometraje,
-                diferencia = diferencia,
-                userId = userId,
-                isInitialRecord = lastRecord == null // Es registro inicial si no hay registros previos
+            val newDiferencia = if (previousRecord != null) {
+                kilometraje - previousRecord.kilometraje
+            } else {
+                0.0
+            }
+            val newIsInitial = previousRecord == null
+
+            val batch = firestore.batch()
+            val newDocRef = recordsCollection.document()
+            val newRecordData = hashMapOf(
+                "fecha" to fecha,
+                "kilometraje" to kilometraje,
+                "diferencia" to newDiferencia,
+                "vehiculo" to vehiculo,
+                "patinete" to vehiculo,
+                "scooterId" to (scooterId ?: ""),
+                "userId" to userId,
+                "isInitialRecord" to newIsInitial
             )
+            batch.set(newDocRef, newRecordData)
 
-            recordsCollection.add(record).await()
+            if (nextRecord != null) {
+                val nextDiferencia = nextRecord.kilometraje - kilometraje
+                val nextUpdates = hashMapOf<String, Any>(
+                    "diferencia" to nextDiferencia
+                )
+                if (nextRecord.isInitialRecord) {
+                    nextUpdates["isInitialRecord"] = false
+                }
+                batch.update(recordsCollection.document(nextRecord.id), nextUpdates)
+            }
+
+            batch.commit().await()
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
@@ -291,7 +287,10 @@ class RecordRepository @Inject constructor(
                 throw Exception("No se puede eliminar el registro inicial de un vehículo")
             }
             
+            val vehiculo = record.vehicleName.ifEmpty { record.patinete }
+
             recordsCollection.document(recordId).delete().await()
+            repairOdometerChainForVehicleInternal(vehiculo)
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
@@ -319,42 +318,44 @@ class RecordRepository @Inject constructor(
             )
             
             recordsCollection.document(record.id).set(recordData).await()
+            repairOdometerChainForVehicleInternal(record.vehicleName.ifEmpty { record.patinete })
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
         }
     }
 
-    private suspend fun calcularDiferencia(
-        vehiculo: String,
-        fecha: String,
-        kilometraje: Double
-    ): Double {
-        val records = recordsCollection
-            .whereEqualTo("userId", auth.currentUser?.uid)
-            .get()
-            .await()
-            .documents
-            .mapNotNull { doc ->
-                val data = doc.data ?: return@mapNotNull null
-                Record(
-                    id = doc.id,
-                    vehiculo = data["vehiculo"] as? String ?: "",
-                    patinete = data["patinete"] as? String ?: "",
-                    fecha = data["fecha"] as? String ?: "",
-                    kilometraje = (data["kilometraje"] as? Number)?.toDouble() ?: 0.0,
-                    diferencia = (data["diferencia"] as? Number)?.toDouble() ?: 0.0,
-                    userId = data["userId"] as? String ?: "",
-                    isInitialRecord = data["isInitialRecord"] as? Boolean ?: false
-                )
-            }
-            .filter { it.vehicleName == vehiculo && it.fecha < fecha }
-            .maxByOrNull { it.fecha }
+    private suspend fun repairOdometerChainForVehicleInternal(vehiculo: String) {
+        val vehicleRecords = getAllRecords()
+            .filter { it.patinete == vehiculo || it.vehicleName == vehiculo }
+            .sortedWith(compareBy({ it.fecha }, { it.id }))
 
-        return if (records != null) {
-            kilometraje - records.kilometraje
-        } else {
-            0.0
+        if (vehicleRecords.isEmpty()) return
+
+        val batch = firestore.batch()
+        var hasWrites = false
+
+        vehicleRecords.forEachIndexed { index, r ->
+            val newDiferencia = if (index == 0) {
+                0.0
+            } else {
+                r.kilometraje - vehicleRecords[index - 1].kilometraje
+            }
+            val newInitial = index == 0
+            val difChanged = kotlin.math.abs(r.diferencia - newDiferencia) > 1e-6
+            val initialChanged = r.isInitialRecord != newInitial
+            if (difChanged || initialChanged) {
+                val updates = hashMapOf<String, Any>(
+                    "diferencia" to newDiferencia,
+                    "isInitialRecord" to newInitial
+                )
+                batch.update(recordsCollection.document(r.id), updates)
+                hasWrites = true
+            }
+        }
+
+        if (hasWrites) {
+            batch.commit().await()
         }
     }
 
@@ -370,7 +371,7 @@ class RecordRepository @Inject constructor(
                 try {
                     doc.toObject(Record::class.java)?.copy(id = doc.id)
                 } catch (e: Exception) {
-                    android.util.Log.e("RecordRepository", "Error deserializando documento ${doc.id}: ${e.message}", e)
+                    android.util.Log.e("RecordRepository", "Error de serializando documento ${doc.id}: ${e.message}", e)
                     null
                 }
             }
@@ -406,7 +407,7 @@ class RecordRepository @Inject constructor(
         
         android.util.Log.d("RecordRepository", "Registros encontrados por 'patinete': ${recordsByPatinete.size}")
         
-        // También buscar por el campo "vehiculo" por compatibilidad
+        // También buscar por el campo "vehículo" por compatibilidad
         val recordsByVehiculo = recordsCollection
             .whereEqualTo("userId", userId)
             .whereEqualTo("vehiculo", scooterId)
@@ -434,23 +435,6 @@ class RecordRepository @Inject constructor(
         android.util.Log.d("RecordRepository", "=== FIN deleteScooterRecords ===")
     }
 
-    fun getRecordsForScooter(patinete: String): Flow<List<Record>> = flow {
-        try {
-            val userId = auth.currentUser?.uid ?: throw Exception("Usuario no autenticado")
-            val records = recordsCollection
-                .whereEqualTo("userId", userId)
-                .whereEqualTo("patinete", patinete)
-                .get()
-                .await()
-                .documents
-                .mapNotNull { it.toObject(Record::class.java) }
-                .sortedByDescending { it.fecha }
-            emit(records)
-        } catch (e: Exception) {
-            emit(emptyList())
-        }
-    }
-
     suspend fun getPreviousMileageForDate(patinete: String, fechaIso: String): Double? {
         return try {
             val userId = auth.currentUser?.uid ?: return null
@@ -467,228 +451,9 @@ class RecordRepository @Inject constructor(
             records?.kilometraje?.let { km ->
                 (kotlin.math.round(km * 10.0) / 10.0)
             }
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             null
         }
-    }
-
-    // Funciones para estadísticas de logros
-    suspend fun getTotalTrips(): Int {
-        val userId = auth.currentUser?.uid ?: return 0
-        val records = recordsCollection
-            .whereEqualTo("userId", userId)
-            .get()
-            .await()
-            .documents
-            .mapNotNull { it.toObject(Record::class.java) }
-        
-        // Contar solo registros que no sean iniciales
-        return records.count { !it.isInitialRecord }
-    }
-
-    suspend fun getUniqueDays(): Int {
-        val userId = auth.currentUser?.uid ?: return 0
-        val records = recordsCollection
-            .whereEqualTo("userId", userId)
-            .get()
-            .await()
-            .documents
-            .mapNotNull { it.toObject(Record::class.java) }
-        
-        // Contar días únicos (sin contar registros iniciales)
-        return records
-            .filter { !it.isInitialRecord }
-            .map { it.fecha.take(10) } // Obtener solo la fecha (YYYY-MM-DD)
-            .distinct()
-            .size
-    }
-
-    suspend fun getUniqueScooters(): Int {
-        val userId = auth.currentUser?.uid ?: return 0
-        val records = recordsCollection
-            .whereEqualTo("userId", userId)
-            .get()
-            .await()
-            .documents
-            .mapNotNull { it.toObject(Record::class.java) }
-        
-        return records.map { it.patinete }.distinct().size
-    }
-
-    suspend fun getLongestTrip(): Double {
-        val userId = auth.currentUser?.uid ?: return 0.0
-        val records = recordsCollection
-            .whereEqualTo("userId", userId)
-            .get()
-            .await()
-            .documents
-            .mapNotNull { it.toObject(Record::class.java) }
-        
-        return records
-            .filter { !it.isInitialRecord }
-            .maxOfOrNull { it.diferencia } ?: 0.0
-    }
-
-    suspend fun getConsecutiveDays(): Int {
-        val userId = auth.currentUser?.uid ?: return 0
-        val records = recordsCollection
-            .whereEqualTo("userId", userId)
-            .get()
-            .await()
-            .documents
-            .mapNotNull { it.toObject(Record::class.java) }
-        
-        // Obtener fechas únicas (sin registros iniciales), ordenadas
-        val uniqueDates = records
-            .filter { !it.isInitialRecord }
-            .map { it.fecha.take(10) } // Solo YYYY-MM-DD
-            .distinct()
-            .sorted()
-        
-        if (uniqueDates.isEmpty()) return 0
-        
-        // Calcular días consecutivos
-        var maxConsecutive = 1
-        var currentConsecutive = 1
-        
-        for (i in 1 until uniqueDates.size) {
-            val prevDate = java.time.LocalDate.parse(uniqueDates[i - 1])
-            val currentDate = java.time.LocalDate.parse(uniqueDates[i])
-            
-            if (java.time.temporal.ChronoUnit.DAYS.between(prevDate, currentDate) == 1L) {
-                currentConsecutive++
-                maxConsecutive = maxOf(maxConsecutive, currentConsecutive)
-            } else {
-                currentConsecutive = 1
-            }
-        }
-        
-        return maxConsecutive
-    }
-
-    suspend fun getUniqueWeeks(): Int {
-        val userId = auth.currentUser?.uid ?: return 0
-        val records = recordsCollection
-            .whereEqualTo("userId", userId)
-            .get()
-            .await()
-            .documents
-            .mapNotNull { it.toObject(Record::class.java) }
-        
-        // Obtener semanas únicas (año-semana)
-        return records
-            .filter { !it.isInitialRecord }
-            .map { record ->
-                val date = java.time.LocalDate.parse(record.fecha.take(10))
-                val weekFields = java.time.temporal.WeekFields.of(java.util.Locale.getDefault())
-                val year = date.get(weekFields.weekBasedYear())
-                val week = date.get(weekFields.weekOfWeekBasedYear())
-                "$year-$week"
-            }
-            .distinct()
-            .size
-    }
-
-    suspend fun getMaintenanceCount(): Int {
-        val userId = auth.currentUser?.uid ?: return 0
-        
-        // Obtener todos los IDs de vehículos del usuario
-        val scooterIds = firestore.collection("patinetes")
-            .whereEqualTo("userId", userId)
-            .get()
-            .await()
-            .documents
-            .map { it.id } // Obtener el ID del documento del vehículo
-        
-        if (scooterIds.isEmpty()) return 0
-        
-        // Contar reparaciones de todos los vehículos del usuario
-        var totalRepairs = 0
-        for (scooterId in scooterIds) {
-            val repairs = firestore.collection("repairs")
-                .whereEqualTo("vehicleId", scooterId) // Buscar por vehicleId (ID del documento)
-                .get()
-                .await()
-                .documents
-            totalRepairs += repairs.size
-        }
-        
-        return totalRepairs
-    }
-
-    suspend fun getCO2Saved(): Double {
-        val totalDistance = getTotalDistance()
-        // 0.15 kg de CO2 por km ahorrado (150g/km, media coche)
-        return totalDistance * 0.15
-    }
-
-    suspend fun getUniqueMonths(): Int {
-        val userId = auth.currentUser?.uid ?: return 0
-        val records = recordsCollection
-            .whereEqualTo("userId", userId)
-            .get()
-            .await()
-            .documents
-            .mapNotNull { it.toObject(Record::class.java) }
-        
-        // Obtener meses únicos (año-mes)
-        return records
-            .filter { !it.isInitialRecord }
-            .map { record ->
-                val date = java.time.LocalDate.parse(record.fecha.take(10))
-                "${date.year}-${date.monthValue}"
-            }
-            .distinct()
-            .size
-    }
-
-    suspend fun getConsecutiveMonths(): Int {
-        val userId = auth.currentUser?.uid ?: return 0
-        val records = recordsCollection
-            .whereEqualTo("userId", userId)
-            .get()
-            .await()
-            .documents
-            .mapNotNull { it.toObject(Record::class.java) }
-        
-        // Obtener meses únicos (año-mes), ordenados
-        val uniqueMonths = records
-            .filter { !it.isInitialRecord }
-            .map { record ->
-                val date = java.time.LocalDate.parse(record.fecha.take(10))
-                date.year to date.monthValue // Tupla de (año, mes)
-            }
-            .distinct()
-            .sortedWith(compareBy({ it.first }, { it.second }))
-        
-        if (uniqueMonths.isEmpty()) return 0
-        
-        // Calcular meses consecutivos
-        var maxConsecutive = 1
-        var currentConsecutive = 1
-        
-        for (i in 1 until uniqueMonths.size) {
-            val (prevYear, prevMonth) = uniqueMonths[i - 1]
-            val (currYear, currMonth) = uniqueMonths[i]
-            
-            // Verificar si son meses consecutivos
-            val isConsecutive = if (prevMonth == 12) {
-                // Diciembre -> Enero del año siguiente
-                currYear == prevYear + 1 && currMonth == 1
-            } else {
-                // Mismo año, mes siguiente
-                currYear == prevYear && currMonth == prevMonth + 1
-            }
-            
-            if (isConsecutive) {
-                currentConsecutive++
-                maxConsecutive = maxOf(maxConsecutive, currentConsecutive)
-            } else {
-                currentConsecutive = 1
-            }
-        }
-        
-        return maxConsecutive
     }
 
     // Función para obtener todas las estadísticas de una vez
@@ -843,63 +608,4 @@ class RecordRepository @Inject constructor(
         )
     }
 
-    private suspend fun updateUserStats(userId: String) {
-        try {
-            println("DEBUG: Actualizando estadísticas para usuario: $userId")
-            
-            // Obtener todos los registros del usuario
-            val records = recordsCollection
-                .whereEqualTo("userId", userId)
-                .get()
-                .await()
-                .documents
-                .mapNotNull { it.toObject(Record::class.java) }
-
-            println("DEBUG: Registros encontrados: ${records.size}")
-
-            // Calcular estadísticas
-            val totalDistance = records.sumOf { it.diferencia }
-            val totalRecords = records.size
-            val co2Saved = totalDistance * 0.15 // 0.15 kg de CO2 por km ahorrado (150g/km, media coche)
-
-            println("DEBUG: Estadísticas calculadas - Distancia: $totalDistance km, Registros: $totalRecords, CO2: $co2Saved kg")
-
-            // Actualizar documento del usuario
-            usersCollection.document(userId).update(
-                mapOf(
-                    "totalDistance" to totalDistance,
-                    "totalRecords" to totalRecords,
-                    "co2Saved" to co2Saved
-                )
-            ).await()
-            
-            println("DEBUG: Estadísticas actualizadas en Firestore")
-        } catch (e: Exception) {
-            println("ERROR: Error al actualizar estadísticas del usuario: ${e.message}")
-            e.printStackTrace()
-        }
-    }
-
-    suspend fun initializeAllUsersStats() {
-        try {
-            println("DEBUG: Iniciando inicialización de estadísticas para todos los usuarios")
-            
-            // Obtener todos los usuarios
-            val users = usersCollection.get().await().documents
-            
-            println("DEBUG: Usuarios encontrados: ${users.size}")
-            
-            // Para cada usuario, actualizar sus estadísticas
-            users.forEach { userDoc ->
-                val userId = userDoc.id
-                println("DEBUG: Procesando usuario: $userId")
-                updateUserStats(userId)
-            }
-            
-            println("DEBUG: Inicialización de estadísticas completada")
-        } catch (e: Exception) {
-            println("ERROR: Error al inicializar estadísticas: ${e.message}")
-            e.printStackTrace()
-        }
-    }
-} 
+}

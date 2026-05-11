@@ -18,6 +18,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -517,7 +518,7 @@ fun StatisticsScreen(
                                 maxDistance = stats.maxDistance,
                                 totalRecords = stats.totalRecords,
                                 title = "En tu vida has recorrido:",
-                                chartData = stats.allTimeChartData,
+                                chartData = stats.allYearsChartData,
                                 comparison = null
                             )
                         }
@@ -569,22 +570,22 @@ fun StatisticsScreen(
                                 }
                             )
 
-                            if (selectedPeriod != 2 && displayData.totalDistance > 0) {
+                            if (displayData.totalDistance > 0) {
                                 val barChartData = when (currentPeriod) {
                                     StatisticsPeriod.MONTHLY -> displayData.chartData
                                     StatisticsPeriod.YEARLY -> displayData.chartData
-                                    StatisticsPeriod.ALL -> emptyList()
+                                    StatisticsPeriod.ALL -> displayData.chartData
                                 }
 
                                 if (barChartData.isNotEmpty()) {
                                     DistanceBarChartCard(
-                                        title = if (currentPeriod == StatisticsPeriod.YEARLY) {
-                                            "Distancia por mes"
-                                        } else {
-                                            "Distancia por semana"
+                                        title = when (currentPeriod) {
+                                            StatisticsPeriod.MONTHLY -> "Distancia por semana"
+                                            StatisticsPeriod.YEARLY -> "Distancia por mes"
+                                            StatisticsPeriod.ALL -> "Distancia por año"
                                         },
                                         chartData = barChartData,
-                                        isYearly = currentPeriod == StatisticsPeriod.YEARLY
+                                        isYearly = currentPeriod != StatisticsPeriod.MONTHLY
                                     )
                                 }
 
@@ -1274,19 +1275,7 @@ fun DistanceBarChartCard(
     isYearly: Boolean
 ) {
     val groupedData = remember(chartData, isYearly) {
-        if (isYearly) {
-            chartData
-        } else {
-            chartData
-                .takeLast(28)
-                .chunked(7)
-                .mapIndexed { index, week ->
-                    ChartDataPoint(
-                        date = "Sem ${index + 1}",
-                        value = week.sumOf { it.value }
-                    )
-                }
-        }
+        chartData
     }
 
     if (groupedData.isEmpty()) return
@@ -1324,9 +1313,19 @@ private fun SimpleBarChart(
     maxValue: Double
 ) {
     val maxIndex = groupedData.indices.maxByOrNull { groupedData[it].value } ?: -1
+    val enableHorizontalScroll = groupedData.size > 6
+    val horizontalScrollState = rememberScrollState()
 
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(
+                if (enableHorizontalScroll) {
+                    Modifier.horizontalScroll(horizontalScrollState)
+                } else {
+                    Modifier
+                }
+            ),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.Bottom
     ) {
@@ -1339,7 +1338,11 @@ private fun SimpleBarChart(
                 MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)
             }
             Column(
-                modifier = Modifier.weight(1f),
+                modifier = if (enableHorizontalScroll) {
+                    Modifier.width(64.dp)
+                } else {
+                    Modifier.weight(1f)
+                },
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Bottom
             ) {
@@ -1420,7 +1423,7 @@ fun WeatherConditionsCard(
                     modifier = Modifier.weight(1f),
                     title = "Lluvia",
                     valueKm = weatherStats.rainKm,
-                    previousKm = previous?.rainKm ?: 0.0,
+                    previousKm = previous?.rainKm,
                     icon = Icons.Filled.WaterDrop,
                     containerColor = Color(0xFFE6F1FB),
                     contentColor = Color(0xFF0C447C)
@@ -1429,7 +1432,7 @@ fun WeatherConditionsCard(
                     modifier = Modifier.weight(1f),
                     title = "Húmedo",
                     valueKm = weatherStats.wetRoadKm,
-                    previousKm = previous?.wetRoadKm ?: 0.0,
+                    previousKm = previous?.wetRoadKm,
                     icon = Icons.Filled.Water,
                     containerColor = Color(0xFFE6F1FB),
                     contentColor = Color(0xFF0C447C)
@@ -1438,7 +1441,7 @@ fun WeatherConditionsCard(
                     modifier = Modifier.weight(1f),
                     title = "Extremo",
                     valueKm = weatherStats.extremeKm,
-                    previousKm = previous?.extremeKm ?: 0.0,
+                    previousKm = previous?.extremeKm,
                     icon = Icons.Filled.Thermostat,
                     containerColor = Color(0xFFFAEEDA),
                     contentColor = Color(0xFF633806)
@@ -1511,27 +1514,12 @@ fun WeatherConditionsCard(
 private fun WeatherMetricTile(
     title: String,
     valueKm: Double,
-    previousKm: Double,
+    previousKm: Double?,
     icon: ImageVector,
     containerColor: Color,
     contentColor: Color,
     modifier: Modifier = Modifier
 ) {
-    val delta = valueKm - previousKm
-    val isUp = delta >= 0
-    val percentage = if (previousKm > 0.001) {
-        kotlin.math.abs((delta / previousKm) * 100.0)
-    } else if (valueKm > 0.001) {
-        100.0
-    } else {
-        0.0
-    }
-    val diffText = if (delta >= 0) {
-        "+${formatNumberSpanish(delta)} km extra"
-    } else {
-        "${formatNumberSpanish(kotlin.math.abs(delta))} km menos"
-    }
-
     Surface(
         modifier = modifier,
         color = containerColor,
@@ -1553,33 +1541,50 @@ private fun WeatherMetricTile(
                 fontWeight = FontWeight.Bold,
                 color = contentColor
             )
-            ZipStatsText(
-                text = diffText,
-                style = MaterialTheme.typography.labelSmall,
-                color = contentColor.copy(alpha = 0.9f)
-            )
-            Surface(
-                color = Color.White.copy(alpha = 0.72f),
-                shape = RoundedCornerShape(20.dp),
-                modifier = Modifier.border(1.dp, contentColor.copy(alpha = 0.2f), RoundedCornerShape(20.dp))
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+            previousKm?.let { previousValue ->
+                val delta = valueKm - previousValue
+                val isUp = delta >= 0
+                val percentage = if (previousValue > 0.001) {
+                    kotlin.math.abs((delta / previousValue) * 100.0)
+                } else if (valueKm > 0.001) {
+                    100.0
+                } else {
+                    0.0
+                }
+                val diffText = if (delta >= 0) {
+                    "+${formatNumberSpanish(delta)} km extra"
+                } else {
+                    "${formatNumberSpanish(kotlin.math.abs(delta))} km menos"
+                }
+
+                ZipStatsText(
+                    text = diffText,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = contentColor.copy(alpha = 0.9f)
+                )
+                Surface(
+                    color = Color.White.copy(alpha = 0.72f),
+                    shape = RoundedCornerShape(20.dp),
+                    modifier = Modifier.border(1.dp, contentColor.copy(alpha = 0.2f), RoundedCornerShape(20.dp))
                 ) {
-                    Icon(
-                        imageVector = if (isUp) Icons.AutoMirrored.Filled.TrendingUp else Icons.AutoMirrored.Filled.TrendingDown,
-                        contentDescription = null,
-                        tint = contentColor,
-                        modifier = Modifier.size(14.dp)
-                    )
-                    ZipStatsText(
-                        text = "${percentage.roundToInt()}%",
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = contentColor
-                    )
+                    Row(
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Icon(
+                            imageVector = if (isUp) Icons.AutoMirrored.Filled.TrendingUp else Icons.AutoMirrored.Filled.TrendingDown,
+                            contentDescription = null,
+                            tint = contentColor,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        ZipStatsText(
+                            text = "${percentage.roundToInt()}%",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = contentColor
+                        )
+                    }
                 }
             }
         }

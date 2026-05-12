@@ -2102,7 +2102,8 @@ class TrackingViewModel @Inject constructor(
         notes: String = "",
         addToRecords: Boolean = false,
         surfaceConditionType: SurfaceConditionType = SurfaceConditionType.NONE,
-        isSurfaceConditionConfirmed: Boolean = true
+        isSurfaceConditionConfirmed: Boolean = true,
+        userAnsweredSurfaceQuestions: Boolean = false
     ) {
         viewModelScope.launch {
             try {
@@ -2151,7 +2152,8 @@ class TrackingViewModel @Inject constructor(
                 val weatherSnapshot = captureRouteWeatherSnapshot()
                 val weatherDecision = RouteWeatherDecision(
                     surfaceConditionType = surfaceConditionType,
-                    isSurfaceConditionConfirmed = isSurfaceConditionConfirmed
+                    isSurfaceConditionConfirmed = isSurfaceConditionConfirmed,
+                    userAnsweredSurfaceQuestions = userAnsweredSurfaceQuestions
                 )
 
                 // 5. 🧹 RESET DE VARIABLES UI (Limpiamos el ViewModel)

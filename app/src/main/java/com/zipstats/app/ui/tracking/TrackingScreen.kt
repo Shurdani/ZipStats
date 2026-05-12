@@ -436,7 +436,8 @@ fun TrackingScreen(
                         notes = notes,
                         addToRecords = addToRecords,
                         surfaceConditionType = selectedSurfaceConditionType,
-                        isSurfaceConditionConfirmed = selectedSurfaceConditionType != SurfaceConditionType.NONE
+                        isSurfaceConditionConfirmed = selectedSurfaceConditionType != SurfaceConditionType.NONE,
+                        userAnsweredSurfaceQuestions = shouldAskSurfaceQuestions
                     )
                     scope.launch {
                         finishSheetState.hide()

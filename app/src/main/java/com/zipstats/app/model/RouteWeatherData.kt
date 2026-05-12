@@ -8,7 +8,9 @@ enum class SurfaceConditionType {
 
 data class RouteWeatherDecision(
     val surfaceConditionType: SurfaceConditionType = SurfaceConditionType.NONE,
-    val isSurfaceConditionConfirmed: Boolean = true
+    val isSurfaceConditionConfirmed: Boolean = true,
+    /** Si el usuario respondió el bloque «Condiciones del asfalto» al finalizar la ruta */
+    val userAnsweredSurfaceQuestions: Boolean = false
 )
 
 /**

@@ -622,7 +622,14 @@ class RouteRepository @Inject constructor(
                     )
                 }
             }
-            SurfaceConditionType.NONE -> snap
+            // El usuario indica que no hubo lluvia ni calzada húmeda (o no aplica).
+            // Sin esto, el snapshot seguiría llevando los flags detectados por GPS/clima.
+            SurfaceConditionType.NONE -> snap.copy(
+                hadRain = false,
+                hadWetRoad = false,
+                rainReason = null,
+                rainStartMinute = null
+            )
         }
 
         // Fuente de verdad: hay datos finales solo si se fetchearon (badges + fetch exitoso)
@@ -651,13 +658,42 @@ class RouteRepository @Inject constructor(
             adjustedSnap.maxUvIndex
         )
 
+        // Icono/descripción: solo si el usuario contradice la detección previa (snap = antes del diálogo).
+        // Acuerdo app/usuario → no se toca el clima visual (p. ej. app marcó lluvia y el usuario confirma lluvia).
+        // Calzada mojada (WET_ROAD): no se alteran icono ni descripción.
+        val appHadRain = snap.hadRain
+        val appHadWetRoad = snap.hadWetRoad
+        val userRainVisual = decision.userAnsweredSurfaceQuestions &&
+            decision.surfaceConditionType == SurfaceConditionType.RAIN &&
+            decision.isSurfaceConditionConfirmed &&
+            !appHadRain
+        val userNoRainVisual = decision.userAnsweredSurfaceQuestions &&
+            decision.surfaceConditionType == SurfaceConditionType.NONE &&
+            (appHadRain || appHadWetRoad)
+
         return baseRoute.copy(
             // --- VISUALES: final si hubo badges, inicial si ruta tranquila ---
             weatherTemperature   = pick(adjustedSnap.finalTemp, adjustedSnap.initialTemp),
-            weatherEmoji         = pick(adjustedSnap.finalEmoji, adjustedSnap.initialEmoji),
-            weatherDescription   = pick(adjustedSnap.finalDescription, adjustedSnap.initialDescription),
-            weatherCondition     = pick(adjustedSnap.finalCondition, adjustedSnap.initialCondition),
-            weatherCode          = pick(adjustedSnap.finalCode, adjustedSnap.initialCode),
+            weatherEmoji         = when {
+                userRainVisual -> "🌧️"
+                userNoRainVisual -> "☁️"
+                else -> pick(adjustedSnap.finalEmoji, adjustedSnap.initialEmoji)
+            },
+            weatherDescription   = when {
+                userRainVisual -> "Lluvia"
+                userNoRainVisual -> "Nublado"
+                else -> pick(adjustedSnap.finalDescription, adjustedSnap.initialDescription)
+            },
+            weatherCondition     = when {
+                userRainVisual -> "RAIN"
+                userNoRainVisual -> "CLOUDY"
+                else -> pick(adjustedSnap.finalCondition, adjustedSnap.initialCondition)
+            },
+            weatherCode          = when {
+                userRainVisual -> 63
+                userNoRainVisual -> 3
+                else -> pick(adjustedSnap.finalCode, adjustedSnap.initialCode)
+            },
             weatherIsDay         = pick(adjustedSnap.finalIsDay, adjustedSnap.initialIsDay) ?: true,
 
             // --- CONFORT: siempre del inicio (cómo salió el usuario) ---

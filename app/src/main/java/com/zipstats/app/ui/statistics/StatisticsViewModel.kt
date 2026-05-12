@@ -674,7 +674,6 @@ class StatisticsViewModel @Inject constructor(
         }
         val weeklyData = mutableListOf<ChartDataPoint>()
         var weekStart = firstDayOfMonth
-        var weekIndex = 1
 
         while (!weekStart.isAfter(lastDayOfMonth)) {
             val daysUntilSunday = DayOfWeek.SUNDAY.value - weekStart.dayOfWeek.value
@@ -692,13 +691,12 @@ class StatisticsViewModel @Inject constructor(
 
             weeklyData.add(
                 ChartDataPoint(
-                    date = "Sem $weekIndex",
+                    date = "${weekStart.dayOfMonth}-${weekEnd.dayOfMonth}",
                     value = weeklyDistance.roundToOneDecimal()
                 )
             )
 
             weekStart = weekEnd.plusDays(1)
-            weekIndex++
         }
 
         return weeklyData

@@ -1,14 +1,21 @@
 package com.zipstats.app.utils
 
+import com.zipstats.app.model.Record
+import java.time.Instant
 import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.LocalTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import java.time.temporal.ChronoUnit
 import java.util.Date
 
 object DateUtils {
     private val dateFormatter = DateTimeFormatter.ofPattern("dd/MM/yy")
     private val dateTimeFormatter = DateTimeFormatter.ofPattern("dd/MM/yy HH:mm")
     private val apiDateFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")
+    /** ISO local; orden lexicográfico = orden cronológico. */
+    private val apiDateTimeFormatter = DateTimeFormatter.ofPattern("uuuu-MM-dd'T'HH:mm:ss")
 
     private val fullDateFormatter = DateTimeFormatter.ofPattern("dd/MM/yyyy")
 
@@ -19,11 +26,30 @@ object DateUtils {
     // Funciones para el formato de la API
     fun formatForApi(date: LocalDate): String = date.format(apiDateFormatter)
 
+    fun formatForApiDateTime(dateTime: LocalDateTime): String =
+        dateTime.format(apiDateTimeFormatter)
+
+    fun formatForApiFromMillis(epochMs: Long, zoneId: ZoneId = ZoneId.systemDefault()): String =
+        Instant.ofEpochMilli(epochMs).atZone(zoneId).toLocalDateTime()
+            .truncatedTo(ChronoUnit.SECONDS)
+            .format(apiDateTimeFormatter)
+
+    /** Nuevo registro manual: día elegido + hora actual (varios el mismo día se ordenan bien). */
+    fun formatForApiOnDayWithCurrentTime(date: LocalDate, zoneId: ZoneId = ZoneId.systemDefault()): String =
+        LocalDateTime.of(date, LocalTime.now(zoneId).truncatedTo(ChronoUnit.SECONDS))
+            .format(apiDateTimeFormatter)
+
+    /** Edición: cambia el día y conserva la hora del valor guardado. */
+    fun mergeApiDateWithRecordTime(selectedDate: LocalDate, storedFecha: String): String {
+        val original = parseApiDateTimeBestEffort(storedFecha)
+        return formatForApiDateTime(LocalDateTime.of(selectedDate, original.toLocalTime()))
+    }
+
     // 1. Para mostrar en el TextField del DatePicker
     fun formatFullDisplayDate(dateStr: String?): String {
         if (dateStr.isNullOrBlank()) return "-"
         return try {
-            val date = LocalDate.parse(dateStr, apiDateFormatter)
+            val date = parseApiDate(dateStr)
             date.format(fullDateFormatter)
         } catch (e: Exception) {
             dateStr ?: "-"
@@ -47,7 +73,45 @@ object DateUtils {
             }
         }
     }
-    fun parseApiDate(dateStr: String): LocalDate = LocalDate.parse(dateStr, apiDateFormatter)
+    /**
+     * Solo la parte de calendario: admite `yyyy-MM-dd` o `yyyy-MM-dd'T'HH:mm:ss`.
+     */
+    fun parseApiDate(dateStr: String): LocalDate {
+        val t = dateStr.trim()
+        if (t.isEmpty()) throw IllegalArgumentException("fecha vacía")
+        val datePart = if (t.length >= 10) t.take(10) else t
+        return LocalDate.parse(datePart, apiDateFormatter)
+    }
+
+    fun parseApiDateTimeBestEffort(fecha: String): LocalDateTime {
+        val t = fecha.trim()
+        if (t.isEmpty()) return LocalDateTime.now().truncatedTo(ChronoUnit.SECONDS)
+        return runCatching {
+            when {
+                'T' in t -> LocalDateTime.parse(t, apiDateTimeFormatter)
+                t.length >= 10 -> LocalDate.parse(t.take(10), apiDateFormatter).atStartOfDay()
+                else -> LocalDate.parse(t, apiDateFormatter).atStartOfDay()
+            }
+        }.getOrElse { LocalDate.now().atStartOfDay() }
+    }
+
+    /**
+     * Clave para ordenar `fecha` de registros: legacy solo día se trata como 00:00:00.
+     */
+    fun recordFechaSortKey(fecha: String): String {
+        val t = fecha.trim()
+        return when {
+            t.isEmpty() -> ""
+            'T' in t -> t
+            t.length >= 10 -> "${t.take(10)}T00:00:00"
+            else -> t
+        }
+    }
+
+    fun recordComparatorNewestFirst(): Comparator<Record> =
+        compareByDescending<Record> { recordFechaSortKey(it.fecha) }
+            .thenByDescending { it.id }
+
     // Funciones para el formato de visualización
     fun formatForDisplay(date: LocalDate): String = date.format(dateFormatter)
 
@@ -80,8 +144,7 @@ object DateUtils {
     fun formatYear(dateStr: String?): String {
         if (dateStr.isNullOrBlank()) return "-"
         return try {
-            // Reutilizamos el parseo que ya tienes definido
-            val date = LocalDate.parse(dateStr, apiDateFormatter)
+            val date = parseApiDate(dateStr)
             date.year.toString()
         } catch (e: Exception) {
             "-"

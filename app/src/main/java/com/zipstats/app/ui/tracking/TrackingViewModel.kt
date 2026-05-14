@@ -2192,8 +2192,12 @@ class TrackingViewModel @Inject constructor(
 
                     // 8. 📝 AÑADIR A REGISTROS (Si aplica)
                     if (addToRecords) {
-                        processRouteRecords(scooter, finalRoute)
-                        message += "\nDistancia añadida a registros correctamente"
+                        val addedToRecords = processRouteRecords(scooter, finalRoute)
+                        message += if (addedToRecords) {
+                            "\nDistancia añadida a registros correctamente"
+                        } else {
+                            "\nNo se pudo añadir a registros. Puedes añadirla desde el detalle de la ruta."
+                        }
                     }
 
                     _message.value = message
@@ -2636,37 +2640,51 @@ class TrackingViewModel @Inject constructor(
         }
     }
 
-    private suspend fun processRouteRecords(scooter: Scooter, route: Route) {
-        try {
+    /**
+     * Añade la distancia de la ruta al historial de registros (misma lógica que en rutas guardadas).
+     * @return true si el registro se guardó en Firestore
+     */
+    private suspend fun processRouteRecords(scooter: Scooter, route: Route): Boolean {
+        return try {
             Log.d(TAG, "Intentando añadir ruta a registros para patinete: ${scooter.nombre}")
 
-            // 1. Obtener la fecha y los registros actuales
-            val currentDate = java.time.LocalDate.now()
-            val formattedDate = com.zipstats.app.utils.DateUtils.formatForApi(currentDate)
+            val endMs = route.endTime ?: route.startTime
+            val formattedDate = com.zipstats.app.utils.DateUtils.formatForApiFromMillis(endMs)
             val allRecords = recordRepository.getRecords().first()
 
-            // 2. Buscar el último registro de este patinete para saber los km anteriores
             val lastRecord = allRecords
-                .filter { it.patinete == scooter.nombre }
-                .maxByOrNull { it.fecha }
+                .filter { record ->
+                    when {
+                        scooter.id.isNotEmpty() && record.scooterId.isNotEmpty() ->
+                            record.scooterId == scooter.id
+                        else ->
+                            record.patinete == scooter.nombre || record.vehiculo == scooter.nombre
+                    }
+                }
+                .maxWithOrNull(com.zipstats.app.utils.DateUtils.recordComparatorNewestFirst())
 
-            // 3. Calcular el nuevo kilometraje acumulado
             val newKilometraje = if (lastRecord != null) {
                 lastRecord.kilometraje + route.totalDistance
             } else {
                 route.totalDistance
             }
 
-            // 4. Guardar el nuevo registro
-            // (Aquí usa la llamada a tu repositorio que ya tenías escrita)
-            /* recordRepository.saveRecord(...) */
-
-            Log.d(TAG, "✅ Registro actualizado: ${scooter.nombre} ahora tiene $newKilometraje km")
-
+            val result = recordRepository.addRecord(
+                vehiculo = scooter.nombre,
+                kilometraje = newKilometraje,
+                fecha = formattedDate,
+                scooterId = scooter.id.takeIf { it.isNotEmpty() }
+            )
+            result.onSuccess {
+                Log.d(TAG, "✅ Registro guardado: ${scooter.nombre} odómetro $newKilometraje km")
+            }
+            result.onFailure { e ->
+                Log.e(TAG, "❌ Error al guardar registro desde ruta: ${e.message}", e)
+            }
+            result.isSuccess
         } catch (e: Exception) {
-            Log.e(TAG, "❌ Error al procesar registros de kilometraje: ${e.message}")
-            // No lanzamos la excepción para que la ruta se considere guardada
-            // aunque el registro falle
+            Log.e(TAG, "❌ Error al procesar registros de kilometraje: ${e.message}", e)
+            false
         }
     }
     private fun handleTrackingError(e: Exception) {

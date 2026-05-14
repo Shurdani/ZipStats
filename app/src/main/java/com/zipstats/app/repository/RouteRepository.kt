@@ -660,7 +660,8 @@ class RouteRepository @Inject constructor(
 
         // Icono/descripción: solo si el usuario contradice la detección previa (snap = antes del diálogo).
         // Acuerdo app/usuario → no se toca el clima visual (p. ej. app marcó lluvia y el usuario confirma lluvia).
-        // Calzada mojada (WET_ROAD): no se alteran icono ni descripción.
+        // WET_ROAD: no se toca el visual salvo si la app marcó lluvia y el usuario dice que no llovió pero sí mojado
+        // (mismo override «Nublado» que cuando niega lluvia por completo).
         val appHadRain = snap.hadRain
         val appHadWetRoad = snap.hadWetRoad
         val userRainVisual = decision.userAnsweredSurfaceQuestions &&
@@ -668,8 +669,12 @@ class RouteRepository @Inject constructor(
             decision.isSurfaceConditionConfirmed &&
             !appHadRain
         val userNoRainVisual = decision.userAnsweredSurfaceQuestions &&
-            decision.surfaceConditionType == SurfaceConditionType.NONE &&
-            (appHadRain || appHadWetRoad)
+            decision.isSurfaceConditionConfirmed &&
+            (
+                (decision.surfaceConditionType == SurfaceConditionType.NONE &&
+                    (appHadRain || appHadWetRoad)) ||
+                (decision.surfaceConditionType == SurfaceConditionType.WET_ROAD && appHadRain)
+            )
 
         return baseRoute.copy(
             // --- VISUALES: final si hubo badges, inicial si ruta tranquila ---

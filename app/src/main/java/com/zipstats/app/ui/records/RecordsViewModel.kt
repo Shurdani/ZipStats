@@ -16,6 +16,7 @@ import com.zipstats.app.model.Scooter
 import com.zipstats.app.repository.AppOverlayRepository
 import com.zipstats.app.repository.RecordRepository
 import com.zipstats.app.repository.VehicleRepository
+import com.zipstats.app.utils.DateUtils
 import com.zipstats.app.utils.ExcelExporter
 import com.zipstats.app.utils.LocationUtils
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -178,7 +179,7 @@ class RecordsViewModel @Inject constructor(
             // 2. Filtro por Fechas
             val matchesDate = if (start != null || end != null) {
                 try {
-                    val recordDate = LocalDate.parse(record.fecha)
+                    val recordDate = DateUtils.parseApiDate(record.fecha)
                     val afterStart = start == null || !recordDate.isBefore(start)
                     val beforeEnd = end == null || !recordDate.isAfter(end)
                     afterStart && beforeEnd
@@ -188,7 +189,7 @@ class RecordsViewModel @Inject constructor(
             } else true
 
             matchesModel && matchesDate
-        }.sortedByDescending { it.fecha } // Ordenación siempre por fecha
+        }.sortedWith(DateUtils.recordComparatorNewestFirst()) // Fecha con hora cuando existe
 
     }.flowOn(Dispatchers.Default) // Cálculo pesado en hilo secundario
 
@@ -333,7 +334,7 @@ class RecordsViewModel @Inject constructor(
                 val originalRecord = allRecords.find { it.id == recordId }
                 val registroAnterior = allRecords
                     .filter { it.patinete == patinete && it.fecha < fecha && it.id != recordId }
-                    .maxByOrNull { it.fecha }
+                    .maxWithOrNull(DateUtils.recordComparatorNewestFirst())
                 val diferencia = if (registroAnterior != null) {
                     kmDouble - registroAnterior.kilometraje
                 } else {
@@ -374,11 +375,13 @@ class RecordsViewModel @Inject constructor(
 
     fun loadNextPage() {
         if (_isLoadingMore.value || !_hasMorePages.value) return
-        val lastRecord = _allRecords.value.lastOrNull() ?: return
+        val oldestLoaded = _allRecords.value.minWithOrNull(
+            compareBy<Record>({ DateUtils.recordFechaSortKey(it.fecha) }, { it.id })
+        ) ?: return
 
         viewModelScope.launch {
             _isLoadingMore.value = true
-            recordRepository.getNextPage(lastFecha = lastRecord.fecha, pageSize = pageSize)
+            recordRepository.getNextPage(lastFecha = oldestLoaded.fecha, pageSize = pageSize)
                 .onSuccess { newRecords ->
                     if (newRecords.isEmpty()) {
                         _hasMorePages.value = false
@@ -405,7 +408,7 @@ class RecordsViewModel @Inject constructor(
 
                     val matchesDate = if (_startDate.value != null || _endDate.value != null) {
                         try {
-                            val rDate = LocalDate.parse(record.fecha)
+                            val rDate = DateUtils.parseApiDate(record.fecha)
                             val startOk = _startDate.value == null || !rDate.isBefore(_startDate.value)
                             val endOk = _endDate.value == null || !rDate.isAfter(_endDate.value)
                             startOk && endOk
@@ -413,7 +416,7 @@ class RecordsViewModel @Inject constructor(
                     } else true
 
                     matchesScooter && matchesDate
-                }.sortedByDescending { it.fecha }
+                }.sortedWith(DateUtils.recordComparatorNewestFirst())
 
                 val fileName = "registros_vehiculos_${System.currentTimeMillis()}.xlsx"
                 val result = ExcelExporter.exportRecords(context, recordsToExport, fileName)

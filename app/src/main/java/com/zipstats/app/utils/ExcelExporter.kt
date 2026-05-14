@@ -17,7 +17,6 @@ import java.io.FileOutputStream
 import java.text.SimpleDateFormat
 import java.time.LocalDate
 import java.time.ZoneId
-import java.time.format.DateTimeFormatter
 import java.util.Date
 import java.util.Locale
 
@@ -28,7 +27,6 @@ import java.util.Locale
 object ExcelExporter {
     
     private const val TAG = "ExcelExporter"
-    private val apiDateFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")
     
     /**
      * Exporta registros filtrados a Excel
@@ -145,7 +143,7 @@ object ExcelExporter {
         }
         
         // Agregar datos
-        records.sortedByDescending { it.fecha }.forEachIndexed { index, record ->
+        records.sortedWith(DateUtils.recordComparatorNewestFirst()).forEachIndexed { index, record ->
             val row = sheet.createRow(index + 1)
             
             // Vehículo
@@ -326,7 +324,7 @@ object ExcelExporter {
     }
 
     private fun parseApiDateToLocalDate(dateText: String): LocalDate? {
-        return runCatching { LocalDate.parse(dateText, apiDateFormatter) }.getOrNull()
+        return runCatching { DateUtils.parseApiDate(dateText) }.getOrNull()
     }
 
     /**

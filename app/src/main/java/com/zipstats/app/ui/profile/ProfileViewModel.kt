@@ -1299,12 +1299,12 @@ class ProfileViewModel @Inject constructor(
                 // Buscar por scooterId (preferido)
                 records
                     .filter { it.scooterId == scooterId }
-                    .maxByOrNull { it.fecha }
+                    .maxWithOrNull(DateUtils.recordComparatorNewestFirst())
             } else if (vehicleName != null) {
                 // Fallback: buscar por nombre para compatibilidad con registros antiguos
                 records
                     .filter { it.vehicleName == vehicleName }
-                    .maxByOrNull { it.fecha }
+                    .maxWithOrNull(DateUtils.recordComparatorNewestFirst())
             } else {
                 null
             }

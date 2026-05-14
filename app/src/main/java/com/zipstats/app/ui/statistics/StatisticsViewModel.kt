@@ -20,6 +20,7 @@ import com.zipstats.app.repository.RecordRepository
 import com.zipstats.app.repository.RouteRepository
 import com.zipstats.app.repository.UserRepository
 import com.zipstats.app.repository.VehicleRepository
+import com.zipstats.app.utils.DateUtils
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -375,7 +376,7 @@ class StatisticsViewModel @Inject constructor(
             // --- REGENERAR LISTA DE MESES PARA EL FILTRO ---
             val monthYears = records.mapNotNull { record ->
                 try {
-                    val date = LocalDate.parse(record.fecha)
+                    val date = DateUtils.parseApiDate(record.fecha)
                     Pair(date.monthValue, date.year)
                 } catch (e: Exception) { null }
             }.distinct().sortedWith(compareByDescending<Pair<Int, Int>> { it.second }.thenByDescending { it.first })
@@ -451,6 +452,8 @@ class StatisticsViewModel @Inject constructor(
             _weatherStats.value = calculateWeatherStats(manualDist, filteredGpsRoutes)
             val periodWeatherExtremes = calculatePeriodWeatherExtremes(filteredGpsRoutes)
 
+            val newestRecord = records.maxWithOrNull(DateUtils.recordComparatorNewestFirst())
+
             // --- EMITIR RESULTADOS ---
             _statistics.value = StatisticsUiState.Success(
                 totalDistance = totalDistance,
@@ -463,8 +466,8 @@ class StatisticsViewModel @Inject constructor(
                 maxDistance = records.maxOfOrNull { it.diferencia }?.roundToOneDecimal() ?: 0.0,
                 averageDistance = if (records.isNotEmpty()) (records.sumOf { it.diferencia } / records.size).roundToOneDecimal() else 0.0,
                 totalRecords = records.size,
-                lastRecordDate = records.maxByOrNull { it.fecha }?.fecha ?: "No hay registros",
-                lastRecordDistance = records.maxByOrNull { it.fecha }?.diferencia?.roundToOneDecimal() ?: 0.0,
+                lastRecordDate = newestRecord?.fecha ?: "No hay registros",
+                lastRecordDistance = newestRecord?.diferencia?.roundToOneDecimal() ?: 0.0,
                 monthlyMaxDistance = monthlyRecords.maxOfOrNull { it.diferencia }?.roundToOneDecimal() ?: 0.0,
                 monthlyAverageDistance = if (monthlyRecords.isNotEmpty()) (monthlyRecords.sumOf { it.diferencia } / monthlyRecords.size).roundToOneDecimal() else 0.0,
                 monthlyRecords = monthlyRecords.size,
@@ -757,7 +760,7 @@ class StatisticsViewModel @Inject constructor(
         val yearlyDistances = records
             .mapNotNull { record ->
                 try {
-                    LocalDate.parse(record.fecha).year to record
+                    DateUtils.parseApiDate(record.fecha).year to record
                 } catch (e: Exception) {
                     null
                 }

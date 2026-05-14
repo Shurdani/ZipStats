@@ -189,7 +189,7 @@ fun RecordsHistoryScreen(
 
     // Lógica para determinar el patinete por defecto (el último usado)
     val lastUsedScooterName = remember(records) {
-        records.maxByOrNull { it.fecha }?.patinete
+        records.maxWithOrNull(DateUtils.recordComparatorNewestFirst())?.patinete
     }
 
     val isWaitingInitialPage =
@@ -567,7 +567,7 @@ fun NewRecordBottomSheet(
     val previousMileage = remember(selectedScooter, records) {
         records
             .filter { it.patinete == selectedScooter }
-            .maxByOrNull { it.fecha }?.kilometraje
+            .maxWithOrNull(DateUtils.recordComparatorNewestFirst())?.kilometraje
     }
 
     // Date Picker (Se muestra por encima del BottomSheet)
@@ -734,7 +734,7 @@ fun NewRecordBottomSheet(
                                 onConfirm(
                                     selectedScooter,
                                     kilometraje,
-                                    DateUtils.formatForApi(selectedDate)
+                                    DateUtils.formatForApiOnDayWithCurrentTime(selectedDate)
                                 )
                             }
                         }
@@ -914,7 +914,7 @@ fun EditRecordBottomSheet(
                         onSave(
                             selectedScooter,
                             kilometraje,
-                            DateUtils.formatForApi(selectedDate)
+                            DateUtils.mergeApiDateWithRecordTime(selectedDate, record.fecha)
                         )
                     }
                 },

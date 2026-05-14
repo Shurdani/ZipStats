@@ -12,12 +12,14 @@ import androidx.core.content.FileProvider
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mapbox.geojson.Point
+import com.zipstats.app.model.Record
 import com.zipstats.app.model.Route
 import com.zipstats.app.model.Scooter
 import com.zipstats.app.repository.AppOverlayRepository
 import com.zipstats.app.repository.RecordRepository
 import com.zipstats.app.repository.RouteRepository
 import com.zipstats.app.repository.VehicleRepository
+import com.zipstats.app.utils.DateUtils
 import com.zipstats.app.utils.LocationUtils
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -236,6 +238,15 @@ class RoutesViewModel @Inject constructor(
 
 
 
+    /** Coincide registro con la ruta por scooterId (preferido) o por nombre del vehículo */
+    private fun recordMatchesRouteVehicle(record: Record, route: Route): Boolean =
+        when {
+            route.scooterId.isNotEmpty() && record.scooterId.isNotEmpty() ->
+                record.scooterId == route.scooterId
+            else ->
+                record.patinete == route.scooterName || record.vehiculo == route.scooterName
+        }
+
     /**
      * Verifica si una ruta ya fue añadida a los registros
      */
@@ -245,12 +256,11 @@ class RoutesViewModel @Inject constructor(
             val routeDate = java.time.Instant.ofEpochMilli(route.startTime)
                 .atZone(java.time.ZoneId.systemDefault())
                 .toLocalDate()
-            val formattedDate = com.zipstats.app.utils.DateUtils.formatForApi(routeDate)
-            
-            // Buscar si hay un registro del mismo patinete en la misma fecha
-            // con una distancia que incluya la distancia de la ruta
+
+            // Mismo día de calendario (el campo fecha puede incluir hora)
             val recordsForScooter = allRecords.filter { record ->
-                record.patinete == route.scooterName && record.fecha == formattedDate 
+                recordMatchesRouteVehicle(record, route) &&
+                    DateUtils.parseApiDate(record.fecha) == routeDate
             }
             
             // Si hay registros del mismo día, verificar si la distancia coincide
@@ -269,29 +279,27 @@ class RoutesViewModel @Inject constructor(
     fun addRouteToRecords(route: Route) {
         viewModelScope.launch {
             try {
-                // Obtener la fecha de la ruta
-                val routeDate = java.time.Instant.ofEpochMilli(route.startTime)
-                    .atZone(java.time.ZoneId.systemDefault())
-                    .toLocalDate()
-                val formattedDate = com.zipstats.app.utils.DateUtils.formatForApi(routeDate)
-                
-                // Obtener el último registro del patinete
+                val endMs = route.endTime ?: route.startTime
+                val fechaRegistro = DateUtils.formatForApiFromMillis(endMs)
+
+                // Obtener el último registro del vehículo (id permanente o nombre)
                 val allRecords = recordRepository.getRecords().first()
                 val lastRecord = allRecords
-                    .filter { record -> record.patinete == route.scooterName }
-                    .maxByOrNull { record -> record.fecha }
-                
+                    .filter { record -> recordMatchesRouteVehicle(record, route) }
+                    .maxWithOrNull(DateUtils.recordComparatorNewestFirst())
+
                 val newKilometraje = if (lastRecord != null) {
                     lastRecord.kilometraje + route.totalDistance
                 } else {
                     route.totalDistance
                 }
-                
+
                 // Añadir el registro
                 recordRepository.addRecord(
                     vehiculo = route.scooterName,
                     kilometraje = newKilometraje,
-                    fecha = formattedDate
+                    fecha = fechaRegistro,
+                    scooterId = route.scooterId.takeIf { it.isNotEmpty() }
                 ).onSuccess {
                     _message.value = "Ruta añadida a registros: ${LocationUtils.formatNumberSpanish(route.totalDistance)} km"
                 }.onFailure { e ->

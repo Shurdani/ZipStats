@@ -6,6 +6,7 @@ import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreException
 import com.google.firebase.firestore.Query
 import com.zipstats.app.model.Record
+import com.zipstats.app.utils.DateUtils
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
@@ -85,7 +86,7 @@ class RecordRepository @Inject constructor(
                             println("Error al convertir documento: ${e.message}")
                             null
                         }
-                    }?.sortedByDescending { it.fecha } ?: emptyList()
+                    }?.sortedWith(DateUtils.recordComparatorNewestFirst()) ?: emptyList()
 
                     // Verificar nuevamente antes de enviar datos
                     if (auth.currentUser == null) {
@@ -147,7 +148,9 @@ class RecordRepository @Inject constructor(
                         )
                     } catch (_: Exception) { null }
                 } ?: emptyList()
-                if (auth.currentUser != null) trySend(records)
+                if (auth.currentUser != null) {
+                    trySend(records.sortedWith(DateUtils.recordComparatorNewestFirst()))
+                }
             }
         awaitClose { subscription.remove() }
     }
@@ -180,7 +183,7 @@ class RecordRepository @Inject constructor(
                     )
                 } catch (_: Exception) { null }
             }
-            Result.success(records)
+            Result.success(records.sortedWith(DateUtils.recordComparatorNewestFirst()))
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -226,11 +229,11 @@ class RecordRepository @Inject constructor(
             // Registro cronológico inmediatamente anterior (misma fecha excluida: fecha < nueva)
             val previousRecord = vehicleRecords
                 .filter { it.fecha < fecha }
-                .maxByOrNull { it.fecha }
+                .maxWithOrNull(compareBy({ DateUtils.recordFechaSortKey(it.fecha) }, { it.id }))
             // Siguiente en el tiempo: debe recalcular su diferencia respecto al nuevo odómetro
             val nextRecord = vehicleRecords
                 .filter { it.fecha > fecha }
-                .minByOrNull { it.fecha }
+                .minWithOrNull(compareBy({ DateUtils.recordFechaSortKey(it.fecha) }, { it.id }))
 
             val newDiferencia = if (previousRecord != null) {
                 kilometraje - previousRecord.kilometraje
@@ -328,7 +331,7 @@ class RecordRepository @Inject constructor(
     private suspend fun repairOdometerChainForVehicleInternal(vehiculo: String) {
         val vehicleRecords = getAllRecords()
             .filter { it.patinete == vehiculo || it.vehicleName == vehiculo }
-            .sortedWith(compareBy({ it.fecha }, { it.id }))
+            .sortedWith(compareBy({ DateUtils.recordFechaSortKey(it.fecha) }, { it.id }))
 
         if (vehicleRecords.isEmpty()) return
 
@@ -438,6 +441,7 @@ class RecordRepository @Inject constructor(
     suspend fun getPreviousMileageForDate(patinete: String, fechaIso: String): Double? {
         return try {
             val userId = auth.currentUser?.uid ?: return null
+            val repairDay = DateUtils.parseApiDate(fechaIso)
             val records = recordsCollection
                 .whereEqualTo("userId", userId)
                 .whereEqualTo("patinete", patinete)
@@ -445,8 +449,8 @@ class RecordRepository @Inject constructor(
                 .await()
                 .documents
                 .mapNotNull { it.toObject(Record::class.java) }
-                .filter { it.fecha <= fechaIso }
-                .maxByOrNull { it.fecha }
+                .filter { DateUtils.parseApiDate(it.fecha) <= repairDay }
+                .maxWithOrNull(compareBy({ DateUtils.recordFechaSortKey(it.fecha) }, { it.id }))
             // Redondear a 1 decimal
             records?.kilometraje?.let { km ->
                 (kotlin.math.round(km * 10.0) / 10.0)

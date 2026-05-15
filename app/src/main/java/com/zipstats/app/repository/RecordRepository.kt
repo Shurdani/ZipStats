@@ -189,42 +189,28 @@ class RecordRepository @Inject constructor(
         }
     }
 
+    /**
+     * Añade la distancia de una ruta al odómetro acumulado del vehículo (misma semántica que
+     * introducir el odómetro total manualmente en Historial de Registros).
+     */
+    suspend fun addRecordFromRouteDistance(
+        vehiculo: String,
+        distanceKm: Double,
+        fecha: String,
+        scooterId: String? = null
+    ): Result<Unit> {
+        val userId = auth.currentUser?.uid ?: return Result.failure(Exception("Usuario no autenticado"))
+        val vehicleRecords = fetchRecordsForVehicle(userId, vehiculo, scooterId)
+        val latestOdometer = vehicleRecords
+            .maxWithOrNull(DateUtils.recordComparatorNewestFirst())
+            ?.kilometraje ?: 0.0
+        return addRecord(vehiculo, latestOdometer + distanceKm, fecha, scooterId)
+    }
+
     suspend fun addRecord(vehiculo: String, kilometraje: Double, fecha: String, scooterId: String? = null): Result<Unit> {
         return try {
             val userId = auth.currentUser?.uid ?: throw Exception("Usuario no autenticado")
-
-            fun docToRecord(doc: DocumentSnapshot): Record? {
-                val data = doc.data ?: return null
-                return Record(
-                    id = doc.id,
-                    vehiculo = data["vehiculo"] as? String ?: "",
-                    patinete = data["patinete"] as? String ?: "",
-                    scooterId = data["scooterId"] as? String ?: "",
-                    fecha = data["fecha"] as? String ?: "",
-                    kilometraje = (data["kilometraje"] as? Number)?.toDouble() ?: 0.0,
-                    diferencia = (data["diferencia"] as? Number)?.toDouble() ?: 0.0,
-                    userId = data["userId"] as? String ?: "",
-                    isInitialRecord = data["isInitialRecord"] as? Boolean ?: false
-                )
-            }
-
-            val vehicleRecords = if (!scooterId.isNullOrEmpty()) {
-                recordsCollection
-                    .whereEqualTo("userId", userId)
-                    .whereEqualTo("scooterId", scooterId)
-                    .get()
-                    .await()
-                    .documents
-                    .mapNotNull { docToRecord(it) }
-            } else {
-                recordsCollection
-                    .whereEqualTo("userId", userId)
-                    .get()
-                    .await()
-                    .documents
-                    .mapNotNull { docToRecord(it) }
-                    .filter { it.vehicleName == vehiculo }
-            }
+            val vehicleRecords = fetchRecordsForVehicle(userId, vehiculo, scooterId)
 
             // Registro cronológico inmediatamente anterior (misma fecha excluida: fecha < nueva)
             val previousRecord = vehicleRecords
@@ -272,6 +258,44 @@ class RecordRepository @Inject constructor(
         } catch (e: Exception) {
             Result.failure(e)
         }
+    }
+
+    private fun documentToRecord(doc: DocumentSnapshot): Record? {
+        val data = doc.data ?: return null
+        return Record(
+            id = doc.id,
+            vehiculo = data["vehiculo"] as? String ?: "",
+            patinete = data["patinete"] as? String ?: "",
+            scooterId = data["scooterId"] as? String ?: "",
+            fecha = data["fecha"] as? String ?: "",
+            kilometraje = (data["kilometraje"] as? Number)?.toDouble() ?: 0.0,
+            diferencia = (data["diferencia"] as? Number)?.toDouble() ?: 0.0,
+            userId = data["userId"] as? String ?: "",
+            isInitialRecord = data["isInitialRecord"] as? Boolean ?: false
+        )
+    }
+
+    /** Incluye registros por scooterId y legacy sin id (mismo nombre de vehículo). */
+    private suspend fun fetchRecordsForVehicle(
+        userId: String,
+        vehiculo: String,
+        scooterId: String?
+    ): List<Record> {
+        return recordsCollection
+            .whereEqualTo("userId", userId)
+            .get()
+            .await()
+            .documents
+            .mapNotNull { documentToRecord(it) }
+            .filter { record -> record.matchesVehicle(vehiculo, scooterId) }
+    }
+
+    private fun Record.matchesVehicle(vehiculo: String, scooterId: String?): Boolean {
+        if (!scooterId.isNullOrEmpty()) {
+            if (scooterId.isNotEmpty() && this.scooterId == scooterId) return true
+            return this.scooterId.isEmpty() && this.vehicleName == vehiculo
+        }
+        return vehicleName == vehiculo
     }
 
     suspend fun deleteRecord(recordId: String): Result<Unit> {

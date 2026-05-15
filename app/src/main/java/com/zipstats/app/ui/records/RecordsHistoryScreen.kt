@@ -2,7 +2,9 @@ package com.zipstats.app.ui.records
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -96,7 +98,7 @@ import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.ZoneId
 
-@OptIn(ExperimentalMaterial3Api::class, FlowPreview::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class, FlowPreview::class)
 @Composable
 fun RecordsHistoryScreen(
     navController: NavController,
@@ -135,20 +137,9 @@ fun RecordsHistoryScreen(
     var previousTopRecordId by remember { mutableStateOf(records.firstOrNull()?.id) }
 
 
-    // Filtrar registros según el patinete seleccionado
-    val filteredRecords = remember(records, selectedModel, userScooters) {
-        when (selectedModel) {
-            null -> records
-            else -> records.filter { record ->
-                val matchingScooter = userScooters.find { it.nombre == record.patinete }
-                matchingScooter?.modelo == selectedModel
-            }
-        }
-    }
-
     // Al cambiar de filtro, volvemos al inicio si hay resultados visibles
     LaunchedEffect(selectedModel) {
-        if (filteredRecords.isNotEmpty()) {
+        if (records.isNotEmpty()) {
             listState.scrollToItem(0)
         }
     }
@@ -160,7 +151,7 @@ fun RecordsHistoryScreen(
             previousTopRecordId != null &&
             currentTopRecordId != null &&
             currentTopRecordId != previousTopRecordId &&
-            filteredRecords.isNotEmpty()
+            records.isNotEmpty()
         ) {
             listState.animateScrollToItem(0)
         }
@@ -168,7 +159,7 @@ fun RecordsHistoryScreen(
     }
 
     // Infinite scroll: cargar más al acercarse al final
-    LaunchedEffect(listState, filteredRecords.size, hasMorePages, isLoadingMore) {
+    LaunchedEffect(listState, records.size, hasMorePages, isLoadingMore) {
         snapshotFlow {
             val lastVisible = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
             val total = listState.layoutInfo.totalItemsCount
@@ -180,9 +171,9 @@ fun RecordsHistoryScreen(
             .collect { viewModel.loadNextPage() }
     }
 
-    // Con filtro activo, seguir cargando para completar resultados visibles
-    LaunchedEffect(selectedModel, filteredRecords.size, hasMorePages, isLoadingMore) {
-        if (selectedModel != null && filteredRecords.size < 3 && hasMorePages && !isLoadingMore) {
+      // Con filtro activo, seguir cargando para completar resultados visibles
+    LaunchedEffect(selectedModel, records.size, hasMorePages, isLoadingMore) {
+        if (selectedModel != null && records.size < 3 && hasMorePages && !isLoadingMore) {
             viewModel.loadNextPage()
         }
     }
@@ -196,7 +187,7 @@ fun RecordsHistoryScreen(
         !initialDataResolved
     val isWaitingFilteredResults =
         selectedModel != null &&
-            filteredRecords.isEmpty() &&
+            records.isEmpty() &&
             hasMorePages
     val shouldShowOnboarding =
         initialDataResolved &&
@@ -262,12 +253,17 @@ fun RecordsHistoryScreen(
         )
     }
 
-    val editRecordSheetState = rememberModalBottomSheetState()
+    val editRecordSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val scope = rememberCoroutineScope()
-    
+
     if (recordToEdit != null) {
         ModalBottomSheet(
-            onDismissRequest = { },
+            onDismissRequest = {
+                scope.launch {
+                    editRecordSheetState.hide()
+                    recordToEdit = null
+                }
+            },
             sheetState = editRecordSheetState,
             dragHandle = { BottomSheetDefaults.DragHandle() }
         ) {
@@ -393,7 +389,7 @@ fun RecordsHistoryScreen(
                 ) {
                     CircularProgressIndicator()
                 }
-            } else if (filteredRecords.isEmpty() && !isWaitingFilteredResults && !isWaitingInitialPage) {
+            } else if (records.isEmpty() && !isWaitingFilteredResults && !isWaitingInitialPage) {
                 if (initialDataResolved && !shouldShowOnboarding) {
                     EmptyStateRecords(
                         onAddRecord = {
@@ -418,13 +414,12 @@ fun RecordsHistoryScreen(
                         .weight(1f)
                 ) {
                     itemsIndexed(
-                        items = filteredRecords,
+                        items = records,
                         key = { _, record -> record.id }
-                    ) { _, record -> // Ya no necesitamos el index para el color
-                        val interactionSource = remember { MutableInteractionSource() }
+                    ) { _, record ->
+                        val interactionSource = remember(record.id) { MutableInteractionSource() }
                         val scooter = userScooters.find { it.nombre == record.patinete }
-                        
-                        // 1. Contenedor CLICKABLE limpio
+
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -436,10 +431,11 @@ fun RecordsHistoryScreen(
                                     color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f),
                                     shape = RoundedCornerShape(16.dp)
                                 )
-                                .clickable(
+                                .combinedClickable(
                                     interactionSource = interactionSource,
                                     indication = null,
-                                    onClick = { recordToEdit = record }
+                                    onClick = { recordToEdit = record },
+                                    onLongClick = { /* Consumir pulsación larga: evita conflicto con scroll y apertura accidental del sheet */ }
                                 )
                         ) {
                             ListItem(

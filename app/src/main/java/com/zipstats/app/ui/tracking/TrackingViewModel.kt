@@ -2650,33 +2650,15 @@ class TrackingViewModel @Inject constructor(
 
             val endMs = route.endTime ?: route.startTime
             val formattedDate = com.zipstats.app.utils.DateUtils.formatForApiFromMillis(endMs)
-            val allRecords = recordRepository.getRecords().first()
 
-            val lastRecord = allRecords
-                .filter { record ->
-                    when {
-                        scooter.id.isNotEmpty() && record.scooterId.isNotEmpty() ->
-                            record.scooterId == scooter.id
-                        else ->
-                            record.patinete == scooter.nombre || record.vehiculo == scooter.nombre
-                    }
-                }
-                .maxWithOrNull(com.zipstats.app.utils.DateUtils.recordComparatorNewestFirst())
-
-            val newKilometraje = if (lastRecord != null) {
-                lastRecord.kilometraje + route.totalDistance
-            } else {
-                route.totalDistance
-            }
-
-            val result = recordRepository.addRecord(
+            val result = recordRepository.addRecordFromRouteDistance(
                 vehiculo = scooter.nombre,
-                kilometraje = newKilometraje,
+                distanceKm = route.totalDistance,
                 fecha = formattedDate,
                 scooterId = scooter.id.takeIf { it.isNotEmpty() }
             )
             result.onSuccess {
-                Log.d(TAG, "✅ Registro guardado: ${scooter.nombre} odómetro $newKilometraje km")
+                Log.d(TAG, "✅ Registro guardado: ${scooter.nombre} +${route.totalDistance} km (ruta)")
             }
             result.onFailure { e ->
                 Log.e(TAG, "❌ Error al guardar registro desde ruta: ${e.message}", e)

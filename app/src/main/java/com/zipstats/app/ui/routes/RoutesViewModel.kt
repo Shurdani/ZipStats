@@ -282,22 +282,9 @@ class RoutesViewModel @Inject constructor(
                 val endMs = route.endTime ?: route.startTime
                 val fechaRegistro = DateUtils.formatForApiFromMillis(endMs)
 
-                // Obtener el último registro del vehículo (id permanente o nombre)
-                val allRecords = recordRepository.getRecords().first()
-                val lastRecord = allRecords
-                    .filter { record -> recordMatchesRouteVehicle(record, route) }
-                    .maxWithOrNull(DateUtils.recordComparatorNewestFirst())
-
-                val newKilometraje = if (lastRecord != null) {
-                    lastRecord.kilometraje + route.totalDistance
-                } else {
-                    route.totalDistance
-                }
-
-                // Añadir el registro
-                recordRepository.addRecord(
+                recordRepository.addRecordFromRouteDistance(
                     vehiculo = route.scooterName,
-                    kilometraje = newKilometraje,
+                    distanceKm = route.totalDistance,
                     fecha = fechaRegistro,
                     scooterId = route.scooterId.takeIf { it.isNotEmpty() }
                 ).onSuccess {

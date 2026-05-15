@@ -22,8 +22,8 @@ android {
         applicationId "com.zipstats.app"
         minSdk 33
         targetSdk 34
-        versionCode 105
-        versionName "7.3.0"
+        versionCode 106
+        versionName "7.3.1"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {

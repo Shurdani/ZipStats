@@ -7,10 +7,12 @@ import com.google.firebase.firestore.FirebaseFirestoreException
 import com.google.firebase.firestore.Query
 import com.zipstats.app.model.Record
 import com.zipstats.app.utils.DateUtils
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -20,6 +22,13 @@ class RecordRepository @Inject constructor(
     private val auth: FirebaseAuth
 ) {
     private val recordsCollection = firestore.collection("registros")
+
+    companion object {
+        const val DEFAULT_PAGE_SIZE = 20
+    }
+
+    @Volatile
+    private var cachedFirstPageRecords: List<Record>? = null
 
     fun getRecords(): Flow<List<Record>> = callbackFlow {
         try {
@@ -113,9 +122,45 @@ class RecordRepository @Inject constructor(
         }
     }
 
+    suspend fun preloadFirstPageRecords(pageSize: Int = DEFAULT_PAGE_SIZE): Result<List<Record>> =
+        withContext(Dispatchers.IO) {
+            fetchFirstPageRecords(pageSize).also { result ->
+                result.onSuccess { cachedFirstPageRecords = it }
+            }
+        }
+
+    fun peekFirstPageCache(): List<Record>? = cachedFirstPageRecords
+
+    fun clearFirstPageCache() {
+        cachedFirstPageRecords = null
+    }
+
+    private suspend fun fetchFirstPageRecords(pageSize: Int): Result<List<Record>> {
+        return try {
+            val userId = auth.currentUser?.uid
+                ?: return Result.failure(Exception("Usuario no autenticado"))
+            val snapshot = recordsCollection
+                .whereEqualTo("userId", userId)
+                .orderBy("fecha", Query.Direction.DESCENDING)
+                .limit(pageSize.toLong())
+                .get()
+                .await()
+            val records = snapshot.documents
+                .mapNotNull { documentToRecord(it) }
+                .sortedWith(DateUtils.recordComparatorNewestFirst())
+            Result.success(records)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     // Versión paginada para la UI (primera página con listener reactivo)
-    fun getRecordsFlow(pageSize: Int = 20): Flow<List<Record>> = callbackFlow {
+    fun getRecordsFlow(pageSize: Int = DEFAULT_PAGE_SIZE): Flow<List<Record>> = callbackFlow {
         val userId = auth.currentUser?.uid ?: run { close(Exception("Usuario no autenticado")); return@callbackFlow }
+
+        peekFirstPageCache()?.let { cached ->
+            trySend(cached)
+        }
 
         val subscription = recordsCollection
             .whereEqualTo("userId", userId)
@@ -198,35 +243,54 @@ class RecordRepository @Inject constructor(
         distanceKm: Double,
         fecha: String,
         scooterId: String? = null
-    ): Result<Unit> {
-        val userId = auth.currentUser?.uid ?: return Result.failure(Exception("Usuario no autenticado"))
+    ): Result<Unit> = withContext(Dispatchers.IO) {
+        val userId = auth.currentUser?.uid ?: return@withContext Result.failure(Exception("Usuario no autenticado"))
         val vehicleRecords = fetchRecordsForVehicle(userId, vehiculo, scooterId)
-        val latestOdometer = vehicleRecords
-            .maxWithOrNull(DateUtils.recordComparatorNewestFirst())
-            ?.kilometraje ?: 0.0
-        return addRecord(vehiculo, latestOdometer + distanceKm, fecha, scooterId)
+        val resolvedVehiculo = resolveVehicleName(vehiculo, vehicleRecords)
+        val targetKilometraje = resolveTargetOdometerForRouteInsert(vehicleRecords, fecha, distanceKm)
+        addRecordInternal(
+            vehiculo = resolvedVehiculo,
+            kilometraje = targetKilometraje,
+            fecha = fecha,
+            scooterId = scooterId
+        )
     }
 
-    suspend fun addRecord(vehiculo: String, kilometraje: Double, fecha: String, scooterId: String? = null): Result<Unit> {
+    suspend fun addRecord(vehiculo: String, kilometraje: Double, fecha: String, scooterId: String? = null): Result<Unit> =
+        withContext(Dispatchers.IO) {
+            addRecordInternal(vehiculo, kilometraje, fecha, scooterId)
+        }
+
+    private suspend fun addRecordInternal(
+        vehiculo: String,
+        kilometraje: Double,
+        fecha: String,
+        scooterId: String?
+    ): Result<Unit> {
         return try {
             val userId = auth.currentUser?.uid ?: throw Exception("Usuario no autenticado")
             val vehicleRecords = fetchRecordsForVehicle(userId, vehiculo, scooterId)
+            val resolvedVehiculo = resolveVehicleName(vehiculo, vehicleRecords)
+            val newFechaKey = DateUtils.recordFechaSortKey(fecha)
 
-            // Registro cronológico inmediatamente anterior (misma fecha excluida: fecha < nueva)
+            // Registro cronológico inmediatamente anterior (fecha estrictamente menor)
             val previousRecord = vehicleRecords
-                .filter { it.fecha < fecha }
+                .filter { DateUtils.recordFechaSortKey(it.fecha) < newFechaKey }
                 .maxWithOrNull(compareBy({ DateUtils.recordFechaSortKey(it.fecha) }, { it.id }))
             // Siguiente en el tiempo: debe recalcular su diferencia respecto al nuevo odómetro
             val nextRecord = vehicleRecords
-                .filter { it.fecha > fecha }
+                .filter { DateUtils.recordFechaSortKey(it.fecha) > newFechaKey }
                 .minWithOrNull(compareBy({ DateUtils.recordFechaSortKey(it.fecha) }, { it.id }))
 
-            val newDiferencia = if (previousRecord != null) {
-                kilometraje - previousRecord.kilometraje
-            } else {
-                0.0
+            val newDiferencia = when {
+                previousRecord != null -> kilometraje - previousRecord.kilometraje
+                nextRecord != null -> {
+                    val odometerBeforeNext = nextRecord.kilometraje - nextRecord.diferencia
+                    kilometraje - odometerBeforeNext
+                }
+                else -> 0.0
             }
-            val newIsInitial = previousRecord == null
+            val newIsInitial = previousRecord == null && nextRecord == null
 
             val batch = firestore.batch()
             val newDocRef = recordsCollection.document()
@@ -234,26 +298,16 @@ class RecordRepository @Inject constructor(
                 "fecha" to fecha,
                 "kilometraje" to kilometraje,
                 "diferencia" to newDiferencia,
-                "vehiculo" to vehiculo,
-                "patinete" to vehiculo,
+                "vehiculo" to resolvedVehiculo,
+                "patinete" to resolvedVehiculo,
                 "scooterId" to (scooterId ?: ""),
                 "userId" to userId,
                 "isInitialRecord" to newIsInitial
             )
             batch.set(newDocRef, newRecordData)
 
-            if (nextRecord != null) {
-                val nextDiferencia = nextRecord.kilometraje - kilometraje
-                val nextUpdates = hashMapOf<String, Any>(
-                    "diferencia" to nextDiferencia
-                )
-                if (nextRecord.isInitialRecord) {
-                    nextUpdates["isInitialRecord"] = false
-                }
-                batch.update(recordsCollection.document(nextRecord.id), nextUpdates)
-            }
-
             batch.commit().await()
+            repairOdometerChainForVehicleInternal(resolvedVehiculo, scooterId)
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
@@ -275,27 +329,135 @@ class RecordRepository @Inject constructor(
         )
     }
 
-    /** Incluye registros por scooterId y legacy sin id (mismo nombre de vehículo). */
+    /**
+     * Registros del vehículo: unión por id, nombre y reglas legacy.
+     * Los registros manuales suelen tener [Record.scooterId] vacío y solo [Record.patinete].
+     */
     private suspend fun fetchRecordsForVehicle(
         userId: String,
         vehiculo: String,
         scooterId: String?
     ): List<Record> {
-        return recordsCollection
-            .whereEqualTo("userId", userId)
-            .get()
-            .await()
-            .documents
-            .mapNotNull { documentToRecord(it) }
-            .filter { record -> record.matchesVehicle(vehiculo, scooterId) }
+        val allRecords = loadAllUserRecordsFromFirestore(userId)
+        val byMatch = allRecords.filter { it.matchesVehicle(vehiculo, scooterId) }
+        val byId = if (!scooterId.isNullOrEmpty()) {
+            allRecords.filter { it.scooterId == scooterId }
+        } else {
+            emptyList()
+        }
+        val byName = if (vehiculo.isNotEmpty()) {
+            allRecords.filter { it.patinete == vehiculo || it.vehiculo == vehiculo }
+        } else {
+            emptyList()
+        }
+        return (byMatch + byId + byName).distinctBy { it.id }
     }
 
-    private fun Record.matchesVehicle(vehiculo: String, scooterId: String?): Boolean {
-        if (!scooterId.isNullOrEmpty()) {
-            if (scooterId.isNotEmpty() && this.scooterId == scooterId) return true
-            return this.scooterId.isEmpty() && this.vehicleName == vehiculo
+    private suspend fun loadAllUserRecordsFromFirestore(userId: String): List<Record> =
+        withContext(Dispatchers.IO) {
+            recordsCollection
+                .whereEqualTo("userId", userId)
+                .get()
+                .await()
+                .documents
+                .mapNotNull { documentToRecord(it) }
         }
-        return vehicleName == vehiculo
+
+    /** Coincide por id permanente o por nombre (registros sin scooterId). */
+    private fun Record.matchesVehicle(vehiculo: String, scooterId: String?): Boolean {
+        if (!scooterId.isNullOrEmpty() && scooterId.isNotEmpty() && this.scooterId == scooterId) {
+            return true
+        }
+        if (vehiculo.isNotEmpty()) {
+            return patinete == vehiculo || this.vehiculo == vehiculo
+        }
+        return false
+    }
+
+    /**
+     * Odómetro total tras sumar [distanceKm] de una ruta, respetando la fecha de la ruta
+     * aunque ya existan registros posteriores (p. ej. tarde añadida antes que mañana).
+     */
+    private fun resolveTargetOdometerForRouteInsert(
+        vehicleRecords: List<Record>,
+        fecha: String,
+        distanceKm: Double
+    ): Double {
+        if (vehicleRecords.isEmpty()) return distanceKm
+        val newFechaKey = DateUtils.recordFechaSortKey(fecha)
+        val previousRecord = vehicleRecords
+            .filter { DateUtils.recordFechaSortKey(it.fecha) < newFechaKey }
+            .maxWithOrNull(compareBy({ DateUtils.recordFechaSortKey(it.fecha) }, { it.id }))
+        if (previousRecord != null) {
+            return previousRecord.kilometraje + distanceKm
+        }
+        val nextRecord = vehicleRecords
+            .filter { DateUtils.recordFechaSortKey(it.fecha) > newFechaKey }
+            .minWithOrNull(compareBy({ DateUtils.recordFechaSortKey(it.fecha) }, { it.id }))
+        if (nextRecord != null) {
+            val odometerBeforeNext = nextRecord.kilometraje - nextRecord.diferencia
+            return odometerBeforeNext + distanceKm
+        }
+        return distanceKm
+    }
+
+    private fun resolveVehicleName(vehiculo: String, vehicleRecords: List<Record>): String {
+        if (vehiculo.isNotEmpty()) return vehiculo
+        return vehicleRecords
+            .maxWithOrNull(DateUtils.recordComparatorNewestFirst())
+            ?.vehicleName
+            ?.takeIf { it.isNotEmpty() }
+            ?: vehiculo
+    }
+
+    /**
+     * Asigna [scooterId] a registros que solo tienen nombre (p. ej. "Mi Burra" con id vacío).
+     * Misma intención que al crear vehículo o editar en perfil; recupera el formato legacy con id.
+     *
+     * @param vehiclesByName mapa nombre del vehículo → id en Firestore
+     */
+    suspend fun backfillMissingScooterIds(vehiclesByName: Map<String, String>): Result<Int> {
+        if (vehiclesByName.isEmpty()) return Result.success(0)
+        return withContext(Dispatchers.IO) {
+            runBackfillMissingScooterIds(vehiclesByName)
+        }
+    }
+
+    private suspend fun runBackfillMissingScooterIds(vehiclesByName: Map<String, String>): Result<Int> {
+        return try {
+            val userId = auth.currentUser?.uid ?: return Result.failure(Exception("Usuario no autenticado"))
+            val allRecords = loadAllUserRecordsFromFirestore(userId)
+            var batch = firestore.batch()
+            var opsInBatch = 0
+            var total = 0
+
+            for ((nombre, scooterId) in vehiclesByName) {
+                if (scooterId.isEmpty()) continue
+                val toUpdate = allRecords.filter { record ->
+                    record.scooterId.isEmpty() &&
+                        (record.patinete == nombre || record.vehiculo == nombre)
+                }
+                for (record in toUpdate) {
+                    batch.update(
+                        recordsCollection.document(record.id),
+                        mapOf("scooterId" to scooterId)
+                    )
+                    opsInBatch++
+                    total++
+                    if (opsInBatch >= 450) {
+                        batch.commit().await()
+                        batch = firestore.batch()
+                        opsInBatch = 0
+                    }
+                }
+            }
+            if (opsInBatch > 0) {
+                batch.commit().await()
+            }
+            Result.success(total)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
     }
 
     suspend fun deleteRecord(recordId: String): Result<Unit> {
@@ -315,9 +477,10 @@ class RecordRepository @Inject constructor(
             }
             
             val vehiculo = record.vehicleName.ifEmpty { record.patinete }
+            val scooterId = record.scooterId.takeIf { it.isNotEmpty() }
 
             recordsCollection.document(recordId).delete().await()
-            repairOdometerChainForVehicleInternal(vehiculo)
+            repairOdometerChainForVehicleInternal(vehiculo, scooterId)
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
@@ -345,38 +508,55 @@ class RecordRepository @Inject constructor(
             )
             
             recordsCollection.document(record.id).set(recordData).await()
-            repairOdometerChainForVehicleInternal(record.vehicleName.ifEmpty { record.patinete })
+            repairOdometerChainForVehicleInternal(
+                record.vehicleName.ifEmpty { record.patinete },
+                record.scooterId.takeIf { it.isNotEmpty() }
+            )
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
         }
     }
 
-    private suspend fun repairOdometerChainForVehicleInternal(vehiculo: String) {
-        val vehicleRecords = getAllRecords()
-            .filter { it.patinete == vehiculo || it.vehicleName == vehiculo }
+    /**
+     * Reconstruye odómetro acumulado y km de viaje en orden cronológico.
+     * Tras insertar un registro intermedio, los posteriores deben subir su total.
+     */
+    private suspend fun repairOdometerChainForVehicleInternal(
+        vehiculo: String,
+        scooterId: String? = null
+    ) {
+        val userId = auth.currentUser?.uid ?: return
+        val sorted = fetchRecordsForVehicle(userId, vehiculo, scooterId)
             .sortedWith(compareBy({ DateUtils.recordFechaSortKey(it.fecha) }, { it.id }))
 
-        if (vehicleRecords.isEmpty()) return
+        if (sorted.isEmpty()) return
 
         val batch = firestore.batch()
         var hasWrites = false
+        var runningKm = sorted.first().kilometraje
 
-        vehicleRecords.forEachIndexed { index, r ->
-            val newDiferencia = if (index == 0) {
-                0.0
+        sorted.forEachIndexed { index, record ->
+            val (newKilometraje, newDiferencia, newIsInitial) = if (index == 0) {
+                runningKm = record.kilometraje
+                Triple(record.kilometraje, 0.0, true)
             } else {
-                r.kilometraje - vehicleRecords[index - 1].kilometraje
+                val tripKm = resolveTripDistanceKm(record, sorted, index)
+                val km = runningKm + tripKm
+                runningKm = km
+                Triple(km, tripKm, false)
             }
-            val newInitial = index == 0
-            val difChanged = kotlin.math.abs(r.diferencia - newDiferencia) > 1e-6
-            val initialChanged = r.isInitialRecord != newInitial
-            if (difChanged || initialChanged) {
+
+            val kmChanged = kotlin.math.abs(record.kilometraje - newKilometraje) > 1e-6
+            val difChanged = kotlin.math.abs(record.diferencia - newDiferencia) > 1e-6
+            val initialChanged = record.isInitialRecord != newIsInitial
+            if (kmChanged || difChanged || initialChanged) {
                 val updates = hashMapOf<String, Any>(
+                    "kilometraje" to newKilometraje,
                     "diferencia" to newDiferencia,
-                    "isInitialRecord" to newInitial
+                    "isInitialRecord" to newIsInitial
                 )
-                batch.update(recordsCollection.document(r.id), updates)
+                batch.update(recordsCollection.document(record.id), updates)
                 hasWrites = true
             }
         }
@@ -384,6 +564,29 @@ class RecordRepository @Inject constructor(
         if (hasWrites) {
             batch.commit().await()
         }
+    }
+
+    /** Km del viaje: usa [Record.diferencia] si es válida; si no, infiere del odómetro guardado antes del hueco. */
+    private fun resolveTripDistanceKm(
+        record: Record,
+        chronologicallySorted: List<Record>,
+        index: Int
+    ): Double {
+        if (record.diferencia > 1e-6) return record.diferencia
+
+        val recordsBefore = chronologicallySorted.take(index)
+        val anchorBeforeGap = recordsBefore
+            .filter { it.kilometraje < record.kilometraje - 1e-6 }
+            .maxWithOrNull(compareBy({ DateUtils.recordFechaSortKey(it.fecha) }, { it.id }))
+
+        if (anchorBeforeGap != null) {
+            return record.kilometraje - anchorBeforeGap.kilometraje
+        }
+        if (index > 0) {
+            return (record.kilometraje - chronologicallySorted[index - 1].kilometraje)
+                .coerceAtLeast(0.0)
+        }
+        return 0.0
     }
 
     suspend fun getAllRecords(): List<Record> {

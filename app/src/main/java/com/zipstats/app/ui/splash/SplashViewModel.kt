@@ -8,10 +8,14 @@ import com.zipstats.app.repository.RecordRepository
 import com.zipstats.app.repository.RouteRepository
 import com.zipstats.app.repository.VehicleRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.supervisorScope
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 @HiltViewModel
@@ -28,37 +32,31 @@ class SplashViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            val user = auth.currentUser
-            if (user != null) {
-                // Cargar datos iniciales en segundo plano antes de mostrar la UI
-                try {
-                    // Cargar vehículos para que estén en memoria
-                    vehicleRepository.getUserVehicles()
-                    
-                    // Marcar vehículos como listos
-                    appOverlayRepository.setVehiclesReady(true)
-                    
-                    // Cargar rutas para que estén en memoria (ignorar resultado, solo necesita cargar)
-                    routeRepository.getUserRoutes()
-                    
-                    // Cargar registros para que estén en memoria
-                    recordRepository.getAllRecords()
-                    
-                    // Todo cargado, marcar como ready
-                    _ready.value = true
-                } catch (e: Exception) {
-                    // Si hay error, igual marcamos como ready para no bloquear la app
-                    // Los Flows se suscribirán cuando se necesiten y manejarán el error
-                    appOverlayRepository.setVehiclesReady(true)
-                    _ready.value = true
+            try {
+                if (auth.currentUser != null) {
+                    withContext(Dispatchers.IO) {
+                        supervisorScope {
+                            // La app abre siempre en Rutas: solo eso bloquea el splash.
+                            val vehicles = async { vehicleRepository.getUserVehicles() }
+                            val firstRoutesPage = async {
+                                routeRepository.preloadFirstPageRoutes(RouteRepository.DEFAULT_PAGE_SIZE)
+                            }
+                            launch {
+                                recordRepository.preloadFirstPageRecords(
+                                    RecordRepository.DEFAULT_PAGE_SIZE
+                                )
+                            }
+                            vehicles.await()
+                            firstRoutesPage.await()
+                        }
+                    }
                 }
-            } else {
-                // Si no hay usuario, no hay nada que cargar
-                // Pero marcamos vehiclesReady como true para que las pantallas se muestren
+            } catch (_: Exception) {
+                // Las pantallas cargan sus propios Flows si falla el prefetch
+            } finally {
                 appOverlayRepository.setVehiclesReady(true)
                 _ready.value = true
             }
         }
     }
 }
-

@@ -13,10 +13,12 @@ import com.zipstats.app.model.SurfaceConditionType
 import com.zipstats.app.model.VehicleType
 import com.zipstats.app.utils.LocationUtils
 import com.zipstats.app.utils.RouteAnalyzer
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -55,7 +57,12 @@ class RouteRepository @Inject constructor(
     companion object {
         private const val TAG = "RouteRepository"
         private const val ROUTES_COLLECTION = "routes"
+        const val DEFAULT_PAGE_SIZE = 20
     }
+
+    /** Primera página precargada en splash (misma query que [getUserRoutesFlow]). */
+    @Volatile
+    private var cachedFirstPageRoutes: List<Route>? = null
     
     /**
      * Guarda una ruta completa en Firebase
@@ -203,13 +210,60 @@ class RouteRepository @Inject constructor(
     }
     
     /**
+     * Precarga la primera página (sin puntos GPS) para mostrar la lista al instante.
+     */
+    suspend fun preloadFirstPageRoutes(pageSize: Int = DEFAULT_PAGE_SIZE): Result<List<Route>> =
+        withContext(Dispatchers.IO) {
+            fetchFirstPageRoutes(pageSize).also { result ->
+                result.onSuccess { cachedFirstPageRoutes = it }
+            }
+        }
+
+    fun peekFirstPageCache(): List<Route>? = cachedFirstPageRoutes
+
+    fun clearFirstPageCache() {
+        cachedFirstPageRoutes = null
+    }
+
+    private suspend fun fetchFirstPageRoutes(pageSize: Int): Result<List<Route>> {
+        return try {
+            val userId = auth.currentUser?.uid
+                ?: return Result.failure(Exception("Usuario no autenticado"))
+            val snapshot = firestore.collection(ROUTES_COLLECTION)
+                .whereEqualTo("userId", userId)
+                .orderBy("startTime", Query.Direction.DESCENDING)
+                .limit(pageSize.toLong())
+                .get()
+                .await()
+            val routes = snapshot.documents.mapNotNull { doc ->
+                try {
+                    val data = doc.data ?: return@mapNotNull null
+                    Route.fromMap(doc.id, data - "points")
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error al parsear ruta ${doc.id}", e)
+                    null
+                }
+            }
+            Log.d(TAG, "Primera página precargada: ${routes.size} rutas")
+            Result.success(routes)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error al precargar primera página de rutas", e)
+            Result.failure(e)
+        }
+    }
+
+    /**
      * Obtiene todas las rutas del usuario actual como Flow (reactivo)
      */
-    fun getUserRoutesFlow(pageSize: Int = 20): Flow<List<Route>> = callbackFlow {
+    fun getUserRoutesFlow(pageSize: Int = DEFAULT_PAGE_SIZE): Flow<List<Route>> = callbackFlow {
         val userId = auth.currentUser?.uid
         if (userId == null) {
             close(Exception("Usuario no autenticado"))
             return@callbackFlow
+        }
+
+        peekFirstPageCache()?.let { cached ->
+            trySend(cached)
         }
 
         val listener = firestore.collection(ROUTES_COLLECTION)

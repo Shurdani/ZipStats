@@ -103,9 +103,9 @@ fun RoutesScreen(
     val selectedScooter by viewModel.selectedScooter.collectAsState()
     val errorMessage by viewModel.errorMessage.collectAsState()
     val uiState by viewModel.uiState.collectAsState()
-    val isLoading = uiState is RoutesUiState.Loading
     val isLoadingMore by viewModel.isLoadingMore.collectAsState()
     val hasMorePages by viewModel.hasMorePages.collectAsState()
+    val initialRoutesResolved by viewModel.initialRoutesResolved.collectAsState()
 // ── AÑADIR ──
     val selectedRoute by viewModel.selectedRoute.collectAsState()
     val isLoadingRoute by viewModel.isLoadingRoute.collectAsState()
@@ -119,21 +119,12 @@ fun RoutesScreen(
     // Guardamos el primer elemento para distinguir "nuevo arriba" vs "paginación abajo"
     var previousTopRouteId by remember { mutableStateOf(routes.firstOrNull()?.id) }
     var isFilterChanging by remember { mutableStateOf(false) }
-    var isInitialLoad by remember { mutableStateOf(true) }
 
     // Filtrar rutas según el patinete seleccionado
     val filteredRoutes = when (selectedScooter) {
         null -> routes
         else -> routes.filter { route ->
             route.scooterId == selectedScooter
-        }
-    }
-
-    // Detectar la primera carga completada
-    LaunchedEffect(uiState) {
-        if (uiState is RoutesUiState.Success && isInitialLoad) {
-            kotlinx.coroutines.delay(100) // Pequeño delay para asegurar que los datos se rendericen
-            isInitialLoad = false
         }
     }
 
@@ -387,7 +378,7 @@ fun RoutesScreen(
             Spacer(modifier = Modifier.height(8.dp))
 
             // Lista de rutas (Diseño moderno de 2 columnas)
-            if (isLoading || isInitialLoad) {
+            if (!initialRoutesResolved) {
                 Box(
                     modifier = Modifier.fillMaxWidth().weight(1f),
                     contentAlignment = Alignment.Center

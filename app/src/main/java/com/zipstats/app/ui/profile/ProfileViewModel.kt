@@ -908,6 +908,8 @@ class ProfileViewModel @Inject constructor(
                 // Usar authRepository.logout() que limpia las credenciales guardadas
                 // ANTES de hacer signOut() para evitar autologin inmediato
                 authRepository.logout()
+                routeRepository.clearFirstPageCache()
+                recordRepository.clearFirstPageCache()
                 appOverlayRepository.resetSessionState()
 
                 // Ejecutamos el callback (si venía de handleEvent, no hará nada extra aquí,
@@ -921,6 +923,8 @@ class ProfileViewModel @Inject constructor(
                 // Intentar limpiar credenciales aunque haya un error
                 try {
                     authRepository.logout()
+                    routeRepository.clearFirstPageCache()
+                    recordRepository.clearFirstPageCache()
                     appOverlayRepository.resetSessionState()
                 } catch (e2: Exception) {
                     Log.e("ProfileVM", "Error al limpiar credenciales", e2)

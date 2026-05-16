@@ -23,12 +23,15 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -89,7 +92,7 @@ class RecordsViewModel @Inject constructor(
     val isLoadingMore: StateFlow<Boolean> = _isLoadingMore.asStateFlow()
     private val _hasMorePages = MutableStateFlow(true)
     val hasMorePages: StateFlow<Boolean> = _hasMorePages.asStateFlow()
-    private val _initialRecordsResolved = MutableStateFlow(false)
+    private val _initialRecordsResolved = MutableStateFlow(recordRepository.peekFirstPageCache() != null)
     val initialRecordsResolved: StateFlow<Boolean> = _initialRecordsResolved.asStateFlow()
     private val _initialScootersResolved = MutableStateFlow(false)
     val initialScootersResolved: StateFlow<Boolean> = _initialScootersResolved.asStateFlow()
@@ -107,7 +110,6 @@ class RecordsViewModel @Inject constructor(
         started = SharingStarted.Eagerly,
         initialValue = false
     )
-
 
     // 2. FUENTES DE DATOS (Sources of Truth)
 
@@ -135,6 +137,31 @@ class RecordsViewModel @Inject constructor(
             started = SharingStarted.Eagerly,
             initialValue = emptyList()
         )
+
+    private val scooterIdBackfillStarted = AtomicBoolean(false)
+
+    /** Rellena scooterId en registros legacy; debe llamarse en segundo plano (p. ej. LaunchedEffect). */
+    fun runScooterIdBackfillIfNeeded() {
+        if (!scooterIdBackfillStarted.compareAndSet(false, true)) return
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val scooters = userScooters.filter { it.isNotEmpty() }.first()
+                val vehiclesByName = scooters
+                    .mapNotNull { scooter ->
+                        scooter.id.takeIf { it.isNotEmpty() }?.let { id -> scooter.nombre to id }
+                    }
+                    .toMap()
+                recordRepository.backfillMissingScooterIds(vehiclesByName)
+                    .onSuccess { updated ->
+                        if (updated > 0) {
+                            Log.d("RecordsVM", "scooterId rellenado en $updated registro(s) legacy")
+                        }
+                    }
+            } catch (e: Exception) {
+                Log.w("RecordsVM", "Backfill scooterId omitido: ${e.message}")
+            }
+        }
+    }
 
     // B. Flujo Maestro de Registros (TODOS los registros, sin filtrar)
     private val allRecordsFlow = recordRepository.getRecordsFlow(pageSize = pageSize)
@@ -222,6 +249,12 @@ class RecordsViewModel @Inject constructor(
     )
 
     init {
+        recordRepository.peekFirstPageCache()?.let { cached ->
+            _firstPageRecords.value = cached
+            _hasMorePages.value = cached.size >= pageSize
+            _initialRecordsResolved.value = true
+            appOverlayRepository.setRecordsLoaded()
+        }
         observeInitialRecords()
         viewModelScope.launch {
             userScooters
@@ -279,11 +312,11 @@ class RecordsViewModel @Inject constructor(
 
     // --- OPERACIONES CRUD ---
 
-    fun saveRecord(patinete: String, kilometraje: String, fecha: String) {
-        addRecord(patinete, kilometraje, fecha)
+    fun saveRecord(patinete: String, kilometraje: String, fecha: String, scooterId: String? = null) {
+        addRecord(patinete, kilometraje, fecha, scooterId)
     }
 
-    fun addRecord(patinete: String, kilometraje: String, fecha: String) {
+    fun addRecord(patinete: String, kilometraje: String, fecha: String, scooterId: String? = null) {
         viewModelScope.launch {
             try {
                 val kmDouble = LocationUtils.parseNumberSpanish(kilometraje)
@@ -292,7 +325,8 @@ class RecordsViewModel @Inject constructor(
                 recordRepository.addRecord(
                     vehiculo = patinete,
                     kilometraje = kmDouble,
-                    fecha = fecha
+                    fecha = fecha,
+                    scooterId = scooterId?.takeIf { it.isNotEmpty() }
                 ).onSuccess {
                     resetPaginationAfterMutation()
                     achievementsService.checkAndNotifyNewAchievements()
@@ -324,7 +358,13 @@ class RecordsViewModel @Inject constructor(
     }
 
 
-    fun updateRecord(recordId: String, patinete: String, kilometraje: String, fecha: String) {
+    fun updateRecord(
+        recordId: String,
+        patinete: String,
+        kilometraje: String,
+        fecha: String,
+        scooterId: String? = null
+    ) {
         viewModelScope.launch {
             try {
                 val kmDouble = LocationUtils.parseNumberSpanish(kilometraje)
@@ -332,9 +372,17 @@ class RecordsViewModel @Inject constructor(
 
                 val allRecords = recordRepository.getAllRecords()
                 val originalRecord = allRecords.find { it.id == recordId }
+                val resolvedScooterId = scooterId?.takeIf { it.isNotEmpty() }
+                    ?: originalRecord?.scooterId?.takeIf { it.isNotEmpty() }
+                    ?: userScooters.value.find { it.nombre == patinete }?.id
+                val newFechaKey = DateUtils.recordFechaSortKey(fecha)
                 val registroAnterior = allRecords
-                    .filter { it.patinete == patinete && it.fecha < fecha && it.id != recordId }
-                    .maxWithOrNull(DateUtils.recordComparatorNewestFirst())
+                    .filter { record ->
+                        record.id != recordId &&
+                            DateUtils.recordFechaSortKey(record.fecha) < newFechaKey &&
+                            recordMatchesVehicle(record, patinete, resolvedScooterId)
+                    }
+                    .maxWithOrNull(compareBy({ DateUtils.recordFechaSortKey(it.fecha) }, { it.id }))
                 val diferencia = if (registroAnterior != null) {
                     kmDouble - registroAnterior.kilometraje
                 } else {
@@ -347,7 +395,7 @@ class RecordsViewModel @Inject constructor(
                     id = recordId,
                     vehiculo = patinete,
                     patinete = patinete,
-                    scooterId = originalRecord?.scooterId ?: "",
+                    scooterId = resolvedScooterId ?: "",
                     kilometraje = kmDouble,
                     fecha = fecha,
                     diferencia = diferencia,
@@ -367,6 +415,12 @@ class RecordsViewModel @Inject constructor(
                 _errorMessage.value = e.message
             }
         }
+    }
+
+    private fun recordMatchesVehicle(record: Record, vehiculo: String, scooterId: String?): Boolean {
+        if (!scooterId.isNullOrEmpty() && record.scooterId == scooterId) return true
+        return vehiculo.isNotEmpty() &&
+            (record.patinete == vehiculo || record.vehiculo == vehiculo)
     }
 
     fun clearError() {

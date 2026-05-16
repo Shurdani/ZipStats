@@ -130,6 +130,10 @@ fun RecordsHistoryScreen(
 
     val onboardingDismissedInSession by viewModel.onboardingDismissedInSession.collectAsState()
 
+    LaunchedEffect(Unit) {
+        viewModel.runScooterIdBackfillIfNeeded()
+    }
+
     // Estado para controlar el scroll de la lista (Definido UNA sola vez)
     val listState = rememberLazyListState()
 
@@ -222,8 +226,8 @@ fun RecordsHistoryScreen(
             records = records,
             defaultScooter = lastUsedScooterName,
             onDismiss = { showBottomSheet = false },
-            onConfirm = { patinete, kilometraje, fecha ->
-                viewModel.addRecord(patinete, kilometraje, fecha)
+            onConfirm = { patinete, scooterId, kilometraje, fecha ->
+                viewModel.addRecord(patinete, kilometraje, fecha, scooterId)
                 showBottomSheet = false
             }
         )
@@ -276,8 +280,8 @@ fun RecordsHistoryScreen(
                         recordToEdit = null
                     }
                 },
-                onSave = { patinete, kilometraje, fecha ->
-                    viewModel.updateRecord(recordToEdit!!.id, patinete, kilometraje, fecha)
+                onSave = { patinete, scooterId, kilometraje, fecha ->
+                    viewModel.updateRecord(recordToEdit!!.id, patinete, kilometraje, fecha, scooterId)
                     scope.launch {
                         editRecordSheetState.hide()
                         recordToEdit = null
@@ -534,7 +538,7 @@ fun NewRecordBottomSheet(
     records: List<Record>,
     defaultScooter: String?,
     onDismiss: () -> Unit,
-    onConfirm: (String, String, String) -> Unit
+    onConfirm: (String, String?, String, String) -> Unit
 ) {
     // Estado de la hoja inferior
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -542,6 +546,7 @@ fun NewRecordBottomSheet(
     
     // Estados del formulario
     var selectedScooter by remember { mutableStateOf(defaultScooter ?: "") }
+    var selectedScooterId by remember { mutableStateOf<String?>(null) }
     var kilometraje by remember { mutableStateOf("") }
     var isVehicleDropdownExpanded by remember { mutableStateOf(false) }
     var showDatePicker by remember { mutableStateOf(false) }
@@ -555,14 +560,27 @@ fun NewRecordBottomSheet(
     // Lógica de autoselección
     LaunchedEffect(userScooters) {
         if (selectedScooter.isEmpty() && userScooters.isNotEmpty()) {
-            selectedScooter = userScooters.first().nombre
+            val first = userScooters.first()
+            selectedScooter = first.nombre
+            selectedScooterId = first.id.takeIf { it.isNotEmpty() }
         }
     }
 
+    LaunchedEffect(selectedScooter, userScooters) {
+        selectedScooterId = userScooters.find { it.nombre == selectedScooter }
+            ?.id
+            ?.takeIf { it.isNotEmpty() }
+    }
+
     // Cálculo de kilometraje anterior (Helper visual)
-    val previousMileage = remember(selectedScooter, records) {
+    val previousMileage = remember(selectedScooter, selectedScooterId, records) {
         records
-            .filter { it.patinete == selectedScooter }
+            .filter { record ->
+                when {
+                    !selectedScooterId.isNullOrEmpty() && record.scooterId == selectedScooterId -> true
+                    else -> record.patinete == selectedScooter || record.vehiculo == selectedScooter
+                }
+            }
             .maxWithOrNull(DateUtils.recordComparatorNewestFirst())?.kilometraje
     }
 
@@ -637,6 +655,7 @@ fun NewRecordBottomSheet(
                             },
                             onClick = {
                                 selectedScooter = scooter.nombre
+                                selectedScooterId = scooter.id.takeIf { it.isNotEmpty() }
                                 isVehicleDropdownExpanded = false
                                 errorMessage = null
                             }
@@ -729,6 +748,7 @@ fun NewRecordBottomSheet(
                             if (!sheetState.isVisible) {
                                 onConfirm(
                                     selectedScooter,
+                                    selectedScooterId,
                                     kilometraje,
                                     DateUtils.formatForApiOnDayWithCurrentTime(selectedDate)
                                 )
@@ -762,10 +782,16 @@ fun EditRecordBottomSheet(
     record: Record,
     userScooters: List<com.zipstats.app.model.Scooter>,
     onDismiss: () -> Unit,
-    onSave: (String, String, String) -> Unit,
+    onSave: (String, String?, String, String) -> Unit,
     onDelete: () -> Unit
 ) {
     var selectedScooter by remember { mutableStateOf(record.patinete) }
+    var selectedScooterId by remember {
+        mutableStateOf(
+            record.scooterId.takeIf { it.isNotEmpty() }
+                ?: userScooters.find { it.nombre == record.patinete }?.id?.takeIf { it.isNotEmpty() }
+        )
+    }
     var kilometraje by remember { mutableStateOf(LocationUtils.formatNumberSpanish(record.kilometraje, 1)) }
     var expanded by remember { mutableStateOf(false) }
     var showDatePicker by remember { mutableStateOf(false) }
@@ -832,6 +858,7 @@ fun EditRecordBottomSheet(
                         },
                         onClick = {
                             selectedScooter = scooter.nombre
+                            selectedScooterId = scooter.id.takeIf { it.isNotEmpty() }
                             expanded = false
                             errorMessage = null
                         }
@@ -909,6 +936,7 @@ fun EditRecordBottomSheet(
                     } else {
                         onSave(
                             selectedScooter,
+                            selectedScooterId,
                             kilometraje,
                             DateUtils.mergeApiDateWithRecordTime(selectedDate, record.fecha)
                         )

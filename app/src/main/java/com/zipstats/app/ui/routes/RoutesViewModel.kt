@@ -75,6 +75,9 @@ class RoutesViewModel @Inject constructor(
     private val _hasMorePages = MutableStateFlow(true)
     val hasMorePages: StateFlow<Boolean> = _hasMorePages.asStateFlow()
 
+    private val _initialRoutesResolved = MutableStateFlow(routeRepository.peekFirstPageCache() != null)
+    val initialRoutesResolved: StateFlow<Boolean> = _initialRoutesResolved.asStateFlow()
+
     // 2. LÓGICA REACTIVA (El corazón de la optimización)
 
     // Obtenemos el flujo "Maestro" del repositorio.
@@ -131,10 +134,12 @@ class RoutesViewModel @Inject constructor(
     )
 
     init {
+        routeRepository.peekFirstPageCache()?.let { cached ->
+            _firstPageRoutes.value = cached
+            _hasMorePages.value = cached.size >= pageSize
+        }
         loadUserScooters()
         observeInitialRoutes()
-        // Ya no hace falta llamar a loadRoutes() explícitamente porque
-        // 'val routes' usa stateIn, lo que inicia la suscripción automáticamente.
     }
 
     private fun observeInitialRoutes() {
@@ -142,6 +147,7 @@ class RoutesViewModel @Inject constructor(
             allRoutesFlow.collect { firstPage ->
                 _firstPageRoutes.value = firstPage
                 _hasMorePages.value = firstPage.size >= pageSize
+                _initialRoutesResolved.value = true
             }
         }
     }
@@ -238,13 +244,26 @@ class RoutesViewModel @Inject constructor(
 
 
 
+    private suspend fun resolveVehicleNameForRoute(route: Route): String {
+        if (route.scooterName.isNotEmpty()) return route.scooterName
+        if (route.scooterId.isNotEmpty()) {
+            scooterRepository.getUserVehicles()
+                .find { it.id == route.scooterId }
+                ?.nombre
+                ?.takeIf { it.isNotEmpty() }
+                ?.let { return it }
+        }
+        return route.scooterName
+    }
+
     /** Coincide registro con la ruta por scooterId (preferido) o por nombre del vehículo */
     private fun recordMatchesRouteVehicle(record: Record, route: Route): Boolean =
         when {
-            route.scooterId.isNotEmpty() && record.scooterId.isNotEmpty() ->
-                record.scooterId == route.scooterId
-            else ->
-                record.patinete == route.scooterName || record.vehiculo == route.scooterName
+            route.scooterId.isNotEmpty() && record.scooterId == route.scooterId -> true
+            else -> {
+                val name = route.scooterName.ifEmpty { null }
+                name != null && (record.patinete == name || record.vehiculo == name)
+            }
         }
 
     /**
@@ -281,9 +300,10 @@ class RoutesViewModel @Inject constructor(
             try {
                 val endMs = route.endTime ?: route.startTime
                 val fechaRegistro = DateUtils.formatForApiFromMillis(endMs)
+                val vehiculo = resolveVehicleNameForRoute(route)
 
                 recordRepository.addRecordFromRouteDistance(
-                    vehiculo = route.scooterName,
+                    vehiculo = vehiculo,
                     distanceKm = route.totalDistance,
                     fecha = fechaRegistro,
                     scooterId = route.scooterId.takeIf { it.isNotEmpty() }

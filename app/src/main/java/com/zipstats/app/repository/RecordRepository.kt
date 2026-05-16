@@ -717,7 +717,7 @@ class RecordRepository @Inject constructor(
         
         val uniqueDays = records
             .filter { !it.isInitialRecord }
-            .map { it.fecha.take(10) }
+            .map { DateUtils.parseApiDate(it.fecha) }
             .distinct()
             .size
         
@@ -730,7 +730,7 @@ class RecordRepository @Inject constructor(
         // Calcular días consecutivos
         val uniqueDates = records
             .filter { !it.isInitialRecord }
-            .map { it.fecha.take(10) }
+            .map { DateUtils.parseApiDate(it.fecha) }
             .distinct()
             .sorted()
         
@@ -738,8 +738,8 @@ class RecordRepository @Inject constructor(
         var currentConsecutive = 1
         
         for (i in 1 until uniqueDates.size) {
-            val prevDate = java.time.LocalDate.parse(uniqueDates[i - 1])
-            val currentDate = java.time.LocalDate.parse(uniqueDates[i])
+            val prevDate = uniqueDates[i - 1]
+            val currentDate = uniqueDates[i]
             
             if (java.time.temporal.ChronoUnit.DAYS.between(prevDate, currentDate) == 1L) {
                 currentConsecutive++
@@ -753,7 +753,7 @@ class RecordRepository @Inject constructor(
         val uniqueWeeks = records
             .filter { !it.isInitialRecord }
             .map { record ->
-                val date = java.time.LocalDate.parse(record.fecha.take(10))
+                val date = DateUtils.parseApiDate(record.fecha)
                 val weekFields = java.time.temporal.WeekFields.of(java.util.Locale.getDefault())
                 val year = date.get(weekFields.weekBasedYear())
                 val week = date.get(weekFields.weekOfWeekBasedYear())
@@ -766,7 +766,7 @@ class RecordRepository @Inject constructor(
         val uniqueMonths = records
             .filter { !it.isInitialRecord }
             .map { record ->
-                val date = java.time.LocalDate.parse(record.fecha.take(10))
+                val date = DateUtils.parseApiDate(record.fecha)
                 "${date.year}-${date.monthValue}"
             }
             .distinct()
@@ -797,7 +797,7 @@ class RecordRepository @Inject constructor(
         val monthsList = records
             .filter { !it.isInitialRecord }
             .map { record ->
-                val date = java.time.LocalDate.parse(record.fecha.take(10))
+                val date = DateUtils.parseApiDate(record.fecha)
                 date.year to date.monthValue
             }
             .distinct()

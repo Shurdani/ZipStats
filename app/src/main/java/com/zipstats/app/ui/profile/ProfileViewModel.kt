@@ -1415,13 +1415,12 @@ class ProfileViewModel @Inject constructor(
             
             for (i in 6 downTo 0) {
                 val targetDate = today.minusDays(i.toLong())
-                val dateStr = DateUtils.formatForApi(targetDate)
-                
+
                 // Sumar todos los km de registros de ese día
                 val dayKm = records
-                    .filter { 
-                        it.vehicleName == vehicleName && 
-                        it.fecha == dateStr &&
+                    .filter {
+                        it.vehicleName == vehicleName &&
+                        runCatching { DateUtils.parseApiDate(it.fecha) == targetDate }.getOrDefault(false) &&
                         !it.isInitialRecord // Excluir registros iniciales
                     }
                     .sumOf { it.diferencia }

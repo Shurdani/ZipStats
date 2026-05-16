@@ -125,19 +125,32 @@ object DateUtils {
     /**
      * Formatea la fecha de forma más humana: "Hoy, 09:32", "Ayer, 15:41" o "23/12/25 09:32"
      */
-    fun formatHumanDateWithTime(timestampMs: Long): String {
-        val dateTime = java.time.Instant.ofEpochMilli(timestampMs)
-            .atZone(ZoneId.systemDefault())
-            .toLocalDateTime()
+    fun formatHumanDateWithTime(dateTime: LocalDateTime): String {
         val today = LocalDate.now()
         val date = dateTime.toLocalDate()
         val timeFormatter = DateTimeFormatter.ofPattern("HH:mm")
         val time = dateTime.format(timeFormatter)
-        
+
         return when {
             date == today -> "Hoy, $time"
             date == today.minusDays(1) -> "Ayer, $time"
             else -> dateTime.format(dateTimeFormatter)
+        }
+    }
+
+    fun formatHumanDateWithTime(timestampMs: Long): String =
+        formatHumanDateWithTime(
+            Instant.ofEpochMilli(timestampMs).atZone(ZoneId.systemDefault()).toLocalDateTime()
+        )
+
+    /** Mismo estilo que rutas; registros legacy sin hora muestran solo el día. */
+    fun formatHumanDateWithTime(fecha: String): String {
+        val t = fecha.trim()
+        if (t.isEmpty()) return "-"
+        return if ('T' in t) {
+            formatHumanDateWithTime(parseApiDateTimeBestEffort(t))
+        } else {
+            formatForDisplay(parseApiDate(t))
         }
     }
 

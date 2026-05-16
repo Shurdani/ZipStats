@@ -397,7 +397,7 @@ class StatisticsViewModel @Inject constructor(
             // Estadísticas mensuales (Mes seleccionado o actual)
             val monthlyRecords = records.filter {
                 try {
-                    val recordDate = LocalDate.parse(it.fecha)
+                    val recordDate = DateUtils.parseApiDate(it.fecha)
                     recordDate.monthValue == currentMonth && recordDate.year == currentYear
                 } catch (e: Exception) { false }
             }
@@ -406,7 +406,7 @@ class StatisticsViewModel @Inject constructor(
             // Estadísticas anuales (Año seleccionado o actual)
             val yearlyRecords = records.filter {
                 try {
-                    val recordDate = LocalDate.parse(it.fecha)
+                    val recordDate = DateUtils.parseApiDate(it.fecha)
                     recordDate.year == currentYear
                 } catch (e: Exception) { false }
             }
@@ -466,7 +466,9 @@ class StatisticsViewModel @Inject constructor(
                 maxDistance = records.maxOfOrNull { it.diferencia }?.roundToOneDecimal() ?: 0.0,
                 averageDistance = if (records.isNotEmpty()) (records.sumOf { it.diferencia } / records.size).roundToOneDecimal() else 0.0,
                 totalRecords = records.size,
-                lastRecordDate = newestRecord?.fecha ?: "No hay registros",
+                lastRecordDate = newestRecord?.let {
+                    DateUtils.formatForDisplay(DateUtils.parseApiDate(it.fecha))
+                } ?: "No hay registros",
                 lastRecordDistance = newestRecord?.diferencia?.roundToOneDecimal() ?: 0.0,
                 monthlyMaxDistance = monthlyRecords.maxOfOrNull { it.diferencia }?.roundToOneDecimal() ?: 0.0,
                 monthlyAverageDistance = if (monthlyRecords.isNotEmpty()) (monthlyRecords.sumOf { it.diferencia } / monthlyRecords.size).roundToOneDecimal() else 0.0,
@@ -684,7 +686,7 @@ class StatisticsViewModel @Inject constructor(
             val weeklyDistance = records
                 .filter {
                     try {
-                        val recordDate = LocalDate.parse(it.fecha)
+                        val recordDate = DateUtils.parseApiDate(it.fecha)
                         !recordDate.isBefore(weekStart) && !recordDate.isAfter(weekEnd)
                     } catch (e: Exception) {
                         false
@@ -712,7 +714,7 @@ class StatisticsViewModel @Inject constructor(
             val monthlyDistance = records
                 .filter {
                     try {
-                        val recordDate = LocalDate.parse(it.fecha)
+                        val recordDate = DateUtils.parseApiDate(it.fecha)
                         recordDate.year == year && recordDate.monthValue == month
                     } catch (e: Exception) {
                         false
@@ -734,7 +736,7 @@ class StatisticsViewModel @Inject constructor(
         // Agrupar por año-mes
         val groupedByMonth = records.groupBy {
             try {
-                val date = LocalDate.parse(it.fecha)
+                val date = DateUtils.parseApiDate(it.fecha)
                 "${date.year}-${String.format("%02d", date.monthValue)}"
             } catch (e: Exception) {
                 "error-00"
@@ -805,7 +807,7 @@ class StatisticsViewModel @Inject constructor(
         // 1. Distancia actual (Target)
         val targetDistance = records.filter {
             try {
-                val d = LocalDate.parse(it.fecha)
+                val d = DateUtils.parseApiDate(it.fecha)
                 d.monthValue == targetMonth && d.year == targetYear && d.dayOfMonth <= limitDayOfMonth
             } catch (e: Exception) { false }
         }.sumOf { it.diferencia }
@@ -813,7 +815,7 @@ class StatisticsViewModel @Inject constructor(
         // 2. Distancia anterior (Comparison)
         val comparisonDistance = records.filter {
             try {
-                val d = LocalDate.parse(it.fecha)
+                val d = DateUtils.parseApiDate(it.fecha)
                 d.monthValue == comparisonMonth && d.year == comparisonYear && d.dayOfMonth <= limitDayOfMonth
             } catch (e: Exception) { false }
         }.sumOf { it.diferencia }
@@ -882,7 +884,7 @@ class StatisticsViewModel @Inject constructor(
         // 1. Distancia del año objetivo (Target)
         val targetDistance = records.filter {
             try {
-                val recordDate = LocalDate.parse(it.fecha)
+                val recordDate = DateUtils.parseApiDate(it.fecha)
                 recordDate.year == targetYear && recordDate.dayOfYear <= limitDayOfYear
             } catch (e: Exception) { false }
         }.sumOf { it.diferencia }
@@ -890,7 +892,7 @@ class StatisticsViewModel @Inject constructor(
         // 2. Distancia del año de comparación (Comparison)
         val comparisonDistance = records.filter {
             try {
-                val recordDate = LocalDate.parse(it.fecha)
+                val recordDate = DateUtils.parseApiDate(it.fecha)
                 recordDate.year == comparisonYear && recordDate.dayOfYear <= limitDayOfYear
             } catch (e: Exception) { false }
         }.sumOf { it.diferencia }

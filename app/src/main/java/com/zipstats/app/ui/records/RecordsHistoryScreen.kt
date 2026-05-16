@@ -2,9 +2,7 @@ package com.zipstats.app.ui.records
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -98,7 +96,7 @@ import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.ZoneId
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class, FlowPreview::class)
+@OptIn(ExperimentalMaterial3Api::class, FlowPreview::class)
 @Composable
 fun RecordsHistoryScreen(
     navController: NavController,
@@ -435,11 +433,10 @@ fun RecordsHistoryScreen(
                                     color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f),
                                     shape = RoundedCornerShape(16.dp)
                                 )
-                                .combinedClickable(
+                                .clickable(
                                     interactionSource = interactionSource,
                                     indication = null,
-                                    onClick = { recordToEdit = record },
-                                    onLongClick = { /* Consumir pulsación larga: evita conflicto con scroll y apertura accidental del sheet */ }
+                                    onClick = { recordToEdit = record }
                                 )
                         ) {
                             ListItem(
@@ -469,10 +466,10 @@ fun RecordsHistoryScreen(
                                         fontWeight = FontWeight.SemiBold
                                     )
                                 },
-                                // 3. SUPPORTING: Fecha (dato secundario)
+                                // 3. SUPPORTING: Fecha y hora (dato secundario) - Formato humano
                                 supportingContent = {
                                     ZipStatsText(
-                                        text = DateUtils.formatForDisplay(DateUtils.parseApiDate(record.fecha)),
+                                        text = DateUtils.formatHumanDateWithTime(record.fecha),
                                         style = MaterialTheme.typography.bodyMedium,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )

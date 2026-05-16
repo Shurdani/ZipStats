@@ -18,6 +18,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.zipstats.app.model.Record
+import com.zipstats.app.utils.DateUtils
 
 @Composable
 fun RecordItem(
@@ -42,7 +43,7 @@ fun RecordItem(
                     style = MaterialTheme.typography.titleMedium
                 )
                 ZipStatsText(
-                    text = "Fecha: ${record.fecha}",
+                    text = "Fecha: ${DateUtils.formatForDisplay(DateUtils.parseApiDate(record.fecha))}",
                     style = MaterialTheme.typography.bodyMedium
                 )
                 ZipStatsText(

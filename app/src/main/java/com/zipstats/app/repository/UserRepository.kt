@@ -1,6 +1,5 @@
 package com.zipstats.app.repository
 
-import com.zipstats.app.model.Avatar
 import com.zipstats.app.model.User
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
@@ -49,22 +48,6 @@ class UserRepository @Inject constructor(
         }
     }
 
-    suspend fun updateAvatar(userId: String, avatar: Avatar) {
-        try {
-            val updates = hashMapOf<String, Any?>(
-                "avatar" to avatar.emoji,
-                "avatarId" to avatar.id,
-                "photoUrl" to null
-            )
-            
-            usersCollection.document(userId)
-                .update(updates)
-                .await()
-        } catch (e: Exception) {
-            throw Exception("Error al actualizar el avatar: ${e.message}")
-        }
-    }
-
     suspend fun deleteUser(userId: String) {
         try {
             usersCollection.document(userId).delete().await()
@@ -79,22 +62,9 @@ class UserRepository @Inject constructor(
         
         userRef.update(
             mapOf(
-                "photoUrl" to photoUrl,
+                "photoUrl" to photoUrl.ifEmpty { null },
                 "avatar" to null,
                 "avatarId" to null
-            )
-        ).await()
-    }
-
-    suspend fun updateUserAvatar(avatarId: Int, emoji: String) {
-        val userId = auth.currentUser?.uid ?: throw Exception("Usuario no autenticado")
-        val userRef = usersCollection.document(userId)
-        
-        userRef.update(
-            mapOf(
-                "avatarId" to avatarId,
-                "avatar" to emoji,
-                "photoUrl" to null
             )
         ).await()
     }

@@ -22,7 +22,6 @@ import com.google.firebase.auth.UserProfileChangeRequest
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.storage.FirebaseStorage
 import com.zipstats.app.model.AchievementRequirementType
-import com.zipstats.app.model.Avatar
 import com.zipstats.app.model.Record
 import com.zipstats.app.model.Repair
 import com.zipstats.app.model.Scooter
@@ -85,7 +84,6 @@ sealed class ProfileEvent {
     object Logout : ProfileEvent()
     data class ToggleBiometric(val enabled: Boolean) : ProfileEvent()
     data class UpdatePhoto(val uri: Uri) : ProfileEvent()
-    data class SelectAvatar(val avatar: Avatar) : ProfileEvent()
     object RemovePhoto : ProfileEvent()
     object PrepareCamera : ProfileEvent()
     object UpdatePhotoFromCamera : ProfileEvent()
@@ -735,37 +733,6 @@ class ProfileViewModel @Inject constructor(
         }
     }
 
-    fun setAvatar(avatar: Avatar) {
-        viewModelScope.launch {
-            try {
-                _uiState.value = ProfileUiState.Loading
-                val currentUser = auth.currentUser ?: throw Exception("Usuario no autenticado")
-                
-                userRepository.updateAvatar(currentUser.uid, avatar)
-                
-                // Si hay una foto de perfil, la eliminamos
-                if (currentUser.photoUrl != null) {
-                    // Eliminar la foto de Firebase Storage
-                    val photoRef = storage.reference.child("profile_photos/${currentUser.uid}")
-                    photoRef.delete().await()
-                    
-                    // Actualizar el perfil del usuario
-                    val profileUpdates = UserProfileChangeRequest.Builder()
-                        .setPhotoUri(null)
-                        .build()
-                    
-                    currentUser.updateProfile(profileUpdates).await()
-                }
-                
-                loadUserProfile()
-            } catch (e: Exception) {
-                _uiState.value = ProfileUiState.Error("Error al actualizar el avatar: ${e.message}")
-            }
-        }
-    }
-
-    // Eliminado: métodos obsoletos que usaban startActivityForResult deprecado
-
     fun checkAndRequestCameraPermission(context: Context): Boolean {
         return when {
             ContextCompat.checkSelfPermission(
@@ -886,7 +853,6 @@ class ProfileViewModel @Inject constructor(
             is ProfileEvent.Logout -> logout()
             is ProfileEvent.ToggleBiometric -> toggleBiometric(event.enabled)
             is ProfileEvent.UpdatePhoto -> uploadProfileImage(event.uri)
-            is ProfileEvent.SelectAvatar -> updateAvatar(event.avatar.id, event.avatar.emoji)
             is ProfileEvent.RemovePhoto -> removeProfilePhoto()
             is ProfileEvent.PrepareCamera -> context?.let { prepareCamera(it) }
             is ProfileEvent.UpdatePhotoFromCamera -> updatePhotoFromCamera()
@@ -980,71 +946,6 @@ class ProfileViewModel @Inject constructor(
                 loadUserProfile()
             } catch (e: Exception) {
                 _uiState.value = ProfileUiState.Error("Error al eliminar la foto: ${e.message}")
-            }
-        }
-    }
-
-    private fun selectAvatar(avatar: Avatar) {
-        viewModelScope.launch {
-            try {
-                _uiState.value = ProfileUiState.Loading
-                val userId = auth.currentUser?.uid ?: throw Exception("Usuario no autenticado")
-                
-                userRepository.updateAvatar(userId, avatar)
-                
-                // Si hay una foto de perfil, intentar eliminarla
-                val user = auth.currentUser
-                if (user?.photoUrl != null) {
-                    try {
-                        // Intentar eliminar la foto de Firebase Storage
-                        val photoRef = storage.reference
-                            .child(PROFILE_PHOTOS_PATH)
-                            .child(user.uid)
-                            .child("profile.jpg")
-                        photoRef.delete().await()
-                    } catch (e: Exception) {
-                        // Ignorar errores al eliminar la foto, ya que podría no existir
-                        println("DEBUG: Error al eliminar foto (ignorado): ${e.message}")
-                    }
-                    
-                    // Actualizar el perfil del usuario
-                    val profileUpdates = UserProfileChangeRequest.Builder()
-                        .setPhotoUri(null)
-                        .build()
-                    
-                    user.updateProfile(profileUpdates).await()
-                    
-                    // Actualizar el documento del usuario en Firestore
-                    userRepository.updateUserPhoto("")
-                }
-                
-                loadUserProfile()
-            } catch (e: Exception) {
-                _uiState.value = ProfileUiState.Error("Error al actualizar el avatar: ${e.message}")
-            }
-        }
-    }
-
-    private suspend fun compressImage(uri: Uri): Uri {
-        // Implementar compresión de imagen aquí
-        // Por ahora retornamos la URI original
-        return uri
-    }
-
-    // Eliminado: ya no es necesario exponer la URI directamente
-
-    fun updateAvatar(avatarId: Int, emoji: String) {
-        viewModelScope.launch {
-            try {
-                _uiState.value = ProfileUiState.Loading
-                
-                // Actualizar solo los campos de avatar en Firestore
-                userRepository.updateUserAvatar(avatarId, emoji)
-                
-                loadUserProfile()
-                _uiState.value = ProfileUiState.Success(_user.value ?: throw Exception("Usuario no encontrado"))
-            } catch (e: Exception) {
-                _uiState.value = ProfileUiState.Error("Error al actualizar el avatar: ${e.message}")
             }
         }
     }

@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -24,10 +23,6 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.wrapContentSize
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -40,7 +35,6 @@ import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.EmojiEvents
-import androidx.compose.material.icons.filled.Face
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Person
@@ -94,8 +88,6 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import com.zipstats.app.R
-import com.zipstats.app.model.Avatar
-import com.zipstats.app.model.Avatars
 import com.zipstats.app.model.VehicleType
 import com.zipstats.app.navigation.Screen
 import com.zipstats.app.ui.components.AnimatedFloatingActionButton
@@ -105,7 +97,6 @@ import com.zipstats.app.ui.components.DialogTitleText
 import com.zipstats.app.ui.components.DialogOptionButton
 import com.zipstats.app.ui.components.StandardDatePickerDialogWithValidation
 import com.zipstats.app.ui.components.ZipStatsText
-import com.zipstats.app.ui.profile.components.AvatarSelectionDialog
 import com.zipstats.app.ui.theme.DialogShape
 import com.zipstats.app.ui.theme.ThemeMode
 import com.zipstats.app.utils.DateUtils
@@ -124,7 +115,6 @@ fun ProfileScreen(
     openAddVehicleDialog: Boolean = false
 ) {
     var showPhotoOptionsDialog by remember { mutableStateOf(false) }
-    var showAvatarDialog by remember { mutableStateOf(false) }
     var showPermissionDialog by remember { mutableStateOf(false) }
     var showAddScooterDialog by remember { mutableStateOf(openAddVehicleDialog) }
     val context = LocalContext.current
@@ -226,18 +216,10 @@ fun ProfileScreen(
                             }
                         }
                     )
-                    DialogOptionButton(
-                        text = "Elegir avatar",
-                        icon = Icons.Default.Face,
-                        onClick = {
-                            showAvatarDialog = true
-                            showPhotoOptionsDialog = false
-                        }
-                    )
                     currentState?.let { state ->
-                        if (state.user.photoUrl != null || state.user.avatar != null) {
+                        if (state.user.photoUrl != null) {
                             DialogOptionButton(
-                                text = "Eliminar foto/avatar actual",
+                                text = "Eliminar foto actual",
                                 icon = Icons.Default.Delete,
                                 onClick = {
                                     viewModel.handleEvent(ProfileEvent.RemovePhoto)
@@ -250,19 +232,6 @@ fun ProfileScreen(
             },
             confirmButton = {
                 DialogCancelButton(text = "Cancelar", onClick = { showPhotoOptionsDialog = false })
-            }
-        )
-    }
-
-    if (showAvatarDialog && uiState is ProfileUiState.Success) {
-        AvatarSelectionDialog(
-            onDismiss = { showAvatarDialog = false },
-            onAvatarSelected = { avatar ->
-                viewModel.handleEvent(ProfileEvent.SelectAvatar(avatar))
-                showAvatarDialog = false
-            },
-            currentAvatar = (uiState as ProfileUiState.Success).user.avatar?.let { avatarEmoji ->
-                Avatars.list.find { it.emoji == avatarEmoji }
             }
         )
     }
@@ -470,12 +439,6 @@ fun UserProfileSection(
                         contentDescription = "Foto de perfil",
                         modifier = Modifier.fillMaxSize(),
                         contentScale = ContentScale.Crop
-                    )
-                } else if (user.avatar != null) {
-                    ZipStatsText(
-                        text = user.avatar,
-                        style = MaterialTheme.typography.displayLarge,
-                        modifier = Modifier.wrapContentSize()
                     )
                 } else {
                     Icon(
@@ -743,57 +706,6 @@ fun EmptyStateVehicleCard() {
             )
         }
     }
-}
-
-// --- COMPONENTES AUXILIARES (DIÁLOGOS) ---
-
-@Composable
-fun AvatarSelectionDialog(
-    onDismiss: () -> Unit,
-    onSelectAvatar: (Avatar) -> Unit,
-    currentAvatar: Avatar? = null
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { DialogTitleText("Seleccionar avatar") },
-        shape = DialogShape,
-        text = {
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(4),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier.height(300.dp)
-            ) {
-                items(Avatars.list) { avatar ->
-                    val isSelected = avatar.emoji == currentAvatar?.emoji
-                    val avatarClickInteractionSource = remember { MutableInteractionSource() }
-                    Box(
-                        modifier = Modifier
-                            .aspectRatio(1f)
-                            .clip(CircleShape)
-                            .background(
-                                if (isSelected) MaterialTheme.colorScheme.primaryContainer
-                                else MaterialTheme.colorScheme.surfaceVariant
-                            )
-                            .clickable(
-                                interactionSource = avatarClickInteractionSource,
-                                indication = null,
-                                onClick = { onSelectAvatar(avatar) }
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        ZipStatsText(
-                            text = avatar.emoji,
-                            style = MaterialTheme.typography.headlineMedium
-                        )
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            DialogCancelButton(text = "Cancelar", onClick = onDismiss)
-        }
-    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

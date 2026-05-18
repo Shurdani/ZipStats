@@ -94,6 +94,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -267,51 +268,44 @@ fun RouteDetailDialog(
                             )
                     )
 
-                    // Botones Flotantes sobre el mapa
-                    
-                    // Cerrar (X)
-                    IconButton(
+                    // Minimapa: compacto (32 dp botón, icono 18 dp)
+                    val minimapButtonSize = 32.dp
+                    val minimapIconSize = 18.dp
+
+                    MapOverlayIconButton(
                         onClick = onDismiss,
-                        modifier = Modifier
-                            .align(Alignment.TopEnd)
-                            .padding(12.dp)
-                            .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.45f), CircleShape)
-                            .size(32.dp)
-                    ) {
-                        Icon(Icons.Default.Close, "Cerrar", tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(18.dp))
-                    }
+                        icon = Icons.Default.Close,
+                        contentDescription = "Cerrar",
+                        modifier = Modifier.align(Alignment.TopEnd).padding(12.dp),
+                        buttonSize = minimapButtonSize,
+                        iconSize = minimapIconSize
+                    )
 
-                    // Añadir a Registros (Lista)
                     onAddToRecords?.let { addToRecords ->
-                        IconButton(
+                        MapOverlayIconButton(
                             onClick = addToRecords,
-                            modifier = Modifier
-                                .align(Alignment.TopStart)
-                                .padding(12.dp)
-                                .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.45f), CircleShape)
-                                .size(32.dp)
-                        ) {
-                            Icon(Icons.AutoMirrored.Filled.List, "Añadir", tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(18.dp))
-                        }
+                            icon = Icons.AutoMirrored.Filled.List,
+                            contentDescription = "Añadir",
+                            modifier = Modifier.align(Alignment.TopStart).padding(12.dp),
+                            buttonSize = minimapButtonSize,
+                            iconSize = minimapIconSize
+                        )
                     }
 
-                    // Expandir (Fullscreen)
-                    IconButton(
+                    MapOverlayIconButton(
                         onClick = { showFullscreenMap = true },
-                        modifier = Modifier
-                            .align(Alignment.BottomEnd)
-                            .padding(12.dp)
-                            .background(MaterialTheme.colorScheme.surfaceContainerHigh, CircleShape)
-                            .size(40.dp)
-                    ) {
-                        Icon(Icons.Default.Fullscreen, "Expandir", tint = MaterialTheme.colorScheme.onSurface)
-                    }
+                        icon = Icons.Default.Fullscreen,
+                        contentDescription = "Expandir",
+                        modifier = Modifier.align(Alignment.BottomEnd).padding(12.dp),
+                        buttonSize = minimapButtonSize,
+                        iconSize = minimapIconSize
+                    )
 
-                    IconButton(
+                    MapOverlayIconButton(
                         onClick = {
                             if (route.points.isEmpty()) {
                                 Toast.makeText(context, "No hay puntos para exportar", Toast.LENGTH_SHORT).show()
-                                return@IconButton
+                                return@MapOverlayIconButton
                             }
                             scope.launch {
                                 val result = exportRouteGpxToDownloads(context, route)
@@ -323,18 +317,12 @@ fun RouteDetailDialog(
                                 }
                             }
                         },
-                        modifier = Modifier
-                            .align(Alignment.BottomStart)
-                            .padding(12.dp)
-                            .background(MaterialTheme.colorScheme.surfaceContainerHigh, CircleShape)
-                            .size(40.dp)
-                    ) {
-                        Icon(
-                            Icons.Default.FileDownload,
-                            contentDescription = "Exportar GPX",
-                            tint = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
+                        icon = Icons.Default.FileDownload,
+                        contentDescription = "Exportar GPX",
+                        modifier = Modifier.align(Alignment.BottomStart).padding(12.dp),
+                        buttonSize = minimapButtonSize,
+                        iconSize = minimapIconSize
+                    )
                 }
 
                 // 2. CONTENIDO DE DATOS (Scrollable)
@@ -495,6 +483,34 @@ fun RouteDetailDialog(
 }
 
 // -------------------------------------------------------------------------
+// BOTONES FLOTANTES DEL MAPA (estilo Material unificado)
+// -------------------------------------------------------------------------
+
+@Composable
+fun MapOverlayIconButton(
+    onClick: () -> Unit,
+    icon: ImageVector,
+    contentDescription: String,
+    modifier: Modifier = Modifier,
+    buttonSize: Dp = 40.dp,
+    iconSize: Dp = 24.dp
+) {
+    IconButton(
+        onClick = onClick,
+        modifier = modifier
+            .background(MaterialTheme.colorScheme.surfaceContainerHigh, CircleShape)
+            .size(buttonSize)
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = contentDescription,
+            tint = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.size(iconSize)
+        )
+    }
+}
+
+// -------------------------------------------------------------------------
 // DIÁLOGOS MODALES (MAPA FULLSCREEN Y CLIMA)
 // -------------------------------------------------------------------------
 
@@ -537,46 +553,27 @@ private fun FullscreenMapDialog(
                 }
             )
 
-            /* =========================
-             * BOTÓN CERRAR
-             * ========================= */
-            Surface(
+            MapOverlayIconButton(
+                onClick = onExportGpx,
+                icon = Icons.Default.FileDownload,
+                contentDescription = "Exportar GPX",
                 modifier = Modifier
                     .align(Alignment.TopStart)
                     .statusBarsPadding()
-                    .padding(16.dp)
-                    .zIndex(20f),
-                shape = CircleShape,
-                color = androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.5f)
-            ) {
-                IconButton(onClick = onExportGpx, modifier = Modifier.size(48.dp)) {
-                    Icon(
-                        imageVector = Icons.Default.FileDownload,
-                        contentDescription = "Exportar GPX",
-                        tint = androidx.compose.ui.graphics.Color.White,
-                        modifier = Modifier.size(28.dp)
-                    )
-                }
-            }
+                    .padding(12.dp)
+                    .zIndex(20f)
+            )
 
-            Surface(
+            MapOverlayIconButton(
+                onClick = onDismiss,
+                icon = Icons.Default.Close,
+                contentDescription = "Cerrar",
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .statusBarsPadding()
-                    .padding(16.dp)
-                    .zIndex(20f),
-                shape = CircleShape,
-                color = androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.5f)
-            ) {
-                IconButton(onClick = onDismiss, modifier = Modifier.size(48.dp)) {
-                    Icon(
-                        imageVector = Icons.Default.Close,
-                        contentDescription = "Cerrar",
-                        tint = androidx.compose.ui.graphics.Color.White,
-                        modifier = Modifier.size(28.dp)
-                    )
-                }
-            }
+                    .padding(12.dp)
+                    .zIndex(20f)
+            )
 
             /* =========================
              * CARD FLOTANTE (OVERLAY)

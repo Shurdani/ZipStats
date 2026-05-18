@@ -488,18 +488,15 @@ fun RouteAnimationDialog(
              * BOTÓN CERRAR
              * ========================= */
             if (!isRecording) {
-                IconButton(
+                MapOverlayIconButton(
                     onClick = onDismiss,
+                    icon = Icons.Default.Close,
+                    contentDescription = "Cerrar",
                     modifier = Modifier
                         .align(Alignment.TopEnd)
-                        // ❌ Eliminado statusBarsPadding() - En modo inmersivo las barras están ocultas
-                        .padding(16.dp)
-                        .size(48.dp)
-                        .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.5f), CircleShape)
+                        .padding(12.dp)
                         .zIndex(20f)
-                ) {
-                    Icon(Icons.Default.Close, "Cerrar", tint = MaterialTheme.colorScheme.onPrimary)
-                }
+                )
             }
             
             /* =========================

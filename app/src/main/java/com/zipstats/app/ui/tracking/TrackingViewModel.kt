@@ -108,7 +108,8 @@ class TrackingViewModel @Inject constructor(
     private val recordRepository: RecordRepository,
     private val preferencesManager: PreferencesManager,
     private val appOverlayRepository: AppOverlayRepository,
-    private val weatherRepository: com.zipstats.app.repository.WeatherRepository
+    private val weatherRepository: com.zipstats.app.repository.WeatherRepository,
+    private val settingsRepository: com.zipstats.app.repository.SettingsRepository
 ) : AndroidViewModel(application) {
 
     private val notificationHandler = TrackingNotificationHandler(getApplication())
@@ -277,6 +278,15 @@ class TrackingViewModel @Inject constructor(
     // Prioridad: Condiciones extremas > Lluvia > Calzada humeda
     private var weatherHadWetRoad = false // Calzada húmeda detectada (sin lluvia activa)
     private var weatherHadExtremeConditions = false // Condiciones extremas detectadas
+
+    // Región climática cacheada para la ruta actual.
+    // Se fija con la primera lectura GPS válida y no se recalcula durante la ruta.
+    // Una ruta de patinete no cruza fronteras climáticas, así que conservarla evita
+    // oscilaciones cuando el primer fix GPS no es bueno y ahorra cálculos repetidos.
+    private var sessionClimateRegion: WeatherAdvisor.ClimateRegion? = null
+
+    // Región forzada por el usuario en Ajustes (null = automático por GPS).
+    private var userClimateRegionOverride: WeatherAdvisor.ClimateRegion? = null
     private var weatherExtremeReason: String? = null // Razón de condiciones extremas (WIND, GUSTS, STORM, SNOW, COLD, HEAT, UV, VISIBILITY)
 
     // Precipitación acumulada reciente (últimas 3h) basada en histórico de Google
@@ -413,6 +423,16 @@ class TrackingViewModel @Inject constructor(
             lastWeatherBadgeState = null
             _weatherStatus.value = WeatherStatus.Idle // Resetear estado del clima también
             Log.d(TAG, "🔄 No hay clima guardado, badges y estado del clima limpiados")
+        }
+
+        viewModelScope.launch {
+            settingsRepository.climateRegionPreferenceFlow.collect { preference ->
+                val newOverride = preference.toClimateRegionOrNull()
+                if (newOverride != userClimateRegionOverride) {
+                    userClimateRegionOverride = newOverride
+                    sessionClimateRegion = null
+                }
+            }
         }
     }
 
@@ -681,7 +701,13 @@ class TrackingViewModel @Inject constructor(
                             dewPoint = weather.dewPoint,
                             weatherEmoji = weatherEmoji,
                             weatherDescription = weatherDescription,
-                            windSpeed = weather.windSpeed
+                            windSpeed = weather.windSpeed,
+                            climateRegion = resolveClimateRegion(
+                                latitude = preLocation.latitude,
+                                longitude = preLocation.longitude
+                            ),
+                            latitude = preLocation.latitude,
+                            longitude = preLocation.longitude
                         )
                     }
 
@@ -1006,6 +1032,37 @@ class TrackingViewModel @Inject constructor(
             .coerceAtLeast(0.0)
     }
 
+    /**
+     * Devuelve la región climática para esta ruta. La primera invocación infiere
+     * la región a partir de las coordenadas y la cachea en [sessionClimateRegion];
+     * todas las invocaciones posteriores reutilizan ese valor hasta que se resetee
+     * el estado de tracking. Esto evita que oscile durante la ruta por fixes GPS
+     * malos y elimina llamadas redundantes a [WeatherAdvisor.inferClimateRegion].
+     */
+    private fun resolveClimateRegion(
+        latitude: Double,
+        longitude: Double
+    ): WeatherAdvisor.ClimateRegion {
+        sessionClimateRegion?.let { return it }
+
+        val region = userClimateRegionOverride
+            ?: weatherAdvisor.inferClimateRegion(latitude, longitude)
+        sessionClimateRegion = region
+        val source = if (userClimateRegionOverride != null) {
+            "manual (ajustes)"
+        } else {
+            "GPS (lat=$latitude, lon=$longitude)"
+        }
+        Log.d(TAG, "🗺️ Región climática fijada para esta ruta: $region ($source)")
+        return region
+    }
+
+    /** Región para snapshots sin coordenadas válidas. */
+    private fun resolveClimateRegionWithoutGps(): WeatherAdvisor.ClimateRegion =
+        sessionClimateRegion
+            ?: userClimateRegionOverride
+            ?: WeatherAdvisor.ClimateRegion.MEDITERRANEAN_COAST
+
     private suspend fun getRecentPrecipitation24h(latitude: Double, longitude: Double): Double {
         return weatherRepository
             .getRecentPrecipitationHours(latitude = latitude, longitude = longitude, hours = 24)
@@ -1160,7 +1217,13 @@ class TrackingViewModel @Inject constructor(
                                     dewPoint = weather.dewPoint,
                                     weatherEmoji = weatherEmoji,
                                     weatherDescription = weather.description,
-                                    windSpeed = weather.windSpeed
+                                    windSpeed = weather.windSpeed,
+                                    climateRegion = resolveClimateRegion(
+                                        latitude = currentPoint.latitude,
+                                        longitude = currentPoint.longitude
+                                    ),
+                                    latitude = currentPoint.latitude,
+                                    longitude = currentPoint.longitude
                                 )
                             }
 
@@ -1469,7 +1532,14 @@ class TrackingViewModel @Inject constructor(
                     dewPoint = snapshot.dewPoint,
                     weatherEmoji = weatherEmoji,
                     weatherDescription = weatherDescription,
-                    windSpeed = snapshot.windSpeed
+                    windSpeed = snapshot.windSpeed,
+                    climateRegion = if (lat == 0.0 && lon == 0.0) {
+                        resolveClimateRegionWithoutGps()
+                    } else {
+                        resolveClimateRegion(latitude = lat, longitude = lon)
+                    },
+                    latitude = if (lat == 0.0 && lon == 0.0) null else lat,
+                    longitude = if (lat == 0.0 && lon == 0.0) null else lon
                 )
             }
             
@@ -1723,7 +1793,13 @@ class TrackingViewModel @Inject constructor(
                                 dewPoint = weather.dewPoint,
                                 weatherEmoji = weatherEmoji,
                                 weatherDescription = weatherDescription,
-                                windSpeed = weather.windSpeed
+                                windSpeed = weather.windSpeed,
+                                climateRegion = resolveClimateRegion(
+                                    latitude = firstPoint.latitude,
+                                    longitude = firstPoint.longitude
+                                ),
+                                latitude = firstPoint.latitude,
+                                longitude = firstPoint.longitude
                             )
                         }
                         
@@ -2257,6 +2333,7 @@ class TrackingViewModel @Inject constructor(
         weatherRainReason = null
         weatherHadWetRoad = false
         weatherHadExtremeConditions = false
+        sessionClimateRegion = null
         maxWindSpeed = 0.0
         maxWindGusts = 0.0
         minTemperature = Double.MAX_VALUE
@@ -2579,6 +2656,7 @@ class TrackingViewModel @Inject constructor(
         weatherMaxPrecipitation = 0.0
         weatherRainStartMinute = null
         weatherRainReason = null
+        sessionClimateRegion = null
 
         // 3. Valores extremos detectados
         maxWindSpeed = 0.0

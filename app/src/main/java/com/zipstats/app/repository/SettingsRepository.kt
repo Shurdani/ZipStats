@@ -9,6 +9,7 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.zipstats.app.ui.theme.ColorTheme
 import com.zipstats.app.ui.theme.ThemeMode
+import com.zipstats.app.ui.tracking.WeatherAdvisor
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import javax.inject.Inject
@@ -28,6 +29,7 @@ class SettingsRepository @Inject constructor(
         val DYNAMIC_COLOR = booleanPreferencesKey("dynamic_color")
         val PURE_BLACK_OLED = booleanPreferencesKey("pure_black_oled")
         val KEEP_SCREEN_ON_DURING_TRACKING = booleanPreferencesKey("keep_screen_on_during_tracking")
+        val CLIMATE_REGION_PREFERENCE = stringPreferencesKey("climate_region_preference")
     }
 
     val themeModeFlow: Flow<ThemeMode> = context.dataStore.data.map { prefs ->
@@ -53,6 +55,13 @@ class SettingsRepository @Inject constructor(
     val keepScreenOnDuringTrackingFlow: Flow<Boolean> = context.dataStore.data.map { prefs ->
         prefs[Keys.KEEP_SCREEN_ON_DURING_TRACKING] ?: false
     }
+
+    val climateRegionPreferenceFlow: Flow<WeatherAdvisor.ClimateRegionPreference> =
+        context.dataStore.data.map { prefs ->
+            WeatherAdvisor.ClimateRegionPreference.fromName(
+                prefs[Keys.CLIMATE_REGION_PREFERENCE]
+            )
+        }
 
     suspend fun setThemeMode(mode: ThemeMode) {
         context.dataStore.edit { prefs ->
@@ -85,6 +94,12 @@ class SettingsRepository @Inject constructor(
     suspend fun setKeepScreenOnDuringTracking(enabled: Boolean) {
         context.dataStore.edit { prefs ->
             prefs[Keys.KEEP_SCREEN_ON_DURING_TRACKING] = enabled
+        }
+    }
+
+    suspend fun setClimateRegionPreference(preference: WeatherAdvisor.ClimateRegionPreference) {
+        context.dataStore.edit { prefs ->
+            prefs[Keys.CLIMATE_REGION_PREFERENCE] = preference.name
         }
     }
 }

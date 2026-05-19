@@ -42,6 +42,7 @@ import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.ScreenLockPortrait
@@ -59,6 +60,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
@@ -89,6 +91,7 @@ import com.zipstats.app.BuildConfig
 import com.zipstats.app.navigation.Screen
 import com.zipstats.app.permission.PermissionManager
 import com.zipstats.app.repository.SettingsRepository
+import com.zipstats.app.ui.tracking.WeatherAdvisor
 import com.zipstats.app.ui.components.DialogCancelButton
 import com.zipstats.app.ui.components.DialogDeleteButton
 import com.zipstats.app.ui.components.DialogSaveButton
@@ -119,9 +122,13 @@ fun AccountSettingsScreen(
     val settingsRepository = remember { SettingsRepository(context) }
     val permissionManager = remember { PermissionManager(context) }
     val keepScreenOnDuringTracking by settingsRepository.keepScreenOnDuringTrackingFlow.collectAsState(initial = false)
+    val climateRegionPreference by settingsRepository.climateRegionPreferenceFlow.collectAsState(
+        initial = WeatherAdvisor.ClimateRegionPreference.AUTOMATIC
+    )
     val scope = rememberCoroutineScope()
 
     var isPaletteExpanded by remember { mutableStateOf(false) }
+    var isClimateRegionExpanded by remember { mutableStateOf(false) }
     var isPermissionsExpanded by remember { mutableStateOf(false) }
     var permissionStates by remember { mutableStateOf(permissionManager.getPermissionStates()) }
     val allPermissions = remember { permissionManager.getAllPermissions() }
@@ -365,7 +372,29 @@ fun AccountSettingsScreen(
                         scope.launch { settingsRepository.setKeepScreenOnDuringTracking(enabled) }
                     }
                 )
-                
+
+                HorizontalDivider(
+                    modifier = Modifier.padding(start = 56.dp, end = 16.dp),
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                )
+
+                ExpandableSettingRow(
+                    title = "Región climática",
+                    subtitle = climateRegionPreference.displayName,
+                    icon = Icons.Default.Map,
+                    expanded = isClimateRegionExpanded,
+                    onExpandChange = { isClimateRegionExpanded = it }
+                ) {
+                    ClimateRegionPreferenceList(
+                        selected = climateRegionPreference,
+                        onSelect = { preference ->
+                            scope.launch {
+                                settingsRepository.setClimateRegionPreference(preference)
+                            }
+                        }
+                    )
+                }
+
                 HorizontalDivider(
                     modifier = Modifier.padding(start = 56.dp, end = 16.dp),
                     color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
@@ -641,6 +670,48 @@ fun ExpandableSettingRow(
             exit = slideOutVertically() + fadeOut()
         ) {
             content()
+        }
+    }
+}
+
+@Composable
+fun ClimateRegionPreferenceList(
+    selected: WeatherAdvisor.ClimateRegionPreference,
+    onSelect: (WeatherAdvisor.ClimateRegionPreference) -> Unit
+) {
+    Column(modifier = Modifier.padding(bottom = 8.dp)) {
+        WeatherAdvisor.ClimateRegionPreference.entries.forEach { preference ->
+            val isSelected = preference == selected
+            ListItem(
+                headlineContent = {
+                    ZipStatsText(
+                        text = preference.displayName,
+                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                    )
+                },
+                supportingContent = if (preference == WeatherAdvisor.ClimateRegionPreference.AUTOMATIC) {
+                    {
+                        ZipStatsText(
+                            text = "Detecta la zona según tu ubicación GPS",
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                } else null,
+                leadingContent = null,
+                trailingContent = {
+                    RadioButton(
+                        selected = isSelected,
+                        onClick = { onSelect(preference) }
+                    )
+                },
+                colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                modifier = Modifier
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = { onSelect(preference) }
+                    )
+            )
         }
     }
 }

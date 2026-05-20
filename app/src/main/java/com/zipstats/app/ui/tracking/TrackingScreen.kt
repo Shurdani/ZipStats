@@ -7,6 +7,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
@@ -126,6 +127,9 @@ import com.zipstats.app.ui.components.DialogDeleteButton
 import com.zipstats.app.ui.components.DialogTitleText
 import com.zipstats.app.ui.components.ZipStatsText
 import com.zipstats.app.ui.shared.AppOverlayState
+import com.zipstats.app.tracking.GpsPreLocationState
+import com.zipstats.app.tracking.TrackingState
+import com.zipstats.app.tracking.WeatherStatus
 import com.zipstats.app.ui.theme.DialogShape
 import com.zipstats.app.utils.LocationUtils
 import dagger.hilt.android.EntryPointAccessors
@@ -249,7 +253,7 @@ fun TrackingScreen(
 
     val effectiveGpsPreLocationState =
         if (showPreGpsIntroText && trackingState is TrackingState.Idle) {
-            TrackingViewModel.GpsPreLocationState.Searching
+            GpsPreLocationState.Searching
         } else {
             gpsPreLocationState
         }
@@ -713,7 +717,7 @@ fun PermissionRequestCard(onRequestPermissions: () -> Unit) {
 fun IdleStateContent(
     selectedScooter: Scooter?,
     scooters: List<Scooter>,
-    gpsPreLocationState: TrackingViewModel.GpsPreLocationState,
+    gpsPreLocationState: GpsPreLocationState,
     hasValidGpsSignal: Boolean,
     weatherStatus: WeatherStatus,
     shouldShowRainWarning: Boolean,
@@ -884,13 +888,13 @@ fun IdleStateContent(
 
 @Composable
 fun GpsPreLocationIcon(
-    gpsPreLocationState: TrackingViewModel.GpsPreLocationState,
+    gpsPreLocationState: GpsPreLocationState,
     modifier: Modifier = Modifier
 ) {
     val infiniteTransition = rememberInfiniteTransition(label = "gps_pulse")
     val scale by infiniteTransition.animateFloat(
         initialValue = 1f,
-        targetValue = if (gpsPreLocationState is TrackingViewModel.GpsPreLocationState.Searching) 1.3f else 1.15f,
+        targetValue = if (gpsPreLocationState is GpsPreLocationState.Searching) 1.3f else 1.15f,
         animationSpec = infiniteRepeatable(
             animation = tween(1200, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Reverse
@@ -909,12 +913,12 @@ fun GpsPreLocationIcon(
     )
 
     val (iconColor, iconVector) = when (gpsPreLocationState) {
-        is TrackingViewModel.GpsPreLocationState.Ready -> Color(0xFF4CAF50) to Icons.Default.Place
-        is TrackingViewModel.GpsPreLocationState.Found -> {
+        is GpsPreLocationState.Ready -> Color(0xFF4CAF50) to Icons.Default.Place
+        is GpsPreLocationState.Found -> {
             if (gpsPreLocationState.accuracy <= 10f) Color(0xFFFFEB3B) to Icons.Default.Place
             else Color(0xFFFF9800) to Icons.Default.Place
         }
-        is TrackingViewModel.GpsPreLocationState.Searching -> Color(0xFFF44336) to Icons.Default.LocationOn
+        is GpsPreLocationState.Searching -> Color(0xFFF44336) to Icons.Default.LocationOn
     }
 
     Box(contentAlignment = Alignment.Center, modifier = modifier) {
@@ -941,16 +945,16 @@ fun GpsPreLocationIcon(
 }
 
 @Composable
-fun GpsPreLocationStatusText(gpsPreLocationState: TrackingViewModel.GpsPreLocationState) {
+fun GpsPreLocationStatusText(gpsPreLocationState: GpsPreLocationState) {
     val (text, containerColor, textColor) = when (gpsPreLocationState) {
-        is TrackingViewModel.GpsPreLocationState.Ready -> {
+        is GpsPreLocationState.Ready -> {
             Triple(
                 "Señal GPS Excelente",
                 MaterialTheme.colorScheme.primaryContainer,
                 MaterialTheme.colorScheme.onPrimaryContainer
             )
         }
-        is TrackingViewModel.GpsPreLocationState.Found -> {
+        is GpsPreLocationState.Found -> {
             val acc = gpsPreLocationState.accuracy.roundToInt()
             if (acc <= 10) {
                 Triple(
@@ -966,7 +970,7 @@ fun GpsPreLocationStatusText(gpsPreLocationState: TrackingViewModel.GpsPreLocati
                 )
             }
         }
-        is TrackingViewModel.GpsPreLocationState.Searching -> {
+        is GpsPreLocationState.Searching -> {
             Triple(
                 "Buscando satélites...",
                 MaterialTheme.colorScheme.errorContainer,
@@ -1828,6 +1832,15 @@ fun HeroSpeedometer(
     speed: Double,
     modifier: Modifier = Modifier
 ) {
+    val animatedSpeed by animateFloatAsState(
+        targetValue = speed.toFloat(),
+        animationSpec = tween(
+            durationMillis = 120,
+            easing = FastOutSlowInEasing,
+        ),
+        label = "speedometer",
+    )
+
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = modifier
@@ -1843,9 +1856,8 @@ fun HeroSpeedometer(
         Row(
             verticalAlignment = Alignment.Bottom
         ) {
-            // El número gigante - usa autoResize para que se ajuste si no cabe
             ZipStatsText(
-                text = LocationUtils.formatSpeed(speed).replace(" km/h", ""),
+                text = LocationUtils.formatSpeed(animatedSpeed.toDouble()).replace(" km/h", ""),
                 style = MaterialTheme.typography.displayLarge.copy(
                     fontSize = 96.sp, // Tamaño heroico
                     fontWeight = FontWeight.Black,
@@ -2065,7 +2077,7 @@ private fun convertWindDirectionToText(degrees: Int?): String {
  * Trata bicicleta y e-bike como si fueran el mismo
  */
 private fun getHumorousGpsTitle(
-    state: TrackingViewModel.GpsPreLocationState,
+    state: GpsPreLocationState,
     vehicleType: String? // Pasa aquí el tipo: "PATINETE", "E_BIKE", "BICICLETA", "MONOCICLO"
 ): String {
     // Normalizamos para evitar problemas de mayúsculas/minúsculas
@@ -2077,7 +2089,7 @@ private fun getHumorousGpsTitle(
     val isUnicycle = type.contains("MONOCICLO") || type.contains("UNICYCLE")
 
     return when (state) {
-        is TrackingViewModel.GpsPreLocationState.Searching -> {
+        is GpsPreLocationState.Searching -> {
             // Frases base para todos
             val phrases = mutableListOf(
                 "Sobornando a los satélites...",
@@ -2114,7 +2126,7 @@ private fun getHumorousGpsTitle(
             phrases.random()
         }
 
-        is TrackingViewModel.GpsPreLocationState.Found -> {
+        is GpsPreLocationState.Found -> {
             // Estado intermedio: hay señal, pero aún no está fina o no se ha iniciado.
             when {
                 isBike -> "Señal detectada. Ajustando ruta para tu bici..."
@@ -2124,7 +2136,7 @@ private fun getHumorousGpsTitle(
             }
         }
 
-        is TrackingViewModel.GpsPreLocationState.Ready -> {
+        is GpsPreLocationState.Ready -> {
             // Importante: no mostrar mensaje de éxito final aquí; aún no se ha pulsado iniciar.
             when {
                 isBike -> "GPS listo. Pulsa \"Iniciar seguimiento\" para pedalear"

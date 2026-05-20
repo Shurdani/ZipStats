@@ -22,8 +22,8 @@ android {
         applicationId "com.zipstats.app"
         minSdk 33
         targetSdk 34
-        versionCode 110
-        versionName "7.5.0"
+        versionCode 111
+        versionName "8.0.0B"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -103,6 +103,9 @@ android {
     buildFeatures {
         compose true
         buildConfig true
+    }
+    testOptions {
+        unitTests.includeAndroidResources = true
     }
     packaging {
         resources {
@@ -208,6 +211,7 @@ dependencies {
 
     // --- Testing ---
     testImplementation libs.junit
+    testImplementation "org.robolectric:robolectric:4.14.1"
     androidTestImplementation libs.androidx.junit
     androidTestImplementation libs.androidx.espresso.core
     androidTestImplementation libs.androidx.ui.test.junit4.version

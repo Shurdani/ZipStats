@@ -156,7 +156,7 @@ class LocationTrackingService : Service() {
         lastStoppedTime = 0L
         
         // Usar configuración GPS optimizada del LocationTracker
-        val locationRequest = locationTracker.createOptimalLocationRequest()
+        val locationRequest = locationTracker.createHighAccuracyLocationRequest()
 
         // Iniciar actualizaciones de ubicación
         fusedLocationClient.requestLocationUpdates(
@@ -246,35 +246,11 @@ class LocationTrackingService : Service() {
         _routePoints.value = currentPoints
         
         // Actualizar velocidad actual con suavizado y filtro
-        val speedKmh = if (location.hasSpeed()) {
-            // Priorizar location.getSpeed() que viene pre-filtrada por el hardware
-            LocationUtils.metersPerSecondToKmPerHour(location.speed)
-        } else {
-            // Si no hay velocidad del GPS, calcular basado en distancia y tiempo
-            if (currentPoints.size >= 2) {
-                val lastPoint = currentPoints.last()
-                val timeDiff = (routePoint.timestamp - lastPoint.timestamp) / 1000.0 // segundos
-                if (timeDiff > 0) {
-                    val distanceKm = LocationUtils.calculateDistance(lastPoint, routePoint)
-                    (distanceKm / timeDiff) * 3.6 // Convertir a km/h
-                } else {
-                    0.0
-                }
-            } else {
-                0.0
-            }
-        }
-        
-        // Procesar velocidad con calculadora avanzada
         val speedPair = speedCalculator.processLocation(location)
-        val smoothedSpeed = speedPair?.smoothed?.toDouble() ?: 0.0
-        
-        // Aplicar filtro para velocidades muy bajas (GPS drift)
-        val filteredSpeed = LocationUtils.filterSpeed(smoothedSpeed)
-        _currentSpeed.value = filteredSpeed
-        
-        // Actualizar tiempo en movimiento y velocidad media
-        updateTimeInMotion(filteredSpeed)
+        // El umbral de parada ya se aplica en SpeedCalculator (con histéresis al arrancar)
+        _currentSpeed.value = speedPair?.smoothed?.toDouble() ?: 0.0
+
+        updateTimeInMotion(_currentSpeed.value)
         
         // Actualizar duración
         val currentTime = System.currentTimeMillis()

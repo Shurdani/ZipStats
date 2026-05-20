@@ -83,7 +83,7 @@ class LocationTracker(private val context: Context) {
             setMinUpdateIntervalMillis(100L) // Hasta 10Hz si es posible
             setMaxUpdateDelayMillis(500L) // Máximo 500ms de retraso
             setMinUpdateDistanceMeters(0f) // Sin filtro de distancia
-            setWaitForAccurateLocation(true) // Esperar alta precisión
+            setWaitForAccurateLocation(false) // No bloquear 5–10 s al arrancar la ruta
             setDurationMillis(Long.MAX_VALUE)
             setGranularity(Granularity.GRANULARITY_PERMISSION_LEVEL)
         }.build()

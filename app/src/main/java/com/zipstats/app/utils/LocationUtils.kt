@@ -141,9 +141,9 @@ object LocationUtils {
     }
     
     /**
-     * Filtra la velocidad para considerar velocidades muy bajas como "parado"
+     * Filtra la velocidad para considerar velocidades muy bajas como "parado".
      * @param speedKmh Velocidad en km/h
-     * @param minSpeedThreshold Umbral mínimo de velocidad en km/h (por defecto 3.0 km/h)
+     * @param minSpeedThreshold Umbral mínimo en km/h; usar [com.zipstats.app.model.VehicleType.pauseSpeedThreshold]
      * @return Velocidad filtrada (0.0 si está por debajo del umbral)
      */
     fun filterSpeed(speedKmh: Double, minSpeedThreshold: Double = 3.0): Double {
@@ -174,18 +174,14 @@ object LocationUtils {
             
             val speedChange = kotlin.math.abs(newSpeed - previousSpeed)
             
-            // α agresivo (0.75-0.98) para cambios bruscos o arranque desde parado
-            // α suave (0.35-0.4) para velocidad estable
+            // α agresivo para cambios bruscos; en crucero más reactivo que antes (0.35 → 0.52)
             val alpha = when {
-                // Arrancando desde parado o parando - respuesta casi instantánea
-                (smoothedSpeed < 1.5 && newSpeed > 1.5) || 
+                (smoothedSpeed < 1.5 && newSpeed > 1.5) ||
                 (smoothedSpeed > 1.5 && newSpeed < 1.5) -> 0.98
-                // Cambio muy brusco (>5 km/h)
-                speedChange > 5.0 -> 0.85
-                // Cambio moderado (2-5 km/h)
-                speedChange > 2.0 -> 0.65
-                // Velocidad estable (<2 km/h de cambio)
-                else -> 0.35
+                speedChange > 5.0 -> 0.90
+                speedChange > 2.0 -> 0.78
+                speedChange > 0.8 -> 0.62
+                else -> 0.52
             }
             
             smoothedSpeed = alpha * newSpeed + (1.0 - alpha) * smoothedSpeed

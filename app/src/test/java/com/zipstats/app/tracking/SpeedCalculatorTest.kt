@@ -53,15 +53,46 @@ class SpeedCalculatorTest {
     }
 
     @Test
+    fun dropsToZeroWhenGpsReportsSpeedButNotMoving() {
+        val lat = 41.3851
+        val lon = 2.1734
+        calculator.processLocation(location(lat = lat, lon = lon, speedKmh = 15f))
+        Thread.sleep(150)
+
+        val stopped = calculator.processLocation(location(lat = lat, lon = lon, speedKmh = 5.5f))
+
+        assertNotNull(stopped)
+        assertEquals(0f, stopped!!.smoothed)
+    }
+
+    @Test
     fun showsSpeedWhenLaunchingBelowPauseThreshold() {
         calculator.processLocation(location(speedKmh = 0f, accuracy = 5f))
         Thread.sleep(150)
 
-        // 3 km/h: por debajo del umbral de parada (4) pero por encima del de arranque (~2.2)
+        // 3 km/h: por debajo del umbral de parada (4) pero por encima del de arranque (~1.8)
         val result = calculator.processLocation(location(speedKmh = 3f, accuracy = 5f))
 
         assertNotNull(result)
-        assertTrue(result!!.smoothed >= 2.5f)
+        assertTrue(result!!.smoothed >= 1.2f)
+    }
+
+    @Test
+    fun dropsToZeroWhenGpsDriftsButLittleNetMovement() {
+        val lat = 41.3851
+        val lon = 2.1734
+        calculator.processLocation(location(lat = lat, lon = lon, speedKmh = 18f))
+        Thread.sleep(150)
+
+        // Parado: chip ~5.5 km/h sin desplazamiento neto (misma posición)
+        var last: SpeedPair? = null
+        repeat(3) {
+            last = calculator.processLocation(location(lat = lat, lon = lon, speedKmh = 5.5f))
+            Thread.sleep(120)
+        }
+
+        assertNotNull(last)
+        assertEquals(0f, last!!.smoothed)
     }
 
     @Test

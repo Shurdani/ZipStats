@@ -1832,14 +1832,21 @@ fun HeroSpeedometer(
     speed: Double,
     modifier: Modifier = Modifier
 ) {
+    var previousTarget by remember { mutableStateOf(0f) }
+    val target = speed.toFloat()
     val animatedSpeed by animateFloatAsState(
-        targetValue = speed.toFloat(),
+        targetValue = target,
         animationSpec = tween(
-            durationMillis = 120,
+            durationMillis = when {
+                target < previousTarget - 0.3f -> 40
+                previousTarget < 0.5f && target > 0.5f -> 45
+                else -> 70
+            },
             easing = FastOutSlowInEasing,
         ),
         label = "speedometer",
     )
+    previousTarget = target
 
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,

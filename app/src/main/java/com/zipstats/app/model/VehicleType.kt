@@ -31,24 +31,24 @@ enum class VehicleType(
         minPointsForPause = 3      // Nuevo
     ),
     E_BIKE(
-        displayName = "E-Bike", 
+        displayName = "E-Bike",
         emoji = "🚴",
-        minSpeed = 4f,        // Reducido de 5f a 4f
+        minSpeed = 3f,              // Igual que bici: rodaje lento sin motor
         maxSpeed = 45f,
         pauseRadius = 8f,
-        minPauseDuration = 3000L,  // Reducido de 4000L a 3000L
-        pauseSpeedThreshold = 4f,  // Nuevo
-        minPointsForPause = 3      // Nuevo
+        minPauseDuration = 3000L,
+        pauseSpeedThreshold = 3f,   // Coherente con minSpeed
+        minPointsForPause = 3,
     ),
     MONOCICLO(
-        displayName = "Monociclo", 
+        displayName = "Monociclo",
         emoji = "🛞",
-        minSpeed = 4f,        // Igualado a patinete
-        maxSpeed = 35f,       // Igualado a patinete
-        pauseRadius = 8f,    // Igualado a patinete
-        minPauseDuration = 3000L,  // Igualado a patinete
-        pauseSpeedThreshold = 4f,  // Igualado a patinete
-        minPointsForPause = 3      // Igualado a patinete
+        minSpeed = 4f,
+        maxSpeed = 40f,             // Por encima de patinete; bajadas / modelos rápidos
+        pauseRadius = 8f,
+        minPauseDuration = 3000L,
+        pauseSpeedThreshold = 4f,
+        minPointsForPause = 3,
     );
     
     companion object {

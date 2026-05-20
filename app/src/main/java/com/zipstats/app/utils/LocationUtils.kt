@@ -177,7 +177,7 @@ object LocationUtils {
             // α agresivo para cambios bruscos; en crucero más reactivo que antes (0.35 → 0.52)
             val alpha = when {
                 (smoothedSpeed < 1.5 && newSpeed > 1.5) ||
-                (smoothedSpeed > 1.5 && newSpeed < 1.5) -> 0.98
+                (smoothedSpeed > 1.5 && newSpeed < 1.5) -> 0.99
                 speedChange > 5.0 -> 0.90
                 speedChange > 2.0 -> 0.78
                 speedChange > 0.8 -> 0.62
@@ -190,6 +190,15 @@ object LocationUtils {
             return smoothedSpeed
         }
         
+        /**
+         * Fija el suavizado a un valor (arranque desde 0 o parada brusca).
+         */
+        fun snapTo(speed: Double) {
+            smoothedSpeed = speed
+            previousSpeed = speed
+            isInitialized = true
+        }
+
         /**
          * Resetea el estado del suavizador
          */

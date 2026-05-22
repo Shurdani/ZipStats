@@ -89,11 +89,11 @@ class RouteAnalyzer {
             val distance = calculateDistance(prev, current)
             val speed = (distance / (timeDiff / 1000f)) * 3.6f // km/h
             
-            // CRITERIOS DE MOVIMIENTO REAL
-            val isMoving = speed >= vehicleType.minSpeed && 
-                          speed <= vehicleType.maxSpeed &&
-                          distance > 3f && // mínimo 3 metros
-                          current.accuracy < 15f
+            // Movimiento real: desplazamiento mínimo (no basta velocidad del chip) + umbral del vehículo
+            val isMoving = speed >= vehicleType.pauseSpeedThreshold &&
+                speed <= vehicleType.maxSpeed &&
+                distance > 3f &&
+                current.accuracy < 15f
             
             if (isMoving) {
                 if (currentSegment == null) {
@@ -188,13 +188,12 @@ class RouteAnalyzer {
                 0f
             }
             
-            // CRITERIOS MEJORADOS DE PAUSA:
-            // 1. Velocidad muy baja (bajo umbral del vehículo)
-            // 2. Movimiento mínimo en radio pequeño
-            // 3. Tiempo entre puntos razonable (no muy largo)
-            val isStationary = speed <= vehicleType.pauseSpeedThreshold && 
-                              distance < vehicleType.pauseRadius &&
-                              timeDiff < 15000L // máximo 15s entre puntos
+            // Pausa: poco desplazamiento y velocidad baja (tolera deriva GPS en semáforo)
+            val isStationary = timeDiff in 1..15000L && (
+                (speed <= vehicleType.pauseSpeedThreshold && distance < vehicleType.pauseRadius) ||
+                    (speed < vehicleType.pauseSpeedThreshold + 2.5f &&
+                        distance < vehicleType.pauseRadius * 1.5f)
+                )
             
             if (isStationary) {
                 consecutiveSlowPoints++
@@ -311,19 +310,28 @@ class RouteAnalyzer {
         // PASO 3: Analizar ruta (solo segmentos en movimiento)
         val stats = analyzeRoute(cleanPoints, vehicleType)
         
-        // PASO 4: Calcular métricas adicionales
         val totalPauseTime = pauses.sumOf { it.duration }
-        
+        val wallClockMs = if (cleanPoints.size >= 2) {
+            cleanPoints.last().timestamp - cleanPoints.first().timestamp
+        } else {
+            0L
+        }
+        val movingPercentage = if (wallClockMs > 0) {
+            (stats.movingTime.toFloat() / wallClockMs.toFloat() * 100f).coerceIn(0f, 100f)
+        } else {
+            0f
+        }
+
         return RouteSummary(
             totalDistance = stats.totalDistance / 1000.0, // km
             movingTime = stats.movingTime,
-            totalTime = stats.totalTime,
+            totalTime = wallClockMs,
             pauseTime = totalPauseTime,
             averageMovingSpeed = stats.averageSpeed, // km/h solo en movimiento
             averageOverallSpeed = calculateOverallSpeed(stats), // km/h con pausas
             maxSpeed = stats.maxSpeed,
             pauseCount = pauses.size,
-            movingPercentage = stats.movingPercentage
+            movingPercentage = movingPercentage,
         )
     }
     

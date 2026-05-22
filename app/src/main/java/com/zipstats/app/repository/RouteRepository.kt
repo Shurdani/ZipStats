@@ -95,10 +95,10 @@ class RouteRepository @Inject constructor(
     /**
      * Crea una ruta a partir de una lista de puntos GPS.
      *
-     * Tiempo en movimiento: si [timeInMotion] viene del seguimiento en vivo (mismo criterio que
-     * [com.zipstats.app.service.LocationTrackingService] y el velocímetro), se usa como fuente
-     * de verdad para [Route.movingTime]. El analizador post-ruta sigue aportando pausas,
-     * velocidad máxima y fallbacks cuando no hay dato en vivo.
+     * Tiempo en movimiento y pausas: [RouteAnalyzer] sobre los puntos guardados (velocidad por
+     * distancia entre fixes + radio de pausa). Es más fiable que el acumulado en vivo, que puede
+     * inflarse si el GPS reporta velocidad fantasma en semáforos. [timeInMotion] solo se usa si
+     * el analizador no obtiene tiempo en movimiento.
      */
     fun createRouteFromPoints(
         points: List<RoutePoint>,
@@ -138,13 +138,12 @@ class RouteRepository @Inject constructor(
             )
         }
         
-        // Análisis post-ruta: pausas, vmax, fallback si no hay tiempo en vivo
         val routeSummary = routeAnalyzer.generateSummary(analyzerPoints, vehicleType)
-        val motionMetrics = resolveMotionMetrics(
-            timeInMotionMs = timeInMotion,
+        val motionMetrics = buildMotionMetricsFromAnalysis(
+            routeSummary = routeSummary,
             totalDurationMs = totalDuration,
             totalDistanceKm = totalDistance,
-            routeSummary = routeSummary,
+            fallbackTimeInMotionMs = timeInMotion,
         )
 
         val averageSpeed = if (routeSummary.averageOverallSpeed > 0) {
@@ -181,41 +180,34 @@ class RouteRepository @Inject constructor(
     }
 
     /**
-     * Unifica criterios: tiempo en movimiento en vivo (umbral [VehicleType.pauseSpeedThreshold]
-     * + [SpeedCalculator]) o, si no hay dato, el recálculo de [RouteAnalyzer].
+     * Métricas de movimiento desde análisis post-ruta (pausas detectadas + segmentos con
+     * desplazamiento real). El % se calcula sobre la duración total de la ruta guardada.
      */
-    private fun resolveMotionMetrics(
-        timeInMotionMs: Long?,
+    private fun buildMotionMetricsFromAnalysis(
+        routeSummary: RouteAnalyzer.RouteSummary,
         totalDurationMs: Long,
         totalDistanceKm: Double,
-        routeSummary: RouteAnalyzer.RouteSummary,
+        fallbackTimeInMotionMs: Long?,
     ): MotionMetrics {
-        val liveMovingMs = timeInMotionMs?.takeIf { it > 0 }?.coerceIn(0L, totalDurationMs.coerceAtLeast(0L))
-        if (liveMovingMs != null) {
-            val pauseMs = (totalDurationMs - liveMovingMs).coerceAtLeast(0L)
-            val movingPct = if (totalDurationMs > 0) {
-                (liveMovingMs.toFloat() / totalDurationMs.toFloat() * 100f).coerceIn(0f, 100f)
-            } else {
-                0f
-            }
-            val avgMovingKmh = if (liveMovingMs > 0 && totalDistanceKm > 0) {
-                val hours = liveMovingMs / (1000.0 * 60.0 * 60.0)
-                totalDistanceKm / hours
-            } else {
-                0.0
-            }
-            return MotionMetrics(
-                movingTimeMs = liveMovingMs,
-                pauseTimeMs = pauseMs,
-                averageMovingSpeedKmh = avgMovingKmh,
-                movingPercentage = movingPct,
-            )
+        val movingTimeMs = routeSummary.movingTime.takeIf { it > 0L }
+            ?: fallbackTimeInMotionMs?.takeIf { it > 0 }?.coerceIn(0L, totalDurationMs.coerceAtLeast(0L))
+            ?: 0L
+        val pauseTimeMs = routeSummary.pauseTime
+        val movingPercentage = if (totalDurationMs > 0) {
+            (movingTimeMs.toFloat() / totalDurationMs.toFloat() * 100f).coerceIn(0f, 100f)
+        } else {
+            routeSummary.movingPercentage
+        }
+        val averageMovingSpeedKmh = if (movingTimeMs > 0 && totalDistanceKm > 0) {
+            totalDistanceKm / (movingTimeMs / (1000.0 * 60.0 * 60.0))
+        } else {
+            routeSummary.averageMovingSpeed.toDouble()
         }
         return MotionMetrics(
-            movingTimeMs = routeSummary.movingTime,
-            pauseTimeMs = routeSummary.pauseTime,
-            averageMovingSpeedKmh = routeSummary.averageMovingSpeed.toDouble(),
-            movingPercentage = routeSummary.movingPercentage,
+            movingTimeMs = movingTimeMs,
+            pauseTimeMs = pauseTimeMs,
+            averageMovingSpeedKmh = averageMovingSpeedKmh,
+            movingPercentage = movingPercentage,
         )
     }
 

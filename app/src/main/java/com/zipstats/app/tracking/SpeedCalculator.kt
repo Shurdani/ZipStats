@@ -49,13 +49,13 @@ class SpeedCalculator(private val vehicleType: VehicleType) {
     fun processLocation(location: Location): SpeedPair? {
         val currentTime = System.currentTimeMillis()
 
-        if (location.accuracy > MAX_ACCURACY) {
-            consecutiveRejectedUpdates++
-            return rejectOrHold()
-        }
-
         val calculatedSpeed = computeSpeedFromDistance(location, currentTime)
         val distanceSinceLastM = lastValidLocation?.distanceTo(location) ?: 0f
+
+        if (location.accuracy > MAX_ACCURACY) {
+            consecutiveRejectedUpdates++
+            return rejectOrHold(calculatedSpeed, distanceSinceLastM)
+        }
         trackRecentDistance(distanceSinceLastM)
 
         val launching = isLaunchingFromStop(
@@ -69,18 +69,19 @@ class SpeedCalculator(private val vehicleType: VehicleType) {
         }
 
         val gpsSpeed = resolveGpsSpeed(location, calculatedSpeed, distanceSinceLastM)
+        val launchingNow = launching || isLaunchingFromStop(gpsSpeed, calculatedSpeed, distanceSinceLastM)
 
-        if (isEffectivelyStopped(location, calculatedSpeed, gpsSpeed, distanceSinceLastM)) {
+        if (!launchingNow && isEffectivelyStopped(location, calculatedSpeed, gpsSpeed, distanceSinceLastM)) {
             return applyStoppedState(location, currentTime)
         }
         consecutiveStoppedSamples = 0
 
         if (gpsSpeed < 0 || gpsSpeed > vehicleType.maxSpeed * MAX_SPEED_MULTIPLIER) {
             consecutiveRejectedUpdates++
-            return rejectOrHold()
+            return rejectOrHold(calculatedSpeed, distanceSinceLastM)
         }
 
-        if (!launching) {
+        if (!launchingNow) {
             lastValidLocation?.let { prevLocation ->
                 val timeDelta = (currentTime - lastUpdateTime) / 1000f
                 if (timeDelta > 0) {
@@ -93,13 +94,13 @@ class SpeedCalculator(private val vehicleType: VehicleType) {
                         speedFromDistance < vehicleType.maxSpeed
                     ) {
                         consecutiveRejectedUpdates++
-                        return rejectOrHold()
+                        return rejectOrHold(calculatedSpeed, distanceSinceLastM)
                     }
                 }
             }
         }
 
-        if (!launching && lastUpdateTime > 0) {
+        if (!launchingNow && lastUpdateTime > 0) {
             val timeDelta = (currentTime - lastUpdateTime) / 1000f
             if (timeDelta > 0) {
                 val acceleration = abs(gpsSpeed - lastAcceptedGpsSpeed) / timeDelta
@@ -112,12 +113,12 @@ class SpeedCalculator(private val vehicleType: VehicleType) {
 
                 if (acceleration > maxAccel) {
                     consecutiveRejectedUpdates++
-                    return rejectOrHold()
+                    return rejectOrHold(calculatedSpeed, distanceSinceLastM)
                 }
             }
         }
 
-        val displaySpeed = if (launching) {
+        val displaySpeed = if (launchingNow) {
             val instant = max(gpsSpeed, calculatedSpeed)
             emaFilter.snapTo(instant.toDouble())
             applyDisplayThreshold(instant, launching = true)
@@ -244,28 +245,40 @@ class SpeedCalculator(private val vehicleType: VehicleType) {
         calculatedSpeed: Float,
         distanceM: Float,
     ): Boolean {
-        if (lastValidLocation == null || currentDisplaySpeed >= 5f) return false
-        if (currentDisplaySpeed > 0f &&
-            recentDistancesM.sum() < STOP_RECENT_DISTANCE_METERS &&
-            calculatedSpeed < STOP_CALCULATED_KMH
+        if (lastValidLocation == null) return false
+
+        val softLaunch = (currentDisplaySpeed < 1f || lastAcceptedGpsSpeed < 2f) &&
+            gpsSpeed >= displayStartThreshold &&
+            gpsSpeed < vehicleType.pauseSpeedThreshold &&
+            calculatedSpeed < displayStartThreshold &&
+            distanceM < STOP_DISTANCE_METERS
+        val realMovement = calculatedSpeed >= displayStartThreshold ||
+            distanceM >= STOP_DISTANCE_METERS ||
+            (lastAcceptedGpsSpeed < 2f && gpsSpeed >= vehicleType.pauseSpeedThreshold * 1.5f) ||
+            softLaunch
+
+        if (!realMovement) return false
+        if (softLaunch) return true
+
+        // Fantasma en pantalla (p. ej. 5 km/h parado): no arrancar hasta desplazamiento real
+        if (recentDistancesM.sum() < STOP_RECENT_DISTANCE_METERS &&
+            calculatedSpeed < STOP_CALCULATED_KMH &&
+            distanceM < STOP_DISTANCE_METERS
         ) {
             return false
         }
-        val distanceLaunch = calculatedSpeed >= displayStartThreshold ||
-            (gpsSpeed >= vehicleType.pauseSpeedThreshold && distanceM >= STOP_DISTANCE_METERS)
-        val hardwareLaunch = lastAcceptedGpsSpeed < 2f &&
-            gpsSpeed >= vehicleType.pauseSpeedThreshold * 1.5f
-        val softLaunch = currentDisplaySpeed < 1f &&
-            gpsSpeed >= displayStartThreshold &&
-            gpsSpeed < vehicleType.pauseSpeedThreshold
-        return distanceLaunch || hardwareLaunch || softLaunch
+
+        return true
     }
 
     private fun blendForDisplay(rawKmh: Float, smoothedKmh: Float, launching: Boolean): Float {
         if (launching) return max(rawKmh, smoothedKmh)
         val threshold = vehicleType.pauseSpeedThreshold
         if (rawKmh < threshold && smoothedKmh < threshold) return 0f
-        if (smoothedKmh < threshold) return rawKmh
+        // Al frenar: no rescatar el raw fantasma si el suavizado ya está por debajo del umbral
+        if (smoothedKmh < threshold) {
+            return if (rawKmh >= threshold) rawKmh else 0f
+        }
         if (rawKmh < threshold) return smoothedKmh
         return DISPLAY_RAW_WEIGHT * rawKmh + (1f - DISPLAY_RAW_WEIGHT) * smoothedKmh
     }
@@ -278,12 +291,21 @@ class SpeedCalculator(private val vehicleType: VehicleType) {
         return if (reactiveSpeed < stopThreshold) 0f else reactiveSpeed
     }
 
-    private fun rejectOrHold(): SpeedPair? {
-        return if (consecutiveRejectedUpdates < maxConsecutiveRejections) {
-            SpeedPair(currentDisplaySpeed, currentDisplaySpeed)
-        } else {
-            null
+    private fun rejectOrHold(
+        calculatedSpeed: Float = 0f,
+        distanceM: Float = 0f,
+    ): SpeedPair? {
+        if (consecutiveRejectedUpdates >= maxConsecutiveRejections) return null
+        val creepingStopped = calculatedSpeed < STOP_CALCULATED_KMH &&
+            distanceM < STOP_DISTANCE_METERS &&
+            currentDisplaySpeed > 0f &&
+            currentDisplaySpeed < vehicleType.pauseSpeedThreshold + 3f
+        if (creepingStopped) {
+            emaFilter.snapTo(0.0)
+            currentDisplaySpeed = 0f
+            return SpeedPair(0f, 0f)
         }
+        return SpeedPair(currentDisplaySpeed, currentDisplaySpeed)
     }
 
     private fun calculateSpeedFromDistance(location: Location): Float {

@@ -10,6 +10,7 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -1836,14 +1837,21 @@ fun HeroSpeedometer(
     val target = speed.toFloat()
     val animatedSpeed by animateFloatAsState(
         targetValue = target,
-        animationSpec = tween(
-            durationMillis = when {
-                target < previousTarget - 0.3f -> 40
-                previousTarget < 0.5f && target > 0.5f -> 45
-                else -> 70
-            },
-            easing = FastOutSlowInEasing,
-        ),
+        animationSpec = when {
+            target <= 0.05f -> snap()
+            target > previousTarget + 0.5f && previousTarget < 1.5f -> tween(
+                durationMillis = 35,
+                easing = FastOutSlowInEasing,
+            )
+            target < previousTarget - 0.3f -> tween(
+                durationMillis = 40,
+                easing = FastOutSlowInEasing,
+            )
+            else -> tween(
+                durationMillis = 70,
+                easing = FastOutSlowInEasing,
+            )
+        },
         label = "speedometer",
     )
     previousTarget = target

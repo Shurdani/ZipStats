@@ -277,7 +277,7 @@ fun RouteSummaryCardFromRoute(
         subtitle = subtitle,
         distanceKm = route.totalDistance.toFloat(),
         duration = duration,
-        avgSpeed = route.averageSpeed.toFloat(),
+        avgSpeed = route.averageMovingSpeed.toFloat(),
         temperature = route.weatherTemperature,
         weatherText = weatherText,
         weatherIconRes = weatherIconRes,

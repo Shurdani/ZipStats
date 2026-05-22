@@ -30,19 +30,20 @@ import java.util.ArrayDeque
  *    El factor de arranque/parada se mantiene en 2.5× para no bloquear el
  *    primer fix válido tras un semáforo.
  *
- * 4. STOP_DISTANCE_METERS 2.5 → 4.0 m
- *    Con 2.5 m el GPS drift normal (~3 m) hacía que la función barelyMoved
- *    fuera true incluso en movimiento lento. Con 4 m se distingue mejor
- *    entre derive estático y desplazamiento real a 5-8 km/h.
+ * 4. STOP_DISTANCE_METERS 2.5 → 5.5 m
+ *    El drift GPS urbano en Android llega a 4-5 m parado. Con 5.5 m como
+ *    umbral, barelyMoved es true aunque haya deriva moderada.
  *
- * 5. STOP_RECENT_DISTANCE_METERS 9 → 14 m (ventana = 4 fixes)
- *    14 m en 4 fixes ≈ 12-13 km/h sostenido; por debajo se considera parado.
- *    Con 9 m se declaraba parada a velocidades de hasta 8 km/h en curva.
+ * 5. STOP_RECENT_DISTANCE_METERS 9 → 14 m (ventana = 5 fixes)
+ *    14 m en 5 fixes ≈ ~10 km/h sostenido; por debajo se considera parado.
  *
- * 6. consecutiveStoppedSamples >= 1 → >= 2
- *    Una sola muestra con baja distancia podía ser un fix ruidoso. Exigir 2
- *    muestras consecutivas añade ~1 s de latencia a la parada pero elimina
- *    los falsos ceros en marcha.
+ * 6. STOP_CALCULATED_KMH 3.0 → 4.5 km/h
+ *    Con pauseSpeedThreshold=4 km/h el chip reporta 2-4 km/h de fantasma
+ *    parado. Subir el umbral a 4.5 supera ese ruido.
+ *
+ * 7. isEffectivelyStopped reescrita: árbitro = distancia, no chip GPS
+ *    Con pauseSpeedThreshold=4 el chip siempre reporta algo en ese rango
+ *    parado → no es fiable. Ahora la detección se basa en distancia/tiempo.
  *
  * 7. RECENT_DISTANCE_WINDOW 4 → 5
  *    Ventana ligeramente mayor para que la suma de distancias recientes sea
@@ -76,13 +77,15 @@ class SpeedCalculator(private val vehicleType: VehicleType) {
         get() = minOf(1.2f, vehicleType.pauseSpeedThreshold * 0.3f)
 
     // [FIX #4] Subido de 2.5 a 4.0: el GPS drift normal es ~3 m, no confundir con movimiento
-    private val STOP_DISTANCE_METERS = 4.0f
+    // [FIX v3] Subido de 4.0 a 5.5: cubre drift GPS urbano de 4-5 m sin confundir movimiento real
+    private val STOP_DISTANCE_METERS = 5.5f
 
     // [FIX #5] Subido de 9 a 14: 14 m en 5 fixes ≈ limite ~10 km/h sostenido
     private val STOP_RECENT_DISTANCE_METERS = 14f
 
-    /** Velocidad por distancia que indica parada real. */
-    private val STOP_CALCULATED_KMH = 3.0f
+    // [FIX v3] Subido de 3.0 a 4.5: con pauseSpeedThreshold=4 km/h el chip reporta
+    // 2-4 km/h de deriva; 4.5 supera ese ruido y aún distingue parada de movimiento lento
+    private val STOP_CALCULATED_KMH = 4.5f
 
     // [FIX #7] Subido de 4 a 5 para ventana más representativa en velocidades bajas
     private val RECENT_DISTANCE_WINDOW = 5
@@ -189,7 +192,24 @@ class SpeedCalculator(private val vehicleType: VehicleType) {
     }
 
     /**
-     * Parado en semáforo: el chip suele inventar 4–8 km/h; la distancia entre fixes no miente tanto.
+     * Árbitro principal de parada. Con pauseSpeedThreshold=4 km/h el chip GPS
+     * reporta 3-6 km/h de fantasma incluso quieto, así que NO se usa el hardware
+     * speed como señal primaria. La distancia entre fixes es el árbitro real.
+     *
+     * Tres niveles de certeza:
+     *
+     * NIVEL A – parada inmediata:
+     *   La distancia calculada (metros/tiempo) < 4.5 km/h Y los fixes son
+     *   cercanos (< 5.5 m). Ambas métricas son independientes del chip.
+     *   → cae a 0 en el primer fix. Cubre semáforos normales.
+     *
+     * NIVEL B – parada en 1 fix adicional:
+     *   La distancia no justifica movimiento Y la ventana reciente tampoco.
+     *   Cubre paradas donde el primer fix llega algo tarde (p. ej. túnel).
+     *
+     * NIVEL C – certeza baja, 2 fixes:
+     *   Solo velocidad calculada baja pero algo de desplazamiento reciente.
+     *   Evita falsos ceros en curvas lentas o bajadas suaves.
      */
     private fun isEffectivelyStopped(
         location: Location,
@@ -197,34 +217,44 @@ class SpeedCalculator(private val vehicleType: VehicleType) {
         gpsSpeed: Float,
         distanceM: Float,
     ): Boolean {
-        val rawHardwareKmh = if (location.hasSpeed()) location.speed * 3.6f else gpsSpeed
-        val lowCalculated = calculatedSpeed < STOP_CALCULATED_KMH
-        val barelyMoved = distanceM < STOP_DISTANCE_METERS
-        val phantomGps = rawHardwareKmh > calculatedSpeed + 2.5f &&
-            rawHardwareKmh < vehicleType.pauseSpeedThreshold + 5f
         val recentPathM = recentDistancesM.sum()
-        val chipCreepStopped = recentPathM < STOP_RECENT_DISTANCE_METERS &&
-            rawHardwareKmh in 4f..8f &&
-            abs(rawHardwareKmh - calculatedSpeed) > 6f
-        val bothBelowPause = calculatedSpeed < vehicleType.pauseSpeedThreshold &&
-            gpsSpeed < vehicleType.pauseSpeedThreshold &&
-            recentPathM < STOP_RECENT_DISTANCE_METERS
+        val rawHardwareKmh = if (location.hasSpeed()) location.speed * 3.6f else gpsSpeed
 
-        if (lowCalculated || chipCreepStopped || (phantomGps && barelyMoved) || bothBelowPause) {
-            if (barelyMoved || phantomGps || chipCreepStopped || bothBelowPause) {
-                consecutiveStoppedSamples++
-            }
-        } else {
-            consecutiveStoppedSamples = 0
+        // Métricas basadas en distancia (no en el chip, que miente con pauseSpeedThreshold=4)
+        val barelyMoved   = distanceM    < STOP_DISTANCE_METERS        // < 5.5 m en este fix
+        val lowCalculated = calculatedSpeed < STOP_CALCULATED_KMH      // < 4.5 km/h distancia/tiempo
+        val recentSlow    = recentPathM  < STOP_RECENT_DISTANCE_METERS  // < 14 m en ventana de 5 fixes
+
+        // Chip creep: hardware reporta 4-10 km/h pero la distancia real no acompaña nada
+        val chipCreep = rawHardwareKmh in 2f..10f &&
+            calculatedSpeed < STOP_CALCULATED_KMH &&
+            barelyMoved
+
+        // ── NIVEL A ───────────────────────────────────────────────────────────
+        // Distancia Y velocidad calculada confirman parada. Sin ambigüedad.
+        if (barelyMoved && lowCalculated) {
+            consecutiveStoppedSamples++
+            return true
         }
 
-        if (chipCreepStopped) return true
+        // ── NIVEL B ───────────────────────────────────────────────────────────
+        // Fix individual cerca + ventana reciente también baja, o chip creep claro.
+        val mediumCertainty = (barelyMoved && recentSlow) || chipCreep
 
-        // [FIX #6] Subido de >= 1 a >= 2: requiere 2 muestras consecutivas para declarar parada
-        // Elimina falsos ceros causados por un único fix ruidoso en movimiento
-        return consecutiveStoppedSamples >= 2 &&
-            currentDisplaySpeed > 0f &&
-            (barelyMoved || phantomGps || bothBelowPause)
+        if (mediumCertainty) {
+            consecutiveStoppedSamples++
+            return consecutiveStoppedSamples >= 1
+        }
+
+        // ── NIVEL C ───────────────────────────────────────────────────────────
+        // Solo velocidad calculada baja pero algo de desplazamiento reciente.
+        if (lowCalculated && currentDisplaySpeed > 0f) {
+            consecutiveStoppedSamples++
+            return consecutiveStoppedSamples >= 2
+        }
+
+        consecutiveStoppedSamples = 0
+        return false
     }
 
     private fun trackRecentDistance(distanceM: Float) {
@@ -242,6 +272,7 @@ class SpeedCalculator(private val vehicleType: VehicleType) {
         lastAcceptedGpsSpeed = 0f
         currentDisplaySpeed = 0f
         consecutiveRejectedUpdates = 0
+        consecutiveStoppedSamples = 0   // reset: no contaminar el arranque siguiente
         return SpeedPair(instantaneous = 0f, smoothed = 0f)
     }
 
@@ -269,7 +300,7 @@ class SpeedCalculator(private val vehicleType: VehicleType) {
                 .coerceAtLeast(0f)
         }
         if (lastValidLocation != null && currentDisplaySpeed > 0f &&
-            distanceM < STOP_DISTANCE_METERS && hardwareKmh > 4f
+            distanceM < STOP_DISTANCE_METERS && hardwareKmh > vehicleType.pauseSpeedThreshold
         ) {
             return calculatedSpeed.coerceAtMost(1.5f)
         }

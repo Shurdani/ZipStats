@@ -22,7 +22,7 @@ android {
         applicationId "com.zipstats.app"
         minSdk 33
         targetSdk 34
-        versionCode 113
+        versionCode 114
         versionName "8.0.0B4"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"

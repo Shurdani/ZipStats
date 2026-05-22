@@ -11,10 +11,9 @@ import android.widget.FrameLayout
 import android.widget.Toast
 import androidx.annotation.DrawableRes
 import androidx.core.content.FileProvider
+import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.ComposeView
 import com.zipstats.app.R
 import com.zipstats.app.model.Route
@@ -46,7 +45,7 @@ object ShareUtils {
         route: Route,
         snapshotTrigger: MapSnapshotTrigger,
         vehicleRepository: VehicleRepository? = null,
-        primaryColorArgb: Int? = null,
+        colorScheme: ColorScheme,
         onComplete: () -> Unit
     ) {
         try {
@@ -86,7 +85,7 @@ object ShareUtils {
                                 route = route,
                                 mapBitmap = mapBitmap,
                                 vehicleRepository = vehicleRepository,
-                                primaryColorArgb = primaryColorArgb
+                                colorScheme = colorScheme
                             )
                         }
                         android.util.Log.d("ShareUtils", "Imagen final creada: width=${finalBitmap.width}, height=${finalBitmap.height}")
@@ -117,7 +116,7 @@ object ShareUtils {
         route: Route,
         mapBitmap: Bitmap,
         vehicleRepository: VehicleRepository?,
-        primaryColorArgb: Int?
+        colorScheme: ColorScheme
     ): Bitmap {
         val width = mapBitmap.width
         val height = mapBitmap.height
@@ -157,7 +156,7 @@ object ShareUtils {
                 title = tituloRuta,
                 subtitle = subtitle,
                 duration = duration,
-                primaryColorArgb = primaryColorArgb
+                colorScheme = colorScheme
             )
         }
 
@@ -179,7 +178,7 @@ object ShareUtils {
         title: String,
         subtitle: String,
         duration: String,
-        primaryColorArgb: Int?
+        colorScheme: ColorScheme
     ): Bitmap {
         val activity = context.findActivity()
         val root = activity?.window?.decorView as? ViewGroup
@@ -188,7 +187,7 @@ object ShareUtils {
             // Fondo transparente: el mapa se verá debajo y la tarjeta tendrá su propio fondo.
             setBackgroundColor(android.graphics.Color.TRANSPARENT)
             setContent {
-                ShareCardTheme(primaryColorArgb = primaryColorArgb) {
+                ShareCardTheme(colorScheme = colorScheme) {
                     RouteSummaryCardFromRoute(
                         route = route,
                         title = title,
@@ -244,12 +243,11 @@ object ShareUtils {
 
     @Composable
     private fun ShareCardTheme(
-        primaryColorArgb: Int?,
+        colorScheme: ColorScheme,
         content: @Composable () -> Unit
     ) {
-        val primary = primaryColorArgb?.let { Color(it) } ?: darkColorScheme().primary
         MaterialTheme(
-            colorScheme = darkColorScheme(primary = primary),
+            colorScheme = colorScheme,
             typography = ZipStatsTypography,
             content = content
         )

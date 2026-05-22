@@ -9,7 +9,50 @@ import java.util.ArrayDeque
 
 /**
  * Calculadora de velocidad en tiempo real con filtrado inteligente.
- * Prioriza reactividad al arrancar y caída rápida a 0 al parar (anti-fantasma GPS).
+ * Ajustada para patinete eléctrico: arranque/frenada bruscos, velocidad crucero 20-25 km/h.
+ *
+ * CAMBIOS RESPECTO A LA VERSIÓN ORIGINAL:
+ *
+ * 1. DISPLAY_RAW_WEIGHT 0.72 → 0.45
+ *    El GPS crudo tenía demasiado peso en la mezcla final. Con 0.72 cualquier
+ *    spike del chip (p.ej. 27 km/h un instante) se trasladaba directamente al
+ *    display. Con 0.45 el EMA suavizado manda más y los saltos desaparecen.
+ *
+ * 2. MAX_SPEED_DISCREPANCY 30 → 12 km/h
+ *    Con 30 km/h de margen se aceptaban fixes donde el GPS decía 27 pero la
+ *    distancia real solo justificaba 15. Bajarlo a 12 filtra esos spikes sin
+ *    afectar la aceleración real del patinete (que es continua, no puntual).
+ *
+ * 3. MAX_ACCELERATION 30 → 18 km/h·s² (crucero); arranque/parada sin cambio
+ *    Un patinete eléctrico acelera ~4-6 km/h por segundo de forma sostenida.
+ *    30 era tan permisivo que dejaba pasar spikes. 18 sigue cubriendo cualquier
+ *    aceleración real y rechaza saltos fantasma de un solo fix.
+ *    El factor de arranque/parada se mantiene en 2.5× para no bloquear el
+ *    primer fix válido tras un semáforo.
+ *
+ * 4. STOP_DISTANCE_METERS 2.5 → 4.0 m
+ *    Con 2.5 m el GPS drift normal (~3 m) hacía que la función barelyMoved
+ *    fuera true incluso en movimiento lento. Con 4 m se distingue mejor
+ *    entre derive estático y desplazamiento real a 5-8 km/h.
+ *
+ * 5. STOP_RECENT_DISTANCE_METERS 9 → 14 m (ventana = 4 fixes)
+ *    14 m en 4 fixes ≈ 12-13 km/h sostenido; por debajo se considera parado.
+ *    Con 9 m se declaraba parada a velocidades de hasta 8 km/h en curva.
+ *
+ * 6. consecutiveStoppedSamples >= 1 → >= 2
+ *    Una sola muestra con baja distancia podía ser un fix ruidoso. Exigir 2
+ *    muestras consecutivas añade ~1 s de latencia a la parada pero elimina
+ *    los falsos ceros en marcha.
+ *
+ * 7. RECENT_DISTANCE_WINDOW 4 → 5
+ *    Ventana ligeramente mayor para que la suma de distancias recientes sea
+ *    más representativa en velocidades bajas (5-10 km/h).
+ *
+ * 8. blendForDisplay: eliminado el corte duro a 0f cuando ambos < threshold
+ *    Ese corte causaba el salto más visible: el EMA bajaba despacio y mientras
+ *    el raw ya era < threshold → resultado 0, luego el EMA subía un tick →
+ *    resultado != 0 → oscilación. Ahora se deja que applyDisplayThreshold
+ *    sea el único punto de decisión de parada.
  */
 class SpeedCalculator(private val vehicleType: VehicleType) {
 
@@ -18,24 +61,31 @@ class SpeedCalculator(private val vehicleType: VehicleType) {
     private val MAX_ACCURACY = 20f
     private val MIN_TIME_DELTA = 50L
     private val MAX_SPEED_MULTIPLIER = 1.2f
-    private val MAX_SPEED_DISCREPANCY = 30f
-    private val MAX_ACCELERATION = 30f
-    private val DISPLAY_RAW_WEIGHT = 0.72f
+
+    // [FIX #2] Bajado de 30 a 12: evita aceptar spikes puntuales del chip GPS
+    private val MAX_SPEED_DISCREPANCY = 12f
+
+    // [FIX #3] Bajado de 30 a 18: un patinete no acelera 30 km/h en 1 segundo en crucero
+    private val MAX_ACCELERATION = 18f
+
+    // [FIX #1] Bajado de 0.72 a 0.45: el suavizado manda más, menos saltos en display
+    private val DISPLAY_RAW_WEIGHT = 0.45f
 
     /** Más bajo = velocímetro sale de 0 antes (semáforo, arranque). */
     private val displayStartThreshold: Float
         get() = minOf(1.2f, vehicleType.pauseSpeedThreshold * 0.3f)
 
-    /** Por distancia/tiempo: casi sin desplazamiento real en un fix. */
-    private val STOP_DISTANCE_METERS = 2.5f
+    // [FIX #4] Subido de 2.5 a 4.0: el GPS drift normal es ~3 m, no confundir con movimiento
+    private val STOP_DISTANCE_METERS = 4.0f
 
-    /** Suma de desplazamiento en ventana corta → parada con deriva GPS. */
-    private val STOP_RECENT_DISTANCE_METERS = 9f
+    // [FIX #5] Subido de 9 a 14: 14 m en 5 fixes ≈ limite ~10 km/h sostenido
+    private val STOP_RECENT_DISTANCE_METERS = 14f
 
     /** Velocidad por distancia que indica parada real. */
     private val STOP_CALCULATED_KMH = 3.0f
 
-    private val RECENT_DISTANCE_WINDOW = 4
+    // [FIX #7] Subido de 4 a 5 para ventana más representativa en velocidades bajas
+    private val RECENT_DISTANCE_WINDOW = 5
 
     private var lastValidLocation: Location? = null
     private var lastUpdateTime = 0L
@@ -105,6 +155,7 @@ class SpeedCalculator(private val vehicleType: VehicleType) {
             if (timeDelta > 0) {
                 val acceleration = abs(gpsSpeed - lastAcceptedGpsSpeed) / timeDelta
                 val isStartingOrStopping = lastAcceptedGpsSpeed < 3.0f || gpsSpeed < 3.0f
+                // Factor 2.5× en arranque/parada sin cambio: permite reactividad desde semáforo
                 val maxAccel = if (isStartingOrStopping) {
                     MAX_ACCELERATION * 2.5f
                 } else {
@@ -169,7 +220,9 @@ class SpeedCalculator(private val vehicleType: VehicleType) {
 
         if (chipCreepStopped) return true
 
-        return consecutiveStoppedSamples >= 1 &&
+        // [FIX #6] Subido de >= 1 a >= 2: requiere 2 muestras consecutivas para declarar parada
+        // Elimina falsos ceros causados por un único fix ruidoso en movimiento
+        return consecutiveStoppedSamples >= 2 &&
             currentDisplaySpeed > 0f &&
             (barelyMoved || phantomGps || bothBelowPause)
     }
@@ -260,7 +313,7 @@ class SpeedCalculator(private val vehicleType: VehicleType) {
         if (!realMovement) return false
         if (softLaunch) return true
 
-        // Fantasma en pantalla (p. ej. 5 km/h parado): no arrancar hasta desplazamiento real
+        // Fantasma en pantalla: no arrancar hasta desplazamiento real
         if (recentDistancesM.sum() < STOP_RECENT_DISTANCE_METERS &&
             calculatedSpeed < STOP_CALCULATED_KMH &&
             distanceM < STOP_DISTANCE_METERS
@@ -271,13 +324,23 @@ class SpeedCalculator(private val vehicleType: VehicleType) {
         return true
     }
 
+    /**
+     * [FIX #8] Eliminado el corte duro a 0f cuando ambos < threshold.
+     *
+     * Original:
+     *   if (rawKmh < threshold && smoothedKmh < threshold) return 0f
+     *
+     * Ese corte producía oscilaciones: el EMA descendía despacio cruzando el
+     * umbral un tick sí, uno no → el display saltaba entre 0 y != 0.
+     * Ahora blendForDisplay solo mezcla; applyDisplayThreshold es el único
+     * punto donde se decide si mostrar 0.
+     */
     private fun blendForDisplay(rawKmh: Float, smoothedKmh: Float, launching: Boolean): Float {
         if (launching) return max(rawKmh, smoothedKmh)
         val threshold = vehicleType.pauseSpeedThreshold
-        if (rawKmh < threshold && smoothedKmh < threshold) return 0f
         // Al frenar: no rescatar el raw fantasma si el suavizado ya está por debajo del umbral
         if (smoothedKmh < threshold) {
-            return if (rawKmh >= threshold) rawKmh else 0f
+            return if (rawKmh >= threshold) rawKmh else smoothedKmh
         }
         if (rawKmh < threshold) return smoothedKmh
         return DISPLAY_RAW_WEIGHT * rawKmh + (1f - DISPLAY_RAW_WEIGHT) * smoothedKmh

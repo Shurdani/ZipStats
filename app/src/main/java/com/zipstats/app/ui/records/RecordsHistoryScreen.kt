@@ -560,6 +560,10 @@ private fun minAllowedOdometer(
     return listOfNotNull(previous?.kilometraje, lastSameDay?.kilometraje).maxOrNull()
 }
 
+private fun odometerTooLowMessage(minKm: Double): String =
+    "El kilometraje no puede ser inferior\n" +
+        "al último de esa fecha (${LocationUtils.formatNumberSpanish(minKm, 1)} km)"
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NewRecordBottomSheet(
@@ -755,7 +759,10 @@ fun NewRecordBottomSheet(
                     text = errorMessage!!,
                     color = MaterialTheme.colorScheme.error,
                     style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.padding(start = 8.dp)
+                    maxLines = 2,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 8.dp)
                 )
             }
 
@@ -774,9 +781,7 @@ fun NewRecordBottomSheet(
                             minOdometerForDate != null &&
                             kmValue < minOdometerForDate - ODOMETER_EPSILON_UI
                         ) {
-                            errorMessage =
-                                "El kilometraje no puede ser inferior al último de esa fecha " +
-                                    "(${LocationUtils.formatNumberSpanish(minOdometerForDate, 1)} km)"
+                            errorMessage = odometerTooLowMessage(minOdometerForDate)
                         } else {
                             scope.launch {
                                 sheetState.hide()
@@ -952,7 +957,9 @@ fun EditRecordBottomSheet(
             ZipStatsText(
                 text = error,
                 color = MaterialTheme.colorScheme.error,
-                style = MaterialTheme.typography.bodySmall
+                style = MaterialTheme.typography.bodySmall,
+                maxLines = 2,
+                modifier = Modifier.fillMaxWidth()
             )
         }
 
@@ -996,9 +1003,7 @@ fun EditRecordBottomSheet(
                             minOdometerForDate != null &&
                             kmValue < minOdometerForDate - ODOMETER_EPSILON_UI
                         ) {
-                            errorMessage =
-                                "El kilometraje no puede ser inferior al último de esa fecha " +
-                                    "(${LocationUtils.formatNumberSpanish(minOdometerForDate, 1)} km)"
+                            errorMessage = odometerTooLowMessage(minOdometerForDate)
                         } else {
                             onSave(
                                 selectedScooter,

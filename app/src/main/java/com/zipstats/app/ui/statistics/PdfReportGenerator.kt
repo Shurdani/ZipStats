@@ -118,8 +118,6 @@ class PdfReportGenerator(
         )
 
         if (weatherStats.gpsTotalDistance > 0.0) {
-            val feelsLabel = if (stats.extremeFeelsLikeIsHot) "Sensación máx" else "Sensación mín"
-            val feelsEmoji = if (stats.extremeFeelsLikeIsHot) "🥵" else "🥶"
             y = drawSectionCard(
                 canvas = canvas,
                 left = margin,
@@ -138,7 +136,8 @@ class PdfReportGenerator(
                     stats.minTemperature?.let { "Temperatura mínima" to "${formatNumber(it)} °C" },
                     stats.maxTemperature?.let { "Temperatura máxima" to "${formatNumber(it)} °C" },
                     stats.maxWindGusts?.let { "Ráfaga máxima" to "${formatNumber(it)} km/h" },
-                    stats.extremeFeelsLike?.let { "$feelsLabel" to "$feelsEmoji ${formatNumber(it)} °C" }
+                    stats.minFeelsLike?.let { "Sensación mín" to "🥶 ${formatNumber(it)} °C" },
+                    stats.maxFeelsLike?.let { "Sensación máx" to "🥵 ${formatNumber(it)} °C" }
                 )
             )
 
@@ -163,17 +162,28 @@ class PdfReportGenerator(
             "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
             "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
         )
-        return when {
-            selectedPeriod == 0 && selectedMonth != null -> "${months[selectedMonth - 1]} ${selectedYear ?: LocalDate.now().year}"
-            selectedPeriod == 1 -> "${selectedYear ?: LocalDate.now().year}"
+        val today = LocalDate.now()
+        return when (selectedPeriod) {
+            0 -> {
+                val monday = today.minusDays(((today.dayOfWeek.value + 6) % 7).toLong())
+                val sunday = monday.plusDays(6)
+                "Semana ${monday.dayOfMonth}/${monday.monthValue} - ${sunday.dayOfMonth}/${sunday.monthValue}/${sunday.year}"
+            }
+            1 -> {
+                val month = selectedMonth ?: today.monthValue
+                val year = selectedYear ?: today.year
+                "${months[month - 1]} $year"
+            }
+            2 -> "${selectedYear ?: today.year}"
             else -> "Historial completo"
         }
     }
 
     private fun resolvePeriodMetrics(stats: StatisticsUiState.Success, selectedPeriod: Int): PeriodMetrics {
         return when (selectedPeriod) {
-            0 -> PeriodMetrics(stats.monthlyDistance, stats.monthlyAverageDistance, stats.monthlyMaxDistance, stats.monthlyRecords)
-            1 -> PeriodMetrics(stats.yearlyDistance, stats.yearlyAverageDistance, stats.yearlyMaxDistance, stats.yearlyRecords)
+            0 -> PeriodMetrics(stats.weeklyDistance, stats.weeklyAverageDistance, stats.weeklyMaxDistance, stats.weeklyRecords)
+            1 -> PeriodMetrics(stats.monthlyDistance, stats.monthlyAverageDistance, stats.monthlyMaxDistance, stats.monthlyRecords)
+            2 -> PeriodMetrics(stats.yearlyDistance, stats.yearlyAverageDistance, stats.yearlyMaxDistance, stats.yearlyRecords)
             else -> PeriodMetrics(stats.totalDistance, stats.averageDistance, stats.maxDistance, stats.totalRecords)
         }
     }

@@ -33,6 +33,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.time.DayOfWeek
 import java.time.LocalDate
+import java.time.temporal.TemporalAdjusters
 import java.util.Date
 import javax.inject.Inject
 import kotlin.math.roundToInt
@@ -162,8 +163,8 @@ data class PeriodWeatherExtremes(
     val minTemperature: Double?,
     val maxTemperature: Double?,
     val maxWindGusts: Double?,
-    val extremeFeelsLike: Double?,
-    val extremeFeelsLikeIsHot: Boolean
+    val minFeelsLike: Double?,
+    val maxFeelsLike: Double?
 )
 
 data class NextAchievementData(
@@ -195,6 +196,10 @@ sealed class StatisticsUiState {
         val lastRecordDate: String,
         val lastRecordDistance: Double,
         val scooterStats: List<ScooterStats>,
+        val weeklyDistance: Double,
+        val weeklyMaxDistance: Double,
+        val weeklyAverageDistance: Double,
+        val weeklyRecords: Int,
         val monthlyDistance: Double,
         val monthlyMaxDistance: Double,
         val monthlyAverageDistance: Double,
@@ -203,18 +208,20 @@ sealed class StatisticsUiState {
         val yearlyMaxDistance: Double,
         val yearlyAverageDistance: Double,
         val yearlyRecords: Int,
+        val weeklyChartData: List<ChartDataPoint>,
         val monthlyChartData: List<ChartDataPoint>,
         val yearlyChartData: List<ChartDataPoint>,
         val allTimeChartData: List<ChartDataPoint>,
         val allYearsChartData: List<ChartDataPoint>,
+        val weeklyComparison: ComparisonData?,
         val monthlyComparison: ComparisonData?,
         val yearlyComparison: ComparisonData?,
         val nextAchievement: NextAchievementData?,
         val minTemperature: Double?,
         val maxTemperature: Double?,
         val maxWindGusts: Double?,
-        val extremeFeelsLike: Double?,
-        val extremeFeelsLikeIsHot: Boolean
+        val minFeelsLike: Double?,
+        val maxFeelsLike: Double?
     ) : StatisticsUiState()
     data class Error(val message: String) : StatisticsUiState()
 }
@@ -385,6 +392,9 @@ class StatisticsViewModel @Inject constructor(
 
             // --- CONTEXTO TEMPORAL ---
             val today = LocalDate.now()
+            val weekStart = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+            val weekEnd = weekStart.plusDays(6)
+            val weekToDateEnd = minOf(today, weekEnd)
 
             // Si hay filtro manual, mandan los valores seleccionados.
             // Si no, mandan los valores actuales (today).
@@ -402,6 +412,15 @@ class StatisticsViewModel @Inject constructor(
                 } catch (e: Exception) { false }
             }
             val monthlyDistance = monthlyRecords.sumOf { it.diferencia }.roundToOneDecimal()
+
+            // Estadísticas semanales (Semana actual: lunes -> domingo, acumulado hasta hoy)
+            val weeklyRecords = records.filter {
+                try {
+                    val recordDate = DateUtils.parseApiDate(it.fecha)
+                    !recordDate.isBefore(weekStart) && !recordDate.isAfter(weekToDateEnd)
+                } catch (e: Exception) { false }
+            }
+            val weeklyDistance = weeklyRecords.sumOf { it.diferencia }.roundToOneDecimal()
 
             // Estadísticas anuales (Año seleccionado o actual)
             val yearlyRecords = records.filter {
@@ -430,9 +449,10 @@ class StatisticsViewModel @Inject constructor(
                         // 3. SIN FILTRO MANUAL: Usamos el periodo de la pestaña activa
                         else -> {
                             when (currentTab) {
-                                2 -> true // Pestaña "Todo": historial completo, sin filtrar
-                                1 -> routeDate.year == today.year // Pestaña "Este Año"
-                                else -> routeDate.monthValue == today.monthValue && routeDate.year == today.year // Pestaña "Este Mes"
+                                3 -> true // Pestaña "Todo": historial completo, sin filtrar
+                                2 -> routeDate.year == today.year // Pestaña "Año"
+                                1 -> routeDate.monthValue == today.monthValue && routeDate.year == today.year // Pestaña "Mes"
+                                else -> !routeDate.isBefore(weekStart) && !routeDate.isAfter(weekToDateEnd) // Pestaña "Semana"
                             }
                         }
                     }
@@ -442,10 +462,11 @@ class StatisticsViewModel @Inject constructor(
             // --- DISTANCIA PARA LA TARJETA DINÁMICA ---
             // Determinamos qué distancia mostrar en la tarjeta de clima basándonos en la vista actual
             val manualDist = when {
+                currentTab == 0 -> weeklyDistance
                 selectedMonth != null -> monthlyDistance
                 selectedYear != null -> yearlyDistance
-                currentTab == 2 -> totalDistance // Pestaña "Todo": usar distancia total acumulada
-                currentTab == 1 -> yearlyDistance // Pestaña Anual sin filtro manual
+                currentTab == 3 -> totalDistance // Pestaña "Todo": usar distancia total acumulada
+                currentTab == 2 -> yearlyDistance // Pestaña Anual sin filtro manual
                 else -> monthlyDistance           // Pestaña Mensual sin filtro manual
             }
 
@@ -457,6 +478,10 @@ class StatisticsViewModel @Inject constructor(
             // --- EMITIR RESULTADOS ---
             _statistics.value = StatisticsUiState.Success(
                 totalDistance = totalDistance,
+                weeklyDistance = weeklyDistance,
+                weeklyMaxDistance = weeklyRecords.maxOfOrNull { it.diferencia }?.roundToOneDecimal() ?: 0.0,
+                weeklyAverageDistance = if (weeklyRecords.isNotEmpty()) (weeklyRecords.sumOf { it.diferencia } / weeklyRecords.size).roundToOneDecimal() else 0.0,
+                weeklyRecords = weeklyRecords.size,
                 monthlyDistance = monthlyDistance,
                 yearlyDistance = yearlyDistance,
                 scooterStats = scooters.map { scooter ->
@@ -470,6 +495,7 @@ class StatisticsViewModel @Inject constructor(
                     DateUtils.formatForDisplay(DateUtils.parseApiDate(it.fecha))
                 } ?: "No hay registros",
                 lastRecordDistance = newestRecord?.diferencia?.roundToOneDecimal() ?: 0.0,
+                weeklyChartData = calculateWeeklyChartData(records, weekStart),
                 monthlyMaxDistance = monthlyRecords.maxOfOrNull { it.diferencia }?.roundToOneDecimal() ?: 0.0,
                 monthlyAverageDistance = if (monthlyRecords.isNotEmpty()) (monthlyRecords.sumOf { it.diferencia } / monthlyRecords.size).roundToOneDecimal() else 0.0,
                 monthlyRecords = monthlyRecords.size,
@@ -480,14 +506,15 @@ class StatisticsViewModel @Inject constructor(
                 yearlyChartData = calculateYearlyChartData(records, currentYear),
                 allTimeChartData = calculateAllTimeChartData(records),
                 allYearsChartData = calculateAllYearsChartData(records),
+                weeklyComparison = calculateWeeklyComparison(records, allRoutes, weekStart, weekToDateEnd),
                 monthlyComparison = calculateMonthlyComparison(records, allRoutes, currentMonth, currentYear),
                 yearlyComparison = calculateYearlyComparison(records, allRoutes, currentYear),
                 nextAchievement = try { calculateNextAchievement() } catch (e: Exception) { null },
                 minTemperature = periodWeatherExtremes.minTemperature?.roundToOneDecimal(),
                 maxTemperature = periodWeatherExtremes.maxTemperature?.roundToOneDecimal(),
                 maxWindGusts = periodWeatherExtremes.maxWindGusts?.roundToOneDecimal(),
-                extremeFeelsLike = periodWeatherExtremes.extremeFeelsLike?.roundToOneDecimal(),
-                extremeFeelsLikeIsHot = periodWeatherExtremes.extremeFeelsLikeIsHot
+                minFeelsLike = periodWeatherExtremes.minFeelsLike?.roundToOneDecimal(),
+                maxFeelsLike = periodWeatherExtremes.maxFeelsLike?.roundToOneDecimal()
             )
         } catch (e: Exception) {
             _statistics.value = StatisticsUiState.Error(e.message ?: "Error al recalcular datos")
@@ -663,6 +690,165 @@ class StatisticsViewModel @Inject constructor(
         lines.add("#ZipStats")
 
         return lines.joinToString("\n")
+    }
+
+    suspend fun getWeeklyShareText(stats: StatisticsUiState.Success): String {
+        val today = LocalDate.now()
+        val weekStart = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+        val weekEnd = weekStart.plusDays(6)
+
+        val co2Saved = (stats.weeklyDistance * 0.15).toInt()
+        val gasSaved = (stats.weeklyDistance * 0.07).toInt()
+
+        // Clima semanal: filtramos rutas GPS solo de esta semana (hasta hoy)
+        val allRoutes = routeRepository.getUserRoutes().getOrNull() ?: emptyList()
+        val weeklyGpsRoutes = allRoutes.filter { route ->
+            try {
+                val routeDate = java.time.Instant.ofEpochMilli(route.startTime)
+                    .atZone(java.time.ZoneId.systemDefault())
+                    .toLocalDate()
+                !routeDate.isBefore(weekStart) && !routeDate.isAfter(minOf(today, weekEnd))
+            } catch (e: Exception) {
+                false
+            }
+        }
+        val weeklyWeather = calculateWeatherStats(stats.weeklyDistance, weeklyGpsRoutes)
+        val rainKm = weeklyWeather.rainKm.roundToOneDecimal()
+        val wetRoadKm = weeklyWeather.wetRoadKm.roundToOneDecimal()
+        val extremeKm = weeklyWeather.extremeKm.roundToOneDecimal()
+
+        val weatherLines = buildList {
+            if (rainKm > 0.0) add("🌧️ ${rainKm} km bajo la lluvia")
+            if (wetRoadKm > 0.0) add("💧 ${wetRoadKm} km con calzada mojada")
+            if (extremeKm > 0.0) add("⚡ ${extremeKm} km en condiciones extremas")
+        }
+
+        val lines = mutableListOf(
+            "🛴 ${userName.value} — Semana ${weekStart.dayOfMonth}/${weekStart.monthValue} - ${weekEnd.dayOfMonth}/${weekEnd.monthValue}/${weekEnd.year}",
+            "",
+            "📍 ${stats.weeklyDistance.roundToOneDecimal()} km recorridos",
+            "🌱 ${co2Saved} kg de CO₂ ahorrados · ${gasSaved} L de gasolina"
+        )
+
+        if (weatherLines.isNotEmpty()) {
+            lines.add("")
+            lines.addAll(weatherLines)
+        }
+
+        lines.add("")
+        lines.add("#ZipStats")
+
+        return lines.joinToString("\n")
+    }
+
+    private fun calculateWeeklyChartData(
+        records: List<com.zipstats.app.model.Record>,
+        weekStart: LocalDate
+    ): List<ChartDataPoint> {
+        val labels = listOf("Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom")
+        return (0..6).map { offset ->
+            val day = weekStart.plusDays(offset.toLong())
+            val distance = records.filter {
+                try {
+                    val d = DateUtils.parseApiDate(it.fecha)
+                    d == day
+                } catch (e: Exception) {
+                    false
+                }
+            }.sumOf { it.diferencia }.roundToOneDecimal()
+            ChartDataPoint(date = labels[offset], value = distance)
+        }
+    }
+
+    private fun calculateWeeklyComparison(
+        records: List<com.zipstats.app.model.Record>,
+        allRoutes: List<com.zipstats.app.model.Route>,
+        weekStart: LocalDate,
+        weekToDateEnd: LocalDate
+    ): ComparisonData? {
+        // Comparamos semana actual (hasta hoy) vs semana anterior (mismo rango de días)
+        val dayCount = java.time.temporal.ChronoUnit.DAYS.between(weekStart, weekToDateEnd).toInt().coerceIn(0, 6)
+        val prevWeekStart = weekStart.minusWeeks(1)
+        val prevWeekEnd = prevWeekStart.plusDays(dayCount.toLong())
+
+        val currentDistance = records.filter {
+            try {
+                val d = DateUtils.parseApiDate(it.fecha)
+                !d.isBefore(weekStart) && !d.isAfter(weekToDateEnd)
+            } catch (e: Exception) { false }
+        }.sumOf { it.diferencia }
+
+        val previousDistance = records.filter {
+            try {
+                val d = DateUtils.parseApiDate(it.fecha)
+                !d.isBefore(prevWeekStart) && !d.isAfter(prevWeekEnd)
+            } catch (e: Exception) { false }
+        }.sumOf { it.diferencia }
+
+        if (previousDistance < 0.1) return null
+
+        val diff = currentDistance - previousDistance
+        val rawPercentage = (diff / previousDistance) * 100.0
+
+        val previousWeather = getWeatherMetricsForDateRange(prevWeekStart, prevWeekEnd, allRoutes)
+        val weatherMetrics = WeatherComparisonMetrics(
+            rainKm = previousWeather.first,
+            wetRoadKm = previousWeather.second,
+            extremeKm = previousWeather.third
+        )
+
+        return ComparisonData(
+            currentValue = currentDistance.roundToOneDecimal(),
+            previousValue = previousDistance.roundToOneDecimal(),
+            percentageChange = kotlin.math.abs(rawPercentage).roundToOneDecimal(),
+            isPositive = diff >= 0,
+            comparisonMonth = null,
+            comparisonYear = prevWeekStart.year,
+            metricType = ComparisonMetricType.DISTANCE,
+            title = "Distancia recorrida vs semana anterior",
+            unit = "km",
+            icon = "📅",
+            comparisonWeatherMetrics = weatherMetrics
+        )
+    }
+
+    private fun getWeatherMetricsForDateRange(
+        start: LocalDate,
+        endInclusive: LocalDate,
+        allRoutes: List<com.zipstats.app.model.Route>
+    ): Triple<Double, Double, Double> {
+        return try {
+            val filteredRoutes = allRoutes.filter { route ->
+                try {
+                    val routeDate = java.time.Instant.ofEpochMilli(route.startTime)
+                        .atZone(java.time.ZoneId.systemDefault())
+                        .toLocalDate()
+                    !routeDate.isBefore(start) && !routeDate.isAfter(endInclusive)
+                } catch (e: Exception) {
+                    false
+                }
+            }
+
+            var rainKm = 0.0
+            var wetRoadKm = 0.0
+            var extremeKm = 0.0
+
+            filteredRoutes.forEach { route ->
+                val d = route.totalDistance
+                if (route.weatherHadRain == true) {
+                    rainKm += d
+                } else if (route.weatherHadWetRoad == true) {
+                    wetRoadKm += d
+                }
+                if (route.weatherHadExtremeConditions == true) {
+                    extremeKm += d
+                }
+            }
+
+            Triple(rainKm, wetRoadKm, extremeKm)
+        } catch (e: Exception) {
+            Triple(0.0, 0.0, 0.0)
+        }
     }
 
     private fun calculateMonthlyChartData(
@@ -1234,8 +1420,8 @@ class StatisticsViewModel @Inject constructor(
                 minTemperature = null,
                 maxTemperature = null,
                 maxWindGusts = null,
-                extremeFeelsLike = null,
-                extremeFeelsLikeIsHot = false
+                minFeelsLike = null,
+                maxFeelsLike = null
             )
         }
 
@@ -1265,21 +1451,15 @@ class StatisticsViewModel @Inject constructor(
             }
         }
 
-        val hasColdExtreme = coldFeelsLikeValue != null && maxColdDelta > 0.0
-        val hasHotExtreme = hotFeelsLikeValue != null && maxHotDelta > 0.0
-        val isHotExtreme = hasHotExtreme && (!hasColdExtreme || maxHotDelta >= maxColdDelta)
-        val selectedFeelsLike = when {
-            isHotExtreme -> hotFeelsLikeValue
-            hasColdExtreme -> coldFeelsLikeValue
-            else -> null
-        }
+        val minFeelsLike = coldFeelsLikeValue?.takeIf { maxColdDelta > 0.0 }
+        val maxFeelsLike = hotFeelsLikeValue?.takeIf { maxHotDelta > 0.0 }
 
         return PeriodWeatherExtremes(
             minTemperature = temperatures.minOrNull(),
             maxTemperature = temperatures.maxOrNull(),
             maxWindGusts = gusts.maxOrNull(),
-            extremeFeelsLike = selectedFeelsLike,
-            extremeFeelsLikeIsHot = isHotExtreme
+            minFeelsLike = minFeelsLike,
+            maxFeelsLike = maxFeelsLike
         )
     }
     

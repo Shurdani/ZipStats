@@ -40,7 +40,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.TrendingDown
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.Air
-import androidx.compose.material.icons.filled.AcUnit
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
@@ -49,7 +48,6 @@ import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Thermostat
 import androidx.compose.material.icons.filled.Water
 import androidx.compose.material.icons.filled.WaterDrop
-import androidx.compose.material.icons.filled.Whatshot
 import androidx.compose.material.icons.outlined.Cloud
 import androidx.compose.material.icons.outlined.Eco
 import androidx.compose.material.icons.outlined.EmojiEvents
@@ -122,9 +120,11 @@ import com.zipstats.app.utils.LocationUtils
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
+import java.time.temporal.TemporalAdjusters
 import kotlin.math.roundToInt
 import java.io.File
 
@@ -134,7 +134,7 @@ private fun Double.roundToOneDecimal(): Double {
 }
 
 enum class StatisticsPeriod {
-    MONTHLY, ALL, YEARLY
+    WEEKLY, MONTHLY, YEARLY, ALL
 }
 
 sealed class SelectionMode {
@@ -171,12 +171,12 @@ fun StatisticsScreen(
             onDismiss = { showMonthYearPicker = false },
             onConfirm = { month, year, isYearOnly ->
                 if (isYearOnly) {
-                    // Si solo se selecciona año, cambiar a pestaña "Este Año" (índice 1 ahora)
-                    selectedPeriod = 1
+                    // Si solo se selecciona año, cambiar a pestaña "Año" (índice 2)
+                    selectedPeriod = 2
                     viewModel.setSelectedPeriod(null, year)
                 } else {
-                    // Si se selecciona mes, cambiar a pestaña "Este Mes" (índice 0)
-                    selectedPeriod = 0
+                    // Si se selecciona mes, cambiar a pestaña "Mes" (índice 1)
+                    selectedPeriod = 1
                     viewModel.setSelectedPeriod(month, year)
                 }
                 showMonthYearPicker = false
@@ -184,8 +184,17 @@ fun StatisticsScreen(
         )
     }
 
+    // Solo Mes y Año permiten filtro manual de fecha (Semana y Todo no)
+    val showDateFilterChip = selectedPeriod == 1 || selectedPeriod == 2
+
     LaunchedEffect(selectedPeriod, selectedMonth, selectedYear) {
         viewModel.loadStatistics(selectedPeriod)
+    }
+
+    LaunchedEffect(selectedPeriod) {
+        if (!showDateFilterChip && (selectedMonth != null || selectedYear != null)) {
+            viewModel.clearSelectedPeriod()
+        }
     }
 
     Scaffold(
@@ -224,14 +233,12 @@ fun StatisticsScreen(
                     selected = selectedPeriod == 0,
                     onClick = { 
                         selectedPeriod = 0
-                        // Si hay filtro de solo año (sin mes), limpiarlo al cambiar a "Este Mes"
-                        if (selectedYear != null && selectedMonth == null) {
-                            viewModel.clearSelectedPeriod()
-                        }
+                        // Semana siempre es relativa a "hoy"; limpiamos filtros manuales
+                        viewModel.clearSelectedPeriod()
                     },
                     text = {
                         ZipStatsText(
-                            "Este Mes",
+                            "Semana",
                             fontWeight = if (selectedPeriod == 0) FontWeight.Bold else FontWeight.Normal,
                             maxLines = 1
                         )
@@ -241,14 +248,14 @@ fun StatisticsScreen(
                     selected = selectedPeriod == 1,
                     onClick = { 
                         selectedPeriod = 1
-                        // Si hay filtro de mes, limpiar el mes pero mantener el año si existe
-                        if (selectedMonth != null) {
-                            viewModel.setSelectedPeriod(null, selectedYear)
+                        // Si hay filtro de solo año (sin mes), limpiarlo al cambiar a "Mes"
+                        if (selectedYear != null && selectedMonth == null) {
+                            viewModel.clearSelectedPeriod()
                         }
                     },
                     text = {
                         ZipStatsText(
-                            "Este Año",
+                            "Mes",
                             fontWeight = if (selectedPeriod == 1) FontWeight.Bold else FontWeight.Normal,
                             maxLines = 1
                         )
@@ -258,13 +265,30 @@ fun StatisticsScreen(
                     selected = selectedPeriod == 2,
                     onClick = { 
                         selectedPeriod = 2
+                        // Si hay filtro de mes, limpiar el mes pero mantener el año si existe
+                        if (selectedMonth != null) {
+                            viewModel.setSelectedPeriod(null, selectedYear)
+                        }
+                    },
+                    text = {
+                        ZipStatsText(
+                            "Año",
+                            fontWeight = if (selectedPeriod == 2) FontWeight.Bold else FontWeight.Normal,
+                            maxLines = 1
+                        )
+                    }
+                )
+                Tab(
+                    selected = selectedPeriod == 3,
+                    onClick = { 
+                        selectedPeriod = 3
                         // Al cambiar a "Todo", limpiar todos los filtros
                         viewModel.clearSelectedPeriod()
                     },
                     text = {
                         ZipStatsText(
                             "Todo",
-                            fontWeight = if (selectedPeriod == 2) FontWeight.Bold else FontWeight.Normal,
+                            fontWeight = if (selectedPeriod == 3) FontWeight.Bold else FontWeight.Normal,
                             maxLines = 1
                         )
                     }
@@ -393,7 +417,7 @@ fun StatisticsScreen(
                     shape = CircleShape
                 )
 
-                if (selectedPeriod != 2) {
+                if (showDateFilterChip) {
                     // Texto del filtro actual
                     val monthNames = listOf("Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic")
                     val filterLabel = if (selectedMonth != null && selectedYear != null) {
@@ -430,7 +454,7 @@ fun StatisticsScreen(
                                 IconButton(
                                     onClick = {
                                         viewModel.clearSelectedPeriod()
-                                        // Volver a la pestaña por defecto (Este Mes)
+                                        // Volver a la pestaña por defecto (Semana)
                                         selectedPeriod = 0
                                     },
                                     modifier = Modifier.size(20.dp)
@@ -470,8 +494,9 @@ fun StatisticsScreen(
 
                         // Determinar qué datos mostrar según la pestaña (INDICES ACTUALIZADOS)
                         val currentPeriod = when (selectedPeriod) {
-                            0 -> StatisticsPeriod.MONTHLY
-                            1 -> StatisticsPeriod.YEARLY
+                            0 -> StatisticsPeriod.WEEKLY
+                            1 -> StatisticsPeriod.MONTHLY
+                            2 -> StatisticsPeriod.YEARLY
                             else -> StatisticsPeriod.ALL
                         }
 
@@ -493,7 +518,21 @@ fun StatisticsScreen(
                             "Este año has recorrido:"
                         }
 
+                        val today = LocalDate.now()
+                        val weekMonday = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+                        val weekSunday = weekMonday.plusDays(6)
+                        val weeklyTitle = "Del ${weekMonday.dayOfMonth}/${weekMonday.monthValue} al ${weekSunday.dayOfMonth}/${weekSunday.monthValue} has recorrido:"
+
                         val displayData = when (currentPeriod) {
+                            StatisticsPeriod.WEEKLY -> PeriodData(
+                                totalDistance = stats.weeklyDistance,
+                                averageDistance = stats.weeklyAverageDistance,
+                                maxDistance = stats.weeklyMaxDistance,
+                                totalRecords = stats.weeklyRecords,
+                                title = weeklyTitle,
+                                chartData = stats.weeklyChartData,
+                                comparison = stats.weeklyComparison
+                            )
                             StatisticsPeriod.MONTHLY -> PeriodData(
                                 totalDistance = stats.monthlyDistance,
                                 averageDistance = stats.monthlyAverageDistance,
@@ -551,6 +590,7 @@ fun StatisticsScreen(
                                 onShare = {
                                     scope.launch {
                                         val shareText = when (currentPeriod) {
+                                            StatisticsPeriod.WEEKLY -> viewModel.getWeeklyShareText(stats)
                                             StatisticsPeriod.MONTHLY -> viewModel.getMonthlyShareText(stats, currentSelectedMonth, currentSelectedYear)
                                             StatisticsPeriod.ALL -> viewModel.getShareText(stats)
                                             StatisticsPeriod.YEARLY -> viewModel.getYearlyShareText(stats, currentSelectedYear)
@@ -561,6 +601,7 @@ fun StatisticsScreen(
                                             type = "text/plain"
                                         }
                                         val title = when (currentPeriod) {
+                                            StatisticsPeriod.WEEKLY -> "Compartir estadísticas semanales"
                                             StatisticsPeriod.MONTHLY -> "Compartir estadísticas mensuales"
                                             StatisticsPeriod.ALL -> "Compartir estadísticas totales"
                                             StatisticsPeriod.YEARLY -> "Compartir estadísticas anuales"
@@ -571,21 +612,19 @@ fun StatisticsScreen(
                             )
 
                             if (displayData.totalDistance > 0) {
-                                val barChartData = when (currentPeriod) {
-                                    StatisticsPeriod.MONTHLY -> displayData.chartData
-                                    StatisticsPeriod.YEARLY -> displayData.chartData
-                                    StatisticsPeriod.ALL -> displayData.chartData
-                                }
+                                val barChartData = displayData.chartData
 
                                 if (barChartData.isNotEmpty()) {
                                     DistanceBarChartCard(
                                         title = when (currentPeriod) {
+                                            StatisticsPeriod.WEEKLY -> "Distancia por día"
                                             StatisticsPeriod.MONTHLY -> "Distancia por semana"
                                             StatisticsPeriod.YEARLY -> "Distancia por mes"
                                             StatisticsPeriod.ALL -> "Distancia por año"
                                         },
                                         chartData = barChartData,
-                                        isYearly = currentPeriod != StatisticsPeriod.MONTHLY
+                                        isYearly = currentPeriod != StatisticsPeriod.WEEKLY && currentPeriod != StatisticsPeriod.MONTHLY,
+                                        enableHorizontalScroll = currentPeriod != StatisticsPeriod.WEEKLY
                                     )
                                 }
 
@@ -599,9 +638,7 @@ fun StatisticsScreen(
                                         comparison = displayData.comparison,
                                         minTemperature = stats.minTemperature,
                                         maxTemperature = stats.maxTemperature,
-                                        maxWindGusts = stats.maxWindGusts,
-                                        extremeFeelsLike = stats.extremeFeelsLike,
-                                        extremeFeelsLikeIsHot = stats.extremeFeelsLikeIsHot
+                                        maxWindGusts = stats.maxWindGusts
                                     )
                                 }
                             }
@@ -645,12 +682,17 @@ private fun buildStatisticsPdfFileName(
     val today = LocalDate.now()
     return when (selectedPeriod) {
         0 -> {
+            val monday = today.minusDays(((today.dayOfWeek.value + 6) % 7).toLong())
+            val sunday = monday.plusDays(6)
+            "ZipStats_Semana_${monday}_${sunday}.pdf"
+        }
+        1 -> {
             // Misma resolución que StatisticsViewModel.loadStatistics: sin filtro explícito = mes actual
             val month = (selectedMonth ?: today.monthValue).coerceIn(1, 12)
             val year = selectedYear ?: today.year
             "ZipStats_${monthNames[month - 1]}_${year}.pdf"
         }
-        1 -> "ZipStats_${selectedYear ?: today.year}.pdf"
+        2 -> "ZipStats_${selectedYear ?: today.year}.pdf"
         else -> "ZipStats_Historial_Completo.pdf"
     }
 }
@@ -1272,7 +1314,8 @@ private fun ComparisonValueColumn(
 fun DistanceBarChartCard(
     title: String,
     chartData: List<ChartDataPoint>,
-    isYearly: Boolean
+    isYearly: Boolean,
+    enableHorizontalScroll: Boolean = true
 ) {
     val groupedData = remember(chartData, isYearly) {
         chartData
@@ -1300,7 +1343,11 @@ fun DistanceBarChartCard(
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold
             )
-            SimpleBarChart(groupedData = groupedData, maxValue = roundedMax)
+            SimpleBarChart(
+                groupedData = groupedData,
+                maxValue = roundedMax,
+                enableHorizontalScroll = enableHorizontalScroll
+            )
         }
     }
 }
@@ -1310,17 +1357,18 @@ private val DistanceBarChartBarAreaHeight = 72.dp
 @Composable
 private fun SimpleBarChart(
     groupedData: List<ChartDataPoint>,
-    maxValue: Double
+    maxValue: Double,
+    enableHorizontalScroll: Boolean = true
 ) {
     val maxIndex = groupedData.indices.maxByOrNull { groupedData[it].value } ?: -1
-    val enableHorizontalScroll = groupedData.size > 6
+    val useHorizontalScroll = enableHorizontalScroll && groupedData.size > 6
     val horizontalScrollState = rememberScrollState()
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .then(
-                if (enableHorizontalScroll) {
+                if (useHorizontalScroll) {
                     Modifier.horizontalScroll(horizontalScrollState)
                 } else {
                     Modifier
@@ -1338,7 +1386,7 @@ private fun SimpleBarChart(
                 MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)
             }
             Column(
-                modifier = if (enableHorizontalScroll) {
+                modifier = if (useHorizontalScroll) {
                     Modifier.width(64.dp)
                 } else {
                     Modifier.weight(1f)
@@ -1391,9 +1439,7 @@ fun WeatherConditionsCard(
     comparison: ComparisonData?,
     minTemperature: Double?,
     maxTemperature: Double?,
-    maxWindGusts: Double?,
-    extremeFeelsLike: Double?,
-    extremeFeelsLikeIsHot: Boolean
+    maxWindGusts: Double?
 ) {
     val previous = comparison?.comparisonWeatherMetrics
     val coverage = weatherStats.coveragePercentage
@@ -1448,7 +1494,7 @@ fun WeatherConditionsCard(
                 )
             }
 
-            if (minTemperature != null || maxTemperature != null || maxWindGusts != null || extremeFeelsLike != null) {
+            if (minTemperature != null || maxTemperature != null || maxWindGusts != null) {
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
                 ZipStatsText(
                     text = "Récords del período",
@@ -1480,22 +1526,6 @@ fun WeatherConditionsCard(
                             label = "Ráfaga máxima"
                         )
                     }
-                }
-
-                extremeFeelsLike?.let {
-                    WeatherExtremeInlineItem(
-                        modifier = Modifier.fillMaxWidth(),
-                        icon = if (extremeFeelsLikeIsHot) Icons.Filled.Whatshot else Icons.Filled.AcUnit,
-                        iconTint = if (extremeFeelsLikeIsHot) Color(0xFFD97706) else Color(0xFFC2185B),
-                        iconBackground = if (extremeFeelsLikeIsHot) Color(0xFFFFF3E0) else Color(0xFFFCE4EC),
-                        value = "${formatNumberSpanish(it)}°C",
-                        label = if (extremeFeelsLikeIsHot) {
-                            "Sensación máx (venció el calor)"
-                        } else {
-                            "Sensación mín (venció el frío)"
-                        },
-                        centered = true
-                    )
                 }
             }
 

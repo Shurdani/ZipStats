@@ -7,6 +7,7 @@ import com.google.firebase.firestore.FirebaseFirestoreException
 import com.google.firebase.firestore.Query
 import com.zipstats.app.model.Record
 import com.zipstats.app.utils.DateUtils
+import com.zipstats.app.utils.LocationUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
@@ -25,6 +26,7 @@ class RecordRepository @Inject constructor(
 
     companion object {
         const val DEFAULT_PAGE_SIZE = 20
+        private const val ODOMETER_EPSILON = 0.05
     }
 
     @Volatile
@@ -273,6 +275,9 @@ class RecordRepository @Inject constructor(
             val resolvedVehiculo = resolveVehicleName(vehiculo, vehicleRecords)
             val newFechaKey = DateUtils.recordFechaSortKey(fecha)
 
+            validateOdometerReading(kilometraje, fecha, vehicleRecords)
+                .getOrElse { return Result.failure(it) }
+
             // Registro cronológico inmediatamente anterior (fecha estrictamente menor)
             val previousRecord = vehicleRecords
                 .filter { DateUtils.recordFechaSortKey(it.fecha) < newFechaKey }
@@ -495,6 +500,16 @@ class RecordRepository @Inject constructor(
             if (existingRecord.getString("userId") != userId) {
                 throw Exception("No tienes permiso para actualizar este registro")
             }
+
+            val vehiculo = record.vehicleName.ifEmpty { record.patinete }
+            val scooterId = record.scooterId.takeIf { it.isNotEmpty() }
+            val vehicleRecords = fetchRecordsForVehicle(userId, vehiculo, scooterId)
+            validateOdometerReading(
+                kilometraje = record.kilometraje,
+                fecha = record.fecha,
+                vehicleRecords = vehicleRecords,
+                excludeRecordId = record.id
+            ).getOrElse { return Result.failure(it) }
             
             val recordData = hashMapOf(
                 "fecha" to record.fecha,
@@ -508,14 +523,81 @@ class RecordRepository @Inject constructor(
             )
             
             recordsCollection.document(record.id).set(recordData).await()
-            repairOdometerChainForVehicleInternal(
-                record.vehicleName.ifEmpty { record.patinete },
-                record.scooterId.takeIf { it.isNotEmpty() }
-            )
+            repairOdometerChainForVehicleInternal(vehiculo, scooterId)
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
         }
+    }
+
+    /**
+     * Comprueba que el odómetro no baje respecto al registro cronológico anterior
+     * ni al último del mismo día, y que no supere al siguiente si se inserta en medio.
+     */
+    private fun validateOdometerReading(
+        kilometraje: Double,
+        fecha: String,
+        vehicleRecords: List<Record>,
+        excludeRecordId: String? = null
+    ): Result<Unit> {
+        val context = odometerContextFor(fecha, vehicleRecords, excludeRecordId)
+        context.previousRecord?.let { previous ->
+            if (kilometraje < previous.kilometraje - ODOMETER_EPSILON) {
+                return Result.failure(
+                    Exception(
+                        "El kilometraje no puede ser inferior al registro anterior " +
+                            "(${LocationUtils.formatNumberSpanish(previous.kilometraje, 1)} km)"
+                    )
+                )
+            }
+        }
+        context.lastOnSameDay?.let { lastSameDay ->
+            if (kilometraje < lastSameDay.kilometraje - ODOMETER_EPSILON) {
+                return Result.failure(
+                    Exception(
+                        "El kilometraje no puede ser inferior al último registro de ese día " +
+                            "(${LocationUtils.formatNumberSpanish(lastSameDay.kilometraje, 1)} km)"
+                    )
+                )
+            }
+        }
+        context.nextRecord?.let { next ->
+            if (kilometraje > next.kilometraje + ODOMETER_EPSILON) {
+                return Result.failure(
+                    Exception(
+                        "El kilometraje no puede ser superior al siguiente registro " +
+                            "(${LocationUtils.formatNumberSpanish(next.kilometraje, 1)} km)"
+                    )
+                )
+            }
+        }
+        return Result.success(Unit)
+    }
+
+    private data class OdometerContext(
+        val previousRecord: Record?,
+        val nextRecord: Record?,
+        val lastOnSameDay: Record?
+    )
+
+    private fun odometerContextFor(
+        fecha: String,
+        vehicleRecords: List<Record>,
+        excludeRecordId: String? = null
+    ): OdometerContext {
+        val records = vehicleRecords.filter { excludeRecordId == null || it.id != excludeRecordId }
+        val newFechaKey = DateUtils.recordFechaSortKey(fecha)
+        val newDay = DateUtils.parseApiDate(fecha)
+        val previousRecord = records
+            .filter { DateUtils.recordFechaSortKey(it.fecha) < newFechaKey }
+            .maxWithOrNull(compareBy({ DateUtils.recordFechaSortKey(it.fecha) }, { it.id }))
+        val nextRecord = records
+            .filter { DateUtils.recordFechaSortKey(it.fecha) > newFechaKey }
+            .minWithOrNull(compareBy({ DateUtils.recordFechaSortKey(it.fecha) }, { it.id }))
+        val lastOnSameDay = records
+            .filter { DateUtils.parseApiDate(it.fecha) == newDay }
+            .maxWithOrNull(compareBy({ DateUtils.recordFechaSortKey(it.fecha) }, { it.id }))
+        return OdometerContext(previousRecord, nextRecord, lastOnSameDay)
     }
 
     /**
@@ -541,10 +623,10 @@ class RecordRepository @Inject constructor(
                 runningKm = record.kilometraje
                 Triple(record.kilometraje, 0.0, true)
             } else {
-                val tripKm = resolveTripDistanceKm(record, sorted, index)
-                val km = runningKm + tripKm
-                runningKm = km
-                Triple(km, tripKm, false)
+                // Siempre derivar del odómetro guardado; no reutilizar diferencia antigua si contradice el total.
+                val tripKm = (record.kilometraje - runningKm).coerceAtLeast(0.0)
+                runningKm = record.kilometraje
+                Triple(record.kilometraje, tripKm, false)
             }
 
             val kmChanged = kotlin.math.abs(record.kilometraje - newKilometraje) > 1e-6
@@ -564,29 +646,6 @@ class RecordRepository @Inject constructor(
         if (hasWrites) {
             batch.commit().await()
         }
-    }
-
-    /** Km del viaje: usa [Record.diferencia] si es válida; si no, infiere del odómetro guardado antes del hueco. */
-    private fun resolveTripDistanceKm(
-        record: Record,
-        chronologicallySorted: List<Record>,
-        index: Int
-    ): Double {
-        if (record.diferencia > 1e-6) return record.diferencia
-
-        val recordsBefore = chronologicallySorted.take(index)
-        val anchorBeforeGap = recordsBefore
-            .filter { it.kilometraje < record.kilometraje - 1e-6 }
-            .maxWithOrNull(compareBy({ DateUtils.recordFechaSortKey(it.fecha) }, { it.id }))
-
-        if (anchorBeforeGap != null) {
-            return record.kilometraje - anchorBeforeGap.kilometraje
-        }
-        if (index > 0) {
-            return (record.kilometraje - chronologicallySorted[index - 1].kilometraje)
-                .coerceAtLeast(0.0)
-        }
-        return 0.0
     }
 
     suspend fun getAllRecords(): List<Record> {

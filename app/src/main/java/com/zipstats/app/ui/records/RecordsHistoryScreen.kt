@@ -271,6 +271,7 @@ fun RecordsHistoryScreen(
         ) {
             EditRecordBottomSheet(
                 record = recordToEdit!!,
+                records = records,
                 userScooters = userScooters,
                 onDismiss = {
                     scope.launch {
@@ -528,6 +529,37 @@ private fun getVehicleIcon(vehicleType: VehicleType): Painter {
     }
 }
 
+private const val ODOMETER_EPSILON_UI = 0.05
+
+private fun recordsForVehicle(
+    records: List<Record>,
+    scooterName: String,
+    scooterId: String?
+): List<Record> = records.filter { record ->
+    when {
+        !scooterId.isNullOrEmpty() && record.scooterId == scooterId -> true
+        else -> record.patinete == scooterName || record.vehiculo == scooterName
+    }
+}
+
+/** Mínimo odómetro permitido según el registro anterior cronológico y el último del mismo día. */
+private fun minAllowedOdometer(
+    vehicleRecords: List<Record>,
+    selectedDate: java.time.LocalDate,
+    excludeRecordId: String? = null
+): Double? {
+    val fechaForSort = DateUtils.formatForApiOnDayWithCurrentTime(selectedDate)
+    val newFechaKey = DateUtils.recordFechaSortKey(fechaForSort)
+    val filtered = vehicleRecords.filter { excludeRecordId == null || it.id != excludeRecordId }
+    val previous = filtered
+        .filter { DateUtils.recordFechaSortKey(it.fecha) < newFechaKey }
+        .maxWithOrNull(compareBy({ DateUtils.recordFechaSortKey(it.fecha) }, { it.id }))
+    val lastSameDay = filtered
+        .filter { DateUtils.parseApiDate(it.fecha) == selectedDate }
+        .maxWithOrNull(compareBy({ DateUtils.recordFechaSortKey(it.fecha) }, { it.id }))
+    return listOfNotNull(previous?.kilometraje, lastSameDay?.kilometraje).maxOrNull()
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NewRecordBottomSheet(
@@ -569,16 +601,13 @@ fun NewRecordBottomSheet(
             ?.takeIf { it.isNotEmpty() }
     }
 
-    // Cálculo de kilometraje anterior (Helper visual)
-    val previousMileage = remember(selectedScooter, selectedScooterId, records) {
-        records
-            .filter { record ->
-                when {
-                    !selectedScooterId.isNullOrEmpty() && record.scooterId == selectedScooterId -> true
-                    else -> record.patinete == selectedScooter || record.vehiculo == selectedScooter
-                }
-            }
-            .maxWithOrNull(DateUtils.recordComparatorNewestFirst())?.kilometraje
+    // Kilometraje mínimo según fecha elegida (no el último global si la fecha es anterior)
+    val minOdometerForDate = remember(selectedScooter, selectedScooterId, records, selectedDate) {
+        if (selectedScooter.isEmpty()) null
+        else minAllowedOdometer(
+            recordsForVehicle(records, selectedScooter, selectedScooterId),
+            selectedDate
+        )
     }
 
     // Date Picker (Se muestra por encima del BottomSheet)
@@ -676,10 +705,9 @@ fun NewRecordBottomSheet(
                     modifier = Modifier.fillMaxWidth(),
                     shape = MaterialTheme.shapes.medium,
                     supportingText = {
-                        // Aquí mostramos el kilometraje anterior de forma elegante
-                        if (previousMileage != null) {
+                        if (minOdometerForDate != null) {
                             ZipStatsText(
-                                text = "Anterior: ${LocationUtils.formatNumberSpanish(previousMileage, 1)} km",
+                                text = "Mínimo para esta fecha: ${LocationUtils.formatNumberSpanish(minOdometerForDate, 1)} km",
                                 color = MaterialTheme.colorScheme.primary
                             )
                         }
@@ -739,16 +767,27 @@ fun NewRecordBottomSheet(
                     if (selectedScooter.isEmpty() || kilometraje.isEmpty()) {
                         errorMessage = "Por favor, complete todos los campos"
                     } else {
-                        // Animación de cierre segura
-                        scope.launch {
-                            sheetState.hide()
-                            if (!sheetState.isVisible) {
-                                onConfirm(
-                                    selectedScooter,
-                                    selectedScooterId,
-                                    kilometraje,
-                                    DateUtils.formatForApiOnDayWithCurrentTime(selectedDate)
-                                )
+                        val kmValue = LocationUtils.parseNumberSpanish(kilometraje)
+                        if (kmValue == null) {
+                            errorMessage = "El kilometraje debe ser un número válido"
+                        } else if (
+                            minOdometerForDate != null &&
+                            kmValue < minOdometerForDate - ODOMETER_EPSILON_UI
+                        ) {
+                            errorMessage =
+                                "El kilometraje no puede ser inferior al último de esa fecha " +
+                                    "(${LocationUtils.formatNumberSpanish(minOdometerForDate, 1)} km)"
+                        } else {
+                            scope.launch {
+                                sheetState.hide()
+                                if (!sheetState.isVisible) {
+                                    onConfirm(
+                                        selectedScooter,
+                                        selectedScooterId,
+                                        kilometraje,
+                                        DateUtils.formatForApiOnDayWithCurrentTime(selectedDate)
+                                    )
+                                }
                             }
                         }
                     }
@@ -777,6 +816,7 @@ fun NewRecordBottomSheet(
 @Composable
 fun EditRecordBottomSheet(
     record: Record,
+    records: List<Record>,
     userScooters: List<com.zipstats.app.model.Scooter>,
     onDismiss: () -> Unit,
     onSave: (String, String?, String, String) -> Unit,
@@ -797,6 +837,15 @@ fun EditRecordBottomSheet(
     val recordDate = DateUtils.parseApiDate(record.fecha)
     var selectedDate by remember { mutableStateOf(recordDate) }
     val today = Instant.now().atZone(ZoneId.systemDefault()).toLocalDate()
+
+    val minOdometerForDate = remember(selectedScooter, selectedScooterId, records, selectedDate) {
+        if (selectedScooter.isEmpty()) null
+        else minAllowedOdometer(
+            recordsForVehicle(records, selectedScooter, selectedScooterId),
+            selectedDate,
+            excludeRecordId = record.id
+        )
+    }
 
     if (showDatePicker) {
         StandardDatePickerDialogWithValidation(
@@ -873,7 +922,16 @@ fun EditRecordBottomSheet(
             },
             label = { ZipStatsText("Kilometraje") },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
+            supportingText = {
+                if (minOdometerForDate != null) {
+                    ZipStatsText(
+                        text = "Mínimo para esta fecha: ${LocationUtils.formatNumberSpanish(minOdometerForDate, 1)} km",
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+            },
+            isError = errorMessage != null
         )
 
         // Selector de fecha
@@ -931,12 +989,24 @@ fun EditRecordBottomSheet(
                     if (selectedScooter.isEmpty() || kilometraje.isEmpty()) {
                         errorMessage = "Por favor, complete todos los campos"
                     } else {
-                        onSave(
-                            selectedScooter,
-                            selectedScooterId,
-                            kilometraje,
-                            DateUtils.mergeApiDateWithRecordTime(selectedDate, record.fecha)
-                        )
+                        val kmValue = LocationUtils.parseNumberSpanish(kilometraje)
+                        if (kmValue == null) {
+                            errorMessage = "El kilometraje debe ser un número válido"
+                        } else if (
+                            minOdometerForDate != null &&
+                            kmValue < minOdometerForDate - ODOMETER_EPSILON_UI
+                        ) {
+                            errorMessage =
+                                "El kilometraje no puede ser inferior al último de esa fecha " +
+                                    "(${LocationUtils.formatNumberSpanish(minOdometerForDate, 1)} km)"
+                        } else {
+                            onSave(
+                                selectedScooter,
+                                selectedScooterId,
+                                kilometraje,
+                                DateUtils.mergeApiDateWithRecordTime(selectedDate, record.fecha)
+                            )
+                        }
                     }
                 },
                 modifier = Modifier.weight(1f),

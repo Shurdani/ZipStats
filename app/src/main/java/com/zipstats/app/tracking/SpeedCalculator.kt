@@ -17,8 +17,10 @@ class SpeedCalculator(private val vehicleType: VehicleType) {
     private val MAX_ACCURACY = 20f // metros - precisión máxima aceptable
     private val MIN_TIME_DELTA = 100L // ms - tiempo mínimo entre actualizaciones (más frecuente)
     private val MAX_SPEED_MULTIPLIER = 1.2f // Multiplicador de velocidad máxima razonable
-    private val MAX_ACCELERATION = 12f // km/h - discrepancia máxima GPS vs distancia calculada
-    //  (era 30f: demasiado permisivo, dejaba pasar spikes de 20+ km/h)
+    /** Filtro 4: diferencia máxima GPS vs distancia en un fix (km/h). */
+    private val MAX_GPS_DISCREPANCY_KMH = 12f
+    /** Filtro 5: aceleración máxima entre fixes (km/h·s²). */
+    private val MAX_ACCELERATION = 30f
     
     // Estado interno
     private var lastValidLocation: Location? = null
@@ -68,9 +70,18 @@ class SpeedCalculator(private val vehicleType: VehicleType) {
                 null
             }
         }
+
+        val isAcceleratingFromStop = currentDisplaySpeed < 2.0f && gpsSpeed > 5.0f
+        val distanceFromLast = lastValidLocation?.distanceTo(location) ?: 0f
+        val timeDeltaSec = if (lastUpdateTime > 0) (currentTime - lastUpdateTime) / 1000f else 0f
+        val calculatedKmh = if (timeDeltaSec > 0) (distanceFromLast / timeDeltaSec) * 3.6f else 0f
+        val stopSnapDistanceM = minOf(vehicleType.pauseRadius, 5.5f)
+        val confirmStopByDistance = lastValidLocation != null &&
+            !isAcceleratingFromStop &&
+            distanceFromLast < stopSnapDistanceM &&
+            calculatedKmh < vehicleType.pauseSpeedThreshold + 0.5f
         
         // FILTRO 4: Validar contra velocidad calculada por distancia (si hay punto anterior)
-        // SOLO aplicar si NO estamos arrancando desde parado
         lastValidLocation?.let { prevLocation ->
             val distance = location.distanceTo(prevLocation)
             val timeDelta = (currentTime - lastUpdateTime) / 1000f // segundos
@@ -78,12 +89,8 @@ class SpeedCalculator(private val vehicleType: VehicleType) {
             if (timeDelta > 0) {
                 val calculatedSpeed = (distance / timeDelta) * 3.6f // km/h
                 
-                // Saltar validación si estamos arrancando desde parado
-                val isAcceleratingFromStop = currentDisplaySpeed < 2.0f && gpsSpeed > 5.0f
-                
-                // Si hay gran diferencia entre GPS y calculado, descartar (excepto al arrancar)
-                if (!isAcceleratingFromStop && 
-                    abs(gpsSpeed - calculatedSpeed) > MAX_ACCELERATION && 
+                if (!isAcceleratingFromStop &&
+                    abs(gpsSpeed - calculatedSpeed) > MAX_GPS_DISCREPANCY_KMH &&
                     calculatedSpeed < vehicleType.maxSpeed) {
                     consecutiveRejectedUpdates++
                     return if (consecutiveRejectedUpdates < maxConsecutiveRejections) {
@@ -95,14 +102,11 @@ class SpeedCalculator(private val vehicleType: VehicleType) {
             }
         }
         
-        // FILTRO 5: Validar aceleración razonable
-        // Permitir aceleraciones más altas al arrancar o frenar
-        if (lastUpdateTime > 0) {
+        // FILTRO 5: Validar aceleración razonable (no bloquear arranque ni parada confirmada por distancia)
+        if (!isAcceleratingFromStop && !confirmStopByDistance && lastUpdateTime > 0) {
             val timeDelta = (currentTime - lastUpdateTime) / 1000f
             if (timeDelta > 0) {
                 val acceleration = abs(gpsSpeed - currentDisplaySpeed) / timeDelta
-                
-                // Límite de aceleración más permisivo al arrancar/frenar
                 val isStartingOrStopping = currentDisplaySpeed < 3.0f || gpsSpeed < 3.0f
                 val maxAccel = if (isStartingOrStopping) MAX_ACCELERATION * 2.0f else MAX_ACCELERATION
                 
@@ -117,17 +121,13 @@ class SpeedCalculator(private val vehicleType: VehicleType) {
             }
         }
         
-        // Snap a 0 si la distancia confirma parada aunque el chip GPS siga reportando velocidad.
-        // El EMA es lento en bajar: si el patinete para bruscamente y el chip dice 4-6 km/h,
-        // el suavizado tarda 3-5 s en cruzar el umbral. Con esto cae en 1-2 fixes.
-        val distanceFromLast = lastValidLocation?.distanceTo(location) ?: 0f
-        val timeDeltaSec = if (lastUpdateTime > 0) (currentTime - lastUpdateTime) / 1000f else 0f
-        val calculatedKmh = if (timeDeltaSec > 0) (distanceFromLast / timeDeltaSec) * 3.6f else 0f
-        val confirmStop = distanceFromLast < 5.5f && calculatedKmh < 4.5f
-        if (confirmStop) emaFilter.snapTo(0.0)
+        if (confirmStopByDistance) emaFilter.snapTo(0.0)
 
-        // Aplicar filtro EMA adaptativo
-        val smoothedSpeed = if (confirmStop) 0f else emaFilter.updateSpeed(gpsSpeed.toDouble()).toFloat()
+        val smoothedSpeed = if (confirmStopByDistance) {
+            0f
+        } else {
+            emaFilter.updateSpeed(gpsSpeed.toDouble()).toFloat()
+        }
         
         // Aplicar umbral mínimo para mostrar 0 (usar umbral de pausa para mejor detección)
         val displaySpeed = if (smoothedSpeed < vehicleType.pauseSpeedThreshold) {

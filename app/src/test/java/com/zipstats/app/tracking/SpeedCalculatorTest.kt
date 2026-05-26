@@ -37,6 +37,9 @@ class SpeedCalculatorTest {
 
     @Test
     fun acceptsValidCruisingSpeed() {
+        calculator.processLocation(location(speedKmh = 18f, accuracy = 8f))
+        Thread.sleep(150)
+
         val result = calculator.processLocation(location(speedKmh = 18f, accuracy = 8f))
 
         assertNotNull(result)
@@ -66,15 +69,28 @@ class SpeedCalculatorTest {
     }
 
     @Test
-    fun showsSpeedWhenLaunchingBelowPauseThreshold() {
-        calculator.processLocation(location(speedKmh = 0f, accuracy = 5f))
+    fun showsZeroWhenSpeedBelowPauseThreshold() {
+        calculator.processLocation(location(speedKmh = 15f, accuracy = 5f))
         Thread.sleep(150)
 
-        // 3 km/h: por debajo del umbral de parada (4) pero por encima del de arranque (~1.8)
         val result = calculator.processLocation(location(speedKmh = 3f, accuracy = 5f))
 
         assertNotNull(result)
-        assertTrue(result!!.smoothed >= 1.2f)
+        assertEquals(0f, result!!.smoothed)
+    }
+
+    @Test
+    fun rejectsGpsSpikeWhenDistanceDoesNotMatch() {
+        val lat = 41.3851
+        val lon = 2.1734
+        calculator.processLocation(location(lat = lat, lon = lon, speedKmh = 18f, accuracy = 5f))
+        Thread.sleep(150)
+
+        // Chip 27 km/h pero casi sin desplazamiento → discrepancia > 12 km/h
+        val held = calculator.processLocation(location(lat = lat, lon = lon, speedKmh = 27f, accuracy = 5f))
+
+        assertNotNull(held)
+        assertEquals(18f, held!!.smoothed, 1.5f)
     }
 
     @Test
@@ -157,7 +173,7 @@ class SpeedCalculatorTest {
         val first = calculator.processLocation(location(speedKmh = 20f, accuracy = 5f))
         assertNotNull(first)
 
-        // Menos de MIN_TIME_DELTA (50 ms) — debe mantener la velocidad anterior
+        // Menos de MIN_TIME_DELTA (100 ms) — debe mantener la velocidad anterior
         val second = calculator.processLocation(location(speedKmh = 25f, accuracy = 5f))
 
         assertNotNull(second)

@@ -1350,7 +1350,7 @@ private fun WeatherInfoDialog(route: Route, onDismiss: () -> Unit) {
                                 temp != null && temp > 26 && heatIndex != null -> {
                                     WeatherGridItem(
                                         icon = Icons.Default.Thermostat,
-                                        label = "I de Calor",
+                                        label = "Sensación",
                                         value = "${formatTemperature(heatIndex)}°C"
                                     )
                                 }

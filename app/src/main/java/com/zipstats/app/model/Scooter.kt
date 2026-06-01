@@ -32,4 +32,27 @@ data class VehicleRecord(
 )
 
 // Alias para mantener compatibilidad
-typealias ScooterRecord = VehicleRecord 
+typealias ScooterRecord = VehicleRecord
+
+fun List<Scooter>.findForRoute(route: Route): Scooter? {
+    if (route.scooterId.isNotEmpty()) {
+        find { it.id == route.scooterId }?.let { return it }
+    }
+    if (route.scooterName.isNotEmpty()) {
+        find { it.nombre == route.scooterName }?.let { return it }
+    }
+    return null
+}
+
+fun List<Scooter>.findForRecord(record: Record): Scooter? {
+    if (record.scooterId.isNotEmpty()) {
+        find { it.id == record.scooterId }?.let { return it }
+    }
+    val vehicleName = record.vehicleName
+    if (vehicleName.isNotEmpty()) {
+        find { it.nombre == vehicleName }?.let { return it }
+    }
+    return null
+}
+
+fun Scooter?.displayModelo(): String = this?.modelo?.takeIf { it.isNotBlank() }.orEmpty()

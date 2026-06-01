@@ -858,22 +858,29 @@ class StatisticsViewModel @Inject constructor(
     ): List<ChartDataPoint> {
         val today = LocalDate.now()
         val firstDayOfMonth = LocalDate.of(year, month, 1)
-        val lastDayOfMonth = if (year == today.year && month == today.monthValue) {
-            today
-        } else {
-            firstDayOfMonth.withDayOfMonth(firstDayOfMonth.lengthOfMonth())
-        }
-        val weeklyData = mutableListOf<ChartDataPoint>()
-        var weekStart = firstDayOfMonth
+        val lastDayOfMonth = firstDayOfMonth.withDayOfMonth(firstDayOfMonth.lengthOfMonth())
+        val isCurrentMonth = year == today.year && month == today.monthValue
+        val recordCutoff = if (isCurrentMonth) today else lastDayOfMonth
 
-        while (!weekStart.isAfter(lastDayOfMonth)) {
-            val daysUntilSunday = DayOfWeek.SUNDAY.value - weekStart.dayOfWeek.value
-            val weekEnd = minOf(weekStart.plusDays(daysUntilSunday.toLong()), lastDayOfMonth)
+        // Todas las semanas lun-dom que tocan el mes (incluidas las sin registros → 0 km)
+        var weekStart = firstDayOfMonth.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+        val lastWeekStart = lastDayOfMonth.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+        val weeklyData = mutableListOf<ChartDataPoint>()
+
+        while (!weekStart.isAfter(lastWeekStart)) {
+            val weekEnd = weekStart.plusDays(6)
+            val periodStart = maxOf(weekStart, firstDayOfMonth)
+            val periodEnd = minOf(weekEnd, lastDayOfMonth)
+
             val weeklyDistance = records
                 .filter {
                     try {
                         val recordDate = DateUtils.parseApiDate(it.fecha)
-                        !recordDate.isBefore(weekStart) && !recordDate.isAfter(weekEnd)
+                        recordDate.year == year &&
+                            recordDate.monthValue == month &&
+                            !recordDate.isBefore(periodStart) &&
+                            !recordDate.isAfter(periodEnd) &&
+                            !recordDate.isAfter(recordCutoff)
                     } catch (e: Exception) {
                         false
                     }
@@ -882,12 +889,12 @@ class StatisticsViewModel @Inject constructor(
 
             weeklyData.add(
                 ChartDataPoint(
-                    date = "${weekStart.dayOfMonth}-${weekEnd.dayOfMonth}",
+                    date = "${periodStart.dayOfMonth}-${periodEnd.dayOfMonth}",
                     value = weeklyDistance.roundToOneDecimal()
                 )
             )
 
-            weekStart = weekEnd.plusDays(1)
+            weekStart = weekStart.plusWeeks(1)
         }
 
         return weeklyData
@@ -895,13 +902,18 @@ class StatisticsViewModel @Inject constructor(
     
     private fun calculateYearlyChartData(records: List<com.zipstats.app.model.Record>, year: Int): List<ChartDataPoint> {
         val monthNames = listOf("Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic")
-        
+        val today = LocalDate.now()
+        val isCurrentYear = year == today.year
+
+        // Siempre 12 meses (Ene–Dic); los futuros del año en curso muestran 0 km
         return (1..12).map { month ->
             val monthlyDistance = records
                 .filter {
                     try {
                         val recordDate = DateUtils.parseApiDate(it.fecha)
-                        recordDate.year == year && recordDate.monthValue == month
+                        recordDate.year == year &&
+                            recordDate.monthValue == month &&
+                            (!isCurrentYear || !recordDate.isAfter(today))
                     } catch (e: Exception) {
                         false
                     }

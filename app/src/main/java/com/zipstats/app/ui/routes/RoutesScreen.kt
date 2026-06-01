@@ -61,6 +61,8 @@ import com.zipstats.app.R
 import com.zipstats.app.di.AppOverlayRepositoryEntryPoint
 import com.zipstats.app.model.Route
 import com.zipstats.app.model.VehicleType
+import com.zipstats.app.model.displayModelo
+import com.zipstats.app.model.findForRoute
 import com.zipstats.app.navigation.Screen
 import com.zipstats.app.repository.AppOverlayRepository
 import com.zipstats.app.ui.components.AnimatedFloatingActionButton
@@ -378,7 +380,7 @@ fun RoutesScreen(
             Spacer(modifier = Modifier.height(8.dp))
 
             // Lista de rutas (Diseño moderno de 2 columnas)
-            if (!initialRoutesResolved) {
+            if (!initialRoutesResolved || !vehiclesLoaded) {
                 Box(
                     modifier = Modifier.fillMaxWidth().weight(1f),
                     contentAlignment = Alignment.Center
@@ -416,7 +418,7 @@ fun RoutesScreen(
                         key = { _, route -> route.id }
                     ) { _, route -> // Ya no necesitamos el index para el color
                         val interactionSource = remember { MutableInteractionSource() }
-                        val scooter = userScooters.find { it.id == route.scooterId }
+                        val scooter = userScooters.findForRoute(route)
                         
                         // 1. Contenedor CLICKABLE limpio
                         Column(
@@ -456,10 +458,10 @@ fun RoutesScreen(
                                         )
                                     }
                                 },
-                                // 2. HEADLINE: El dato principal (Nombre del vehículo)
+                                // 2. HEADLINE: Modelo del vehículo
                                 headlineContent = {
                                     ZipStatsText(
-                                        text = scooter?.modelo ?: route.scooterName,
+                                        text = scooter.displayModelo(),
                                         style = MaterialTheme.typography.titleMedium,
                                         fontWeight = FontWeight.SemiBold
                                     )

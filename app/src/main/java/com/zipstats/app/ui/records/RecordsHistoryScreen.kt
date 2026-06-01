@@ -74,6 +74,8 @@ import com.zipstats.app.di.AppOverlayRepositoryEntryPoint
 import com.zipstats.app.R
 import com.zipstats.app.model.Record
 import com.zipstats.app.model.VehicleType
+import com.zipstats.app.model.displayModelo
+import com.zipstats.app.model.findForRecord
 import com.zipstats.app.navigation.Screen
 import com.zipstats.app.ui.components.AnimatedFloatingActionButton
 import com.zipstats.app.ui.components.DialogCancelButton
@@ -186,7 +188,7 @@ fun RecordsHistoryScreen(
     }
 
     val isWaitingInitialPage =
-        !initialDataResolved
+        !initialDataResolved || !vehiclesLoaded
     val isWaitingFilteredResults =
         selectedModel != null &&
             records.isEmpty() &&
@@ -421,7 +423,7 @@ fun RecordsHistoryScreen(
                         key = { _, record -> record.id }
                     ) { _, record ->
                         val interactionSource = remember(record.id) { MutableInteractionSource() }
-                        val scooter = userScooters.find { it.nombre == record.patinete }
+                        val scooter = userScooters.findForRecord(record)
 
                         Column(
                             modifier = Modifier
@@ -459,10 +461,10 @@ fun RecordsHistoryScreen(
                                         )
                                     }
                                 },
-                                // 2. HEADLINE: El dato principal (Nombre del vehículo)
+                                // 2. HEADLINE: Modelo del vehículo
                                 headlineContent = {
                                     ZipStatsText(
-                                        text = scooter?.modelo ?: record.patinete,
+                                        text = scooter.displayModelo(),
                                         style = MaterialTheme.typography.titleMedium,
                                         fontWeight = FontWeight.SemiBold
                                     )

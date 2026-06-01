@@ -3,21 +3,16 @@ package com.zipstats.app.ui.statistics
 import android.Manifest
 import android.app.PendingIntent
 import android.content.ContentValues
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
-import androidx.core.app.NotificationCompat
-import androidx.core.app.NotificationManagerCompat
-import androidx.core.app.ActivityCompat
-import androidx.core.content.ContextCompat
-import androidx.core.content.FileProvider
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -100,13 +95,21 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.app.ActivityCompat
+import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
+import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.zipstats.app.R
@@ -117,16 +120,14 @@ import com.zipstats.app.ui.components.ZipStatsText
 import com.zipstats.app.ui.theme.DialogShape
 import com.zipstats.app.utils.ExportUiStrings
 import com.zipstats.app.utils.LocationUtils
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
 import java.time.DayOfWeek
 import java.time.LocalDate
-import java.time.LocalDateTime
-import java.time.format.DateTimeFormatter
 import java.time.temporal.TemporalAdjusters
 import kotlin.math.roundToInt
-import java.io.File
 
 // Extensión para redondear a 1 decimal (igual que en StatisticsViewModel)
 private fun Double.roundToOneDecimal(): Double {
@@ -617,14 +618,21 @@ fun StatisticsScreen(
                                 if (barChartData.isNotEmpty()) {
                                     DistanceBarChartCard(
                                         title = when (currentPeriod) {
-                                            StatisticsPeriod.WEEKLY -> "Distancia por día"
-                                            StatisticsPeriod.MONTHLY -> "Distancia por semana"
-                                            StatisticsPeriod.YEARLY -> "Distancia por mes"
-                                            StatisticsPeriod.ALL -> "Distancia por año"
+                                            StatisticsPeriod.WEEKLY -> "Kilómetros por día"
+                                            StatisticsPeriod.MONTHLY -> "Kilómetros por semana"
+                                            StatisticsPeriod.YEARLY -> "Kilómetros por mes"
+                                            StatisticsPeriod.ALL -> "Kilómetros por año"
                                         },
                                         chartData = barChartData,
-                                        isYearly = currentPeriod != StatisticsPeriod.WEEKLY && currentPeriod != StatisticsPeriod.MONTHLY,
-                                        enableHorizontalScroll = currentPeriod != StatisticsPeriod.WEEKLY
+                                        allowScroll = currentPeriod != StatisticsPeriod.WEEKLY,
+                                        isWeeklyChart = currentPeriod == StatisticsPeriod.WEEKLY,
+                                        useCompactValueLabels = when (currentPeriod) {
+                                            StatisticsPeriod.YEARLY -> true
+                                            StatisticsPeriod.MONTHLY ->
+                                                barChartData.size > ChartBarsVisibleInViewport
+                                            StatisticsPeriod.ALL -> barChartData.size > ChartBarsVisibleInViewport
+                                            StatisticsPeriod.WEEKLY -> false
+                                        }
                                     )
                                 }
 
@@ -697,9 +705,7 @@ private fun buildStatisticsPdfFileName(
     }
 }
 
-private fun showPdfProgressNotification(context: android.content.Context, notificationId: Int) {
-    if (!hasPostNotificationPermission(context)) return
-
+private fun showPdfProgressNotification(context: Context, notificationId: Int) {
     val notification = NotificationCompat.Builder(context, ExportUiStrings.NOTIFICATION_CHANNEL_ID)
         .setSmallIcon(R.drawable.ic_download)
         .setContentTitle(ExportUiStrings.PROGRESS_TITLE_PDF)
@@ -708,12 +714,10 @@ private fun showPdfProgressNotification(context: android.content.Context, notifi
         .setPriority(NotificationCompat.PRIORITY_DEFAULT)
         .build()
 
-    NotificationManagerCompat.from(context).notify(notificationId, notification)
+    postNotification(context, notificationId, notification)
 }
 
 private fun showPdfSavedNotification(context: android.content.Context, uri: Uri, fileName: String, notificationId: Int) {
-    if (!hasPostNotificationPermission(context)) return
-
     val openIntent = Intent(Intent.ACTION_VIEW).apply {
         setDataAndType(uri, "application/pdf")
         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
@@ -734,21 +738,39 @@ private fun showPdfSavedNotification(context: android.content.Context, uri: Uri,
         .setPriority(NotificationCompat.PRIORITY_DEFAULT)
         .build()
 
-    NotificationManagerCompat.from(context).notify(notificationId, notification)
+    postNotification(context, notificationId, notification)
 }
 
-private fun cancelPdfNotification(context: android.content.Context, notificationId: Int) {
-    if (!hasPostNotificationPermission(context)) return
-    NotificationManagerCompat.from(context).cancel(notificationId)
-}
-
-private fun hasPostNotificationPermission(context: android.content.Context): Boolean {
-    val hasNotificationPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-        ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
-    } else {
-        true
+private fun cancelPdfNotification(context: Context, notificationId: Int) {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+        ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=
+        PackageManager.PERMISSION_GRANTED
+    ) {
+        return
     }
-    return hasNotificationPermission
+    try {
+        NotificationManagerCompat.from(context).cancel(notificationId)
+    } catch (_: SecurityException) {
+        // Permiso revocado en tiempo de ejecución
+    }
+}
+
+private fun postNotification(
+    context: Context,
+    notificationId: Int,
+    notification: android.app.Notification
+) {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+        ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=
+        PackageManager.PERMISSION_GRANTED
+    ) {
+        return
+    }
+    try {
+        NotificationManagerCompat.from(context).notify(notificationId, notification)
+    } catch (_: SecurityException) {
+        // Permiso revocado en tiempo de ejecución
+    }
 }
 
 data class PeriodData(
@@ -1310,20 +1332,20 @@ private fun ComparisonValueColumn(
     }
 }
 
+/** Barras visibles sin scroll; con más barras, el scroll muestra este mismo número (p. ej. 6 meses = medio año). */
+private const val ChartBarsVisibleInViewport = 6
+
 @Composable
 fun DistanceBarChartCard(
     title: String,
     chartData: List<ChartDataPoint>,
-    isYearly: Boolean,
-    enableHorizontalScroll: Boolean = true
+    allowScroll: Boolean = true,
+    isWeeklyChart: Boolean = false,
+    useCompactValueLabels: Boolean = false
 ) {
-    val groupedData = remember(chartData, isYearly) {
-        chartData
-    }
+    if (chartData.isEmpty()) return
 
-    if (groupedData.isEmpty()) return
-
-    val maxValue = groupedData.maxOfOrNull { it.value } ?: 0.0
+    val maxValue = chartData.maxOfOrNull { it.value } ?: 0.0
     val roundedMax = (kotlin.math.ceil(maxValue / 5.0) * 5.0).coerceAtLeast(5.0)
 
     Card(
@@ -1344,65 +1366,143 @@ fun DistanceBarChartCard(
                 fontWeight = FontWeight.Bold
             )
             SimpleBarChart(
-                groupedData = groupedData,
+                groupedData = chartData,
                 maxValue = roundedMax,
-                enableHorizontalScroll = enableHorizontalScroll
+                allowScroll = allowScroll,
+                isWeeklyChart = isWeeklyChart,
+                useCompactValueLabels = useCompactValueLabels
             )
         }
     }
 }
 
 private val DistanceBarChartBarAreaHeight = 72.dp
+private val DistanceBarChartValueAreaHeightComfortable = 28.dp
+private val DistanceBarChartMinBarWidth = 52.dp
+private val DistanceBarChartMaxBarWidth = 72.dp
+
+/** Distancia en etiquetas del gráfico (sin decimales). */
+private fun formatChartBarDistance(value: Double): String {
+    return LocationUtils.formatNumberSpanish(value, 0)
+}
+
+/** Formato abreviado (p. ej. 12k) cuando hay muchas barras o scroll. */
+private fun formatChartBarValueCompact(value: Double): String {
+    return when {
+        value >= 1_000 -> "${LocationUtils.formatNumberSpanish(value / 1_000, 0)}k"
+        else -> formatChartBarDistance(value)
+    }
+}
 
 @Composable
 private fun SimpleBarChart(
     groupedData: List<ChartDataPoint>,
     maxValue: Double,
-    enableHorizontalScroll: Boolean = true
+    allowScroll: Boolean = true,
+    isWeeklyChart: Boolean = false,
+    useCompactValueLabels: Boolean = false
 ) {
     val maxIndex = groupedData.indices.maxByOrNull { groupedData[it].value } ?: -1
-    val useHorizontalScroll = enableHorizontalScroll && groupedData.size > 6
+    val useHorizontalScroll = allowScroll && groupedData.size > ChartBarsVisibleInViewport
     val horizontalScrollState = rememberScrollState()
+    val barSpacing = 8.dp
+    val density = LocalDensity.current
+    var chartContentWidth by remember { mutableStateOf(0.dp) }
 
-    Row(
+    Box(
         modifier = Modifier
             .fillMaxWidth()
-            .then(
-                if (useHorizontalScroll) {
-                    Modifier.horizontalScroll(horizontalScrollState)
-                } else {
-                    Modifier
-                }
-            ),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.Bottom
-    ) {
-        groupedData.forEachIndexed { index, point ->
-            val barHeightRatio =
-                if (maxValue > 0.0) (point.value / maxValue).toFloat() else 0f
-            val barColor = if (index == maxIndex) {
-                MaterialTheme.colorScheme.primary
-            } else {
-                MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)
+            .onSizeChanged { size ->
+                chartContentWidth = with(density) { size.width.toDp() }
             }
-            Column(
-                modifier = if (useHorizontalScroll) {
-                    Modifier.width(64.dp)
+    ) {
+        val scrollBarWidth: Dp? = if (useHorizontalScroll && chartContentWidth > 0.dp) {
+            (chartContentWidth - barSpacing * (ChartBarsVisibleInViewport - 1)) / ChartBarsVisibleInViewport
+        } else {
+            null
+        }
+
+        fun barColumnWidth(): Dp {
+            if (scrollBarWidth != null) return scrollBarWidth
+            if (chartContentWidth <= 0.dp) return DistanceBarChartMaxBarWidth
+            val count = groupedData.size.coerceAtLeast(1)
+            val totalSpacing = barSpacing * (count - 1)
+            return ((chartContentWidth - totalSpacing) / count)
+                .coerceIn(DistanceBarChartMinBarWidth, DistanceBarChartMaxBarWidth)
+        }
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .then(
+                    if (useHorizontalScroll) {
+                        Modifier.horizontalScroll(horizontalScrollState)
+                    } else {
+                        Modifier
+                    }
+                ),
+            horizontalArrangement = if (useHorizontalScroll || isWeeklyChart) {
+                Arrangement.spacedBy(barSpacing)
+            } else {
+                Arrangement.spacedBy(barSpacing, Alignment.CenterHorizontally)
+            },
+            verticalAlignment = Alignment.Bottom
+        ) {
+            groupedData.forEachIndexed { index, point ->
+                val barHeightRatio =
+                    if (maxValue > 0.0) (point.value / maxValue).toFloat() else 0f
+                val barColor = if (index == maxIndex) {
+                    MaterialTheme.colorScheme.primary
                 } else {
-                    Modifier.weight(1f)
-                },
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Bottom
-            ) {
-                ZipStatsText(
-                    text = "${formatNumberSpanish(point.value)} km",
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.Medium,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    textAlign = TextAlign.Center,
-                    maxLines = 1,
-                    autoResize = true
-                )
+                    MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)
+                }
+                Column(
+                    modifier = if (isWeeklyChart) {
+                        Modifier.weight(1f)
+                    } else {
+                        Modifier.width(barColumnWidth())
+                    },
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Bottom
+                ) {
+                if (isWeeklyChart) {
+                    ZipStatsText(
+                        text = formatChartBarDistance(point.value),
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        textAlign = TextAlign.Center,
+                        maxLines = 1,
+                        autoResize = true
+                    )
+                } else {
+                    val compactLabel = useCompactValueLabels || point.value >= 1_000.0
+                    val valueText = if (compactLabel) {
+                        formatChartBarValueCompact(point.value)
+                    } else {
+                        formatChartBarDistance(point.value)
+                    }
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(DistanceBarChartValueAreaHeightComfortable),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        ZipStatsText(
+                            text = valueText,
+                            style = if (compactLabel) {
+                                MaterialTheme.typography.labelMedium
+                            } else {
+                                MaterialTheme.typography.titleSmall
+                            },
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            textAlign = TextAlign.Center,
+                            maxLines = 1,
+                            autoResize = compactLabel
+                        )
+                    }
+                }
                 Spacer(modifier = Modifier.height(4.dp))
                 Box(
                     modifier = Modifier
@@ -1428,6 +1528,7 @@ private fun SimpleBarChart(
                     textAlign = TextAlign.Center,
                     maxLines = 1
                 )
+            }
             }
         }
     }

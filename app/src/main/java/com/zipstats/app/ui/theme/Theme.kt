@@ -443,7 +443,7 @@ private val SolarFlareOled = darkColorScheme(
     onTertiary = Color(0xFF212121),
     background = Color(0xFF000000),
     onBackground = Color(0xFFFFE8C2),
-    surface = Color(0xFF0A0A0A),
+    surface = Color(0xFF000000),
     onSurface = Color(0xFFFFE8C2),
     surfaceVariant = Color(0xFF0F0F0F),
     onSurfaceVariant = Color(0xFFFFCC80),
@@ -454,21 +454,41 @@ private val SolarFlareOled = darkColorScheme(
 )
 
 // ============================================
-// SUPERFICIES ARMONIZADAS (paletas claras)
+// SUPERFICIES ARMONIZADAS (paletas personalizadas, estilo M3)
 // ============================================
 /**
- * En paletas claras, surface era blanco puro (#FFFFFF) mientras background está tintado,
- * lo que dejaba la TopAppBar y la status bar desalineadas respecto al resto de la app.
- * Material You evita esto porque surface y background van a tono.
+ * Alinea la jerarquía de superficies con Material Design 3 (como Material You):
+ * - [surface] = [background] para TopAppBar, barras del sistema y fondo de pantalla sin saltos.
+ * - [surfaceTint] = primary para elevación con tinte de marca al desplazar.
+ * - surfaceContainer* en escala de luminancia: más claro = más elevado (modo oscuro) o hacia blanco (modo claro).
  */
-private fun ColorScheme.harmonizeLightPaletteSurfaces(): ColorScheme = copy(
-    surface = background,
-    surfaceContainerLowest = background,
-    surfaceContainerLow = lerp(background, surfaceVariant, 0.35f),
-    surfaceContainer = surfaceVariant,
-    surfaceContainerHigh = lerp(surfaceVariant, Color.White, 0.55f),
-    surfaceContainerHighest = lerp(surfaceVariant, Color.White, 0.85f),
-)
+private fun ColorScheme.harmonizePaletteSurfaces(dark: Boolean, oled: Boolean = false): ColorScheme {
+    // Tono que antes se usaba como surface “elevado” (blanco en claro, gris en oscuro)
+    val legacyElevated = surface
+    val cardPeak = when {
+        oled && legacyElevated == background ->
+            lerp(background, surfaceVariant, 0.75f)
+        dark -> surfaceVariant
+        else -> lerp(surfaceVariant, Color.White, 0.88f)
+    }
+    return copy(
+        surface = background,
+        surfaceTint = primary,
+        surfaceContainerLowest = background,
+        surfaceContainerLow = if (dark) {
+            lerp(background, legacyElevated, 0.4f)
+        } else {
+            lerp(background, surfaceVariant, 0.35f)
+        },
+        surfaceContainer = if (dark) legacyElevated else surfaceVariant,
+        surfaceContainerHigh = if (dark) {
+            lerp(legacyElevated, surfaceVariant, 0.55f)
+        } else {
+            lerp(surfaceVariant, Color.White, 0.55f)
+        },
+        surfaceContainerHighest = cardPeak,
+    )
+}
 
 data class ZipStatsThemeConfig(
     val dynamicColor: Boolean,
@@ -479,17 +499,24 @@ val LocalZipStatsThemeConfig = staticCompositionLocalOf {
     ZipStatsThemeConfig(dynamicColor = true, darkTheme = false)
 }
 
-/** Superficie elevada (tarjetas, hojas): en paletas claras usa el tono más alto del contenedor. */
+/**
+ * Superficie elevada (tarjetas, bottom sheets): el nivel más alto de la jerarquía M3.
+ * Con paleta personalizada usa [surfaceContainerHighest]; con Material You, [surface].
+ */
 @Composable
 fun MaterialTheme.elevatedSurfaceColor(): Color {
     val scheme = colorScheme
     val config = LocalZipStatsThemeConfig.current
-    return if (!config.dynamicColor && !config.darkTheme) {
+    return if (!config.dynamicColor) {
         scheme.surfaceContainerHighest
     } else {
         scheme.surface
     }
 }
+
+/** Color de chrome de app (TopAppBar, NavigationBar, barras del sistema). */
+@Composable
+fun MaterialTheme.appChromeColor(): Color = colorScheme.surface
 
 // ============================================
 // FUNCIÓN PARA OBTENER EL ESQUEMA DE COLORES
@@ -499,9 +526,8 @@ private fun getColorScheme(
     darkTheme: Boolean,
     pureBlackOled: Boolean
 ): ColorScheme {
-    // Si es tema oscuro con OLED, devolver la variante OLED
-    if (darkTheme && pureBlackOled) {
-        return when (colorTheme) {
+    val base = when {
+        darkTheme && pureBlackOled -> when (colorTheme) {
             ColorTheme.RIDE_BLUE -> RideBlueOled
             ColorTheme.ECO_GREEN -> EcoGreenOled
             ColorTheme.ENERGY_RED -> EnergyRedOled
@@ -509,18 +535,16 @@ private fun getColorScheme(
             ColorTheme.STEEL_GRAY -> SteelGrayOled
             ColorTheme.SOLAR_FLARE -> SolarFlareOled
         }
+        else -> when (colorTheme) {
+            ColorTheme.RIDE_BLUE -> if (darkTheme) RideBlueDark else RideBlueLight
+            ColorTheme.ECO_GREEN -> if (darkTheme) EcoGreenDark else EcoGreenLight
+            ColorTheme.ENERGY_RED -> if (darkTheme) EnergyRedDark else EnergyRedLight
+            ColorTheme.URBAN_PURPLE -> if (darkTheme) UrbanPurpleDark else UrbanPurpleLight
+            ColorTheme.STEEL_GRAY -> if (darkTheme) SteelGrayDark else SteelGrayLight
+            ColorTheme.SOLAR_FLARE -> if (darkTheme) SolarFlareDark else SolarFlareLight
+        }
     }
-
-    // De lo contrario, devolver el tema normal (claro u oscuro)
-    val scheme = when (colorTheme) {
-        ColorTheme.RIDE_BLUE -> if (darkTheme) RideBlueDark else RideBlueLight
-        ColorTheme.ECO_GREEN -> if (darkTheme) EcoGreenDark else EcoGreenLight
-        ColorTheme.ENERGY_RED -> if (darkTheme) EnergyRedDark else EnergyRedLight
-        ColorTheme.URBAN_PURPLE -> if (darkTheme) UrbanPurpleDark else UrbanPurpleLight
-        ColorTheme.STEEL_GRAY -> if (darkTheme) SteelGrayDark else SteelGrayLight
-        ColorTheme.SOLAR_FLARE -> if (darkTheme) SolarFlareDark else SolarFlareLight
-    }
-    return if (!darkTheme) scheme.harmonizeLightPaletteSurfaces() else scheme
+    return base.harmonizePaletteSurfaces(dark = darkTheme, oled = darkTheme && pureBlackOled)
 }
 
 @Composable
@@ -544,13 +568,13 @@ fun PatinetatrackTheme(
             val dynamic = if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
             if (darkTheme) {
                 if (pureBlackOled) {
-                    // Ajustamos el esquema dinámico para que no se vea "lavado" en OLED
+                    // OLED: negro puro + misma jerarquía de contenedores que las paletas
                     dynamic.copy(
                         background = Color.Black,
                         surface = Color.Black,
-                        onSurfaceVariant = Color(0xFFD1D1D1), // Etiquetas legibles
-                        outline = Color(0xFF636363)           // Bordes visibles
-                    )
+                        onSurfaceVariant = Color(0xFFD1D1D1),
+                        outline = Color(0xFF636363)
+                    ).harmonizePaletteSurfaces(dark = true, oled = true)
                 } else {
                     // Ajustamos el esquema dinámico para modo oscuro normal con mejor contraste
                     dynamic.copy(
@@ -580,11 +604,8 @@ fun PatinetatrackTheme(
                 return@SideEffect  // 👈 salir aquí, no ejecutar nada más
             }
 
-            val systemBarColor = if (!dynamicColor && !darkTheme) {
-                colorScheme.background
-            } else {
-                colorScheme.surface
-            }
+            // Con paleta personalizada, surface ya coincide con background tras harmonizePaletteSurfaces
+            val systemBarColor = colorScheme.surface
 
             @Suppress("DEPRECATION")
             window.statusBarColor = systemBarColor.toArgb()

@@ -98,6 +98,7 @@ import com.zipstats.app.ui.components.DialogOptionButton
 import com.zipstats.app.ui.components.StandardDatePickerDialogWithValidation
 import com.zipstats.app.ui.components.ZipStatsText
 import com.zipstats.app.ui.theme.DialogShape
+import com.zipstats.app.ui.theme.elevatedSurfaceColor
 import com.zipstats.app.ui.theme.ThemeMode
 import com.zipstats.app.utils.DateUtils
 import kotlinx.coroutines.launch
@@ -610,7 +611,7 @@ fun ScooterCardItem(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface // Fondo blanco
+            containerColor = MaterialTheme.elevatedSurfaceColor()
         ),
         border = BorderStroke(
             1.dp,

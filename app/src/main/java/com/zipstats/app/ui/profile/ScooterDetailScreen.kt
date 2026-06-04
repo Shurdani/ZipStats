@@ -86,6 +86,7 @@ import com.zipstats.app.ui.components.DialogDeleteButton
 import com.zipstats.app.ui.components.StandardDatePickerDialogWithValidation
 import com.zipstats.app.ui.components.ZipStatsText
 import com.zipstats.app.ui.theme.DialogShape
+import com.zipstats.app.ui.theme.elevatedSurfaceColor
 import com.zipstats.app.utils.DateUtils
 import com.zipstats.app.utils.LocationUtils
 import kotlinx.coroutines.delay
@@ -626,7 +627,7 @@ fun VehicleSpecsSection(scooter: Scooter) {
 
         Card(
             modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.elevatedSurfaceColor()),
             shape = RoundedCornerShape(20.dp), // Esquinas ligeramente más orgánicas
             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
         ) {
@@ -772,7 +773,7 @@ fun MaintenanceSection(
                     indication = null,
                     onClick = onHistoryClick
                 ),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.elevatedSurfaceColor()),
             shape = RoundedCornerShape(16.dp),
             border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
         ) {

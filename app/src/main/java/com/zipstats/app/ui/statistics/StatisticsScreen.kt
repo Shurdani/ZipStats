@@ -118,6 +118,7 @@ import com.zipstats.app.ui.components.DialogContentText
 import com.zipstats.app.ui.components.DialogTitleText
 import com.zipstats.app.ui.components.ZipStatsText
 import com.zipstats.app.ui.theme.DialogShape
+import com.zipstats.app.ui.theme.elevatedSurfaceColor
 import com.zipstats.app.utils.ExportUiStrings
 import com.zipstats.app.utils.LocationUtils
 import kotlinx.coroutines.Dispatchers
@@ -796,7 +797,7 @@ fun EcologicalImpactCardEnhanced(
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
+            containerColor = MaterialTheme.elevatedSurfaceColor()
         ),
         shape = RoundedCornerShape(24.dp)
     ) {
@@ -928,7 +929,7 @@ fun SummaryStatsCard(
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
+            containerColor = MaterialTheme.elevatedSurfaceColor()
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         shape = RoundedCornerShape(16.dp)
@@ -1350,7 +1351,7 @@ fun DistanceBarChartCard(
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.elevatedSurfaceColor()),
         shape = RoundedCornerShape(16.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
@@ -1547,7 +1548,7 @@ fun WeatherConditionsCard(
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.elevatedSurfaceColor()),
         shape = RoundedCornerShape(16.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
@@ -1897,7 +1898,7 @@ fun MonthYearPickerDialog(
     ModalBottomSheet(
         onDismissRequest = { onDismiss() },
         sheetState = sheetState,
-        containerColor = MaterialTheme.colorScheme.surface,
+        containerColor = MaterialTheme.elevatedSurfaceColor(),
         dragHandle = { BottomSheetDefaults.DragHandle() }
     ) {
         Column(

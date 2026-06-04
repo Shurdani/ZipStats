@@ -132,6 +132,7 @@ import com.zipstats.app.tracking.GpsPreLocationState
 import com.zipstats.app.tracking.TrackingState
 import com.zipstats.app.tracking.WeatherStatus
 import com.zipstats.app.ui.theme.DialogShape
+import com.zipstats.app.ui.theme.elevatedSurfaceColor
 import com.zipstats.app.utils.LocationUtils
 import dagger.hilt.android.EntryPointAccessors
 import kotlinx.coroutines.delay
@@ -2002,7 +2003,7 @@ fun PulsingGpsPauseButton(
             modifier = Modifier.fillMaxSize(),
             shape = CircleShape,
             colors = ButtonDefaults.buttonColors(
-                containerColor = MaterialTheme.colorScheme.surface, // Fondo blanco/oscuro
+                containerColor = MaterialTheme.elevatedSurfaceColor(),
                 contentColor = signalColor // Icono y texto del color de la señal
             ),
             // 🔥 El borde sólido conecta visualmente con el halo (más ancho para mejor visibilidad)

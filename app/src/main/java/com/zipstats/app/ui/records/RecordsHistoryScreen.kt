@@ -87,6 +87,7 @@ import com.zipstats.app.ui.components.StandardDatePickerDialogWithValidation
 import com.zipstats.app.ui.components.ZipStatsText
 import com.zipstats.app.ui.onboarding.OnboardingDialog
 import com.zipstats.app.ui.theme.DialogShape
+import com.zipstats.app.ui.theme.elevatedSurfaceColor
 import com.zipstats.app.utils.DateUtils
 import com.zipstats.app.utils.LocationUtils
 import dagger.hilt.android.EntryPointAccessors
@@ -631,7 +632,7 @@ fun NewRecordBottomSheet(
     ModalBottomSheet(
         onDismissRequest = { onDismiss() },
         sheetState = sheetState,
-        containerColor = MaterialTheme.colorScheme.surface,
+        containerColor = MaterialTheme.elevatedSurfaceColor(),
         dragHandle = { BottomSheetDefaults.DragHandle() }
     ) {
         Column(

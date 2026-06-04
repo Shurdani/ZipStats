@@ -33,6 +33,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.zipstats.app.ui.components.ZipStatsText
+import com.zipstats.app.ui.theme.elevatedSurfaceColor
 
 @Composable
 fun OnboardingDialog(
@@ -53,7 +54,7 @@ fun OnboardingDialog(
                 .padding(24.dp), // Margen exterior
             shape = RoundedCornerShape(28.dp), // Bordes muy redondeados (Estilo ZipStats)
             colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surface
+                containerColor = MaterialTheme.elevatedSurfaceColor()
             ),
             elevation = CardDefaults.cardElevation(8.dp)
         ) {

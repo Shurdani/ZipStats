@@ -113,6 +113,7 @@ import com.zipstats.app.ui.components.MapSnapshotTrigger
 import com.zipstats.app.ui.components.RouteSummaryCardFromRoute
 import com.zipstats.app.ui.components.ZipStatsText
 import com.zipstats.app.ui.theme.DialogShape
+import com.zipstats.app.ui.theme.elevatedSurfaceColor
 import com.zipstats.app.utils.CityUtils
 import com.zipstats.app.utils.DateUtils
 import com.zipstats.app.utils.LocationUtils
@@ -1232,7 +1233,7 @@ private fun WeatherInfoDialog(route: Route, onDismiss: () -> Unit) {
                 .fillMaxWidth(0.9f) // Un poco más estrecho para que se vea el fondo
                 .padding(16.dp),
             elevation = CardDefaults.cardElevation(8.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.elevatedSurfaceColor())
         ) {
             Box {
                 // Botón Cerrar (X) discreto en la esquina

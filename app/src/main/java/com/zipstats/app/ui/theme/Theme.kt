@@ -10,7 +10,10 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
@@ -451,6 +454,44 @@ private val SolarFlareOled = darkColorScheme(
 )
 
 // ============================================
+// SUPERFICIES ARMONIZADAS (paletas claras)
+// ============================================
+/**
+ * En paletas claras, surface era blanco puro (#FFFFFF) mientras background está tintado,
+ * lo que dejaba la TopAppBar y la status bar desalineadas respecto al resto de la app.
+ * Material You evita esto porque surface y background van a tono.
+ */
+private fun ColorScheme.harmonizeLightPaletteSurfaces(): ColorScheme = copy(
+    surface = background,
+    surfaceContainerLowest = background,
+    surfaceContainerLow = lerp(background, surfaceVariant, 0.35f),
+    surfaceContainer = surfaceVariant,
+    surfaceContainerHigh = lerp(surfaceVariant, Color.White, 0.55f),
+    surfaceContainerHighest = lerp(surfaceVariant, Color.White, 0.85f),
+)
+
+data class ZipStatsThemeConfig(
+    val dynamicColor: Boolean,
+    val darkTheme: Boolean
+)
+
+val LocalZipStatsThemeConfig = staticCompositionLocalOf {
+    ZipStatsThemeConfig(dynamicColor = true, darkTheme = false)
+}
+
+/** Superficie elevada (tarjetas, hojas): en paletas claras usa el tono más alto del contenedor. */
+@Composable
+fun MaterialTheme.elevatedSurfaceColor(): Color {
+    val scheme = colorScheme
+    val config = LocalZipStatsThemeConfig.current
+    return if (!config.dynamicColor && !config.darkTheme) {
+        scheme.surfaceContainerHighest
+    } else {
+        scheme.surface
+    }
+}
+
+// ============================================
 // FUNCIÓN PARA OBTENER EL ESQUEMA DE COLORES
 // ============================================
 private fun getColorScheme(
@@ -471,7 +512,7 @@ private fun getColorScheme(
     }
 
     // De lo contrario, devolver el tema normal (claro u oscuro)
-    return when (colorTheme) {
+    val scheme = when (colorTheme) {
         ColorTheme.RIDE_BLUE -> if (darkTheme) RideBlueDark else RideBlueLight
         ColorTheme.ECO_GREEN -> if (darkTheme) EcoGreenDark else EcoGreenLight
         ColorTheme.ENERGY_RED -> if (darkTheme) EnergyRedDark else EnergyRedLight
@@ -479,6 +520,7 @@ private fun getColorScheme(
         ColorTheme.STEEL_GRAY -> if (darkTheme) SteelGrayDark else SteelGrayLight
         ColorTheme.SOLAR_FLARE -> if (darkTheme) SolarFlareDark else SolarFlareLight
     }
+    return if (!darkTheme) scheme.harmonizeLightPaletteSurfaces() else scheme
 }
 
 @Composable
@@ -538,14 +580,17 @@ fun PatinetatrackTheme(
                 return@SideEffect  // 👈 salir aquí, no ejecutar nada más
             }
 
-            // MODIFICACIÓN CLAVE: Usamos 'surface' para la barra de estado
-            // en lugar de 'primary' para que coincida con la TopAppBar moderna
-            @Suppress("DEPRECATION")
-            window.statusBarColor = colorScheme.surface.toArgb()
+            val systemBarColor = if (!dynamicColor && !darkTheme) {
+                colorScheme.background
+            } else {
+                colorScheme.surface
+            }
 
-            // IMPORTANTE: Usar colorScheme.surface para que la barra de navegación cambie con el tema
             @Suppress("DEPRECATION")
-            window.navigationBarColor = colorScheme.surface.toArgb()
+            window.statusBarColor = systemBarColor.toArgb()
+
+            @Suppress("DEPRECATION")
+            window.navigationBarColor = systemBarColor.toArgb()
 
             // Configurar el sistema de barras para Android 10+
             @Suppress("DEPRECATION")
@@ -573,9 +618,16 @@ fun PatinetatrackTheme(
         }
     }
 
-    MaterialTheme(
-        colorScheme = colorScheme,
-        typography = ZipStatsTypography,
-        content = content
-    )
+    CompositionLocalProvider(
+        LocalZipStatsThemeConfig provides ZipStatsThemeConfig(
+            dynamicColor = dynamicColor,
+            darkTheme = darkTheme
+        )
+    ) {
+        MaterialTheme(
+            colorScheme = colorScheme,
+            typography = ZipStatsTypography,
+            content = content
+        )
+    }
 }

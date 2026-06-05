@@ -644,7 +644,10 @@ fun StatisticsScreen(
                                 if (hasWeatherData) {
                                     WeatherConditionsCard(
                                         weatherStats = weatherStats,
-                                        comparison = displayData.comparison,
+                                        comparison = when (currentPeriod) {
+                                            StatisticsPeriod.MONTHLY, StatisticsPeriod.YEARLY -> displayData.comparison
+                                            else -> null
+                                        },
                                         minTemperature = stats.minTemperature,
                                         maxTemperature = stats.maxTemperature,
                                         maxWindGusts = stats.maxWindGusts

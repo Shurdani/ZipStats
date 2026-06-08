@@ -20,12 +20,13 @@ class PdfReportGenerator(
     fun generate(
         outputFile: File,
         stats: StatisticsUiState.Success,
-        weatherStats: WeatherStats,
+        climate: PeriodClimateData,
         userName: String,
         selectedPeriod: Int,
         selectedMonth: Int?,
         selectedYear: Int?
     ) {
+        val weatherStats = climate.weatherStats
         val document = PdfDocument()
         val pageWidth = 595
         val pageHeight = 842
@@ -133,11 +134,11 @@ class PdfReportGenerator(
                     "Km bajo lluvia" to "${formatNumber(weatherStats.rainKm)} km",
                     "Calzada mojada" to "${formatNumber(weatherStats.wetRoadKm)} km",
                     "Condición extrema" to "${formatNumber(weatherStats.extremeKm)} km",
-                    stats.minTemperature?.let { "Temperatura mínima" to "${formatNumber(it)} °C" },
-                    stats.maxTemperature?.let { "Temperatura máxima" to "${formatNumber(it)} °C" },
-                    stats.maxWindGusts?.let { "Ráfaga máxima" to "${formatNumber(it)} km/h" },
-                    stats.minFeelsLike?.let { "Sensación mín" to "🥶 ${formatNumber(it)} °C" },
-                    stats.maxFeelsLike?.let { "Sensación máx" to "🥵 ${formatNumber(it)} °C" }
+                    climate.minTemperature?.let { "Temperatura mínima" to "${formatNumber(it)} °C" },
+                    climate.maxTemperature?.let { "Temperatura máxima" to "${formatNumber(it)} °C" },
+                    climate.maxWindGusts?.let { "Ráfaga máxima" to "${formatNumber(it)} km/h" },
+                    climate.minFeelsLike?.let { "Sensación mín" to "🥶 ${formatNumber(it)} °C" },
+                    climate.maxFeelsLike?.let { "Sensación máx" to "🥵 ${formatNumber(it)} °C" }
                 )
             )
 

@@ -157,7 +157,6 @@ fun StatisticsScreen(
     var selectedPeriod by remember { mutableIntStateOf(0) }
     val selectedMonth by viewModel.selectedMonth.collectAsState()
     val selectedYear by viewModel.selectedYear.collectAsState()
-    val weatherStats by viewModel.weatherStats.collectAsState()
     val reportUserName by viewModel.reportUserName.collectAsState()
     val scrollState = rememberScrollState()
     var showMonthYearPicker by remember { mutableStateOf(false) }
@@ -188,6 +187,10 @@ fun StatisticsScreen(
 
     // Solo Mes y Año permiten filtro manual de fecha (Semana y Todo no)
     val showDateFilterChip = selectedPeriod == 1 || selectedPeriod == 2
+
+    LaunchedEffect(Unit) {
+        viewModel.refreshRoutes()
+    }
 
     LaunchedEffect(selectedPeriod, selectedMonth, selectedYear) {
         viewModel.loadStatistics(selectedPeriod)
@@ -331,7 +334,7 @@ fun StatisticsScreen(
                                     generator.generate(
                                         outputFile = tempFile,
                                         stats = stats,
-                                        weatherStats = weatherStats,
+                                        climate = stats.climateForTab(selectedPeriod),
                                         userName = reportUserName,
                                         selectedPeriod = selectedPeriod,
                                         selectedMonth = selectedMonth,
@@ -533,7 +536,8 @@ fun StatisticsScreen(
                                 totalRecords = stats.weeklyRecords,
                                 title = weeklyTitle,
                                 chartData = stats.weeklyChartData,
-                                comparison = stats.weeklyComparison
+                                comparison = null,
+                                climate = stats.weeklyClimate
                             )
                             StatisticsPeriod.MONTHLY -> PeriodData(
                                 totalDistance = stats.monthlyDistance,
@@ -542,7 +546,8 @@ fun StatisticsScreen(
                                 totalRecords = stats.monthlyRecords,
                                 title = monthlyTitle,
                                 chartData = stats.monthlyChartData,
-                                comparison = stats.monthlyComparison
+                                comparison = stats.monthlyComparison,
+                                climate = stats.monthlyClimate
                             )
                             StatisticsPeriod.YEARLY -> PeriodData(
                                 totalDistance = stats.yearlyDistance,
@@ -551,7 +556,8 @@ fun StatisticsScreen(
                                 totalRecords = stats.yearlyRecords,
                                 title = yearlyTitle,
                                 chartData = stats.yearlyChartData,
-                                comparison = stats.yearlyComparison
+                                comparison = stats.yearlyComparison,
+                                climate = stats.yearlyClimate
                             )
                             StatisticsPeriod.ALL -> PeriodData(
                                 totalDistance = stats.totalDistance,
@@ -560,7 +566,8 @@ fun StatisticsScreen(
                                 totalRecords = stats.totalRecords,
                                 title = "En tu vida has recorrido:",
                                 chartData = stats.allYearsChartData,
-                                comparison = null
+                                comparison = null,
+                                climate = stats.allTimeClimate
                             )
                         }
 
@@ -636,23 +643,17 @@ fun StatisticsScreen(
                                         }
                                     )
                                 }
+                            }
 
-                                val hasWeatherData = weatherStats.rainKm > 0.0 ||
-                                    weatherStats.wetRoadKm > 0.0 ||
-                                    weatherStats.extremeKm > 0.0
-
-                                if (hasWeatherData) {
-                                    WeatherConditionsCard(
-                                        weatherStats = weatherStats,
-                                        comparison = when (currentPeriod) {
-                                            StatisticsPeriod.MONTHLY, StatisticsPeriod.YEARLY -> displayData.comparison
-                                            else -> null
-                                        },
-                                        minTemperature = stats.minTemperature,
-                                        maxTemperature = stats.maxTemperature,
-                                        maxWindGusts = stats.maxWindGusts
-                                    )
-                                }
+                            // Clima basado en rutas GPS: independiente de registros manuales
+                            if (displayData.climate.shouldShowCard) {
+                                WeatherConditionsCard(
+                                    weatherStats = displayData.climate.weatherStats,
+                                    comparison = displayData.comparison,
+                                    minTemperature = displayData.climate.minTemperature,
+                                    maxTemperature = displayData.climate.maxTemperature,
+                                    maxWindGusts = displayData.climate.maxWindGusts
+                                )
                             }
                             // 4. Tarjeta "Tu Próximo Logro" (Rediseñada)
                             stats.nextAchievement?.let { nextAchievement ->
@@ -784,7 +785,8 @@ data class PeriodData(
     val totalRecords: Int,
     val title: String,
     val chartData: List<ChartDataPoint>,
-    val comparison: ComparisonData?
+    val comparison: ComparisonData?,
+    val climate: PeriodClimateData
 )
 
 // ===============================================================

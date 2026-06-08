@@ -167,6 +167,27 @@ data class PeriodWeatherExtremes(
     val maxFeelsLike: Double?
 )
 
+/** Clima y récords térmicos precalculados por período (semana, mes, año, todo). */
+data class PeriodClimateData(
+    val weatherStats: WeatherStats,
+    val minTemperature: Double?,
+    val maxTemperature: Double?,
+    val maxWindGusts: Double?,
+    val minFeelsLike: Double? = null,
+    val maxFeelsLike: Double? = null
+) {
+    val hasWeatherConditions: Boolean
+        get() = weatherStats.rainKm > 0.0 ||
+            weatherStats.wetRoadKm > 0.0 ||
+            weatherStats.extremeKm > 0.0
+
+    /** Muestra la tarjeta si hay badges de clima o récords térmicos en rutas GPS del período. */
+    val shouldShowCard: Boolean
+        get() = hasWeatherConditions ||
+            (weatherStats.gpsTotalDistance > 0.0 &&
+                (minTemperature != null || maxTemperature != null || maxWindGusts != null))
+}
+
 data class NextAchievementData(
     val title: String,
     val emoji: String,
@@ -217,12 +238,18 @@ sealed class StatisticsUiState {
         val monthlyComparison: ComparisonData?,
         val yearlyComparison: ComparisonData?,
         val nextAchievement: NextAchievementData?,
-        val minTemperature: Double?,
-        val maxTemperature: Double?,
-        val maxWindGusts: Double?,
-        val minFeelsLike: Double?,
-        val maxFeelsLike: Double?
-    ) : StatisticsUiState()
+        val weeklyClimate: PeriodClimateData,
+        val monthlyClimate: PeriodClimateData,
+        val yearlyClimate: PeriodClimateData,
+        val allTimeClimate: PeriodClimateData
+    ) : StatisticsUiState() {
+        fun climateForTab(tab: Int): PeriodClimateData = when (tab) {
+            0 -> weeklyClimate
+            1 -> monthlyClimate
+            2 -> yearlyClimate
+            else -> allTimeClimate
+        }
+    }
     data class Error(val message: String) : StatisticsUiState()
 }
 
@@ -344,10 +371,18 @@ class StatisticsViewModel @Inject constructor(
                     }
                 }
                 
-                // 3. Registros (Flow)
+                // 3. Registros (Flow) — al cambiar registros, refrescamos rutas GPS
+                // (p. ej. al guardar una ruta con badge de clima)
                 launch {
-                    recordRepository.getRecords().collect {
-                        _cachedRecords.value = it
+                    var previousRecordCount = -1
+                    recordRepository.getRecords().collect { records ->
+                        _cachedRecords.value = records
+                        if (records.size != previousRecordCount) {
+                            previousRecordCount = records.size
+                            routeRepository.getUserRoutes().getOrNull()?.let { routes ->
+                                _cachedRoutes.value = routes
+                            }
+                        }
                     }
                 }
                 
@@ -431,47 +466,22 @@ class StatisticsViewModel @Inject constructor(
             }
             val yearlyDistance = yearlyRecords.sumOf { it.diferencia }.roundToOneDecimal()
 
-            // --- FILTRADO DE CLIMA CORREGIDO ---
-            val filteredGpsRoutes = allRoutes.filter { route ->
-                try {
-                    val routeDate = java.time.Instant.ofEpochMilli(route.startTime)
-                        .atZone(java.time.ZoneId.systemDefault()).toLocalDate()
+            // --- CLIMA POR PERÍODO (misma lógica que distancia; cada pestaña tiene los suyos) ---
+            val weeklyGpsRoutes = filterGpsRoutesForWeek(allRoutes, weekStart, weekToDateEnd)
+            val monthlyGpsRoutes = filterGpsRoutesForMonth(allRoutes, currentMonth, currentYear)
+            val yearlyGpsRoutes = filterGpsRoutesForYear(allRoutes, currentYear)
 
-                    when {
-                        // 1. Filtro manual de Mes + Año activo (Prioridad máxima)
-                        selectedMonth != null && selectedYear != null -> {
-                            routeDate.monthValue == selectedMonth && routeDate.year == selectedYear
-                        }
-                        // 2. Filtro manual de solo Año activo
-                        selectedYear != null -> {
-                            routeDate.year == selectedYear
-                        }
-                        // 3. SIN FILTRO MANUAL: Usamos el periodo de la pestaña activa
-                        else -> {
-                            when (currentTab) {
-                                3 -> true // Pestaña "Todo": historial completo, sin filtrar
-                                2 -> routeDate.year == today.year // Pestaña "Año"
-                                1 -> routeDate.monthValue == today.monthValue && routeDate.year == today.year // Pestaña "Mes"
-                                else -> !routeDate.isBefore(weekStart) && !routeDate.isAfter(weekToDateEnd) // Pestaña "Semana"
-                            }
-                        }
-                    }
-                } catch (e: Exception) { false }
+            val weeklyClimate = buildPeriodClimate(weeklyDistance, weeklyGpsRoutes)
+            val monthlyClimate = buildPeriodClimate(monthlyDistance, monthlyGpsRoutes)
+            val yearlyClimate = buildPeriodClimate(yearlyDistance, yearlyGpsRoutes)
+            val allTimeClimate = buildPeriodClimate(totalDistance, allRoutes)
+
+            _weatherStats.value = when (currentTab) {
+                0 -> weeklyClimate.weatherStats
+                1 -> monthlyClimate.weatherStats
+                2 -> yearlyClimate.weatherStats
+                else -> allTimeClimate.weatherStats
             }
-
-            // --- DISTANCIA PARA LA TARJETA DINÁMICA ---
-            // Determinamos qué distancia mostrar en la tarjeta de clima basándonos en la vista actual
-            val manualDist = when {
-                currentTab == 0 -> weeklyDistance
-                selectedMonth != null -> monthlyDistance
-                selectedYear != null -> yearlyDistance
-                currentTab == 3 -> totalDistance // Pestaña "Todo": usar distancia total acumulada
-                currentTab == 2 -> yearlyDistance // Pestaña Anual sin filtro manual
-                else -> monthlyDistance           // Pestaña Mensual sin filtro manual
-            }
-
-            _weatherStats.value = calculateWeatherStats(manualDist, filteredGpsRoutes)
-            val periodWeatherExtremes = calculatePeriodWeatherExtremes(filteredGpsRoutes)
 
             val newestRecord = records.maxWithOrNull(DateUtils.recordComparatorNewestFirst())
 
@@ -510,11 +520,10 @@ class StatisticsViewModel @Inject constructor(
                 monthlyComparison = calculateMonthlyComparison(records, allRoutes, currentMonth, currentYear),
                 yearlyComparison = calculateYearlyComparison(records, allRoutes, currentYear),
                 nextAchievement = try { calculateNextAchievement() } catch (e: Exception) { null },
-                minTemperature = periodWeatherExtremes.minTemperature?.roundToOneDecimal(),
-                maxTemperature = periodWeatherExtremes.maxTemperature?.roundToOneDecimal(),
-                maxWindGusts = periodWeatherExtremes.maxWindGusts?.roundToOneDecimal(),
-                minFeelsLike = periodWeatherExtremes.minFeelsLike?.roundToOneDecimal(),
-                maxFeelsLike = periodWeatherExtremes.maxFeelsLike?.roundToOneDecimal()
+                weeklyClimate = weeklyClimate,
+                monthlyClimate = monthlyClimate,
+                yearlyClimate = yearlyClimate,
+                allTimeClimate = allTimeClimate
             )
         } catch (e: Exception) {
             _statistics.value = StatisticsUiState.Error(e.message ?: "Error al recalcular datos")
@@ -527,6 +536,13 @@ class StatisticsViewModel @Inject constructor(
 
     fun refreshStatistics() {
         loadData() // Fuerza recarga de datos
+    }
+
+    /** Recarga solo las rutas GPS (sin poner la pantalla en Loading). */
+    fun refreshRoutes() {
+        viewModelScope.launch {
+            routeRepository.getUserRoutes().getOrNull()?.let { _cachedRoutes.value = it }
+        }
     }
     
     fun setSelectedPeriod(month: Int?, year: Int?) {
@@ -593,14 +609,8 @@ class StatisticsViewModel @Inject constructor(
         // No usamos weatherStats.value porque puede tener datos de todo el año
         val allRoutes = routeRepository.getUserRoutes().getOrNull() ?: emptyList()
         val monthlyGpsRoutes = allRoutes.filter { route ->
-            try {
-                val routeDate = java.time.Instant.ofEpochMilli(route.startTime)
-                    .atZone(java.time.ZoneId.systemDefault())
-                    .toLocalDate()
-                routeDate.monthValue == selectedMonth && routeDate.year == selectedYear
-            } catch (e: Exception) {
-                false
-            }
+            val routeDate = getRouteLocalDate(route) ?: return@filter false
+            routeDate.monthValue == selectedMonth && routeDate.year == selectedYear
         }
 
         // Calculamos el clima específico para este mes usando tu función motor
@@ -647,14 +657,8 @@ class StatisticsViewModel @Inject constructor(
         // 3. 🔥 SOLUCIÓN LOCAL: Filtrar rutas GPS solo para este año
         val allRoutes = routeRepository.getUserRoutes().getOrNull() ?: emptyList()
         val yearlyGpsRoutes = allRoutes.filter { route ->
-            try {
-                val routeDate = java.time.Instant.ofEpochMilli(route.startTime)
-                    .atZone(java.time.ZoneId.systemDefault())
-                    .toLocalDate()
-                routeDate.year == selectedYear
-            } catch (e: Exception) {
-                false
-            }
+            val routeDate = getRouteLocalDate(route) ?: return@filter false
+            routeDate.year == selectedYear
         }
 
         // Calculamos el clima específico para este año
@@ -701,14 +705,8 @@ class StatisticsViewModel @Inject constructor(
         // Clima semanal: filtramos rutas GPS solo de esta semana (hasta hoy)
         val allRoutes = routeRepository.getUserRoutes().getOrNull() ?: emptyList()
         val weeklyGpsRoutes = allRoutes.filter { route ->
-            try {
-                val routeDate = java.time.Instant.ofEpochMilli(route.startTime)
-                    .atZone(java.time.ZoneId.systemDefault())
-                    .toLocalDate()
-                !routeDate.isBefore(weekStart) && !routeDate.isAfter(minOf(today, weekEnd))
-            } catch (e: Exception) {
-                false
-            }
+            val routeDate = getRouteLocalDate(route) ?: return@filter false
+            !routeDate.isBefore(weekStart) && !routeDate.isAfter(minOf(today, weekEnd))
         }
         val weeklyWeather = calculateWeatherStats(stats.weeklyDistance, weeklyGpsRoutes)
         val rainKm = weeklyWeather.rainKm.roundToOneDecimal()
@@ -737,6 +735,62 @@ class StatisticsViewModel @Inject constructor(
         lines.add("#ZipStats")
 
         return lines.joinToString("\n")
+    }
+
+    private fun buildPeriodClimate(
+        manualDistance: Double,
+        gpsRoutes: List<com.zipstats.app.model.Route>
+    ): PeriodClimateData {
+        val extremes = calculatePeriodWeatherExtremes(gpsRoutes)
+        return PeriodClimateData(
+            weatherStats = calculateWeatherStats(manualDistance, gpsRoutes),
+            minTemperature = extremes.minTemperature?.roundToOneDecimal(),
+            maxTemperature = extremes.maxTemperature?.roundToOneDecimal(),
+            maxWindGusts = extremes.maxWindGusts?.roundToOneDecimal(),
+            minFeelsLike = extremes.minFeelsLike?.roundToOneDecimal(),
+            maxFeelsLike = extremes.maxFeelsLike?.roundToOneDecimal()
+        )
+    }
+
+    private fun filterGpsRoutesForWeek(
+        routes: List<com.zipstats.app.model.Route>,
+        weekStart: LocalDate,
+        weekToDateEnd: LocalDate
+    ): List<com.zipstats.app.model.Route> = routes.filter { route ->
+        val routeDate = getRouteLocalDate(route) ?: return@filter false
+        !routeDate.isBefore(weekStart) && !routeDate.isAfter(weekToDateEnd)
+    }
+
+    private fun filterGpsRoutesForMonth(
+        routes: List<com.zipstats.app.model.Route>,
+        month: Int,
+        year: Int
+    ): List<com.zipstats.app.model.Route> = routes.filter { route ->
+        val routeDate = getRouteLocalDate(route) ?: return@filter false
+        routeDate.monthValue == month && routeDate.year == year
+    }
+
+    private fun filterGpsRoutesForYear(
+        routes: List<com.zipstats.app.model.Route>,
+        year: Int
+    ): List<com.zipstats.app.model.Route> = routes.filter { route ->
+        val routeDate = getRouteLocalDate(route) ?: return@filter false
+        routeDate.year == year
+    }
+
+    /**
+     * Fecha de la ruta alineada con los registros manuales (usan endTime, no startTime).
+     */
+    private fun getRouteLocalDate(route: com.zipstats.app.model.Route): LocalDate? {
+        return try {
+            val epochMs = route.endTime ?: route.startTime
+            if (epochMs <= 0L) return null
+            java.time.Instant.ofEpochMilli(epochMs)
+                .atZone(java.time.ZoneId.systemDefault())
+                .toLocalDate()
+        } catch (e: Exception) {
+            null
+        }
     }
 
     private fun calculateWeeklyChartData(
@@ -817,14 +871,8 @@ class StatisticsViewModel @Inject constructor(
     ): Triple<Double, Double, Double> {
         return try {
             val filteredRoutes = allRoutes.filter { route ->
-                try {
-                    val routeDate = java.time.Instant.ofEpochMilli(route.startTime)
-                        .atZone(java.time.ZoneId.systemDefault())
-                        .toLocalDate()
-                    !routeDate.isBefore(start) && !routeDate.isAfter(endInclusive)
-                } catch (e: Exception) {
-                    false
-                }
+                val routeDate = getRouteLocalDate(route) ?: return@filter false
+                !routeDate.isBefore(start) && !routeDate.isAfter(endInclusive)
             }
 
             var rainKm = 0.0
@@ -1311,9 +1359,7 @@ class StatisticsViewModel @Inject constructor(
         return withContext(Dispatchers.Default) {
             try {
                 val filteredRoutes = allRoutes.filter { route ->
-                    val routeDate = java.time.Instant.ofEpochMilli(route.startTime)
-                        .atZone(java.time.ZoneId.systemDefault())
-                        .toLocalDate()
+                    val routeDate = getRouteLocalDate(route) ?: return@filter false
 
                     val matchesYear = routeDate.year == year
                     val matchesMonth = month == null || routeDate.monthValue == month
@@ -1642,18 +1688,10 @@ class StatisticsViewModel @Inject constructor(
                 
                 // Filtrar rutas por período
                 allRoutes.filter { route ->
-                    try {
-                        val routeDate = java.time.Instant.ofEpochMilli(route.startTime)
-                            .atZone(java.time.ZoneId.systemDefault())
-                            .toLocalDate()
-                        
-                        val matchesMonth = targetMonth == null || routeDate.monthValue == targetMonth
-                        val matchesYear = routeDate.year == targetYear
-                        
-                        matchesMonth && matchesYear
-                    } catch (e: Exception) {
-                        false
-                    }
+                    val routeDate = getRouteLocalDate(route) ?: return@filter false
+                    val matchesMonth = targetMonth == null || routeDate.monthValue == targetMonth
+                    val matchesYear = routeDate.year == targetYear
+                    matchesMonth && matchesYear
                 }
             } else {
                 // Sin filtros: todas las rutas

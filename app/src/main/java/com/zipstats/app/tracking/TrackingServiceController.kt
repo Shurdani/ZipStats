@@ -21,7 +21,9 @@ import com.zipstats.app.service.LocationTrackingService
 import com.zipstats.app.service.TrackingStateManager
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -43,7 +45,7 @@ class TrackingServiceController @Inject constructor(
 
     private var trackingService: LocationTrackingService? = null
     private var serviceBound = false
-    private var observationScope: CoroutineScope? = null
+    private val controllerScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var observeJob: Job? = null
     private var durationTimerJob: Job? = null
 
@@ -105,14 +107,50 @@ class TrackingServiceController @Inject constructor(
     }
 
     fun attach(
-        scope: CoroutineScope,
         onServicePauseChanged: ((Boolean) -> Unit)? = null,
     ) {
-        observationScope = scope
         this.onServicePauseChanged = onServicePauseChanged
         if (serviceBound && trackingService != null) {
             startObservingService()
         }
+    }
+
+    /**
+     * Lee los datos de la sesión directamente del servicio (fuente de verdad) antes de detenerlo.
+     * Si no hay binding activo, usa la última copia en caché del controller.
+     */
+    fun captureSessionSnapshot(): TrackingSessionSnapshot {
+        val service = trackingService
+        if (serviceBound && service != null) {
+            val points = service.routePoints.value
+            val snapshot = TrackingSessionSnapshot(
+                points = points,
+                distance = service.currentDistance.value,
+                startTime = service.startTime.value,
+                timeInMotion = service.timeInMotion.value,
+                averageMovingSpeed = service.averageMovingSpeed.value,
+            )
+            Log.d(
+                TAG,
+                "Snapshot desde servicio: ${snapshot.points.size} puntos, " +
+                    "${snapshot.distance} km, startTime=${snapshot.startTime}",
+            )
+            return snapshot
+        }
+
+        val cached = TrackingSessionSnapshot(
+            points = _routePoints.value,
+            distance = _currentDistance.value,
+            startTime = _startTime.value,
+            timeInMotion = _timeInMotion.value,
+            averageMovingSpeed = _averageMovingSpeed.value,
+        )
+        Log.w(
+            TAG,
+            "Snapshot desde caché (servicio no vinculado): ${cached.points.size} puntos, " +
+                "${cached.distance} km",
+        )
+        return cached
     }
 
     fun connectToExistingService() {
@@ -120,15 +158,12 @@ class TrackingServiceController @Inject constructor(
 
         try {
             val intent = Intent(context, LocationTrackingService::class.java)
-            val bound = context.bindService(
+            context.bindService(
                 intent,
                 serviceConnection,
                 Context.BIND_AUTO_CREATE,
             )
-            if (bound) {
-                serviceBound = true
-                Log.d(TAG, "Conectado al servicio existente")
-            }
+            Log.d(TAG, "Solicitando conexión al servicio existente")
         } catch (e: Exception) {
             Log.e(TAG, "Error al conectar con servicio existente", e)
         }
@@ -324,11 +359,10 @@ class TrackingServiceController @Inject constructor(
     }
 
     private fun startObservingService() {
-        val scope = observationScope ?: return
         val service = trackingService ?: return
 
         observeJob?.cancel()
-        observeJob = scope.launch {
+        observeJob = controllerScope.launch {
             launch {
                 service.routePoints.collect { points ->
                     _routePoints.value = points
@@ -382,10 +416,8 @@ class TrackingServiceController @Inject constructor(
     }
 
     private fun startDurationTimer() {
-        val scope = observationScope ?: return
-
         durationTimerJob?.cancel()
-        durationTimerJob = scope.launch {
+        durationTimerJob = controllerScope.launch {
             while (trackingStateManager.isTracking.value) {
                 if (_startTime.value > 0) {
                     val currentPauseTime = if (isSessionPaused && pauseStartTime > 0) {
@@ -412,3 +444,11 @@ class TrackingServiceController @Inject constructor(
         private const val TAG = "TrackingServiceController"
     }
 }
+
+data class TrackingSessionSnapshot(
+    val points: List<RoutePoint>,
+    val distance: Double,
+    val startTime: Long,
+    val timeInMotion: Long,
+    val averageMovingSpeed: Double,
+)

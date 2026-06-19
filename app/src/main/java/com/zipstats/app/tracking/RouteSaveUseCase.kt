@@ -44,6 +44,8 @@ class RouteSaveUseCase @Inject constructor(
                 return Result.failure(Exception("No se registraron puntos GPS"))
             }
 
+            Log.d(TAG, "Guardando ruta con ${points.size} puntos GPS")
+
             weatherMonitoring.awaitWeatherLoadedIfNeeded()
 
             if (weatherMonitoring.hasActiveBadges()) {

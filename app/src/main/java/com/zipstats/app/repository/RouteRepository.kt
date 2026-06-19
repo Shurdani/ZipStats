@@ -112,14 +112,24 @@ class RouteRepository @Inject constructor(
     ): Route {
         // Filtrar puntos para eliminar ruido GPS
         val filteredPoints = LocationUtils.filterPoints(points)
-        
+        val rawDistance = LocationUtils.calculateTotalDistance(points)
+        val filteredDistance = LocationUtils.calculateTotalDistance(filteredPoints)
+
         // Asegurar que tenemos al menos 2 puntos para el mapa
-        val finalPoints = if (filteredPoints.size < 2 && points.size >= 2) {
-            // Si el filtrado eliminó demasiados puntos, usar los originales
-            Log.w(TAG, "Filtrado eliminó demasiados puntos (${filteredPoints.size}/${points.size}), usando puntos originales")
-            points
-        } else {
-            filteredPoints
+        val finalPoints = when {
+            filteredPoints.size < 2 && points.size >= 2 -> {
+                Log.w(TAG, "Filtrado eliminó demasiados puntos (${filteredPoints.size}/${points.size}), usando puntos originales")
+                points
+            }
+            points.size >= 10 && filteredDistance < rawDistance * 0.5 -> {
+                Log.w(
+                    TAG,
+                    "Filtrado redujo demasiado la distancia (${filteredDistance}/${rawDistance} km), " +
+                        "usando puntos originales",
+                )
+                points
+            }
+            else -> filteredPoints
         }
         
         // Calcular estadísticas básicas

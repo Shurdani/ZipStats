@@ -76,7 +76,6 @@ class TrackingViewModel @Inject constructor(
 
     init {
         serviceController.attach(
-            scope = viewModelScope,
             onServicePauseChanged = { isPaused ->
                 if (_trackingState.value is TrackingState.Tracking || _trackingState.value is TrackingState.Paused) {
                     _trackingState.value = if (isPaused) TrackingState.Paused else TrackingState.Tracking
@@ -285,14 +284,25 @@ class TrackingViewModel @Inject constructor(
                 _trackingState.value = TrackingState.Saving
                 appOverlayRepository.showSplashOverlay("Guardando ruta…")
 
+                // Capturar datos del servicio ANTES de desvincularlo
+                val snapshot = serviceController.captureSessionSnapshot()
+
                 serviceController.stopTracking()
                 trackingStateManager.resetState()
 
-                val points = routePoints.value
+                val points = snapshot.points
                 val scooter = _selectedScooter.value ?: throw Exception("No hay vehículo seleccionado")
-                val capturedStartTime = startTime.value
-                val capturedTimeInMotion = timeInMotion.value
+                val capturedStartTime = snapshot.startTime
+                val capturedTimeInMotion = snapshot.timeInMotion
                 val endTime = System.currentTimeMillis()
+
+                if (points.size < 2) {
+                    Log.e(
+                        TAG,
+                        "⚠️ Pocos puntos GPS al guardar (${points.size}). " +
+                            "Distancia en vivo: ${snapshot.distance} km",
+                    )
+                }
 
                 serviceController.resetTrackingUI()
 
@@ -355,7 +365,10 @@ class TrackingViewModel @Inject constructor(
         weatherMonitoring.cancelWeatherJob()
         weatherMonitoring.cancelContinuousMonitoring()
         serviceController.stopPreLocationTracking()
-        serviceController.unbindIfBound()
+        // Mantener el binding al servicio GPS si la grabación sigue activa
+        if (!trackingStateManager.isTracking.value) {
+            serviceController.unbindIfBound()
+        }
     }
 
     companion object {

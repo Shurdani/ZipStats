@@ -434,7 +434,7 @@ private fun AchievementGridCard(
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     ZipStatsText(
-                        text = "${achievement.progress.toInt()}%",
+                        text = "${com.zipstats.app.utils.LocationUtils.formatNumberSpanish(achievement.progress, 0)}%",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )

@@ -19,7 +19,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import java.time.Instant
 import java.time.LocalDate
-import java.time.ZoneId
 import java.time.ZoneOffset
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -47,27 +46,17 @@ fun StandardDatePickerDialog(
         initialDisplayedMonthMillis = initialDateMillis,
         yearRange = IntRange(1900, 2100)
     )
-    
-    // Actualizar la fecha seleccionada cuando cambie en el picker
-    LaunchedEffect(datePickerState.selectedDateMillis) {
-        datePickerState.selectedDateMillis?.let { millis ->
-            val newDate = Instant.ofEpochMilli(millis)
-                .atZone(ZoneOffset.UTC)
-                .toLocalDate()
-            onDateSelected(newDate)
-        }
-    }
-    
+
     DatePickerDialog(
         onDismissRequest = onDismiss,
         confirmButton = {
             Button(
                 onClick = {
                     datePickerState.selectedDateMillis?.let { millis ->
-                        val selectedDate = Instant.ofEpochMilli(millis)
-                            .atZone(ZoneId.systemDefault())
+                        val confirmedDate = Instant.ofEpochMilli(millis)
+                            .atZone(ZoneOffset.UTC)
                             .toLocalDate()
-                        onDateSelected(selectedDate)
+                        onDateSelected(confirmedDate)
                     }
                     onDismiss()
                 },

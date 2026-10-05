@@ -1,7 +1,7 @@
 package com.zipstats.app.ui.repairs
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.matchParentSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -100,8 +101,8 @@ fun RepairsScreen(
     var showDeleteDialog by rememberSaveable { mutableStateOf(false) }
     
     // Estado del bottom sheet
-    val addSheetState = rememberModalBottomSheetState()
-    val editSheetState = rememberModalBottomSheetState()
+    val addSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val editSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     // Fecha actual por defecto
     val today = LocalDate.now()
@@ -272,7 +273,11 @@ fun RepairsScreen(
     // 1. BOTTOM SHEET AÑADIR REPARACIÓN
     if (showAddSheet) {
         ModalBottomSheet(
-            onDismissRequest = { showAddSheet = false },
+            onDismissRequest = {
+                if (!showDatePicker) {
+                    showAddSheet = false
+                }
+            },
             sheetState = addSheetState,
             dragHandle = { BottomSheetDefaults.DragHandle() }
         ) {
@@ -317,8 +322,10 @@ fun RepairsScreen(
     if (showEditSheet && selectedRepair != null) {
         ModalBottomSheet(
             onDismissRequest = {
-                showEditSheet = false
-                selectedRepair = null
+                if (!showDatePicker) {
+                    showEditSheet = false
+                    selectedRepair = null
+                }
             },
             sheetState = editSheetState,
             dragHandle = { BottomSheetDefaults.DragHandle() }
@@ -371,10 +378,7 @@ fun RepairsScreen(
     if (showDatePicker) {
         StandardDatePickerDialog(
             selectedDate = tempDate,
-            onDateSelected = {
-                tempDate = it
-                showDatePicker = false
-            },
+            onDateSelected = { tempDate = it },
             onDismiss = { showDatePicker = false },
             title = "Fecha de la reparación"
         )
@@ -437,19 +441,23 @@ fun AddRepairBottomSheet(
             fontWeight = FontWeight.Bold
         )
 
-        // Selector de Fecha
-        OutlinedTextField(
-            value = DateUtils.formatForDisplay(tempDate),
-            onValueChange = {},
-            label = { ZipStatsText("Fecha") },
-            readOnly = true,
-            trailingIcon = {
-                IconButton(onClick = onDatePickerClick) {
-                    Icon(Icons.Default.CalendarMonth, null)
-                }
-            },
-            modifier = Modifier.fillMaxWidth()
-        )
+        Box(modifier = Modifier.fillMaxWidth()) {
+            OutlinedTextField(
+                value = DateUtils.formatForDisplay(tempDate),
+                onValueChange = {},
+                label = { ZipStatsText("Fecha") },
+                readOnly = true,
+                trailingIcon = {
+                    Icon(Icons.Default.CalendarMonth, contentDescription = "Seleccionar fecha")
+                },
+                modifier = Modifier.fillMaxWidth()
+            )
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .clickable(onClick = onDatePickerClick)
+            )
+        }
 
         // Descripción
         OutlinedTextField(
@@ -545,19 +553,23 @@ fun EditRepairBottomSheet(
             fontWeight = FontWeight.Bold
         )
 
-        // Selector de Fecha
-        OutlinedTextField(
-            value = DateUtils.formatForDisplay(tempDate),
-            onValueChange = {},
-            label = { ZipStatsText("Fecha") },
-            readOnly = true,
-            trailingIcon = {
-                IconButton(onClick = onDatePickerClick) {
-                    Icon(Icons.Default.CalendarMonth, null)
-                }
-            },
-            modifier = Modifier.fillMaxWidth()
-        )
+        Box(modifier = Modifier.fillMaxWidth()) {
+            OutlinedTextField(
+                value = DateUtils.formatForDisplay(tempDate),
+                onValueChange = {},
+                label = { ZipStatsText("Fecha") },
+                readOnly = true,
+                trailingIcon = {
+                    Icon(Icons.Default.CalendarMonth, contentDescription = "Seleccionar fecha")
+                },
+                modifier = Modifier.fillMaxWidth()
+            )
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .clickable(onClick = onDatePickerClick)
+            )
+        }
 
         // Descripción
         OutlinedTextField(

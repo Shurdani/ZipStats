@@ -227,15 +227,5 @@ hilt {
     enableAggregatingTask = true
 }
 
-// Configuración de memoria para R8
-android.applicationVariants.all { variant ->
-    if (variant.buildType.name == "release") {
-        variant.mergeAssetsProvider.configure {
-            doLast {
-                // Configurar memoria para R8
-                System.setProperty("org.gradle.jvmargs", "-Xmx4g -XX:MaxMetaspaceSize=1g")
-            }
-        }
-    }
-}
+
 

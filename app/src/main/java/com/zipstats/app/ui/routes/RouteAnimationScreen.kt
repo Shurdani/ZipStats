@@ -31,9 +31,8 @@ import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilledTonalIconButton
-import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.TextButton
@@ -55,10 +54,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
-import com.zipstats.app.ui.components.ZipStatsText
 import androidx.compose.ui.zIndex
 import androidx.core.content.res.ResourcesCompat
 import androidx.core.graphics.drawable.toBitmap
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
 import com.hbisoft.hbrecorder.HBRecorder
 import com.hbisoft.hbrecorder.HBRecorderListener
 import com.mapbox.geojson.Feature
@@ -84,17 +84,15 @@ import com.mapbox.maps.plugin.gestures.gestures
 import com.mapbox.maps.plugin.logo.logo
 import com.mapbox.maps.plugin.scalebar.scalebar
 import com.mapbox.turf.TurfMeasurement
-import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.firestore.FirebaseFirestore
 import com.zipstats.app.R
 import com.zipstats.app.map.RouteAnimator
 import com.zipstats.app.model.Route
 import com.zipstats.app.model.VehicleType
 import com.zipstats.app.repository.VehicleRepository
 import com.zipstats.app.ui.components.HideSystemBarsEffect
-import com.zipstats.app.ui.components.RouteSummaryCard
-import com.zipstats.app.utils.CityUtils
 import com.zipstats.app.ui.components.RouteSummaryCardFromRoute
+import com.zipstats.app.ui.components.ZipStatsText
+import com.zipstats.app.utils.CityUtils
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -323,7 +321,9 @@ fun RouteAnimationDialog(
         // ✅ IMPORTANTE: Debe estar DENTRO del contenido del Dialog para detectar su ventana
         HideSystemBarsEffect()
         
-        Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
+        Box(modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black)) {
             // Medir altura de la card para padding dinámico de la cámara (no del mapa)
             var cardHeightPx by remember { mutableStateOf(0) }
             val density = LocalDensity.current

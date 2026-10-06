@@ -29,7 +29,6 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.outlined.Build
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.Button
@@ -85,6 +84,7 @@ import com.zipstats.app.ui.components.DialogTitleText
 import com.zipstats.app.ui.components.DialogDeleteButton
 import com.zipstats.app.ui.components.StandardDatePickerDialogWithValidation
 import com.zipstats.app.ui.components.ZipStatsText
+import com.zipstats.app.ui.repairs.getMaintenanceIcon
 import com.zipstats.app.ui.theme.DialogShape
 import com.zipstats.app.ui.theme.elevatedSurfaceColor
 import com.zipstats.app.utils.DateUtils
@@ -791,7 +791,7 @@ fun MaintenanceSection(
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector = Icons.Outlined.Build,
+                        imageVector = getMaintenanceIcon(lastRepair?.description.orEmpty()),
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.onTertiaryContainer
                     )

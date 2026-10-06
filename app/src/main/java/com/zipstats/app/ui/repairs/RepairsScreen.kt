@@ -24,8 +24,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.BuildCircle
 import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.Construction
+import androidx.compose.material.icons.filled.FlashOn
 import androidx.compose.material.icons.filled.Speed
+import androidx.compose.material.icons.filled.TireRepair
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.Button
@@ -57,7 +61,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -70,8 +74,8 @@ import com.zipstats.app.model.Scooter
 import com.zipstats.app.ui.components.AnimatedFloatingActionButton
 import com.zipstats.app.ui.components.DialogContentText
 import com.zipstats.app.ui.components.DialogDeleteButton
-import com.zipstats.app.ui.components.DialogTitleText
 import com.zipstats.app.ui.components.DialogNeutralButton
+import com.zipstats.app.ui.components.DialogTitleText
 import com.zipstats.app.ui.components.EmptyStateRepairs
 import com.zipstats.app.ui.components.StandardDatePickerDialog
 import com.zipstats.app.ui.components.ZipStatsText
@@ -415,6 +419,39 @@ fun RepairsScreen(
 // COMPONENTES UI
 // ============================================================
 
+/**
+ * Elige un icono según palabras clave de la descripción que escribe el usuario.
+ * No hay categorías en el modelo: si no encaja, se usa la llave inglesa.
+ */
+@Composable
+fun getMaintenanceIcon(title: String): ImageVector {
+    val lowerTitle = title.lowercase()
+    return when {
+        // Frenos
+        listOf("freno", "pastilla", "disco", "pinza").any { lowerTitle.contains(it) } -> {
+            Icons.Default.BuildCircle // O Icons.Default.Speed
+        }
+        
+        // Ruedas y Neumáticos
+        listOf("maciza", "pinchazo", "slime", "rueda", "neumatico", "neumático", "cubierta", "camara", "cámara", "llanta").any { lowerTitle.contains(it) } -> {
+            Icons.Default.TireRepair
+        }
+        
+        // Electrónica, Luces y Batería
+        listOf("luz", "faro", "led", "bateria", "batería", "cable", "electronica", "electrónica").any { lowerTitle.contains(it) } -> {
+            Icons.Default.FlashOn // O Icons.Default.Lightbulb si prefieres la bombilla
+        }
+        
+        // Estructura y Chasis
+        listOf("guardabarros", "soporte", "mastil", "mástil", "chasis", "pata", "manillar").any { lowerTitle.contains(it) } -> {
+            Icons.Default.Construction
+        }
+        
+        // Fallback genérico
+        else -> Icons.Default.Build
+    }
+}
+
 @Composable
 fun AddRepairBottomSheet(
     tempDate: LocalDate,
@@ -678,7 +715,7 @@ fun RepairItemCard(
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = Icons.Filled.Build,
+                    imageVector = getMaintenanceIcon(repair.description),
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.onTertiaryContainer,
                     modifier = Modifier.size(24.dp)
